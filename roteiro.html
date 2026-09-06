@@ -733,6 +733,16 @@
   primeira tabela é um defeito que estava mesmo no código.
 </p>
 
+<div class="nota">
+  <p><b>Teste no Quest, 06/09.</b> Puseram o capacete e <b>não aconteceu
+  nada — não havia cúpula.</b> A causa foi encontrada e é a primeira linha
+  da tabela: um defeito que <b>só existe em realidade mista</b> e que
+  nenhuma revisão no computador poderia mostrar, porque lá o fundo é opaco
+  e o canal que quebrou nem é usado.</p>
+  <p>É o achado mais importante do dia, e veio de pôr o capacete. Nenhuma
+  auditoria de código substitui isso.</p>
+</div>
+
 <h3 class="secao">
   Já corrigidos</h3>
 <p class="sub">
@@ -747,6 +757,15 @@
   <tbody>
     <tr><th>Atributos vazando entre programas</th>
         <td>Ligar um atributo no WebGL vale para sempre, não para o desenho. Com cinco ligados e o programa seguinte usando um, os quatro restantes seguiam apontando para outro buffer, com outra contagem de vértices — leitura fora do intervalo. <b>Em algumas placas sai geometria lixo; em outras o objeto some.</b></td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>O alfa elevado ao quadrado no headset</th>
+        <td><b>Era isto que apagava a obra no Quest.</b> A mistura tratava os quatro canais igual, então no alfa fazia <code>srcA × srcA</code> — e como o quadro do headset começa com <b>alfa zero</b> (é esse alfa que deixa a câmera aparecer), o resultado era o alfa <b>ao quadrado</b>. Uma cúpula a 30% compunha a 9%; uma nuvem a 15% compunha a 2%. <b>Tudo o que não fosse quase opaco sumia</b>, e sobrava a sala real. No computador não aparece, porque lá o fundo é opaco e só a cor conta — por isso passou por tantas revisões minhas.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>A obra começava sozinha</th>
+        <td>O relógio partia no instante em que a página abria. No headset isso quer dizer que <b>os primeiros minutos correm enquanto a pessoa ainda ajeita a tira na cabeça</b> e procura o botão — e quem entrava chegava no meio. Agora há um portão: nada anda até alguém mandar, e <i>Iniciar em RM</i> só zera o relógio quando a sessão realmente abre.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>Começar antes das imagens chegarem</th>
+        <td>São onze imagens embutidas, quase seis megabytes. No computador decodificam num piscar; no headset demoram. Começando antes, os primeiros segundos rodavam com <b>cor chapada no lugar da pintura</b> — e quem está dentro conclui que não funcionou. O botão agora só libera com as onze prontas, e uma que falhe aparece escrito.</td>
         <td><span class="selo ok">corrigido</span></td></tr>
     <tr><th>O reflexo não caía junto com o céu</th>
         <td>A cúpula não é opaca do teto ao chão: cai por um <code>smoothstep</code> e chega a zero antes do piso, para a sala real aparecer por baixo. <b>O reflexo na água lia a imagem crua, sem essa queda.</b> Dava contradição no mesmo quadro: olhando de raspão, em cima já se via a parede de verdade através do céu quase apagado, e na lâmina o mesmo pedaço de céu chegava inteiro. Perto do horizonte, no planeta rosa, a cúpula está em ~30% e a água estava em 100% — <b>refletindo uma coisa que ali não estava.</b></td>
@@ -809,6 +828,13 @@
 <h3 class="secao">
   O que ainda pode quebrar</h3>
 <p class="sub">Em ordem de gravidade. Os dois primeiros derrubam a obra.</p>
+
+<div class="nota">
+  <p><b>A lição do dia 06/09:</b> o passthrough é um ambiente diferente, não
+  uma janela para o mesmo. Ali o <b>alfa</b> deixa de ser um detalhe e passa
+  a ser o canal que decide se a obra existe. <b>Nada visto no computador
+  prova coisa alguma sobre o headset</b> — e o contrário também vale.</p>
+</div>
 
 <div class="rolagem">
 <table class="erros">
