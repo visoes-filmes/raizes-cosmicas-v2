@@ -1421,7 +1421,13 @@ cv.addEventListener('wheel', e=>{
 const paineis = ['head','hud','ctl','partitura'].map(i=>document.getElementById(i));
 const bUI = document.getElementById('bUI');
 function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v); }
-let uiAberta = false;
+/* ABERTA enquanto se constroi. Na obra montada isto volta a false e tudo
+   some — os paineis sao andaime de atelie, nao parte da peca. Mas quem esta
+   trabalhando precisa da regua para alcancar um cenario que so acontece aos
+   3:30, e abrir a pagina sem nenhum controle a vista faz parecer que nada
+   mudou. */
+let uiAberta = true;
+mostrarUI(true);
 bUI.onclick = ()=>{ uiAberta = !uiAberta; mostrarUI(uiAberta); };
 addEventListener('keydown', e=>{
   if(e.key === 'h' || e.key === 'H'){ uiAberta = !uiAberta; mostrarUI(uiAberta); }
