@@ -2354,7 +2354,8 @@ function alvosAgora(){
                     conduz, quem nao toca e conduzido, e os dois chegam ao
                     mesmo lugar. E a unica forma de interacao que nao quebra
                     os dez minutos nem cria dois caminhos para manter. */
-                 fazer(){ if(t < 163){ t = 163; tocouCasulo = 1; } } });
+                 fazer(){ if(t < 163){ t = 163; tocouCasulo = 1;
+                                        relato('TOCOU-O-CASULO'); } } });
   return lista;
 }
 
@@ -2378,6 +2379,10 @@ function lerMaos(frame){
     if(!alvo) continue;
     const p = alvo.transform.position;
     m.tem = true; m.x = p.x; m.y = p.y; m.z = p.z;
+    if(!m.contada){
+      m.contada = true;
+      relato('MAO-' + i + ' apareceu tipo=' + (fonte.hand ? 'mao-nua' : 'controle'));
+    }
   }
 }
 
@@ -2537,6 +2542,21 @@ const ANDAIME = false;
    Entao: a emergencia so existe DEPOIS que a obra comeca (ela e para
    interromper, e antes de comecar nao ha o que interromper), e o caminho
    "na tela" e ferramenta de quem trabalha no computador. */
+/* EM TESTE, O BOTAO NASCE COM FOCO.
+
+   A entrada em realidade mista exige gesto humano — nenhum navegador abre
+   sessao sem alguem ter tocado alguma coisa. Mas uma TECLA tambem e gesto,
+   e uma tecla pode ser enviada pelo cabo. Com o botao ja focado, um Enter
+   vindo do adb vale como toque, e da para testar a obra inteira no headset
+   sem alguem estar com ele na cabeca.
+
+   So em localhost: na obra publicada o foco nao muda nada e ninguem
+   esbarra nisso. */
+if(location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+  const b = document.getElementById('bIniciar');
+  if(b) setTimeout(()=>{ try{ b.focus(); }catch(e){} }, 400);
+}
+
 const eEmergencia = document.getElementById('emergencia');
 function mostrarEmergencia(v){ if(eEmergencia) eEmergencia.style.display = v ? 'flex' : 'none'; }
 mostrarEmergencia(false);
@@ -2658,6 +2678,7 @@ function iniciarObra(){
   bTocar.textContent = 'pausar';
   ePortao.classList.add('foi');
   mostrarEmergencia(true);
+  relato('A-OBRA-PARTIU');
   ultimoInstante = performance.now();   // o tempo parado nao conta como dt
 }
 
@@ -2713,6 +2734,24 @@ bIniciar.onclick = ()=>{
    do service worker, mesmo motivo. */
 const emTesteLocal = location.hostname === 'localhost' ||
                      location.hostname === '127.0.0.1';
+
+/* CONTAR O QUE ACONTECE, DE DENTRO DO HEADSET.
+
+   Dentro do capacete nao ha console, e a porta de depuracao do Quest cai
+   com facilidade. Mas a obra e servida por um servidor nosso -- entao ela
+   avisa o que esta acontecendo simplesmente PEDINDO um endereco. O pedido
+   aparece na linha de log do servidor, e isso basta: nao precisa de
+   ferramenta, nao precisa de permissao, nao ha o que configurar.
+
+   E um bilhete jogado pela janela. Feio, e funciona quando o resto nao.
+
+   So em localhost. Na obra publicada isto nao existe. */
+function relato(assunto){
+  if(!emTesteLocal) return;
+  try{ fetch('/_relato/' + encodeURIComponent(assunto), {cache:'no-store'}).catch(function(){}); }
+  catch(e){ /* um relato que falha nao pode atrapalhar a obra */ }
+}
+
 if(emTesteLocal){
   window.raizes = {
     ir(segundos){
@@ -2975,6 +3014,7 @@ async function entrarXR(aoEntrar){
         navigator.xr.requestSession('immersive-ar',
                                     { requiredFeatures: ['local-floor'] }), 6000);
     }catch(e2){
+      relato('RM-RECUSOU minimo=' + (e2 && e2.name) + ' completo=' + (e1 && e1.name));
       vXR.textContent='recusado'; vXR.className='no';
       if(ePortaoDica) ePortaoDica.textContent =
         'O headset recusou: ' + (e2 && (e2.name || e2.message) || 'motivo desconhecido') +
@@ -3025,6 +3065,7 @@ async function entrarXR(aoEntrar){
   }catch(e){ /* navegador sem a extensao: fica no padrao dele, e tudo bem */ }
   espaco = await sessao.requestReferenceSpace('local-floor');
   emXR = true;
+  relato('RM-ABRIU features=' + Array.from(sessao.enabledFeatures || []).join('+'));
   bXR.textContent = 'Sair da RM';
   vXR.textContent = 'em RM'; vXR.className = 'ok';
   sessao.addEventListener('end', ()=>{
