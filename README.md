@@ -8,6 +8,9 @@ headset — não precisa instalar nada.
 
 Visões Filmes · FIL 2026
 
+**No ar:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/>
+É esse o endereço que se digita no navegador do Quest 3.
+
 ---
 
 ## O que já roda
