@@ -55,6 +55,12 @@ mapa = {
     # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
     "__TEX_MARMORE__":  embutir(os.path.join(AQUI, "texturas/tex-marmore.png"),
                                 (512, 512), qualidade=86),
+    "__PELE_SOL__":       embutir(os.path.join(AQUI, "peles/pele-sol.jpg"),       (1024, 512), qualidade=86),
+    "__PELE_ROSA__":      embutir(os.path.join(AQUI, "peles/pele-rosa.jpg"),      (1024, 512), qualidade=86),
+    "__PELE_ASTEROIDE__": embutir(os.path.join(AQUI, "peles/pele-asteroide.jpg"), (1024, 512), qualidade=86),
+    "__PELE_VERDE__":     embutir(os.path.join(AQUI, "peles/pele-verde.jpg"),     (1024, 512), qualidade=86),
+    "__PELE_AGUA__":      embutir(os.path.join(AQUI, "peles/pele-agua.jpg"),      (1024, 512), qualidade=86),
+    "__PELE_FOGO__":      embutir(os.path.join(AQUI, "peles/pele-fogo.jpg"),      (1024, 512), qualidade=86),
     "__TEX_AGUA__":     embutir(os.path.join(AQUI, "texturas/tex-agua.png"),
                                 (512, 512), qualidade=86),
     "__TEX_PAPEL__":    embutir(os.path.join(AQUI, "tex-papel.png"),

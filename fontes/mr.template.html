@@ -1564,7 +1564,7 @@ subirPoeira(semearPoeira(53));
    Por isso o botao so libera quando as onze chegam. E se alguma falhar,
    isso APARECE: falha silenciosa num cenario escuro passa despercebida ate
    alguem reparar que esta faltando uma coisa, e ai ja e no dia. */
-const TEX_TOTAL = 11;
+const TEX_TOTAL = 17;
 let texProntas = 0, texFalhas = [];
 function relatarTex(){
   const e = document.getElementById('vTex');
@@ -1745,7 +1745,26 @@ const texRaiz = novaTex([80,75,120]);
 const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
 /* As peles dos planetas, recortadas da propria pintura e ja tratadas para
    repetir sem emenda nos dois eixos. Duas bastam: as cores as diferenciam. */
-const PELES = [novaTex([90,70,80]), novaTex([70,90,110])];
+/* AS PELES.
+
+   As duas primeiras vem da propria pintura da Odara e servem para agua e
+   marmore. As seis seguintes sao do Midjourney, uma para cada corpo, e
+   cada uma foi escolhida pela cor do corpo que ela veste — nao ao acaso.
+
+   Todas sao 1024x512: potencia de dois nos dois lados, que e o que o
+   mipmap exige, e a proporcao 2:1 que uma esfera pede. A emenda horizontal
+   foi fechada por sobreposicao; a vertical nao precisa, porque os polos
+   convergem para um ponto e o que sobra la e sempre uma media. */
+const PELES = [
+  novaTex([90,70,80]),    // 0  marmore da Odara
+  novaTex([70,90,110]),   // 1  agua da Odara
+  novaTex([120,80,60]),   // 2  o Sol      — coral saindo de um ponto
+  novaTex([150,90,110]),  // 3  planeta rosa — a nebulosa rosa
+  novaTex([80,70,110]),   // 4  asteroides — marmore violeta e coral
+  novaTex([70,110,90]),   // 5  planeta verde — samambaia magenta e ciano
+  novaTex([40,55,95]),    // 6  planeta agua — azul profundo com o olho
+  novaTex([120,50,25]),   // 7  planeta fogo — veias de lava
+];
 const texPapel = novaTex([20,18,30]);
 /* As quatro figuras recortadas. Vao com alfa, entao a textura e RGBA. */
 const FIGS = [novaTexAlfa(), novaTexAlfa(), novaTexAlfa(), novaTexAlfa()];
@@ -1756,6 +1775,12 @@ carregar(CEUS[1], '__CEU_COSMICO__', true);
 carregar(CEUS[2], '__CEU_ROSA__', true);
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
+carregar(PELES[2], '__PELE_SOL__');
+carregar(PELES[3], '__PELE_ROSA__');
+carregar(PELES[4], '__PELE_ASTEROIDE__');
+carregar(PELES[5], '__PELE_VERDE__');
+carregar(PELES[6], '__PELE_AGUA__');
+carregar(PELES[7], '__PELE_FOGO__');
 carregar(texPapel, '__TEX_PAPEL__');
 carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
 carregarAlfa(FIGS[1], '__FIG_DEUSA__');
@@ -2028,11 +2053,21 @@ const SOL = [0.55, 3.15, -1.05];
 /* Os quatro planetas do roteiro. O rosa e o unico que aceita entrada por
    enquanto, e por isso e o unico que NAO se afasta: a distancia e o
    convite, e o que esta ao alcance e o que responde. */
+/* A COR AGORA E QUASE BRANCA, DE PROPOSITO.
+
+   O shader multiplica a textura pela cor. Antes as peles eram duas, cinzentas, e a
+   cor e que dava identidade a cada planeta — um tingimento forte.
+
+   Agora cada planeta tem a propria pele, e ela ja chega colorida. Manter o
+   tingimento forte apagaria justamente o que se foi buscar: um rosa
+   saturado sobre a nebulosa rosa some com o azul e o dourado que ela tem
+   dentro. Entao a cor recua para perto do branco e fica so como um
+   sopro — o suficiente para o planeta ainda se reconhecer de longe. */
 const PLANETAS = [
-  { nome:'rosa',    cor:[1.00, 0.62, 0.74], raio:0.235, achatar:1.00, pele:0, interativo:true  },
-  { nome:'agua',    cor:[0.62, 0.86, 0.98], raio:0.205, achatar:0.94, pele:1, interativo:false },
-  { nome:'fogo',    cor:[1.00, 0.50, 0.30], raio:0.185, achatar:1.06, pele:0, interativo:false },
-  { nome:'verde',   cor:[0.66, 0.92, 0.72], raio:0.215, achatar:0.90, pele:1, interativo:false },
+  { nome:'rosa',    cor:[1.00, 0.90, 0.94], raio:0.235, achatar:1.00, pele:3, interativo:true  },
+  { nome:'agua',    cor:[0.88, 0.95, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false },
+  { nome:'fogo',    cor:[1.00, 0.88, 0.82], raio:0.185, achatar:1.06, pele:7, interativo:false },
+  { nome:'verde',   cor:[0.90, 1.00, 0.93], raio:0.215, achatar:0.90, pele:5, interativo:false },
 ];
 
 function rampa(a, b, x){
@@ -2869,7 +2904,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     // O SOL. Nao tem sombreado: ele e a fonte, entao brilha por si.
     if(pSol > 0.004){
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[2]);
       gl.uniform1i(locAst.pele, 5);
       gl.uniform3f(locAst.centro, SOL[0], SOL[1], SOL[2]);
       gl.uniform1f(locAst.raio, 0.42);
@@ -2972,7 +3007,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* OS ASTEROIDES, atravessando o cenario 2. */
     if(asteroidePres > 0.004){
       gl.depthMask(true);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[4]);
       gl.uniform1i(locAst.pele, 5);
       gl.uniform1f(locAst.brilho, 0.03);
       gl.uniform1f(locAst.presenca, asteroidePres);
@@ -2982,7 +3017,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locAst.raio, ast.raio);
         gl.uniform1f(locAst.giro, relogio * 0.35 + ast.giro);
         gl.uniform1f(locAst.achatar, 0.66);
-        gl.uniform3f(locAst.cor, 0.60, 0.58, 0.62);
+        gl.uniform3f(locAst.cor, 0.92, 0.90, 0.95);   // a pele ja tem cor
         gl.uniform3f(locAst.luzDe, SOL[0]-c[0], SOL[1]-c[1], SOL[2]-c[2]);
         gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       }
