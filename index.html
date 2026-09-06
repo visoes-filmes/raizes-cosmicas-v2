@@ -2323,6 +2323,79 @@ let crescimento = 1, sentidoPoeira = 1;
    entrou nela. */
 let aguaPresenca = 0;
 let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0;
+
+/* AS MAOS. Dois pontos no espaco, e cada um pode estar tocando alguma
+   coisa. Vale igual para a mao nua e para o controle Touch: o WebXR
+   entrega os dois pelo mesmo caminho, e a obra nao precisa saber qual e
+   qual. Num estande escuro isso decide o projeto — se a camera nao achar a
+   mao, o controle continua funcionando sem trocar uma linha.
+
+   Cada mao guarda quanto esta ACESA: um alvo nao acende de golpe, cresce e
+   apaga, senao o toque vira pisca-pisca. */
+const MAOS = [
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false },
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false },
+];
+
+/* Tocar o casulo e um acontecimento, nao um interruptor: a obra nao volta
+   atras depois dele. */
+let tocouCasulo = 0;
+
+/* O QUE PODE SER TOCADO, E QUANDO. Um alvo so existe na sua janela. O raio
+   e generoso de proposito: no ar, sem apoio, a mao nao acerta alvo
+   pequeno, e errar tres vezes ensina a pessoa que a obra nao responde. */
+function alvosAgora(){
+  const lista = [];
+  if(casuloPresenca > 0.3)
+    lista.push({ x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.28,
+                 /* O QUE O TOQUE FAZ: adianta a partitura ate a borboleta.
+                    Nao inventa um efeito paralelo -- faz acontecer AGORA o
+                    que aconteceria as 2:50 de qualquer jeito. Quem toca
+                    conduz, quem nao toca e conduzido, e os dois chegam ao
+                    mesmo lugar. E a unica forma de interacao que nao quebra
+                    os dez minutos nem cria dois caminhos para manter. */
+                 fazer(){ if(t < 163){ t = 163; tocouCasulo = 1; } } });
+  return lista;
+}
+
+/* LER AS MAOS DO QUADRO. Cada fonte tem a pose do PUNHO e a do RAIO. Para
+   tocar coisas ao alcance do braco, o punho e o certo — apontar so serve
+   para longe. Se a mao tiver esqueleto, usa-se a ponta do indicador, que e
+   onde a pessoa acredita que o toque acontece, e nao o centro da palma. */
+function lerMaos(frame){
+  const fontes = sessao.inputSources;
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i], fonte = fontes[i];
+    m.tem = false;
+    if(!fonte) continue;
+    let alvo = null;
+    if(fonte.hand && fonte.hand.get && frame.getJointPose){
+      const ponta = fonte.hand.get('index-finger-tip');
+      if(ponta) alvo = frame.getJointPose(ponta, espaco);
+    }
+    if(!alvo && fonte.gripSpace)      alvo = frame.getPose(fonte.gripSpace, espaco);
+    if(!alvo && fonte.targetRaySpace) alvo = frame.getPose(fonte.targetRaySpace, espaco);
+    if(!alvo) continue;
+    const p = alvo.transform.position;
+    m.tem = true; m.x = p.x; m.y = p.y; m.z = p.z;
+  }
+}
+
+/* O TOQUE. Encostar basta: nao ha gesto a aprender, e numa fila cada
+   instrucao a menos e um visitante a mais que entende sozinho. O gatilho
+   tambem vale, para quem estiver de controle. */
+function conferirToque(dt){
+  const alvos = alvosAgora();
+  for(const m of MAOS){
+    let perto = null;
+    if(m.tem) for(const a of alvos){
+      const dx = m.x-a.x, dy = m.y-a.y, dz = m.z-a.z;
+      if(dx*dx + dy*dy + dz*dz < a.raio*a.raio){ perto = a; break; }
+    }
+    m.aceso = Math.max(0, Math.min(1, m.aceso + (perto ? dt*4 : -dt*3)));
+    if(perto && (m.aceso > 0.6 || m.apertando)) perto.fazer();
+  }
+}
 let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0;
 let ceuA = 0, ceuB = 0;
 
@@ -2849,22 +2922,23 @@ async function entrarXR(aoEntrar){
 
      Entao: pede tudo; se recusarem, pede o minimo. Com local-floor a obra
      inteira funciona — o resto so acrescenta. */
-  /* SO O QUE FOI PROVADO NO APARELHO.
+  /* O PEDIDO RICO, COM REDE.
 
-     Medido no Quest 3 pelo DevTools do proprio headset: pedir
-         { requiredFeatures: ['local-floor'] }
-     resolve na hora, e o aparelho devolve local, viewer, webxr, local-floor.
-     Pedir junto plane-detection, anchors e hit-test PENDURA o pedido —
-     nao recusa, nao volta.
+     Medido no Quest 3 pelo DevTools do proprio headset: o pedido minimo
+     resolve na hora. Ja o dom-overlay PENDURA a promessa — nao recusa, nao
+     volta — e por isso ele nao entra aqui nunca mais.
 
-     E pendurar e pior do que recusar: nenhum catch pega, e a primeira
-     tentativa presa ainda atrapalha a segunda. Por isso a lista de
-     opcionais foi a zero.
+     Os outros voltam, porque sem pedir nao se recebe: sem hand-tracking na
+     lista, o WebXR nao entrega mao nenhuma, com ou sem luz na sala. Foi
+     isso que fez o teste de rastreamento parecer um problema de luz.
 
-     O que se perde: a deteccao de superficie, que hoje so alimenta um
-     contador no painel. As raizes nascem do chao do mesmo jeito, porque
-     quem da o chao e o local-floor, e esse continua aqui. */
-  const pedido = { requiredFeatures: ['local-floor'] };
+     A rede e o prazo logo abaixo: se esta lista pendurar ou for recusada,
+     em seis segundos se pede o minimo, e com local-floor a obra inteira
+     funciona. Pedir de mais nunca pode custar a obra. */
+  const pedido = {
+    requiredFeatures: ['local-floor'],
+    optionalFeatures: ['hand-tracking','plane-detection','anchors','hit-test']
+  };
 
   /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
 
@@ -2967,6 +3041,18 @@ async function entrarXR(aoEntrar){
     relatarTex();
     requestAnimationFrame(quadro);
   });
+  /* O GATILHO. Encostar ja basta, mas quem esta de controle espera que
+     apertar faca alguma coisa -- e esperar e nao acontecer e pior do que
+     nao poder. As duas formas levam ao mesmo lugar. */
+  sessao.addEventListener('selectstart', e=>{
+    const i = Array.prototype.indexOf.call(sessao.inputSources, e.inputSource);
+    if(MAOS[i]) MAOS[i].apertando = true;
+  });
+  sessao.addEventListener('selectend', e=>{
+    const i = Array.prototype.indexOf.call(sessao.inputSources, e.inputSource);
+    if(MAOS[i]) MAOS[i].apertando = false;
+  });
+
   sessao.requestAnimationFrame(quadroXR);
   /* Agora sim: a sessao esta aberta e o primeiro quadro do headset foi
      pedido. E aqui que a obra pode partir do zero. */
@@ -3327,6 +3413,42 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
     }
+    /* AS MAOS, E O SINAL DE QUE ALGO PODE SER TOCADO.
+
+       Duas bolinhas de luz, uma em cada mao. Nao sao maos desenhadas: sao
+       a ponta do gesto, e e so isso que a obra precisa mostrar. Uma mao
+       modelada num mundo de aquarela seria a unica coisa realista da
+       cena — e o realismo, aqui, denuncia tudo o que esta em volta.
+
+       Elas ACENDEM ao chegar perto do que pode ser tocado. Esse e o unico
+       ensino da obra: nao ha instrucao, nao ha legenda, so uma luz que
+       cresce quando a mao chega. O roteiro pedia "uma respiracao, um
+       brilho" — e um brilho que responde ao gesto ensina mais rapido do
+       que um que pulsa sozinho. */
+    for(const m of MAOS){
+      if(!m.tem) continue;
+      const brilhoMao = 0.30 + 0.75 * m.aceso;
+      gl.uniform3f(locAst.centro, m.x, m.y, m.z);
+      gl.uniform1f(locAst.giro, 0);
+      gl.uniform1f(locAst.achatar, 1.0);
+      gl.uniform3f(locAst.luzDe, 0, 1, 0);
+      gl.uniform1f(locAst.presenca, 1);
+      // do branco frio ao ambar quando esta em cima de um alvo
+      gl.uniform3f(locAst.cor, 1.0, 0.92 - 0.10*m.aceso, 0.85 - 0.35*m.aceso);
+      somarLuz();
+      gl.depthMask(false);
+      gl.uniform1f(locAst.halo, 1.0);
+      gl.uniform1f(locAst.raio, 0.022 + 0.030 * m.aceso);
+      gl.uniform1f(locAst.brilho, brilhoMao);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      // uma casca maior e fraca: o ar aceso em volta do dedo
+      gl.uniform1f(locAst.raio, 0.075 + 0.10 * m.aceso);
+      gl.uniform1f(locAst.brilho, brilhoMao * 0.35);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locAst.halo, 0.0);
+      sobrepor();
+    }
+
     /* O CASULO E O FIO. O fio e a mesma esfera esticada ate virar linha:
        raio minusculo e achatamento enorme. Nao vale a pena um programa so
        para desenhar um fio. */
@@ -3337,6 +3459,13 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.3);
       gl.uniform1f(locAst.brilho, 0.05);
       gl.uniform1f(locAst.halo, 0.0);   // o casulo e corpo, nao fonte
+      /* A RESPIRACAO DO CASULO. Enquanto ele pode ser tocado e ainda nao
+         foi, respira devagar. Depois do toque para: ja disse o que tinha a
+         dizer, e continuar chamando seria pedir de novo o que ja foi
+         dado. */
+      const chamando = tocouCasulo ? 0 : 1;
+      gl.uniform1f(locAst.brilho,
+                   0.05 + chamando * 0.10 * (0.5 + 0.5*Math.sin(relogio*1.7)));
       gl.uniform1f(locAst.presenca, casuloPresenca);
 
       const meio = (CASULO[1] + FIO_ALTO) * 0.5;
@@ -3723,7 +3852,9 @@ function quadroXR(t, frame){
   sessao.requestAnimationFrame(quadroXR);
   const pose = frame.getViewerPose(espaco);
   if(!pose) return;
+  lerMaos(frame);
   const dt = passo();
+  conferirToque(dt);
   relogio += dt;
   seguirPartitura(dt);
   contarQuadro();
