@@ -1871,8 +1871,8 @@ carregarAlfa(FIGS[3], '__FIG_BORBOLETA__');
    interage e conduzido — e ninguem trava a fila. */
 const MOMENTOS = [
   [   0, 1, 'a sala real; o ceu estrelado ja esta la'],
-  [  20, 1, 'as estrelas comecam a cair'],
-  [  60, 1, 'o nascimento: grama, cogumelo, a arvore'],
+  [   5, 1, 'as estrelas comecam a cair'],
+  [  15, 1, 'o nascimento: grama, cogumelo, a arvore'],
   [ 110, 1, 'JANELA — os cogumelos, o casulo'],
   [ 170, 1, 'a borboleta sobe e o mundo se desintegra'],
   [ 180, 2, 'as estrelas acendem, da mais distante ate o Sol'],
@@ -2321,14 +2321,14 @@ function seguirPartitura(dt){
   /* A QUEDA. Comeca aos 20 s, que e quando o roteiro diz que as estrelas
      comecam a cair, e se desfaz ate 1:10 — nesse ponto ja nao ha o que
      cair, porque o que caiu virou floresta. */
-  const caindo = rampa(18, 26, t) * (1 - rampa(64, 78, t));
+  const caindo = rampa(4, 12, t) * (1 - rampa(64, 78, t));
   sentidoPoeira = (c === 1) ? (1 - 2 * caindo) : 1;
 
   /* O NASCIMENTO. Entre 1:00 e 1:50, na ordem do roteiro: primeiro o
      rasteiro, depois o alto. Fora do cenario 1 as plantas nao existem, e
      deixa-las inteiras seria pior do que nao ter: apareceriam de repente
      no salto de um cenario para outro. */
-  crescimento = (c === 1) ? rampa(58, 112, t) : 0;
+  crescimento = (c === 1) ? rampa(15, 69, t) : 0;
 
   /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
   aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
@@ -2337,7 +2337,7 @@ function seguirPartitura(dt){
      borboleta sair dele. Os cogumelos vem antes da arvore, na ordem do
      roteiro: grama, cogumelo, arvore. */
   casuloPresenca  = (c === 1) ? rampa(96, 118, t) * (1 - rampa(166, 173, t)) : 0;
-  cogumeloCresce  = (c === 1) ? rampa(66, 100, t) * (1 - rampa(172, 180, t)) : 0;
+  cogumeloCresce  = (c === 1) ? rampa(23, 57, t) * (1 - rampa(172, 180, t)) : 0;
   asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
