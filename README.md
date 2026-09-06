@@ -11,6 +11,10 @@ Visões Filmes · FIL 2026
 **No ar:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/>
 É esse o endereço que se digita no navegador do Quest 3.
 
+**Roteiro de sala:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/roteiro.html>
+Os tempos, as regras, as decisões e as tabelas de erros. É o `roteiro.html`
+deste repositório — página única, abre em qualquer navegador, offline inclusive.
+
 ---
 
 ## O que já roda
