@@ -135,31 +135,38 @@
     .cena-cab .quando{margin-left:0;width:100%}
   }
 
-  /* ── navegação por painéis ──────────────────────────────────
-     O documento é consultado, não lido de ponta a ponta: quem abre
-     quer uma coisa. Um painel de cada vez, e a trilha à esquerda
-     diz sempre onde se está. */
-  .corpo{ display:grid; grid-template-columns:206px 1fr; gap:46px;
-          align-items:start; margin-top:38px; }
-  .trilho{ position:sticky; top:20px; display:flex; flex-direction:column;
-           gap:2px; }
-  .aba{ appearance:none; background:none; border:0; text-align:left;
-        cursor:pointer; font-family:var(--texto); color:var(--fraca);
-        padding:9px 12px 10px; border-left:2px solid var(--linha);
-        display:grid; gap:1px; position:relative;
-        transition:color .12s, border-color .12s; }
-  .aba b{ font-weight:600; font-size:15px; color:var(--tinta); }
-  .aba i{ font-style:normal; font-size:12px; line-height:1.35;
-          color:var(--fraca); padding-right:16px; }
-  .aba:hover{ border-left-color:var(--linha-forte); }
-  .aba:hover b{ color:var(--leite); }
-  .aba[aria-selected="true"]{ border-left-color:var(--c2); }
-  .aba[aria-selected="true"] b{ color:var(--leite); }
-  .aba[aria-selected="true"] i{ color:var(--tinta); }
-  .conta{ position:absolute; right:11px; top:10px; font-family:var(--mono);
-          font-style:normal; font-size:10px; letter-spacing:.06em;
-          color:var(--brasa); font-variant-numeric:tabular-nums; }
+  /* ── a barra das seções ─────────────────────────────────────
+     O documento é consultado, não lido de ponta a ponta: quem abre já
+     quer uma coisa. Por isso os botões são a PRIMEIRA coisa da página,
+     antes do título, e ficam grudados no topo enquanto se rola.
 
+     Uma barra horizontal em qualquer largura — não um trilho lateral que
+     vira barra só no celular. Este documento é lido num painel estreito
+     na maior parte do tempo, e uma coluna de 206 px ali comeria um quinto
+     da largura para dizer cinco palavras. */
+  .trilho{ position:sticky; top:0; z-index:20; display:flex;
+           gap:0; overflow-x:auto; scrollbar-width:none;
+           margin:0 -26px; padding:0 26px;
+           background:var(--fundo); border-bottom:1px solid var(--linha); }
+  .trilho::-webkit-scrollbar{ display:none; }
+  .aba{ appearance:none; background:none; border:0; text-align:left;
+        cursor:pointer; font-family:var(--texto); font-size:15px;
+        font-weight:600; color:var(--fraca); white-space:nowrap;
+        flex:0 0 auto; padding:13px 15px 11px;
+        border-bottom:2px solid transparent;
+        transition:color .12s, border-color .12s; }
+  .aba:first-child{ padding-left:0; }
+  .aba i{ display:none; }                 /* vira dica no repouso do mouse */
+  .aba:hover{ color:var(--leite); }
+  .aba[aria-selected="true"]{ color:var(--leite);
+                              border-bottom-color:var(--c2); }
+  /* O número em aberto anda junto do rótulo, não solto num canto. */
+  .conta{ font-style:normal; font-family:var(--mono); font-size:10px;
+          color:var(--brasa); margin-left:5px; vertical-align:2px;
+          font-variant-numeric:tabular-nums; }
+
+  header{ padding-top:44px; }
+  .corpo{ margin-top:30px; }
   .painel > h2:first-child{ margin-top:0; }
   .painel > h3.secao:first-child{ margin-top:0; }
   h3.secao{ font-family:var(--serifa); font-weight:400; font-size:23px;
@@ -171,6 +178,7 @@
   .filtro{ display:flex; align-items:center; gap:8px; flex-wrap:wrap;
            margin:0 0 26px; padding-bottom:16px;
            border-bottom:1px solid var(--linha); }
+  .filtro-conta{ order:9; }
   .filtro-rot{ font-family:var(--mono); font-size:10px; letter-spacing:.16em;
                text-transform:uppercase; color:var(--fraca);
                margin-right:2px; }
@@ -185,22 +193,35 @@
   .filtro-conta{ font-family:var(--mono); font-size:11px; color:var(--fraca);
                  margin-left:auto; font-variant-numeric:tabular-nums; }
 
-  @media (max-width:880px){
-    .corpo{ grid-template-columns:1fr; gap:24px; }
-    .trilho{ position:sticky; top:0; z-index:5; flex-direction:row;
-             gap:0; overflow-x:auto; margin:0 -26px; padding:0 26px;
-             background:var(--fundo); border-bottom:1px solid var(--linha); }
-    .aba{ border-left:0; border-bottom:2px solid transparent;
-          padding:12px 14px; flex:0 0 auto; }
-    .aba i, .conta{ display:none; }
-    .aba[aria-selected="true"]{ border-bottom-color:var(--c2); }
-  }
   @media (prefers-reduced-motion:reduce){
     *{ transition-duration:0.01ms !important; }
   }
 </style>
 
 <div class="folha">
+  <nav class="trilho" role="tablist" aria-label="Seções do roteiro">
+    <button class="aba" role="tab" aria-selected="true" aria-controls="p-tempos"
+            id="b-tempos" tabindex="0">
+      <b>Os tempos</b><i>o que acontece, minuto a minuto</i><em class="conta"></em>
+    </button>
+    <button class="aba" role="tab" aria-selected="false" aria-controls="p-regras"
+            id="b-regras" tabindex="-1">
+      <b>As regras</b><i>o que vale nos quatro cenários</i><em class="conta"></em>
+    </button>
+    <button class="aba" role="tab" aria-selected="false" aria-controls="p-decisoes"
+            id="b-decisoes" tabindex="-1">
+      <b>Decisões</b><i>fechado, aberto, guardado e as referências</i><em class="conta"></em>
+    </button>
+    <button class="aba" role="tab" aria-selected="false" aria-controls="p-erros"
+            id="b-erros" tabindex="-1">
+      <b>Erros</b><i>o que quebrou e o que pode quebrar</i><em class="conta"></em>
+    </button>
+    <button class="aba" role="tab" aria-selected="false" aria-controls="p-melhorias"
+            id="b-melhorias" tabindex="-1">
+      <b>Melhorias</b><i>o que faria a obra melhor</i><em class="conta"></em>
+    </button>
+  </nav>
+
 
 <header>
   <p class="olho">FIL 2026 · Quest 3 · versão de 06/09/2026</p>
@@ -231,28 +252,6 @@
 </header>
 
 <div class="corpo">
-  <nav class="trilho" role="tablist" aria-label="Seções do roteiro">
-    <button class="aba" role="tab" aria-selected="true" aria-controls="p-tempos"
-            id="b-tempos" tabindex="0">
-      <b>Os tempos</b><i>o que acontece, minuto a minuto</i><em class="conta"></em>
-    </button>
-    <button class="aba" role="tab" aria-selected="false" aria-controls="p-regras"
-            id="b-regras" tabindex="-1">
-      <b>As regras</b><i>o que vale nos quatro cenários</i><em class="conta"></em>
-    </button>
-    <button class="aba" role="tab" aria-selected="false" aria-controls="p-decisoes"
-            id="b-decisoes" tabindex="-1">
-      <b>Decisões</b><i>fechado, aberto, guardado e as referências</i><em class="conta"></em>
-    </button>
-    <button class="aba" role="tab" aria-selected="false" aria-controls="p-erros"
-            id="b-erros" tabindex="-1">
-      <b>Erros</b><i>o que quebrou e o que pode quebrar</i><em class="conta"></em>
-    </button>
-    <button class="aba" role="tab" aria-selected="false" aria-controls="p-melhorias"
-            id="b-melhorias" tabindex="-1">
-      <b>Melhorias</b><i>o que faria a obra melhor</i><em class="conta"></em>
-    </button>
-  </nav>
 
   <main>
 
@@ -989,9 +988,12 @@
     var alvo = document.getElementById(b.getAttribute("aria-controls"));
     var abertos = alvo.querySelectorAll("table.erros .selo:not(.ok)").length;
     if(abertos) b.querySelector(".conta").textContent = abertos;
+    // a descrição não cabe na barra, mas não se perde: vira dica
+    var dica = b.querySelector("i");
+    if(dica) b.title = dica.textContent;
   });
 
-  var modo = "tudo";
+  var modo = "tudo", primeira = true;
 
   /* O filtro trabalha so nas tabelas de estado — a partitura dos tempos
      nao tem estado nenhum e nao deve sumir. */
@@ -1027,7 +1029,15 @@
     });
     filtro.hidden = !document.getElementById("p-" + id).querySelector("table.erros .selo");
     if(location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
-    window.scrollTo(0, 0);
+    /* Ao trocar de seção, a página sobe até logo abaixo da barra — o
+       cabeçalho sai de cena e o conteúdo começa colado no topo. Na
+       primeira abertura não sobe nada: aí se quer ver o título. */
+    if(!primeira){
+      var trilho = document.querySelector(".trilho");
+      var corpo = document.querySelector(".corpo");
+      window.scrollTo(0, Math.max(0, corpo.offsetTop - trilho.offsetHeight - 12));
+    }
+    primeira = false;
     aplicar();
   }
 
