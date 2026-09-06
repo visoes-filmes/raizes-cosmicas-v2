@@ -801,7 +801,7 @@
         <td>O Quest se localiza por visão, e a <b>mão nua é a primeira coisa a falhar</b> com pouca luz. Toda a interação depende dela. <b>Teste de vinte minutos, sem programação:</b> montar 3 × 3 na luz pretendida, pôr o capacete, mexer as mãos por dois minutos.</td>
         <td><span class="selo grave">derruba</span></td></tr>
     <tr><th>Preenchimento de tela</th>
-        <td>A nuvem pinta a tela várias vezes, a água cobre metade da vista, e as camadas de papel são sete planos sobrepostos. No Quest são dois olhos e nove milhões de pixels. O alvo é <b>72</b>, que é a taxa do aparelho. Cair disso não faz mal a ninguém — o <i>timewarp</i> segura o mundo no lugar mesmo a 36 — mas <b>faz a animação andar aos trancos e deixa rastro em volta do que se move</b>. É o número que decide quanto ainda cabe.</td>
+        <td>A nuvem pinta a tela várias vezes, a água cobre metade da vista, e as camadas de papel são sete planos sobrepostos. No Quest são dois olhos e nove milhões de pixels. O alvo é <b>72</b>, pedido explicitamente ao aparelho. Cair disso não faz mal a ninguém — o <i>timewarp</i> segura o mundo no lugar mesmo a 36 — mas <b>faz a animação andar aos trancos e deixa rastro em volta do que se move</b>. É o número que decide quanto ainda cabe.</td>
         <td><span class="selo risco">medir</span></td></tr>
     <tr><th>Vídeo no headset</th>
         <td><b>Um vídeo por cenário, nunca dois ao mesmo tempo</b> — e os cenários são separados no tempo, então isso vem de graça. O decodificador do Quest aguenta isso sem esforço. O que sobra de risco não é o número: é o <b>instante da troca</b>. Vídeo criado na hora engasga; vídeo já carregado e pausado, só recebendo <i>play</i>, não.</td>
@@ -858,9 +858,19 @@
   rastreamento perder a sala</b>, o mundo desliza sozinho por baixo dos pés.
   Aí sim passa mal. Por isso a luz do estande decide mais do que qualquer
   otimização de código.</p>
-  <p>O medidor fica <b>laranja abaixo de 30</b> — não como aviso de saúde,
-  mas porque abaixo disso o <i>timewarp</i> já não disfarça: o rastro em
-  volta do que se move fica visível, e a obra deixa de parecer inteira.</p>
+  <p><b>Decidido: 72 é o alvo, e agora é pedido.</b> O Quest sabe rodar a 72,
+  90 e 120, e sem pedir nada o navegador escolhe. Se ele escolher 90, a obra
+  passa a ter <b>11 ms por quadro em vez de 13,9</b> — 25% a mais de trabalho
+  para uma peça que não ganha nada com isso: aqui ninguém corre, ninguém
+  mira, não há nada rápido o bastante para 90 mostrar e 72 esconder. Pedindo
+  72, esses 25% <b>viram folga</b>, que é exatamente o que falta para a nuvem,
+  a água e as sete camadas de papel.</p>
+  <p>O medidor passou a mostrar <b>o número contra o alvo</b> — <code>68 / 72</code>
+  em vez de <code>68 fps</code> — e fica laranja <b>abaixo de metade do alvo</b>.
+  Metade é a linha certa e não é arbitrária: abaixo dela o compositor mostra
+  o mesmo quadro duas vezes seguidas, o <i>timewarp</i> deixa de disfarçar, e o
+  que se move ganha rastro visível. É onde a obra deixa de parecer inteira —
+  não onde alguém passa mal.</p>
 </div>
 
 <div class="rolagem">
