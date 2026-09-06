@@ -1,0 +1,1447 @@
+<meta charset="utf-8">
+<title>Raízes Cósmicas em Realidade Mista</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#08060e; --panel:rgba(21,15,38,.9); --line:#2c2245;
+    --ink:#efe8f8; --ink-dim:#9f8fbe; --accent:#c9a8ff; --ember:#ff9d5c;
+    --ok:#7fd6a8;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--ground);color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,Segoe UI,Roboto,sans-serif;
+    overflow:hidden;
+  }
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+  #gl:active{cursor:grabbing;}
+
+  .card{
+    position:fixed;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;backdrop-filter:blur(10px);padding:12px 14px;
+  }
+  /* Os paineis são andaime de ateliê, não parte da obra: quem olha tem
+     que ver a cena, não os controles dela. Ficam guardados atrás de um
+     único botão, que é a menor coisa que ainda deixa você voltar a
+     mexer sem ter que reabrir a página. */
+  .oculto{display:none !important;}
+  /* Quadros por segundo, sempre à vista mas quase invisível. Serve pra
+     saber num relance se a máquina está dando conta — no computador e,
+     principalmente, dentro do Quest, onde não dá pra abrir console. */
+  #fps{
+    position:fixed;right:60px;bottom:16px;z-index:10;
+    font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+    font-size:11px;color:var(--ink-dim);opacity:.30;
+    font-variant-numeric:tabular-nums;pointer-events:none;
+    line-height:38px;
+  }
+  #fps.baixo{color:var(--ember);opacity:.85;}
+
+  #bUI{
+    position:fixed;right:16px;bottom:16px;z-index:10;
+    width:38px;height:38px;padding:0;border-radius:50%;
+    display:grid;place-items:center;
+    background:rgba(21,15,38,.55);border:1px solid rgba(44,34,69,.7);
+    color:var(--ink-dim);cursor:pointer;
+    backdrop-filter:blur(10px);opacity:.35;transition:opacity .2s,color .2s;
+  }
+  #bUI:hover{opacity:1;color:var(--ink);}
+  #bUI svg{width:17px;height:17px;display:block;}
+
+  #head{top:16px;left:16px;max-width:335px;}
+  #head h1{margin:0 0 5px;font-size:13px;font-weight:600;text-wrap:balance;}
+  #head p{margin:0;font-size:11.5px;line-height:1.55;color:var(--ink-dim);}
+  #head p + p{margin-top:7px;}
+
+  #hud{
+    top:16px;right:16px;
+    font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+    font-size:11px;color:var(--ink-dim);font-variant-numeric:tabular-nums;
+    display:grid;grid-template-columns:auto auto;gap:3px 12px;
+  }
+  #hud b{color:var(--ink);font-weight:500;text-align:right;}
+  #hud b.ok{color:var(--ok);}
+  #hud b.no{color:var(--ember);}
+
+  #ctl{
+    bottom:16px;left:50%;transform:translateX(-50%);
+    display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:center;
+    max-width:calc(100vw - 32px);
+  }
+  button{
+    background:#241a3d;color:var(--ink);border:1px solid var(--line);
+    border-radius:7px;padding:8px 13px;font-size:12px;font-weight:500;
+    cursor:pointer;font-family:inherit;
+  }
+  button:hover{background:#2f2350;border-color:#3d3060;}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  button.on{background:var(--accent);color:#1c1030;border-color:var(--accent);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button#bXR{background:var(--accent);color:#1c1030;border-color:var(--accent);font-weight:600;}
+  button#bXR:disabled{background:#241a3d;color:var(--ink-dim);border-color:var(--line);}
+
+  .campo{
+    display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-dim);
+    padding:0 4px 0 8px;border-left:1px solid var(--line);
+  }
+  .campo b{
+    font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:500;
+    font-variant-numeric:tabular-nums;min-width:38px;
+  }
+  input[type=range]{width:84px;accent-color:var(--accent);}
+  input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+  code{
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+    background:rgba(201,168,255,.12);padding:1px 4px;border-radius:3px;
+  }
+</style>
+
+<canvas id="gl"></canvas>
+
+<div class="card oculto" id="head">
+  <h1>Raízes Cósmicas em realidade mista</h1>
+  <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
+  pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
+  <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
+  com as raízes plantadas no chão de verdade.</p>
+  <p id="dica">No computador o cinza faz as vezes da sua sala. Abrindo esta
+  mesma página no navegador do Quest 3, o botão <b>Entrar em RM</b> troca o
+  cinza pela sua sala de verdade, vista pelas câmeras.</p>
+</div>
+
+<div class="card oculto" id="hud">
+  <span>giro</span><b id="vYaw">0°</b>
+  <span>raízes</span><b id="vRaiz">–</b>
+  <span>triângulos</span><b id="vTri">–</b>
+  <span>WebXR</span><b id="vXR">…</b>
+  <span>superfícies</span><b id="vPlanos">–</b>
+</div>
+
+<div class="card oculto" id="ctl">
+  <button id="bXR" disabled>Entrar em RM</button>
+  <button id="bSala">Sala visível</button>
+  <button id="bRaizes">Raízes ligadas</button>
+  <button id="bFiguras">Nuvem ligada</button>
+  <button id="bPoeira">Poeira ligada</button>
+  <button id="bSom">Som ligado</button>
+  <button id="bSemente">semear</button>
+  <label class="campo">tinta
+    <input id="sTinta" type="range" min="0" max="100" value="85">
+    <b id="vTinta">85%</b>
+  </label>
+  <label class="campo">começa a sumir
+    <input id="sIni" type="range" min="0" max="90" value="10">
+    <b id="vIni">0,3 m</b>
+  </label>
+  <label class="campo">já cheio
+    <input id="sFim" type="range" min="10" max="100" value="80">
+    <b id="vFim">2,4 m</b>
+  </label>
+  <label class="campo">nuvem
+    <input id="sPres" type="range" min="0" max="100" value="55">
+    <b id="vPres">55%</b>
+  </label>
+  <label class="campo">tinta gerada
+    <input id="sMar" type="range" min="0" max="100" value="80">
+    <b id="vMar">80%</b>
+  </label>
+  <label class="campo">leite
+    <input id="sLei" type="range" min="0" max="100" value="32">
+    <b id="vLei">32%</b>
+  </label>
+  <label class="campo">poeira
+    <input id="sPo" type="range" min="0" max="3000" step="100" value="1800">
+    <b id="vPo">1.800</b>
+  </label>
+  <label class="campo">volume
+    <input id="sVol" type="range" min="0" max="100" value="8">
+    <b id="vVol">8%</b>
+  </label>
+  <label class="campo">sopro
+    <input id="sSopro" type="range" min="0" max="200" value="100">
+    <b id="vSopro">100%</b>
+  </label>
+</div>
+
+<!-- A trilha. Já vem cortada para fechar em laço: as duas pontas mortas
+     do arquivo original (2,5 s de entrada e 5 s de saída) foram removidas e
+     o fim atravessa o começo num cruzamento de 5 s. Por isso "loop" basta —
+     sem isso, cada volta teria um buraco de silêncio. -->
+<audio id="trilha" loop preload="auto" src="__TRILHA__"></audio>
+
+<div id="fps">—</div>
+<button id="bUI" title="controles (H)" aria-label="controles">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round">
+    <path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h12M20 17h0"/>
+    <circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/>
+    <circle cx="18" cy="17" r="2"/>
+  </svg>
+</button>
+
+<script>
+(function(){
+"use strict";
+const cv = document.getElementById('gl');
+const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
+                                   xrCompatible:true});
+if(!gl){ document.body.innerHTML='<p style="padding:24px">WebGL indisponível.</p>'; return; }
+
+/* ═══════════ medidas reais da sala (rider) ═══════════ */
+const LARG = 4.00, PROF = 4.70, ALTURA = 3.00, OLHO = 1.60;
+
+/* ═══════════ matrizes ═══════════ */
+function perspectiva(fov, asp, perto, longe){
+  const f = 1/Math.tan(fov/2);
+  return [f/asp,0,0,0, 0,f,0,0, 0,0,(longe+perto)/(perto-longe),-1,
+          0,0,2*longe*perto/(perto-longe),0];
+}
+function multiplicar(a,b){
+  const o = new Array(16).fill(0);
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){
+    let s=0; for(let k=0;k<4;k++) s += a[k*4+j]*b[i*4+k];
+    o[i*4+j]=s;
+  }
+  return o;
+}
+function visaoOrbita(yaw, pitch, alturaOlho){
+  const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
+  const r = [ cy, sy*sp, sy*cp,  0, cp, -sp,  -sy, cy*sp, cy*cp ];
+  // rotação transposta (WebGL lê por coluna) + translação do olho
+  const m = [ r[0],r[1],r[2],0,  r[3],r[4],r[5],0,  r[6],r[7],r[8],0,  0,0,0,1 ];
+  m[12] = -(r[0]*0 + r[3]*alturaOlho + r[6]*0);
+  m[13] = -(r[1]*0 + r[4]*alturaOlho + r[7]*0);
+  m[14] = -(r[2]*0 + r[5]*alturaOlho + r[8]*0);
+  return m;
+}
+
+/* ═══════════ geração das raízes ═══════════ */
+function prng(s){
+  return function(){
+    s|=0; s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s>>>15, 1|s);
+    t = t + Math.imul(t ^ t>>>7, 61|t) ^ t;
+    return ((t ^ t>>>14)>>>0) / 4294967296;
+  };
+}
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const cruz=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm=v=>{const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l];};
+
+const LADOS = 7, SEG = 6, MAXP = 4;
+
+function gerarPlanta(rnd, base, escala, fase, s){
+  function esqueleto(origem, dir, comp, prof){
+    const no = {origem, dir, comp, prof, filhos:[], raio:0};
+    if(prof>=MAXP || comp<0.10){ no.raio = 0.014*escala; no.ponta=true; return no; }
+    const grav = 0.26*(prof/MAXP);
+    const pontos=[origem.slice()], dirs=[];
+    let d=dir.slice(), p=origem.slice();
+    for(let i=0;i<SEG;i++){
+      d = norm([ d[0]+(rnd()-0.5)*0.22,
+                 d[1]-grav*0.14+(rnd()-0.5)*0.05,
+                 d[2]+(rnd()-0.5)*0.22 ]);
+      p = [p[0]+d[0]*comp/SEG, p[1]+d[1]*comp/SEG, p[2]+d[2]*comp/SEG];
+      pontos.push(p.slice()); dirs.push(d.slice());
+    }
+    no.pontos=pontos; no.dirs=dirs;
+    const n = prof===0 ? 2 : (rnd()<0.72 ? 2 : (rnd()<0.5 ? 1 : 3));
+    const dF = dirs[dirs.length-1];
+    for(let b=0;b<n;b++){
+      const ang = (20+rnd()*25)*Math.PI/180;
+      const lado = norm(cruz(dF, [rnd()-0.5, rnd()-0.5, rnd()-0.5]));
+      const giro = (b/Math.max(n-1,1)-0.5)*2;
+      const nd = norm([ dF[0]+lado[0]*Math.sin(ang)*giro*1.05,
+                        dF[1]+Math.sin(ang)*0.55,
+                        dF[2]+lado[2]*Math.sin(ang)*giro*1.05 ]);
+      no.filhos.push(esqueleto(p, nd, comp*(0.62+rnd()*0.14), prof+1));
+    }
+    return no;
+  }
+  function espessura(no){
+    if(no.ponta) return no.raio;
+    let soma=0;
+    for(const f of no.filhos) soma += Math.pow(espessura(f),2);
+    no.raio = Math.max(Math.sqrt(soma), 0.014*escala);
+    return no.raio;
+  }
+  function emitir(no){
+    if(no.ponta) return;
+    const r0=no.raio, r1 = no.filhos.length ? no.filhos[0].raio*1.1 : r0*0.4;
+    const base0 = s.pos.length/3;
+    let corrido = 0;
+    for(let i=0;i<no.pontos.length;i++){
+      const t = i/(no.pontos.length-1);
+      const raio = r0 + (r1-r0)*t;
+      const d = no.dirs[Math.min(i, no.dirs.length-1)];
+      const up = Math.abs(d[1])>0.9 ? [1,0,0] : [0,1,0];
+      const bx = norm(cruz(d, up)), nz = norm(cruz(bx, d));
+      if(i>0) corrido += Math.hypot(...sub(no.pontos[i], no.pontos[i-1]));
+      for(let k=0;k<=LADOS;k++){
+        const a = k/LADOS*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+        const nr = [bx[0]*ca+nz[0]*sa, bx[1]*ca+nz[1]*sa, bx[2]*ca+nz[2]*sa];
+        s.pos.push(no.pontos[i][0]+nr[0]*raio, no.pontos[i][1]+nr[1]*raio,
+                   no.pontos[i][2]+nr[2]*raio);
+        s.nor.push(nr[0],nr[1],nr[2]);
+        s.uv.push(k/LADOS, corrido*1.1);
+        s.alt.push(Math.min(1,(no.prof+t)/MAXP));
+        s.fase.push(fase);
+      }
+    }
+    const anel = LADOS+1;
+    for(let i=0;i<no.pontos.length-1;i++)
+      for(let k=0;k<LADOS;k++){
+        const a=base0+i*anel+k, b=a+1, c=a+anel, e=c+1;
+        s.idx.push(a,c,b, b,c,e);
+      }
+    for(const f of no.filhos) emitir(f);
+  }
+  const tronco = esqueleto(base, norm([(rnd()-0.5)*0.3,1,(rnd()-0.5)*0.3]), 0.62*escala, 0);
+  espessura(tronco); emitir(tronco);
+}
+
+let totalRaizes = 0;
+function semearMata(semente){
+  const rnd = prng(semente);
+  const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
+  const N = 11;
+  totalRaizes = N;
+  for(let i=0;i<N;i++){
+    // encostadas nas bordas da sala, deixando o centro livre pra pessoa andar
+    const t = i/N * Math.PI*2 + (rnd()-0.5)*0.4;
+    const rx = (LARG/2 - 0.35) * (0.75 + rnd()*0.25);
+    const rz = (PROF/2 - 0.35) * (0.75 + rnd()*0.25);
+    const base = [Math.sin(t)*rx, 0, -Math.cos(t)*rz];
+    // Escala contida: o galho inicial mede 0.62*escala e a planta inteira
+    // dá umas 3 vezes isso. Acima de 1.5 ela fura o pé-direito de 3 m.
+    gerarPlanta(rnd, base, 0.85 + rnd()*0.65, rnd()*Math.PI*2, s);
+  }
+  return s;
+}
+
+/* ═══════════ geometria da sala ═══════════ */
+function quad(s, p0,p1,p2,p3, repU, repV, tipo){
+  const b = s.pos.length/3;
+  const u = sub(p1,p0), v = sub(p3,p0);
+  const n = norm(cruz(u,v));
+  const cantos = [p0,p1,p2,p3];
+  const uvs = [[0,0],[repU,0],[repU,repV],[0,repV]];
+  for(let i=0;i<4;i++){
+    s.pos.push(...cantos[i]);
+    s.nor.push(...n);
+    s.uv.push(...uvs[i]);
+    s.tipo.push(tipo);          // 0 = chão, 1 = parede, 2 = teto
+  }
+  s.idx.push(b,b+1,b+2, b,b+2,b+3);
+}
+function montarSala(){
+  const s = {pos:[],nor:[],uv:[],tipo:[],idx:[]};
+  const x = LARG/2, z = PROF/2, h = ALTURA;
+  // chão
+  quad(s, [-x,0,-z],[x,0,-z],[x,0,z],[-x,0,z], LARG/1.2, PROF/1.2, 0);
+  // quatro paredes, olhando pra dentro
+  quad(s, [-x,0,-z],[-x,h,-z],[x,h,-z],[x,0,-z], LARG/1.2, h/1.2, 1);
+  quad(s, [x,0,z],[x,h,z],[-x,h,z],[-x,0,z], LARG/1.2, h/1.2, 1);
+  quad(s, [-x,0,z],[-x,h,z],[-x,h,-z],[-x,0,-z], PROF/1.2, h/1.2, 1);
+  quad(s, [x,0,-z],[x,h,-z],[x,h,z],[x,0,z], PROF/1.2, h/1.2, 1);
+  // teto
+  quad(s, [-x,h,z],[x,h,z],[x,h,-z],[-x,h,-z], LARG/1.2, PROF/1.2, 2);
+  return s;
+}
+
+/* ═══════════ shaders ═══════════ */
+const VS_RAIZ = `
+attribute vec3 aPos, aNor; attribute vec2 aUV; attribute float aAlt, aFase;
+uniform mat4 mvp; uniform float tempo;
+varying vec2 vUV; varying float vLuz, vAlt;
+void main(){
+  vec3 p = aPos;
+  // balanço pelo QUADRADO da altura: ponta fina oscila, base grossa não
+  float b = aAlt*aAlt;
+  float w = tempo*0.55 + aFase;
+  p.x += sin(w)*0.055*b;
+  p.z += cos(w*0.83+1.3)*0.045*b;
+  vLuz = 0.44 + 0.56*max(dot(normalize(aNor), normalize(vec3(0.3,0.9,0.3))), 0.0);
+  vUV = aUV; vAlt = aAlt;
+  gl_Position = mvp * vec4(p,1.0);
+}`;
+const FS_RAIZ = `
+precision highp float;
+uniform sampler2D tex;
+varying vec2 vUV; varying float vLuz, vAlt;
+void main(){
+  vec3 c = texture2D(tex, vUV).rgb * vLuz;
+  c += c * vAlt * 0.30;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+const VS_SALA = `
+attribute vec3 aPos, aNor; attribute vec2 aUV; attribute float aTipo;
+uniform mat4 mvp;
+varying vec3 vPos;
+void main(){
+  vPos = aPos;                 // posição no mundo, pra projetar a obra
+  gl_Position = mvp * vec4(aPos,1.0);
+}`;
+const FS_SALA = `
+precision highp float;
+uniform sampler2D panorama;
+uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
+varying vec3 vPos;
+const float PI = 3.14159265359;
+void main(){
+  // PROJEÇÃO, não repetição. Cada ponto da sala olha pro centro e lê a
+  // direção; essa direção vira a coordenada no panorama. É a mesma conta
+  // da esfera, só que a superfície agora é a sala.
+  //
+  // SEM SOMBREAMENTO POR FACE, de propósito. Se eu escurecesse o teto ou
+  // desse luz de cima, o olho reconstruiria a caixa na hora. Sem isso,
+  // uma sala e uma esfera são indistinguíveis pra quem está no centro.
+  vec3 dir = normalize(vPos - vec3(0.0, olho, 0.0));
+  float lon = atan(dir.x, -dir.z);
+  float lat = asin(clamp(dir.y, -1.0, 1.0));
+  vec2 st = vec2(fract(lon/(2.0*PI) + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
+
+  vec3 arte = texture2D(panorama, st).rgb;
+  arte *= 1.0 + 0.05 * sin(tempo*0.5 + lon*2.0);
+
+  // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
+  // Uso smoothstep e não uma rampa reta justamente pra não ter serrilhado:
+  // a rampa reta tem quina no começo e no fim do trecho, e a quina é o
+  // que o olho lê como listra. O smoothstep chega e sai com inclinação
+  // zero, então a passagem não tem onde "engatar".
+  float h = clamp(vPos.y / altura, 0.0, 1.0);
+  float grad = smoothstep(inicio, fim, h);
+  float a = tinta * grad;
+
+  if(passthrough > 0.5){
+    // No headset: onde a arte sumiu, não desenho nada — a câmera aparece
+    // e a pessoa vê a própria sala. O descarte é só aqui; no computador
+    // ele deixaria um buraco preto em vez de simular a sala real.
+    if(a < 0.004) discard;
+    gl_FragColor = vec4(arte, a);
+  } else {
+    // No computador o cinza neutro faz as vezes da sala real.
+    gl_FragColor = vec4(mix(vec3(0.105,0.10,0.12), arte, a), 1.0);
+  }
+}`;
+
+/* ═══════════ poeira cósmica ═══════════
+   O oposto do véu: nada de padrão por pixel. Cada grão é um ponto de
+   poucos pixels com um borrão macio dentro — o desenho todo é uma
+   distância ao centro. Não tem o que serrilhar nem o que amostrar de
+   raspão, então o defeito que sujava o véu simplesmente não existe aqui.
+   A cor de cada grão já vem decidida da CPU, num atributo. */
+const VS_PO = `
+attribute vec3 aPos;     // x,z = onde a coluna fica; y = altura da coluna
+attribute vec3 aCor;
+attribute vec2 aDado;    // .x = fase própria, .y = tamanho em metros
+uniform mat4 mvp;
+uniform float tempo, escalaPonto, sopro;
+varying vec3 vCor;
+varying float vBrilho;
+void main(){
+  float fase = aDado.x;
+
+  // A subida é um dente de serra: o grão atravessa a coluna e reaparece
+  // embaixo. O salto não aparece porque ele já entrou apagado e sai
+  // apagado — o desvanecimento nas duas pontas esconde a emenda, e a
+  // animação fecha em laço sem precisar de período comum nenhum.
+  float sobe = fract(fase + tempo * 0.014);
+  float y = aPos.y * sobe;
+
+  // Deriva: senos em torno da posição de repouso, sem termo que cresça.
+  // Poeira não vai a lugar nenhum, ela roda no lugar.
+  float w = tempo * 0.09 + fase * 6.283;
+  vec3 pos = vec3(
+    aPos.x + (sin(w + aPos.z*1.7) * 0.20 + sin(w*0.43 + y*1.1) * 0.11) * sopro,
+    y      + (sin(w*0.71 + aPos.x*1.3) * 0.13) * sopro,
+    aPos.z + (sin(w*0.89 + aPos.x*1.5) * 0.18 + sin(w*0.37 + y*0.9) * 0.09) * sopro
+  );
+
+  vec4 clip = mvp * vec4(pos, 1.0);
+  gl_Position = clip;
+
+  // Ponto que encolhe com a distância, como qualquer coisa de tamanho
+  // fixo. Sem isso o grão longe fica do mesmo tamanho do perto e a
+  // profundidade some. O teto de 24 px protege o preenchimento: grão
+  // grande demais deixa de ser poeira e vira bolha.
+  gl_PointSize = clamp(aDado.y * escalaPonto / max(clip.w, 0.05), 1.0, 24.0);
+
+  // Acende e apaga nas pontas da coluna, e cintila devagar.
+  float pontas = smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe);
+  vBrilho = pontas * (0.55 + 0.45 * sin(w * 2.1 + fase * 19.0));
+  vCor = aCor;
+}`;
+const FS_PO = `
+precision mediump float;
+varying vec3 vCor;
+varying float vBrilho;
+void main(){
+  // Um disco macio, e só. Duas contas por pixel.
+  vec2 d = gl_PointCoord - 0.5;
+  float r2 = dot(d, d);
+  if(r2 > 0.25) discard;
+  float a = smoothstep(0.25, 0.0, r2);
+  a *= a;                                   // borda ainda mais desfeita
+  gl_FragColor = vec4(vCor * vBrilho, a * vBrilho);
+}`;
+
+/* ═══════════ a bandeja assada ═══════════
+   A marmorização é resolvida UMA vez por quadro, num quadro pequeno com
+   quatro variações em dois por dois. Os maços de nuvem só consultam esta
+   tabela. Antes, cada camada que cobria a tela mandava recalcular gotas,
+   veios, vórtices e rastelos em cada pixel — era isso o peso. */
+const FS_ASSA = `
+precision highp float;
+uniform float tempo, marmore, leitoso;
+varying vec2 vAtlas;
+
+
+// ── OPERADORES DE MARMORIZAÇÃO ──
+// Os três gestos do ebru escritos como fórmula fechada. Não é ruído
+// genérico: cada um é um movimento que se faz na bandeja de água, e a
+// matemática deles é exata (Lu, Jaffer e outros descreveram assim).
+//
+// Aqui eles vão INVERTIDOS, porque não estou empurrando tinta: estou
+// decidindo de onde ler a cor. Ler ao contrário do gesto dá o gesto.
+
+// GOTA: a tinta caindo. Empurra tudo o que já estava lá radialmente pra
+// fora, e o miolo vira um disco de cor sólida. É o operador que cria os
+// anéis concêntricos, e é o único que age de golpe.
+vec2 gota(vec2 p, vec2 centro, float raio){
+  vec2 d = p - centro;
+  float r2 = max(dot(d, d), 1e-6);
+  float k = max(1.0 - (raio*raio) / r2, 0.0);
+  // O miolo precisa de um piso, senão colapsa num ponto e vira disco
+  // chapado. Mas um piso seco (max) cria uma QUINA no raio exato da gota,
+  // e quina o olho lê como círculo desenhado. Entro no piso por smoothstep
+  // pra a passagem não ter onde engatar.
+  float fator = mix(0.21, sqrt(k), smoothstep(0.0, 0.30, k));
+  return centro + d * fator;
+}
+
+// VÓRTICE: o estilete girando num ponto. Força que decai pela distância —
+// perto roda muito, longe quase nada. Faz o laço da tinta.
+vec2 vortice(vec2 p, vec2 centro, float forca, float alcance){
+  vec2 d = p - centro;
+  float ang = forca * exp(-length(d) / alcance);
+  float s = sin(ang), c = cos(ang);
+  return centro + vec2(d.x*c - d.y*s, d.x*s + d.y*c);
+}
+
+
+// ── A TINTA GERADA ──
+// Não é imagem: é uma função. Dado um ponto, devolve que cor está ali.
+// As gotas se empilham na ordem em que caíram, e entre elas corre um veio
+// que os gestos depois esticam em filamento.
+float hash21(vec2 p){
+  // A entrada é reduzida para [0,1) ANTES de qualquer multiplicação
+  // grande. A versão anterior fazia fract() de produtos na casa dos
+  // milhares, e float simples não guarda casas decimais suficientes
+  // ali: o resultado parava de ser aleatório e virava degrau. Era essa
+  // a origem do chuvisco em blocos.
+  p = fract(p * 0.3183099 + vec2(0.71, 0.113));
+  p *= 17.0;
+  return fract(p.x * p.y * (p.x + p.y));
+}
+float ruido(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i), hash21(i+vec2(1,0)), f.x),
+             mix(hash21(i+vec2(0,1)), hash21(i+vec2(1,1)), f.x), f.y);
+}
+float veio(vec2 p){
+  // Três oitavas. A terceira é o filamento fino que corre dentro do
+  // campo de cor — sem ela o veio fica liso e a marmorização perde o fio.
+  float v = 0.0, a = 0.5;
+  for(int i=0;i<3;i++){ v += a*ruido(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+
+const vec3 LEITE   = vec3(0.902, 0.918, 0.965);
+const vec3 INDIGO  = vec3(0.180, 0.235, 0.510);
+const vec3 VIOLETA = vec3(0.463, 0.333, 0.678);
+const vec3 AZUL    = vec3(0.290, 0.522, 0.800);
+const vec3 BRASA   = vec3(0.870, 0.545, 0.275);
+
+vec3 daPaleta(float x){
+  // o leite entra pouco: ele é o veio e o acabamento, não a massa.
+  // Muito leite na paleta e a figura inteira lava.
+  if(x < 0.30) return INDIGO;
+  if(x < 0.55) return VIOLETA;
+  if(x < 0.78) return AZUL;
+  if(x < 0.90) return BRASA;
+  return LEITE;
+}
+vec3 pingar(vec3 base, vec2 p, vec2 centro, float raio, vec3 cor, float borda){
+  return mix(cor, base, smoothstep(raio - borda, raio + borda, length(p - centro)));
+}
+
+vec3 bandeja(vec2 p, float chave){
+  // base clara de propósito: fundo escuro aqui viraria buraco dentro da
+  // figura, e a forma já é recortada — não precisa de vazio nenhum.
+  float v = veio(p * 2.4 + chave);
+  vec3 c = mix(INDIGO, VIOLETA, smoothstep(0.30, 0.75, v));
+
+  // Dezoito gotas. Chegaram a ser 22 e caíram pra 9 quando eu achei que
+  // o chuvisco era peso — não era. Nove deixavam a bandeja rala e a
+  // nuvem sumia. Agora que isto é assado uma vez por quadro, o número
+  // de gotas nem custa por pixel de tela.
+  for(int i = 0; i < 18; i++){
+    float fi = float(i);
+    vec2 centro = (vec2(hash21(vec2(fi*1.7, chave)),
+                        hash21(vec2(fi*1.7 + 37.0, chave))) - 0.5) * 2.8;
+    float ordem = fi / 17.0;
+    float raio = mix(0.95, 0.20, pow(ordem, 0.75))
+               * (0.72 + 0.56*hash21(vec2(fi*1.7 + 91.0, chave)));
+    // Borda larguíssima e proporcional ao raio: as gotas se fundem em
+    // campos de cor em vez de virarem discos com contorno. É isso que
+    // mantém tudo fumaçado por mais gotas que eu empilhe.
+    c = pingar(c, p, centro, raio,
+               daPaleta(hash21(vec2(fi*1.7 + 53.0, chave))), raio * 0.80);
+  }
+
+  float f = veio(p * 5.0 - chave * 1.7);
+  c = mix(c, LEITE, smoothstep(0.60, 0.88, f) * 0.22);
+  return c;
+}
+
+// Rastelo: o pente tem muitos dentes, e e a repeticao deles que da o
+// padrao marmorizado. Mas repetir por resto de divisao deixa uma DOBRA no
+// meio entre dois dentes, e essa dobra aparece como linha reta cortando
+// tudo. O seno e periodico do mesmo jeito e nao tem quina em lugar nenhum.
+vec2 rastelo(vec2 p, vec2 normal, float espaco, float amp){
+  float d = dot(p, normal);
+  const float TAU = 6.28318530718;
+  float onda = sin(d * TAU / espaco) * 0.72
+             + sin(d * TAU / (espaco * 0.41) + 1.3) * 0.28;
+  return p + vec2(-normal.y, normal.x) * amp * onda;
+}
+
+// Os gestos, todos contínuos. Nada de batida brusca aqui: a tinta escoa
+// sem parar, sem começo e sem fim visíveis.
+vec2 gestos(vec2 p, float w){
+  // gotas respirando devagar, sem golpe
+  p = gota(p, vec2( 0.30,  0.24), 0.30*(0.55 + 0.45*sin(w*0.37)));
+  p = gota(p, vec2(-0.28, -0.16), 0.25*(0.55 + 0.45*sin(w*0.29 + 2.1)));
+
+  // dois estiletes em sentidos opostos: um só ficaria com cara de
+  // redemoinho de máquina de lavar
+  p = vortice(p, vec2( 0.20*sin(w*0.31),  0.18*cos(w*0.24)),
+              2.30*sin(w*0.33),        0.62);
+  p = vortice(p, vec2(-0.22*cos(w*0.19), -0.16*sin(w*0.27)),
+             -1.85*sin(w*0.27 + 1.7),  0.50);
+
+  // três rastelos cruzados, puxando mais forte: é o que deixa mais
+  // marmorizado sem endurecer nada, porque agora nenhum deles tem quina
+  // Dois rastelos, e nenhum com dente muito junto: espaçamento pequeno
+  // vira detalhe mais fino que o pixel, e o que aparece é serrilhado
+  // cintilando, não desenho.
+  // Um terceiro vórtice, fraco e largo: não desenha redemoinho, só
+  // impede que os outros dois virem um par simétrico.
+  p = vortice(p, vec2( 0.05*sin(w*0.11), -0.30*cos(w*0.13)),
+              1.10*sin(w*0.15 + 0.9),   0.78);
+
+  p = rastelo(p, vec2(cos(w*0.17), sin(w*0.17)),          0.80, 0.42*sin(w*0.39));
+  p = rastelo(p, vec2(cos(w*0.11+2.1), sin(w*0.11+2.1)),  0.52, 0.24*cos(w*0.29));
+  // É o rastelo que transforma campo de cor em mármore. Dois só dobravam
+  // a tinta; três é que a rendilham.
+  p = rastelo(p, vec2(cos(w*0.07+4.2), sin(w*0.07+4.2)),  0.66, 0.30*sin(w*0.23));
+  return p;
+}
+
+
+void main(){
+  vec2 g = vAtlas * 2.0;
+  vec2 quadrante = min(floor(g), 1.0);
+  vec2 loc = clamp(g - quadrante, 0.0, 1.0);
+  float k = quadrante.x + quadrante.y * 2.0;
+
+  // Cada quadrante é uma bandeja inteira, com fase e semente próprias,
+  // pra que os maços não bebam todos o mesmo mármore.
+  float faseQ = k * 1.5708;
+  float w = tempo * 0.15 + faseQ;
+  vec2 q = vec2(loc.x * 2.2 - 1.1, loc.y * 1.5 - 0.75);
+  float semente = fract(faseQ * 0.159154) * 4.0;
+
+  // Duas leituras em instantes vizinhos: a diferença diz pra onde a
+  // tinta corre, e amostrar ao longo desse rastro é o que faz virar
+  // líquido em vez de imagem entortada.
+  vec2 a = gestos(q, w);
+  vec2 rastro = (gestos(q, w + 0.07) - a) * 2.2 * marmore;
+  vec3 cor = (bandeja(a - rastro*0.25, semente)
+            + bandeja(a + rastro*0.25, semente)) * 0.5;
+
+  float lum = dot(cor, vec3(0.299, 0.587, 0.114));
+  cor = mix(cor, LEITE * (0.34 + 0.66*sqrt(lum)), leitoso);
+
+  // A densidade viaja no alfa. É ela que, lá na nuvem, decide onde a
+  // borda do maço avança e onde recua.
+  gl_FragColor = vec4(cor, 0.45 + 0.55 * smoothstep(0.10, 0.55, lum));
+}`;
+
+const VS_ASSA = `
+attribute vec2 aXY;
+varying vec2 vAtlas;
+void main(){
+  vAtlas = aXY * 0.5 + 0.5;
+  gl_Position = vec4(aXY, 0.0, 1.0);
+}`;
+
+/* ═══════════ a nuvem ═══════════
+   Antes isto era uma fita: uma superfície curva atravessando a sala.
+   Fita tem silhueta — de frente ela é um pano, de lado ela é um corte,
+   e nenhum ajuste de opacidade tira dela a cara de tecido, porque o
+   problema não é como ela está pintada, é o que ela é.
+
+   Nuvem não tem borda. Ela tem volume, e volume em tempo real se faz
+   com MAÇOS: dezenas de manchas macias que sempre se viram para quem
+   olha. Como encaram sempre a pessoa, não existe "visto de lado", e a
+   aresta serrilhada deixa de ser um defeito a combater — ela some por
+   construção. Sobrepostas em profundidades diferentes, elas leem como
+   massa, que é o que uma fita nunca vai conseguir fazer.
+
+   Cada maço bebe um retalho diferente da bandeja marmorizada, então a
+   tinta continua sendo a mesma; e é a tinta que decide onde a borda do
+   maço avança e onde recua, para ele não ler como disco. */
+const VS_NUVEM = `
+attribute vec3 aCentro;
+attribute vec2 aCanto;    // -1..1, o vértice dentro do maço
+attribute vec4 aDado;     // raio, giro, e o canto do retalho no atlas
+attribute vec2 aTam;      // tamanho do retalho, e a fase própria
+uniform mat4 mvp;
+uniform vec3 camDir, camCima;   // eixos da câmera: é o que faz encarar
+uniform float tempo, sopro;
+varying vec2 vLocal, vAtlas, vAtlas2;
+void main(){
+  float fase = aTam.y;
+
+  // deriva lenta, limitada: nuvem roda no lugar, não viaja
+  float w = tempo * 0.055 + fase * 6.283;
+  vec3 c = aCentro + sopro * vec3(
+    sin(w + aCentro.z * 0.9) * 0.26,
+    sin(w * 0.63 + aCentro.x * 0.7) * 0.14,
+    sin(w * 0.81 + aCentro.x * 1.1) * 0.23);
+
+  // Cada maço gira no próprio eixo, devagar e cada um pro seu lado.
+  // Sem isso os retalhos ficam todos alinhados e a nuvem inteira
+  // aparece como um padrão repetido em vez de massa.
+  float g = aDado.y + tempo * 0.004 * (fase - 0.5);
+  vec2 r = vec2(aCanto.x*cos(g) - aCanto.y*sin(g),
+                aCanto.x*sin(g) + aCanto.y*cos(g));
+
+  vec3 p = c + (camDir * r.x + camCima * r.y) * aDado.x;
+
+  vLocal = aCanto;
+  vec2 uv = aCanto * 0.5 + 0.5;
+  vAtlas  = aDado.zw + uv * aTam.x;
+  // A mesma bandeja lida ao contrário: dá um segundo desenho que não
+  // tem relação com o primeiro, e é ele que vai dizer ATÉ ONDE a camada
+  // existe. Sem uma segunda leitura, o alcance dela só poderia ser uma
+  // figura geométrica — e figura geométrica é o que se enxerga.
+  vAtlas2 = aDado.zw + (vec2(1.0) - uv) * aTam.x;
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_NUVEM = `
+precision mediump float;
+uniform sampler2D tinta;
+uniform float presenca;
+varying vec2 vLocal, vAtlas, vAtlas2;
+void main(){
+  vec4 t = texture2D(tinta, vAtlas);
+  vec4 m = texture2D(tinta, vAtlas2);
+
+  // Duas coisas quebram o disco, e são precisas as duas.
+  //
+  // A primeira: a distância ao centro é ESTICADA pelo claro da tinta —
+  // onde ela é clara o maço avança, onde escurece ele recua. Uso o
+  // brilho e não o alfa porque o brilho varia o dobro, e é a amplitude
+  // dessa variação que decide se a borda ondula ou continua redonda.
+  float claro = dot(t.rgb, vec3(0.299, 0.587, 0.114));
+  float r = length(vLocal) * (1.35 - 0.55 * claro);
+
+  // Queda LARGUÍSSIMA e sem elevar ao quadrado. A versão anterior caía
+  // depressa, e uma queda depressa tem um raio onde ela é mais forte:
+  // onde a tinta estava densa, esse raio aparecia como arco. Espalhando
+  // a queda por uma faixa enorme, ela deixa de ter um lugar próprio e
+  // vira só um enfraquecer geral.
+  float macio = smoothstep(1.55, 0.0, r);
+
+  // Trava de segurança: zero antes da beirada do quadrado, senão em
+  // algum ângulo o retângulo aparece.
+  macio *= smoothstep(1.0, 0.55, max(abs(vLocal.x), abs(vLocal.y)));
+
+  // A segunda, e é ela que decide se isto lê como nuvem ou como
+  // neblina: a tinta FURA a camada por dentro, e fura MUITO. Camadas
+  // que cobrem tudo se somam e o resultado é a média delas — liso.
+  // Com a marmorização abrindo vazios francos, cada camada vira
+  // filamento, e filamento empilhado com filamento dá volume em vez de
+  // média. É também o que tira o contorno: o que sobra não tem centro
+  // nem beirada.
+  float massa = smoothstep(0.40, 0.85, t.a);
+
+  // O alcance da camada, tirado da segunda leitura: onde este desenho
+  // rareia, a camada simplesmente não chega. É irregular como a tinta,
+  // então não existe contorno para o olho encontrar.
+  float alcance = smoothstep(0.30, 0.78, m.a);
+
+  float alfa = macio * massa * alcance * presenca;
+  if(alfa < 0.003) discard;
+  gl_FragColor = vec4(t.rgb, alfa);
+}`;
+
+
+
+function compilar(t, src){
+  const s = gl.createShader(t);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+function programa(v,f){
+  const p = gl.createProgram();
+  gl.attachShader(p, compilar(gl.VERTEX_SHADER,v));
+  gl.attachShader(p, compilar(gl.FRAGMENT_SHADER,f));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+const progRaiz = programa(VS_RAIZ, FS_RAIZ);
+const progSala = programa(VS_SALA, FS_SALA);
+const progFig  = programa(VS_NUVEM, FS_NUVEM);
+const progPo   = programa(VS_PO,   FS_PO);
+const progAssa = programa(VS_ASSA, FS_ASSA);
+
+/* ═══════════ cortinas de aurora (camada 3) ═══════════
+   Cada cortina é uma fita comprida: um caminho em arco pela sala,
+   levantado em altura. Não fecha, não vira forma — atravessa. */
+function semearFiguras(semente){
+  const rnd = prng(semente);
+  const s = {centro:[], canto:[], dado:[], tam:[], idx:[]};
+
+  // POUCAS e ENORMES. Cento e cinquenta manchas pequenas leem como
+  // grumo: o olho acha cada uma e conta. Sete camadas do tamanho da
+  // sala não têm contorno achável — o que se vê é o campo contínuo de
+  // marmorização, que é o que era bonito na versão de fita, sem a fita.
+  const N = 7;
+
+  // Quase o quadrante inteiro: cada camada mostra a bandeja toda, com
+  // seus veios e filamentos de ponta a ponta. É esse desenho grande
+  // atravessando o campo de visão que fazia a versão anterior funcionar.
+  const RETALHO = 0.46;
+
+  for(let k=0;k<N;k++){
+    // Distribuição por casca: mais longe é mais provável, porque a área
+    // cresce com o raio. Sorteando o raio direto, tudo se amontoa em
+    // cima da pessoa.
+    const raio = 0.95 + rnd() * 1.30;
+    const ang  = (k / N) * Math.PI*2 + rnd()*0.8;   // espalhadas na volta
+    const alt  = 0.70 + rnd() * 1.70;
+
+    // Cada camada é maior que a distância dela até você. É isso que
+    // garante que a borda nunca entre no campo de visão.
+    const tam = 1.70 + rnd() * 1.60;
+
+    // um quadrante do atlas, e dentro dele um retalho qualquer
+    const q = k % 4;
+    const ax = (q % 2) * 0.5 + 0.01 + rnd() * (0.5 - RETALHO - 0.02);
+    const ay = Math.floor(q / 2) * 0.5 + 0.01 + rnd() * (0.5 - RETALHO - 0.02);
+
+    const giro = rnd()*Math.PI*2, fase = rnd();
+    const b0 = s.centro.length/3;
+    for(const [cx,cy] of [[-1,-1],[1,-1],[-1,1],[1,1]]){
+      s.centro.push(Math.sin(ang)*raio, alt, -Math.cos(ang)*raio);
+      s.canto.push(cx, cy);
+      s.dado.push(tam, giro, ax, ay);
+      s.tam.push(RETALHO, fase);
+    }
+    s.idx.push(b0, b0+1, b0+2,  b0+1, b0+3, b0+2);
+  }
+  return s;
+}
+
+/* ═══════════ poeira ═══════════
+   Grãos espalhados num anel em volta da pessoa. O buraco no meio é de
+   propósito: grão a meio metro do olho vira mancha e denuncia que é
+   ponto, não poeira. */
+const PALETA_PO = [
+  [0.902,0.918,0.965],   // leite
+  [0.290,0.522,0.800],   // azul
+  [0.463,0.333,0.678],   // violeta
+  [0.180,0.235,0.510],   // índigo
+  [0.870,0.545,0.275],   // brasa — pouca, é o quente que salva do monótono
+];
+const PO_MAX = 3000;
+function semearPoeira(semente){
+  const rnd = prng(semente);
+  const s = {pos:[], cor:[], dado:[]};
+  for(let i=0;i<PO_MAX;i++){
+    // raio pela raiz do sorteio: distribui por ÁREA, não por distância.
+    // Sorteando o raio direto, tudo se amontoa perto do centro.
+    const r = Math.sqrt(0.14 + rnd()*0.86) * 2.30 + 0.55;
+    const a = rnd()*Math.PI*2;
+    const alturaColuna = 1.9 + rnd()*1.4;
+    let c = PALETA_PO[Math.min(4, Math.floor(rnd()*rnd()*5))];
+    s.pos.push(Math.sin(a)*r, alturaColuna, -Math.cos(a)*r);
+    s.cor.push(c[0], c[1], c[2]);
+    // fase própria (espalha a subida) e tamanho em metros
+    s.dado.push(rnd(), 0.010 + rnd()*rnd()*0.030);
+  }
+  return s;
+}
+
+/* ═══════════ buffers ═══════════ */
+function criarBufs(nomes){
+  const o = {};
+  for(const n of nomes) o[n] = gl.createBuffer();
+  return o;
+}
+const bR = criarBufs(['pos','nor','uv','alt','fase','idx']);
+const bS = criarBufs(['pos','nor','uv','tipo','idx']);
+const bF = criarBufs(['centro','canto','dado','tam','idx']);
+const bP = criarBufs(['pos','cor','dado']);
+let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0;
+
+function enviar(buf, arr){
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+}
+function subirRaizes(s){
+  enviar(bR.pos,s.pos); enviar(bR.nor,s.nor); enviar(bR.uv,s.uv);
+  enviar(bR.alt,s.alt); enviar(bR.fase,s.fase);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
+  nIdxR = s.idx.length;
+  document.getElementById('vRaiz').textContent = totalRaizes;
+  document.getElementById('vTri').textContent =
+    ((nIdxR+nIdxS)/3).toLocaleString('pt-BR');
+}
+(function(){
+  const s = montarSala();
+  enviar(bS.pos,s.pos); enviar(bS.nor,s.nor); enviar(bS.uv,s.uv); enviar(bS.tipo,s.tipo);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bS.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
+  nIdxS = s.idx.length;
+})();
+function subirPoeira(s){
+  enviar(bP.pos,s.pos); enviar(bP.cor,s.cor); enviar(bP.dado,s.dado);
+  nPo = s.pos.length/3;
+}
+function subirFiguras(s){
+  enviar(bF.centro,s.centro); enviar(bF.canto,s.canto);
+  enviar(bF.dado,s.dado); enviar(bF.tam,s.tam);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bF.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
+  nIdxF = s.idx.length;
+}
+subirRaizes(semearMata(11));
+subirFiguras(semearFiguras(29));
+subirPoeira(semearPoeira(53));
+
+/* ═══════════ texturas ═══════════ */
+function novaTex(c){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,1,1,0,gl.RGB,gl.UNSIGNED_BYTE,new Uint8Array(c));
+  for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT],
+                      [gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
+    gl.texParameteri(gl.TEXTURE_2D,k,v);
+  return t;
+}
+function carregar(t,url){
+  const im = new Image();
+  im.onload = ()=>{
+    gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,im);
+    for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT],
+                        [gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
+      gl.texParameteri(gl.TEXTURE_2D,k,v);
+  };
+  im.src = url;
+}
+const texRaiz = novaTex([80,75,120]);
+const texPano = novaTex([30,26,48]);
+carregar(texRaiz, '__TEX_RAIZ__');
+carregar(texPano, '__TEX_PANORAMA__');
+
+// A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
+
+/* ═══════════ estado ═══════════ */
+let yaw=0, pitch=0, tYaw=0, tPitch=0, fov=75*Math.PI/180;
+let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
+let degradeIni=0.10, degradeFim=0.80;   // fração do pé-direito
+let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
+let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
+let emXR = false;
+const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const suave = calmo ? 1 : 0.12;
+
+function medir(){
+  const d = Math.min(devicePixelRatio||1,2);
+  const w = cv.clientWidth||innerWidth, h = cv.clientHeight||innerHeight;
+  const nw = Math.max(1,Math.floor(w*d)), nh = Math.max(1,Math.floor(h*d));
+  if(cv.width!==nw||cv.height!==nh){ cv.width=nw; cv.height=nh; }
+}
+addEventListener('resize', medir); medir();
+
+let arr=false, lx=0, ly=0;
+cv.addEventListener('mousedown', e=>{arr=true;lx=e.clientX;ly=e.clientY;});
+addEventListener('mouseup', ()=>arr=false);
+addEventListener('mousemove', e=>{
+  if(!arr) return;
+  tYaw -= (e.clientX-lx)*0.005;
+  tPitch = Math.max(-1.3, Math.min(1.3, tPitch + (e.clientY-ly)*0.005));
+  lx=e.clientX; ly=e.clientY;
+});
+cv.addEventListener('wheel', e=>{
+  e.preventDefault();
+  fov = Math.max(0.4, Math.min(2.0, fov + e.deltaY*0.0015));
+}, {passive:false});
+
+const paineis = ['head','hud','ctl'].map(i=>document.getElementById(i));
+const bUI = document.getElementById('bUI');
+function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v); }
+let uiAberta = false;
+bUI.onclick = ()=>{ uiAberta = !uiAberta; mostrarUI(uiAberta); };
+addEventListener('keydown', e=>{
+  if(e.key === 'h' || e.key === 'H'){ uiAberta = !uiAberta; mostrarUI(uiAberta); }
+});
+
+// Conta quadros em janelas de meio segundo. Meio segundo é curto o
+// bastante pra reagir e longo o bastante pra o número não tremer.
+const eFps = document.getElementById('fps');
+let quadrosContados = 0, marcaFps = performance.now();
+function contarQuadro(){
+  quadrosContados++;
+  const agora = performance.now(), dt = agora - marcaFps;
+  if(dt >= 500){
+    const f = Math.round(quadrosContados * 1000 / dt);
+    eFps.textContent = f + ' fps';
+    eFps.classList.toggle('baixo', f < 30);
+    quadrosContados = 0; marcaFps = agora;
+  }
+}
+
+/* ═══════════ a trilha ═══════════
+   Nenhum navegador deixa som começar sozinho: só depois de a pessoa ter
+   tocado, clicado ou apertado alguma coisa. Então eu não tento tocar ao
+   carregar — fico esperando o primeiro gesto, qualquer um. No Quest, o
+   próprio clique em "Entrar em RM" já serve, então a trilha entra junto
+   com a realidade mista sem precisar de mais nada. */
+const trilha = document.getElementById('trilha');
+let volume = 0.08, somLigado = true, tocando = false;
+trilha.volume = volume;
+
+function acordarSom(){
+  if(tocando || !somLigado) return;
+  trilha.play().then(()=>{
+    tocando = true;
+    for(const ev of GESTOS) removeEventListener(ev, acordarSom);
+  }).catch(()=>{ /* ainda não permitido; o próximo gesto tenta de novo */ });
+}
+const GESTOS = ['pointerdown','keydown','touchstart'];
+for(const ev of GESTOS) addEventListener(ev, acordarSom, {passive:true});
+
+const bSom = document.getElementById('bSom');
+bSom.onclick = ()=>{
+  somLigado = !somLigado;
+  if(somLigado){ tocando = false; acordarSom(); }
+  else { trilha.pause(); tocando = false; }
+  pinta();
+};
+const sV = document.getElementById('sVol'), vV = document.getElementById('vVol');
+sV.addEventListener('input', ()=>{
+  volume = sV.value/100;
+  trilha.volume = volume;
+  vV.textContent = sV.value+'%';
+});
+
+const bSala=document.getElementById('bSala'), bRaiz=document.getElementById('bRaizes');
+bSala.onclick = ()=>{ salaVisivel=!salaVisivel; pinta(); };
+bRaiz.onclick = ()=>{ raizesOn=!raizesOn; pinta(); };
+const bFig = document.getElementById('bFiguras');
+bFig.onclick = ()=>{ figurasOn=!figurasOn; pinta(); };
+const bPo = document.getElementById('bPoeira');
+bPo.onclick = ()=>{ poeiraOn=!poeiraOn; pinta(); };
+document.getElementById('bSemente').onclick = ()=>{
+  semente = (semente*2654435761 % 100000)|0;
+  sementeFig = (sementeFig*40503 % 100000)|0;
+  sementePo = (sementePo*22695477 % 100000)|0;
+  subirRaizes(semearMata(semente));
+  subirFiguras(semearFiguras(sementeFig));
+  subirPoeira(semearPoeira(sementePo));
+};
+const sP=document.getElementById('sPres'), vP=document.getElementById('vPres');
+sP.addEventListener('input', ()=>{
+  presenca = sP.value/100;
+  vP.textContent = sP.value+'%';
+});
+const sM=document.getElementById('sMar'), vM=document.getElementById('vMar');
+sM.addEventListener('input', ()=>{
+  marmore = sM.value/100;
+  vM.textContent = sM.value+'%';
+});
+const sPo2=document.getElementById('sPo'), vPo2=document.getElementById('vPo');
+sPo2.addEventListener('input', ()=>{
+  quantosPo = +sPo2.value;
+  vPo2.textContent = quantosPo.toLocaleString('pt-BR');
+});
+const sSo=document.getElementById('sSopro'), vSo=document.getElementById('vSopro');
+sSo.addEventListener('input', ()=>{
+  sopro = sSo.value/100;
+  vSo.textContent = sSo.value+'%';
+});
+const sL=document.getElementById('sLei'), vL=document.getElementById('vLei');
+sL.addEventListener('input', ()=>{
+  leitoso = sL.value/100;
+  vL.textContent = sL.value+'%';
+});
+const sT=document.getElementById('sTinta'), vT=document.getElementById('vTinta');
+sT.addEventListener('input', ()=>{
+  tinta = sT.value/100;
+  vT.textContent = sT.value+'%';
+});
+const sI=document.getElementById('sIni'), vI=document.getElementById('vIni');
+const sF=document.getElementById('sFim'), vF=document.getElementById('vFim');
+const metros = f => (f*ALTURA).toFixed(1).replace('.', ',') + ' m';
+function lerDegrade(){
+  degradeIni = sI.value/100;
+  degradeFim = sF.value/100;
+  // o fim tem que ficar acima do início, senão a passagem inverte e volta
+  // a virar uma listra dura — exatamente o serrilhado que quero evitar
+  if(degradeFim <= degradeIni + 0.08){
+    degradeFim = Math.min(1, degradeIni + 0.08);
+    sF.value = Math.round(degradeFim*100);
+  }
+  vI.textContent = metros(degradeIni);
+  vF.textContent = metros(degradeFim);
+}
+sI.addEventListener('input', lerDegrade);
+sF.addEventListener('input', lerDegrade);
+lerDegrade();
+function pinta(){
+  bSala.classList.toggle('on', salaVisivel);
+  bSala.textContent = salaVisivel ? 'Sala visível' : 'Sala oculta';
+  bRaiz.classList.toggle('on', raizesOn);
+  bRaiz.textContent = raizesOn ? 'Raízes ligadas' : 'Raízes desligadas';
+  bFig.classList.toggle('on', figurasOn);
+  bFig.textContent = figurasOn ? 'Nuvem ligada' : 'Nuvem desligada';
+  bPo.classList.toggle('on', poeiraOn);
+  bPo.textContent = poeiraOn ? 'Poeira ligada' : 'Poeira desligada';
+  bSom.classList.toggle('on', somLigado);
+  bSom.textContent = somLigado ? 'Som ligado' : 'Som desligado';
+}
+pinta();
+
+/* ═══════════ WebXR ═══════════ */
+const bXR = document.getElementById('bXR');
+const vXR = document.getElementById('vXR');
+const vPlanos = document.getElementById('vPlanos');
+let sessao = null, espaco = null, camadaXR = null;
+
+if(navigator.xr){
+  navigator.xr.isSessionSupported('immersive-ar').then(ok=>{
+    vXR.textContent = ok ? 'pronto' : 'sem RM';
+    vXR.className = ok ? 'ok' : 'no';
+    bXR.disabled = !ok;
+    if(!ok) bXR.textContent = 'RM indisponível aqui';
+  }).catch(()=>{ vXR.textContent='sem RM'; vXR.className='no'; });
+} else {
+  vXR.textContent = 'ausente'; vXR.className = 'no';
+  bXR.textContent = 'RM indisponível aqui';
+}
+
+bXR.onclick = async ()=>{
+  if(sessao){ sessao.end(); return; }
+  try{
+    sessao = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local-floor'],
+      // detecção de superfície é opcional: sem ela as raízes ainda nascem
+      // do chão, só não pinta as paredes reais
+      optionalFeatures: ['plane-detection','anchors','hit-test']
+    });
+  }catch(e){ vXR.textContent='recusado'; vXR.className='no'; return; }
+
+  await gl.makeXRCompatible();
+  camadaXR = new XRWebGLLayer(sessao, gl);
+  sessao.updateRenderState({ baseLayer: camadaXR });
+  espaco = await sessao.requestReferenceSpace('local-floor');
+  emXR = true;
+  bXR.textContent = 'Sair da RM';
+  vXR.textContent = 'em RM'; vXR.className = 'ok';
+  sessao.addEventListener('end', ()=>{
+    emXR=false; sessao=null;
+    bXR.textContent='Entrar em RM';
+    vXR.textContent='pronto'; vXR.className='ok';
+    requestAnimationFrame(quadro);
+  });
+  sessao.requestAnimationFrame(quadroXR);
+};
+
+/* ═══════════ desenho ═══════════ */
+const uR = n=>gl.getUniformLocation(progRaiz,n);
+const uS = n=>gl.getUniformLocation(progSala,n);
+const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex')};
+const locS = {mvp:uS('mvp'), pano:uS('panorama'), tinta:uS('tinta'),
+              pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
+              altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim')};
+const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(progRaiz,'aNor'),
+            uv:gl.getAttribLocation(progRaiz,'aUV'), alt:gl.getAttribLocation(progRaiz,'aAlt'),
+            fase:gl.getAttribLocation(progRaiz,'aFase')};
+const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
+            uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
+const uFg = n=>gl.getUniformLocation(progFig,n);
+const locF = {mvp:uFg('mvp'), tempo:uFg('tempo'), presenca:uFg('presenca'),
+             tinta:uFg('tinta'), sopro:uFg('sopro'),
+             camDir:uFg('camDir'), camCima:uFg('camCima')};
+/* ═══════════ a bandeja assada ═══════════
+   A marmorização não depende de quanta tela o véu cobre — ela é a mesma
+   função de sempre, só que resolvida UMA vez por quadro num quadro
+   pequeno. Antes, cinco véus cobrindo a tela mandavam calcular gotas,
+   veios, vórtices e rastelos cinco vezes em cada pixel; agora eles só
+   consultam esta tabela. O padrão é de forma grande e macia, então 256
+   pixels por variação não bastam: o véu chega a cobrir a tela inteira,
+   e 256 esticados em mil viram borrão — a tinta perde o fio e a nuvem
+   fica lisa. 512 por variação dá o desenho de volta e o custo continua
+   preso a um número fixo, que é o ponto.
+
+   1024 é potência de dois — WebGL 1 exige isso para textura com filtro
+   e repetição, e uma medida quebrada aqui voltaria preta. */
+const TAM_ATLAS = 1024;
+const texTinta = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, texTinta);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, TAM_ATLAS, TAM_ATLAS, 0,
+              gl.RGBA, gl.UNSIGNED_BYTE, null);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+const fboTinta = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, fboTinta);
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                        gl.TEXTURE_2D, texTinta, 0);
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+const bQuadro = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, bQuadro);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1,  -1,1,   -1,1,  1,-1,  1,1 ]), gl.STATIC_DRAW);
+
+const uA = n=>gl.getUniformLocation(progAssa,n);
+const locA = {tempo:uA('tempo'), marmore:uA('marmore'), leitoso:uA('leitoso')};
+const aA = {xy: gl.getAttribLocation(progAssa,'aXY')};
+
+/** Redesenha a bandeja. Uma vez por quadro, nunca uma vez por olho:
+    os dois olhos veem a mesma tinta no mesmo instante. */
+function assarTinta(){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fboTinta);
+  gl.viewport(0, 0, TAM_ATLAS, TAM_ATLAS);
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.BLEND);
+  gl.useProgram(progAssa);
+  gl.uniform1f(locA.tempo, relogio);
+  gl.uniform1f(locA.marmore, marmore);
+  gl.uniform1f(locA.leitoso, leitoso);
+  ligar(aA.xy, bQuadro, 2);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  if(window.__espiar){
+    window.__espiar = false;
+    const n = 4, px = new Uint8Array(4);
+    const amostras = [];
+    for(let j=0;j<n;j++) for(let i=0;i<n;i++){
+      gl.readPixels(Math.floor((i+0.5)*TAM_ATLAS/n), Math.floor((j+0.5)*TAM_ATLAS/n),
+                    1,1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      amostras.push([...px]);
+    }
+    window.__amostras = amostras;
+    window.__completo = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  }
+  gl.enable(gl.DEPTH_TEST);
+}
+
+const uPo = n=>gl.getUniformLocation(progPo,n);
+const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'),
+               escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro')};
+const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
+            cor:gl.getAttribLocation(progPo,'aCor'),
+            dado:gl.getAttribLocation(progPo,'aDado')};
+const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
+            canto:gl.getAttribLocation(progFig,'aCanto'),
+            dado:gl.getAttribLocation(progFig,'aDado'),
+            tam:gl.getAttribLocation(progFig,'aTam')};
+
+function ligar(loc, buf, n){
+  if(loc < 0) return;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
+}
+
+function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
+  gl.enable(gl.DEPTH_TEST);
+
+  // Eixos da câmera no mundo, tirados da matriz de visão. Como ela é a
+  // rotação invertida, as LINHAS dela são os eixos da câmera: linha 0 é
+  // pra onde ela olha à direita, linha 1 é o que ela chama de "cima".
+  const camDir  = [visao[0], visao[4], visao[8]];
+  const camCima = [visao[1], visao[5], visao[9]];
+
+  // Onde a câmera está no mundo. A matriz de visão leva do mundo para a
+  // câmera; desfazer isso na translação devolve a posição dela. Serve
+  // igual no computador e no headset, sem precisar de dois caminhos.
+  const olhoPos = [
+    -(visao[0]*visao[12] + visao[1]*visao[13] + visao[2]*visao[14]),
+    -(visao[4]*visao[12] + visao[5]*visao[13] + visao[6]*visao[14]),
+    -(visao[8]*visao[12] + visao[9]*visao[13] + visao[10]*visao[14]),
+  ];
+
+  // 1) RAÍZES PRIMEIRO, opacas. Se a sala translúcida viesse antes, ela
+  //    gravaria profundidade e apagaria as raízes atrás dela.
+  if(raizesOn && nIdxR > 0){
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.useProgram(progRaiz);
+    gl.uniformMatrix4fv(locR.mvp, false, new Float32Array(mvp));
+    gl.uniform1f(locR.tempo, relogio);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1i(locR.tex, 2);
+    ligar(aR.pos,bR.pos,3); ligar(aR.nor,bR.nor,3); ligar(aR.uv,bR.uv,2);
+    ligar(aR.alt,bR.alt,1); ligar(aR.fase,bR.fase,1);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+    gl.disable(gl.CULL_FACE);
+  }
+
+  // 2) SALA DEPOIS, com mistura e SEM gravar profundidade: superfície
+  //    translúcida não deve esconder nada, só somar por cima.
+  if(salaVisivel && nIdxS > 0){
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.useProgram(progSala);
+    gl.uniformMatrix4fv(locS.mvp, false, new Float32Array(mvp));
+    gl.uniform1f(locS.tinta, tinta);
+    gl.uniform1f(locS.pass, dentroDeXR ? 1 : 0);
+    gl.uniform1f(locS.tempo, relogio);
+    gl.uniform1f(locS.olho, OLHO);
+    gl.uniform1f(locS.altura, ALTURA);
+    gl.uniform1f(locS.inicio, degradeIni);
+    gl.uniform1f(locS.fim, degradeFim);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texPano);
+    gl.uniform1i(locS.pano, 0);
+    ligar(aS.pos,bS.pos,3); ligar(aS.nor,bS.nor,3);
+    ligar(aS.uv,bS.uv,2); ligar(aS.tipo,bS.tipo,1);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bS.idx);
+    gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  // 3) VÉUS por último. Mistura NORMAL, não aditiva: aditiva soma tudo pro
+  //    claro e lava a marmorização — e é justo a tinta que tem que
+  //    aparecer aqui. Com alfa normal a cor sai como ela é.
+  if(figurasOn && nIdxF > 0){
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);      // a cortina é vista dos dois lados
+    gl.useProgram(progFig);
+    gl.uniformMatrix4fv(locF.mvp, false, new Float32Array(mvp));
+    gl.uniform1f(locF.tempo, relogio);
+    gl.uniform1f(locF.presenca, presenca);
+    gl.uniform1f(locF.sopro, sopro);
+    // os eixos da câmera: é com eles que cada maço se vira pra pessoa
+    gl.uniform3f(locF.camDir, camDir[0], camDir[1], camDir[2]);
+    gl.uniform3f(locF.camCima, camCima[0], camCima[1], camCima[2]);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texTinta);
+    gl.uniform1i(locF.tinta, 3);
+    ligar(aF.centro,bF.centro,3); ligar(aF.canto,bF.canto,2);
+    ligar(aF.dado,bF.dado,4); ligar(aF.tam,bF.tam,2);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bF.idx);
+    gl.drawElements(gl.TRIANGLES, nIdxF, gl.UNSIGNED_SHORT, 0);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  // 4) POEIRA no fim, mistura ADITIVA. Grão de poeira é luz espalhada:
+  //    ele soma ao que está atrás, não tapa. Aditiva também é o que faz
+  //    a poeira aparecer em RM, onde o preto é o que deixa passar a
+  //    câmera — somando, ela acende sobre a sala de verdade.
+  if(poeiraOn && nPo > 0){
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    gl.depthMask(false);
+    gl.useProgram(progPo);
+    gl.uniformMatrix4fv(locPo.mvp, false, new Float32Array(mvp));
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto);
+    gl.uniform1f(locPo.sopro, sopro);
+    ligar(aP.pos,bP.pos,3); ligar(aP.cor,bP.cor,3); ligar(aP.dado,bP.dado,2);
+    gl.drawArrays(gl.POINTS, 0, Math.min(nPo, quantosPo));
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+}
+
+const eY = document.getElementById('vYaw');
+
+function quadro(){
+  if(emXR) return;                       // em RM quem manda é o loop do headset
+  medir();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0,0,cv.width,cv.height);
+  yaw += (tYaw-yaw)*suave;
+  pitch += (tPitch-pitch)*suave;
+  relogio += 1/60;
+  contarQuadro();
+  if(figurasOn) assarTinta();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0,0,cv.width,cv.height);
+  gl.clearColor(0.03,0.025,0.055,1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const proj = perspectiva(fov, cv.width/cv.height, 0.05, 60);
+  const vis = visaoOrbita(yaw, pitch, OLHO);
+  // escala do ponto: metade da altura em pixels vezes o termo vertical
+  // da projeção. É o mesmo fator que a projeção aplica em y, então um
+  // grão de 2 cm sai com o tamanho de 2 cm na tela.
+  desenharCena(multiplicar(proj, vis), vis, false, 0.5*cv.height*proj[5]);
+  eY.textContent = (((Math.round(yaw*180/Math.PI)%360)+360)%360)+'°';
+  requestAnimationFrame(quadro);
+}
+
+function quadroXR(t, frame){
+  if(!sessao) return;
+  sessao.requestAnimationFrame(quadroXR);
+  const pose = frame.getViewerPose(espaco);
+  if(!pose) return;
+  relogio += 1/72;
+  contarQuadro();
+
+  if(frame.detectedPlanes)
+    vPlanos.textContent = frame.detectedPlanes.size;
+
+  // Uma assadura por quadro, antes de trocar para o alvo do headset.
+  // Assar dentro do laço dos olhos custaria o dobro e daria a mesma
+  // imagem, já que os dois olhos veem o mesmo instante.
+  if(figurasOn) assarTinta();
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, camadaXR.framebuffer);
+  // alfa zero: o que não for desenhado deixa passar a câmera do headset
+  gl.clearColor(0,0,0,0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  for(const vista of pose.views){
+    const vp = camadaXR.getViewport(vista);
+    gl.viewport(vp.x, vp.y, vp.width, vp.height);
+    const vis = Array.from(vista.transform.inverse.matrix);
+    const pj = Array.from(vista.projectionMatrix);
+    desenharCena(multiplicar(pj, vis), vis, true, 0.5*vp.height*pj[5]);
+  }
+}
+quadro();
+})();
+</script>

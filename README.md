@@ -1,0 +1,135 @@
+# Raízes Cósmicas
+
+Obra em **realidade mista** para Meta Quest 3, em WebXR. Abre no navegador do
+headset — não precisa instalar nada.
+
+Visões Filmes · FIL 2026
+
+---
+
+## O que já roda
+
+O `index.html` é a cena de realidade mista da primeira parte: a pintura
+projetada como cúpula em volta, a nuvem cósmica marmorizada, as raízes
+procedurais e a poeira. Um arquivo só, autossuficiente, com as imagens e o
+som embutidos — abre offline, com um clique.
+
+Publicado em GitHub Pages, é também o endereço que se abre **dentro do
+Quest 3**: lá o botão *Entrar em RM* troca o cinza pela sua sala de verdade,
+vista pelas câmeras.
+
+Controles pela tecla **H** ou pelo botão no canto. O número no canto inferior
+direito são os quadros por segundo — fica laranja abaixo de 30, que é o aviso
+de que a máquina não está dando conta.
+
+---
+
+## A obra
+
+Quatro cenários em dez minutos, numa área caminhável de 3 × 3 m:
+
+1. **A floresta cósmica** — a sala real, o céu já estrelado; as estrelas caem
+   e de onde tocam nasce a floresta. Numa árvore, o casulo.
+2. **O sistema solar** — as estrelas acendem uma a uma até o Sol; os planetas
+   descem e vêm orbitar a pessoa.
+3. **O planeta rosa** — aquático, água na cintura, a deusa vermelha na margem.
+4. **O mundo de papel** — camadas recortadas flutuando no cosmos, e embaixo a
+   primeira floresta invertida.
+
+Nenhuma passagem tem corte: tudo é metamorfose, como na animação que deu
+origem a isto.
+
+---
+
+## Os arquivos
+
+```
+index.html              a cena de realidade mista, pronta para o headset
+assets/ceus/            as panorâmicas 360°, todas 2048×1024
+assets/texturas/        texturas que repetem sem emenda nos dois eixos
+assets/audio/           a trilha, já cortada para fechar em laço
+fontes/                 os programas que geram tudo o que está em assets/
+```
+
+**Por que 2048×1024.** O WebGL 1 só aceita repetir uma textura — que é o que
+faz a esfera fechar a volta — se as duas medidas forem potência de dois. Fora
+disso a textura sai preta, sem erro nenhum no console.
+
+---
+
+## As panorâmicas
+
+Nenhuma delas sai costurada da ferramenta que a gerou. Uma imagem 2:1 tem a
+borda esquerda e a direita se encostando quando envolve a esfera, e os polos
+convergindo num ponto — e as duas coisas denunciam a emenda se não forem
+tratadas.
+
+O tratamento está em `fontes/nivelar.py`, e é de duas partes:
+
+**Nivelamento das bordas.** Em vez de espelhar — o que criaria uma simetria de
+borboleta bem no meio do campo de visão — as duas bordas escorregam de tom até
+se encontrarem no meio do caminho, ao longo de 260 px. A textura fica
+intocada; só a diferença de tom some.
+
+**Convergência dos polos.** O borrão horizontal cresce com `1/sen(θ)`: zero no
+equador, a linha inteira no polo. É o mesmo fator pelo qual a projeção
+equirretangular estica a imagem ali, então o borrão desfaz exatamente o que a
+esfera vai fazer.
+
+O `fontes/analise_panorama.py` mede o resultado. Números destas:
+
+| céu | costura | polos |
+|---|---|---|
+| floresta | 47,92 → 0,10 | 4,42 e 67,19 → 0,00 e 0,04 |
+| cósmico | 18,15 → 0,08 | 37,08 e 23,45 → 0,02 |
+| rosa | 32,58 → 0,11 | → 0,01 |
+
+A costura é medida contra a diferença média entre colunas vizinhas normais:
+uma razão perto de 1 significa que a emenda não se distingue do resto da
+imagem.
+
+---
+
+## As texturas
+
+Não são geradas nem redesenhadas: são **recorte da pintura real**, tratado
+para emendar sozinho nos dois eixos (`fontes/texturas_odara.py`).
+
+A região de cada recorte é escolhida automaticamente — procuro o trecho mais
+uniforme e ao mesmo tempo mais detalhado do quadro. Detalhe garante que há
+pintura ali; uniformidade garante que a estatística não muda de um canto ao
+outro, que é o que faz o azulejo não denunciar onde ele começa.
+
+Todas emendam de 40–66 para **0,00** nos dois eixos.
+
+---
+
+## A trilha
+
+O arquivo original tinha 2,5 s de entrada e um desvanecimento de 5 s no fim.
+Em laço, isso seria um buraco de silêncio a cada volta, marcando o compasso da
+repetição — a coisa mais denunciável numa instalação.
+
+As duas pontas mortas foram removidas e o fim atravessa o começo num
+cruzamento de 5 s, então o arquivo fecha em si mesmo e `loop` basta. Ficaram
+71 s, com o nível dos 2 s iniciais e dos 2 s finais praticamente iguais.
+
+Nenhum navegador deixa som começar sozinho, só depois de um gesto da pessoa —
+por isso a trilha espera o primeiro toque, clique ou tecla. No Quest, o
+próprio clique em *Entrar em RM* já serve.
+
+---
+
+## Refazer os assets
+
+```bash
+python fontes/nivelar.py entrada.png saida.png 260 70
+python fontes/analise_panorama.py saida.png offset.png
+python fontes/texturas_odara.py
+python fontes/montar_mr.py tex-raiz.png panorama.png index.html
+```
+
+O `montar_mr.py` embute as imagens e o som no HTML e recusa a compilação se
+achar uma crase solta fora de um shader — uma crase perdida num comentário de
+GLSL fecha o *template literal* do JavaScript no meio e quebra o arquivo
+inteiro, com o erro aparecendo longe dali. Já aconteceu duas vezes.
