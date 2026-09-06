@@ -748,6 +748,12 @@
     <tr><th>Atributos vazando entre programas</th>
         <td>Ligar um atributo no WebGL vale para sempre, não para o desenho. Com cinco ligados e o programa seguinte usando um, os quatro restantes seguiam apontando para outro buffer, com outra contagem de vértices — leitura fora do intervalo. <b>Em algumas placas sai geometria lixo; em outras o objeto some.</b></td>
         <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>Os dois polos do céu misturados</th>
+        <td>As imagens de céu repetiam nos <b>dois</b> eixos. No horizontal está certo — é a longitude, e ela dá a volta. No vertical não: é a latitude, e os extremos dela não são vizinhos, um é o zênite e o outro é o nadir. Repetindo, o filtro mistura os dois: <b>o que está em cima da cabeça recebe uma parte do que está debaixo dos pés.</b> Com mipmap piora, porque no nível reduzido cada texel cobre uma faixa larga de latitude. Saía um halo pálido bem no alto da cúpula.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>A água refletindo outro céu</th>
+        <td>A água lia direto o céu de <b>destino</b>. Fora da travessia dá no mesmo. Mas durante os seis segundos de passagem <b>o espelho ia na frente</b>: em cima o céu cósmico ainda cedia, e na lâmina o rosa já estava inteiro. Um reflexo que discorda do que reflete é o tipo de erro que ninguém sabe nomear e todo mundo sente — e caía exatamente na entrada do planeta rosa, que é onde a água existe.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
     <tr><th>Recorte nascendo opaco</th>
         <td>As quatro figuras nasciam de um pixel <b>RGB</b> — e RGB não tem alfa, então o shader lia alfa 1. Enquanto a imagem não decodificava, <b>a figura desenhava como um quadrado opaco no lugar dela.</b> Milissegundos no computador, mas o arquivo tem quase seis megabytes e no headset a decodificação demora. Agora nascem transparentes: antes de carregar, a figura não existe em vez de existir errada.</td>
         <td><span class="selo ok">corrigido</span></td></tr>
@@ -949,8 +955,8 @@
   <thead><tr><th>a melhoria</th><th>o que muda</th><th>custo</th></tr></thead>
   <tbody>
     <tr><th>Céu do planeta rosa só no hemisfério de cima</th>
-        <td>Ali só se vê o céu <b>acima</b> da água — metade da imagem nunca aparece. Mapeando só na metade que se vê, a <b>resolução aparente dobra</b> sem gastar um byte a mais.</td>
-        <td>~1 h</td></tr>
+        <td>É verdade que metade da imagem nunca aparece: ali só se vê o céu <b>acima</b> da água, e o reflexo espelha para cima, então também lê a metade de cima. Mas <b>eu errei ao dizer que a resolução dobraria</b> — fui conferir os arquivos de origem e eles têm 1536 × 768, <b>menores que os 2048 × 1024 do céu montado</b>. Não há detalhe escondido para recuperar; remapear só esticaria os mesmos pixels. <b>O ganho existe, mas depende de material novo</b>, não de código: quando o céu marmorizado e estrelado sair do Midjourney, aí sim vale mapear só na metade que se vê — e aí a nitidez dobra de verdade.</td>
+        <td>depende do MJ</td></tr>
     <tr><th>As deusas em vídeo</th>
         <td>Hoje são imagens paradas com balanço. Em vídeo, em bumerangue, elas <b>respiram</b> — e o roteiro pede isso. <b>Um por cenário</b>, carregado antes e só recebendo <i>play</i> na hora.</td>
         <td>~3 h</td></tr>
