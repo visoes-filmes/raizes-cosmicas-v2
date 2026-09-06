@@ -748,6 +748,15 @@
     <tr><th>Atributos vazando entre programas</th>
         <td>Ligar um atributo no WebGL vale para sempre, não para o desenho. Com cinco ligados e o programa seguinte usando um, os quatro restantes seguiam apontando para outro buffer, com outra contagem de vértices — leitura fora do intervalo. <b>Em algumas placas sai geometria lixo; em outras o objeto some.</b></td>
         <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>Recorte nascendo opaco</th>
+        <td>As quatro figuras nasciam de um pixel <b>RGB</b> — e RGB não tem alfa, então o shader lia alfa 1. Enquanto a imagem não decodificava, <b>a figura desenhava como um quadrado opaco no lugar dela.</b> Milissegundos no computador, mas o arquivo tem quase seis megabytes e no headset a decodificação demora. Agora nascem transparentes: antes de carregar, a figura não existe em vez de existir errada.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>Unidade de textura solta no carregamento</th>
+        <td><code>bindTexture</code> liga na unidade <b>ativa no momento</b>, e o carregamento termina quando a imagem decodifica — que pode ser no meio de um quadro, com a unidade onde o laço de desenho deixou. Ligar ali <b>substitui a textura que o desenho estava usando</b>, e sai um quadro com a pele errada no planeta.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>Textura que falha em silêncio</th>
+        <td>Não havia tratamento de erro: uma imagem que não carregasse ficava como cor chapada, sem uma palavra em lugar nenhum — e cor chapada num cenário escuro passa despercebida até alguém reparar que falta uma coisa.</td>
+        <td><span class="selo ok">corrigido</span></td></tr>
     <tr><th>Tempo contado em quadros</th>
         <td><code>relogio += 1/60</code> supõe 60 quadros por segundo. Numa máquina a 30 a obra rodava na metade da velocidade; no Quest, a 72, mais rápido. <b>Os dez minutos deixariam de ser dez minutos.</b></td>
         <td><span class="selo ok">corrigido</span></td></tr>
@@ -945,6 +954,9 @@
     <tr><th>As deusas em vídeo</th>
         <td>Hoje são imagens paradas com balanço. Em vídeo, em bumerangue, elas <b>respiram</b> — e o roteiro pede isso. <b>Um por cenário</b>, carregado antes e só recebendo <i>play</i> na hora.</td>
         <td>~3 h</td></tr>
+    <tr><th>Filtragem anisotrópica</th>
+        <td><b>Feita.</b> O mipmap resolve o cintilar <b>borrando</b>: de raspão os dois eixos da imagem se comprimem de forma muito diferente, e obrigado a um nível único o hardware escolhe pelo eixo pior e borra também o eixo que estava bom. É por isso que o céu, já com mipmap, fica nítido em cima e <b>lavado na linha do horizonte</b>. Com anisotropia a placa tira várias amostras ao longo do eixo comprimido: o cintilar continua resolvido e a nitidez volta — na cúpula perto do horizonte e na água vista rasante.</td>
+        <td>feito · 4×</td></tr>
     <tr><th>Resolução que cede sozinha</th>
         <td>Quando os quadros caem, reduzir a resolução de desenho em vez de engasgar. <b>Troca nitidez por fluidez</b> — e é mais barato baixar a resolução do que cortar uma camada da obra.</td>
         <td>~2 h</td></tr>
