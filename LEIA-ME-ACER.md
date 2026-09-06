@@ -61,10 +61,11 @@ A pasta inteira tem **25 MB**.
 Só isso. **Não** precisa de Node, npm, nem servidor local: a cena é um
 arquivo HTML único que abre com duplo clique.
 
-> **numpy não é necessário** para reconstruir. Alguns scripts antigos em
-> `fontes/` (`costurar_esfera.py`, `nivelar.py`) usam numpy, mas eles já
-> fizeram o trabalho deles: os céus prontos estão em `assets/ceus/`. Só
-> precisará de numpy se for **refazer um céu do zero**.
+> **numpy não é necessário** para reconstruir. Quatro scripts em `fontes/`
+> usam numpy — `nivelar.py`, `analise_panorama.py`, `figuras_odara.py` e
+> `texturas_odara.py` — mas todos já fizeram o trabalho deles: os céus, as
+> figuras e as texturas prontas estão em `assets/`. Só precisará de numpy se
+> for **refazer um desses do zero**.
 
 ---
 
@@ -116,6 +117,9 @@ raizes-cosmicas-v2/
     ├── peles_planetas.py             Fez as seis peles a partir das do MJ.
     ├── figuras_odara.py              Recortou as quatro figuras.
     ├── texturas_odara.py             Fez as texturas que ladrilham.
+    ├── nivelar.py                    Costurou a emenda e os polos do céu.
+    ├── analise_panorama.py           Mede emenda e polos de um equirretangular.
+    ├── gerar_visualizador.py         Visualizador 360 avulso, com a imagem dentro.
     ├── planetas/mj1..mj6.jpg         As seis do Midjourney, originais.
     └── (outros patch_*.py)           Histórico das mudanças, um por assunto.
 ```
@@ -172,6 +176,23 @@ qualquer diretório e em qualquer máquina.
 ---
 
 ## 7. Como publicar
+
+**Primeiro, troque a versão do cache** em `sw.js`:
+
+```js
+const VERSAO = 'raizes-cosmicas-AAAA-MM-DD';
+```
+
+O service worker serve **cache primeiro, rede como reserva**, e o nome do
+cache *é* o número da versão: um nome novo cria um cache novo, baixa tudo
+dentro dele e só então apaga o antigo — nunca há um momento em que metade da
+obra é de uma versão e metade de outra. Mas **sem trocar essa string o
+headset continua servindo o cache antigo**, e a obra nova não chega lá.
+
+> É essa a causa real do "abri e parece a versão de antes". Puxar a página
+> para baixo às vezes resolve; trocar a versão sempre resolve.
+
+Depois:
 
 ```bash
 git add -A

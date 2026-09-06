@@ -70,7 +70,9 @@ assim:
 2. copie por cima dele o seu `fontes/mr.template.html` editado
 3. copie também qualquer imagem nova que tenha posto em `assets/`
 4. rode os dois comandos de montagem
-5. e então:
+5. **troque a data em `const VERSAO` dentro do `sw.js`** — sem isso o
+   headset serve o cache antigo e a obra nova não chega lá
+6. e então:
 
 ```
 git add -A
