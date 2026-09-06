@@ -8,10 +8,35 @@
      e garantia e some sem aviso — e numa feira o wi-fi e justamente o que
      falha. O catch vazio e proposital: aberta por file:// ou dentro de um
      quadro publicado, nao ha service worker, e isso nao e erro. */
+  /* MAS NAO ENQUANTO SE TESTA.
+
+     Servida de localhost — que e como ela chega ao headset pelo cabo — a
+     obra faz o contrario: DESREGISTRA o service worker e apaga os caches.
+
+     Porque durante o teste o guardiao vira o inimigo: ele serve a versao
+     conferida, e conferida quer dizer "a de antes". Perde-se meia hora
+     olhando um defeito ja corrigido, e a duvida de "sera que subiu?"
+     contamina tudo o que se testa depois.
+
+     Na feira o endereco e outro e o guardiao volta a valer. */
+  var emTeste = location.hostname === "localhost" ||
+                location.hostname === "127.0.0.1";
+
   if ("serviceWorker" in navigator) {
-    addEventListener("load", function () {
-      navigator.serviceWorker.register("./sw.js").catch(function () {});
-    });
+    if (emTeste) {
+      navigator.serviceWorker.getRegistrations()
+        .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); })
+        .catch(function () {});
+      if (self.caches && caches.keys) {
+        caches.keys()
+          .then(function (ns) { ns.forEach(function (n) { caches.delete(n); }); })
+          .catch(function () {});
+      }
+    } else {
+      addEventListener("load", function () {
+        navigator.serviceWorker.register("./sw.js").catch(function () {});
+      });
+    }
   }
 </script>
 <style>
@@ -303,9 +328,11 @@
 </button>
 
 <!-- OS DOIS DE EMERGENCIA, para quem opera a sala.
-     Este elemento e tambem a raiz do dom-overlay: e o unico pedaco de
-     interface que existe DENTRO do headset. Por isso so tem dois botoes —
-     o que aparece ali disputa espaco com a obra. -->
+     Eles vivem na PAGINA, nao dentro do headset: o navegador do Quest nao
+     suporta dom-overlay em realidade mista, entao nenhum DOM existe la
+     dentro. Servem no portao, na tela do computador e no espelho — que e
+     onde quem opera esta. O que precisar ser tocado DENTRO da obra tem
+     que ser desenhado na cena. -->
 <div id="emergencia">
   <button id="bReiniciar" title="reiniciar do zero" aria-label="reiniciar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -2719,35 +2746,44 @@ async function entrarXR(aoEntrar){
       requiredFeatures: ['local-floor'],
       // detecção de superfície é opcional: sem ela as raízes ainda nascem
       // do chão, só não pinta as paredes reais
-      optionalFeatures: ['plane-detection','anchors','hit-test','dom-overlay'],
-      /* O UNICO PEDACO DE DOM QUE EXISTE DENTRO DO HEADSET.
-
-         Sem dom-overlay a pagina inteira desaparece ao entrar em RM: fica
-         so o WebGL, e qualquer botao vira decoracao inalcancavel. Por isso
-         a raiz e o #emergencia e nao o documento — o que entra aqui e
-         desenhado por cima da obra, e so os dois de emergencia merecem
-         esse lugar.
-
-         E opcional de proposito: onde nao houver, a obra abre igual e os
-         botoes continuam servindo na tela do computador. */
-      domOverlay: { root: document.getElementById('emergencia') }
+      optionalFeatures: ['plane-detection','anchors','hit-test']
   };
 
+  /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
+
+     O navegador do Quest responde, no console do proprio headset:
+         Feature 'dom-overlay' is not supported for mode: immersive-ar
+     E nao recusa a sessao: ele deixa a promessa PENDURADA. Nao volta, nao
+     falha, nao chama o catch. Do lado de dentro do capacete isso e o
+     portao dizendo "abrindo a realidade mista..." para sempre.
+
+     Por isso nao ha nenhum DOM dentro do headset nesta obra. O que
+     precisar ser visto la dentro tem que ser desenhado na cena. */
+
+  /* E POR ISSO TODA TENTATIVA TEM PRAZO.
+
+     A licao maior nao e sobre dom-overlay: e que uma promessa que nunca
+     volta nao aciona nenhum tratamento de erro que se escreva. Sem prazo,
+     qualquer recurso que o aparelho nao conheca trava a obra inteira em
+     silencio. Seis segundos, e passa-se ao minimo. */
+  function comPrazo(promessa, ms){
+    return Promise.race([
+      promessa,
+      new Promise((_, falhar) =>
+        setTimeout(() => falhar(new Error('sem resposta em ' + (ms/1000) + 's')), ms))
+    ]);
+  }
+
   try{
-    sessao = await navigator.xr.requestSession('immersive-ar', pedido);
+    sessao = await comPrazo(
+      navigator.xr.requestSession('immersive-ar', pedido), 6000);
   }catch(e1){
     try{
-      // O minimo que basta. Perde-se a pintura das paredes reais e os
-      // botoes dentro do headset; nao se perde a obra.
-      sessao = await navigator.xr.requestSession('immersive-ar',
-                                                 { requiredFeatures: ['local-floor'] });
+      // O minimo que basta: com local-floor a obra inteira funciona.
+      sessao = await comPrazo(
+        navigator.xr.requestSession('immersive-ar',
+                                    { requiredFeatures: ['local-floor'] }), 6000);
     }catch(e2){
-      /* O ERRO TEM QUE APARECER NA TELA DO HEADSET.
-
-         Dentro do capacete nao ha console, nao ha aba de rede, nao ha nada:
-         ou a causa esta escrita no portao, ou ela se perde e a gente volta
-         a adivinhar. Duas tentativas, dois motivos — e e o segundo que
-         importa, porque foi o que recusou ate o minimo. */
       vXR.textContent='recusado'; vXR.className='no';
       if(ePortaoDica) ePortaoDica.textContent =
         'O headset recusou: ' + (e2 && (e2.name || e2.message) || 'motivo desconhecido') +
