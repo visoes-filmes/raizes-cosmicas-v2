@@ -130,6 +130,26 @@
   #bUI:hover{opacity:1;color:var(--ink);}
   #bUI svg{width:17px;height:17px;display:block;}
 
+  /* A EMERGENCIA. Nao e andaime: fica na obra montada e nao some com o H.
+     Quem opera precisa cortar entre um visitante e outro sem tirar o
+     capacete de ninguem, e um controle que se esconde nao serve para isso.
+     Canto oposto ao dos controles, para nao se apertar um pelo outro. */
+  #emergencia{
+    position:fixed;left:16px;bottom:16px;z-index:11;
+    display:flex;gap:8px;
+  }
+  #emergencia button{
+    width:38px;height:38px;padding:0;border-radius:50%;
+    display:grid;place-items:center;
+    background:rgba(21,15,38,.55);border:1px solid rgba(44,34,69,.7);
+    color:var(--ink-dim);cursor:pointer;
+    backdrop-filter:blur(10px);opacity:.35;transition:opacity .2s,color .2s;
+  }
+  #emergencia button:hover{opacity:1;}
+  #bParar:hover{color:#ff8b8b;border-color:rgba(255,139,139,.5);}
+  #bReiniciar:hover{color:var(--ink);}
+  #emergencia svg{width:16px;height:16px;display:block;}
+
   #head{top:16px;left:16px;max-width:335px;}
   #head h1{margin:0 0 5px;font-size:13px;font-weight:600;text-wrap:balance;}
   #head p{margin:0;font-size:11.5px;line-height:1.55;color:var(--ink-dim);}
@@ -281,6 +301,25 @@
     <circle cx="18" cy="17" r="2"/>
   </svg>
 </button>
+
+<!-- OS DOIS DE EMERGENCIA, para quem opera a sala.
+     Este elemento e tambem a raiz do dom-overlay: e o unico pedaco de
+     interface que existe DENTRO do headset. Por isso so tem dois botoes —
+     o que aparece ali disputa espaco com a obra. -->
+<div id="emergencia">
+  <button id="bReiniciar" title="reiniciar do zero" aria-label="reiniciar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+    </svg>
+  </button>
+  <button id="bParar" title="encerrar e voltar ao portão" aria-label="encerrar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round">
+      <path d="M6 6l12 12M18 6L6 18"/>
+    </svg>
+  </button>
+</div>
 
 <script>
 (function(){
@@ -2311,7 +2350,9 @@ cv.addEventListener('wheel', e=>{
   fov = Math.max(0.4, Math.min(2.0, fov + e.deltaY*0.0015));
 }, {passive:false});
 
-const paineis = ['head','hud','ctl','partitura'].map(i=>document.getElementById(i));
+/* O medidor de quadros entra na lista: 68/72 no canto e diagnostico, e
+   diagnostico e coisa de quem constroi. Volta com o H, junto com o resto. */
+const paineis = ['head','hud','ctl','partitura','fps'].map(i=>document.getElementById(i));
 const bUI = document.getElementById('bUI');
 function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v); }
 /* ABERTA enquanto se constroi. Na obra montada isto volta a false e tudo
@@ -2319,8 +2360,18 @@ function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v);
    trabalhando precisa da regua para alcancar um cenario que so acontece aos
    3:30, e abrir a pagina sem nenhum controle a vista faz parecer que nada
    mudou. */
-let uiAberta = true;
-mostrarUI(true);
+/* FECHADA. Isto e um ambiente para o visitante, nao um editor.
+
+   O andaime continua no arquivo e a tecla H o traz de volta em um toque —
+   quem trabalha nao perde nada. Mas quem poe o capacete tem que encontrar
+   a obra, e nao a mesa de quem a fez: reguas, medidores e interruptores
+   dizem "voce esta num programa", que e exatamente o contrario do que dez
+   minutos de realidade mista tentam construir.
+
+   A emergencia NAO faz parte disto: ela fica sempre, porque e de quem
+   opera a sala. */
+let uiAberta = false;
+mostrarUI(false);
 bUI.onclick = ()=>{ uiAberta = !uiAberta; mostrarUI(uiAberta); };
 addEventListener('keydown', e=>{
   if(e.key === 'h' || e.key === 'H'){ uiAberta = !uiAberta; mostrarUI(uiAberta); }
@@ -2437,6 +2488,42 @@ bIniciar.onclick = ()=>{
   if(bXR.disabled){ iniciarObra(); return; }   // sem RM aqui: vai na tela
   ePortaoDica.textContent = 'abrindo a realidade mista…';
   entrarXR(iniciarObra);
+};
+
+/* ═══════════ os dois de emergencia ═══════════
+
+   Numa feira a obra nao termina quando acaba: termina quando o visitante
+   sai. Sao dez minutos, e quase ninguem fica os dez. Sem estes dois, quem
+   opera so tem o caminho de arrancar o capacete e recarregar a pagina — e
+   recarregar significa esperar o service worker, as imagens e a sessao de
+   novo, com a fila parada.
+
+   REINICIAR mantem a sessao de RM aberta e so leva a obra de volta ao
+   zero. E o botao do dia inteiro: um visitante sai, o proximo entra, e o
+   headset nunca deixou a realidade mista.
+
+   ENCERRAR fecha a sessao e devolve o portao. E o do fim do expediente, ou
+   do imprevisto — alguem passou mal, a luz caiu, o rastreamento se perdeu. */
+const bReiniciar = document.getElementById('bReiniciar');
+const bParar     = document.getElementById('bParar');
+
+bReiniciar.onclick = ()=>{
+  iniciarObra();
+  /* A trilha volta ao comeco junto. Sem isto a obra recomeca do zero com a
+     musica no meio do compasso, e as duas passam o resto da sessao
+     desencontradas. */
+  if(TEM_SOM){ try{ trilha.currentTime = 0; }catch(e){} }
+};
+
+bParar.onclick = ()=>{
+  andando = false;
+  t = 0; relogio = 0;
+  cenaAtual = 1; misturaCeu = 0;
+  ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
+  bTocar.textContent = 'tocar';
+  if(TEM_SOM){ trilha.pause(); tocando = false; try{ trilha.currentTime = 0; }catch(e){} }
+  ePortao.classList.remove('foi');   // o portao de volta, pronto para o proximo
+  if(sessao) sessao.end();           // 'end' devolve sessao = null la embaixo
 };
 
 const bSala=document.getElementById('bSala'), bRaiz=document.getElementById('bRaizes');
@@ -2575,7 +2662,18 @@ async function entrarXR(aoEntrar){
       requiredFeatures: ['local-floor'],
       // detecção de superfície é opcional: sem ela as raízes ainda nascem
       // do chão, só não pinta as paredes reais
-      optionalFeatures: ['plane-detection','anchors','hit-test']
+      optionalFeatures: ['plane-detection','anchors','hit-test','dom-overlay'],
+      /* O UNICO PEDACO DE DOM QUE EXISTE DENTRO DO HEADSET.
+
+         Sem dom-overlay a pagina inteira desaparece ao entrar em RM: fica
+         so o WebGL, e qualquer botao vira decoracao inalcancavel. Por isso
+         a raiz e o #emergencia e nao o documento — o que entra aqui e
+         desenhado por cima da obra, e so os dois de emergencia merecem
+         esse lugar.
+
+         E opcional de proposito: onde nao houver, a obra abre igual e os
+         botoes continuam servindo na tela do computador. */
+      domOverlay: { root: document.getElementById('emergencia') }
     });
   }catch(e){
     vXR.textContent='recusado'; vXR.className='no';
