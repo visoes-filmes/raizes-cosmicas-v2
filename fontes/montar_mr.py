@@ -6,7 +6,15 @@ import os
 import sys
 from PIL import Image
 
-AQUI = os.path.dirname(os.path.abspath(__file__))
+AQUI = os.path.dirname(os.path.abspath(__file__))          # .../fontes
+RAIZ = os.path.dirname(AQUI)                                # a pasta do projeto
+BENS = os.path.join(RAIZ, "assets")                         # onde moram as imagens
+
+def bem(*partes):
+    """Caminho dentro de assets/. Tudo resolve a partir da PASTA DO PROJETO,
+    nunca do diretorio de onde se chamou o script — assim o comando e o mesmo
+    em qualquer maquina e de qualquer lugar do terminal."""
+    return os.path.join(BENS, *partes)
 
 
 def embutir_audio(nome):
@@ -43,35 +51,34 @@ SEM_SOM = False
 
 print("Texturas:")
 mapa = {
-    "__TEX_RAIZ__":     embutir(sys.argv[1], (256, 512)),
+    "__TEX_RAIZ__":     embutir(bem("texturas", "tex-raiz.png"), (256, 512)),
     # o panorama inteiro: a sala vira superficie de projecao dele, entao a
     # obra envolve o espaco uma vez so, sem azulejo repetido
-    "__TEX_PANORAMA__": embutir(sys.argv[2], (2048, 1024), qualidade=88),
-    "__CEU_COSMICO__":  embutir(os.path.join(AQUI, "ceus/ceu-cosmico-2048.png"),
+    "__TEX_PANORAMA__": embutir(bem("ceus", "ceu-floresta-2048.png"), (2048, 1024), qualidade=88),
+    "__CEU_COSMICO__":  embutir(bem("ceus", "ceu-cosmico-2048.png"),
                                 (2048, 1024), qualidade=86),
-    "__CEU_ROSA__":     embutir(os.path.join(AQUI, "ceus/ceu-rosa-2048.png"),
+    "__CEU_ROSA__":     embutir(bem("ceus", "ceu-rosa-2048.png"),
                                 (2048, 1024), qualidade=86),
     # As peles dos planetas: recorte da propria pintura, ja tratado para
     # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
-    "__TEX_MARMORE__":  embutir(os.path.join(AQUI, "texturas/tex-marmore.png"),
+    "__TEX_MARMORE__":  embutir(bem("texturas", "tex-marmore.png"),
                                 (512, 512), qualidade=86),
-    "__PELE_SOL__":       embutir(os.path.join(AQUI, "peles/pele-sol.jpg"),       (1024, 512), qualidade=86),
-    "__PELE_ROSA__":      embutir(os.path.join(AQUI, "peles/pele-rosa.jpg"),      (1024, 512), qualidade=86),
-    "__PELE_ASTEROIDE__": embutir(os.path.join(AQUI, "peles/pele-asteroide.jpg"), (1024, 512), qualidade=86),
-    "__PELE_VERDE__":     embutir(os.path.join(AQUI, "peles/pele-verde.jpg"),     (1024, 512), qualidade=86),
-    "__PELE_AGUA__":      embutir(os.path.join(AQUI, "peles/pele-agua.jpg"),      (1024, 512), qualidade=86),
-    "__PELE_FOGO__":      embutir(os.path.join(AQUI, "peles/pele-fogo.jpg"),      (1024, 512), qualidade=86),
-    "__TEX_AGUA__":     embutir(os.path.join(AQUI, "texturas/tex-agua.png"),
+    "__PELE_SOL__":       embutir(bem("peles", "pele-sol.jpg"),       (1024, 512), qualidade=86),
+    "__PELE_ROSA__":      embutir(bem("peles", "pele-rosa.jpg"),      (1024, 512), qualidade=86),
+    "__PELE_ASTEROIDE__": embutir(bem("peles", "pele-asteroide.jpg"), (1024, 512), qualidade=86),
+    "__PELE_VERDE__":     embutir(bem("peles", "pele-verde.jpg"),     (1024, 512), qualidade=86),
+    "__PELE_AGUA__":      embutir(bem("peles", "pele-agua.jpg"),      (1024, 512), qualidade=86),
+    "__PELE_FOGO__":      embutir(bem("peles", "pele-fogo.jpg"),      (1024, 512), qualidade=86),
+    "__TEX_AGUA__":     embutir(bem("texturas", "tex-agua.png"),
                                 (512, 512), qualidade=86),
-    "__TEX_PAPEL__":    embutir(os.path.join(AQUI, "tex-papel.png"),
+    "__TEX_PAPEL__":    embutir(bem("texturas", "tex-papel.png"),
                                 (1024, 512), qualidade=84),
-    "__FIG_GALACTICO__": embutir("figuras/fig-galactico.png", (512,512), com_alfa=True),
-    "__FIG_DEUSA__":     embutir("figuras/fig-deusa-vermelha.png", (512,512), com_alfa=True),
-    "__FIG_INTEGRA__":   embutir("figuras/fig-deusa-integra.png", (512,512), com_alfa=True),
-    "__FIG_BORBOLETA__": embutir("figuras/fig-borboleta.png", (512,512), com_alfa=True),
+    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactico.png"), (512,512), com_alfa=True),
+    "__FIG_DEUSA__":     embutir(bem("figuras", "fig-deusa-vermelha.png"), (512,512), com_alfa=True),
+    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-deusa-integra.png"), (512,512), com_alfa=True),
+    "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
-        sys.argv[4] if len(sys.argv) > 4
-        else os.path.join(AQUI, "trilha-loop.mp3")),
+        bem("audio", "trilha-loop.mp3")),
 }
 
 with open(os.path.join(AQUI, "mr.template.html"), encoding="utf-8") as f:
@@ -110,7 +117,10 @@ if SEM_SOM:
 for k, v in mapa.items():
     html = html.replace(k, v)
 
-saida = sys.argv[3] if os.path.isabs(sys.argv[3]) else os.path.abspath(sys.argv[3])
+# Sem argumento nenhum, escreve o index.html do proprio projeto — que e o
+# que se quer em 99% das vezes. Um caminho como argumento continua valendo.
+saida = (sys.argv[1] if len(sys.argv) > 1 else os.path.join(RAIZ, "index.html"))
+saida = saida if os.path.isabs(saida) else os.path.abspath(saida)
 with open(saida, "w", encoding="utf-8") as f:
     f.write(html)
 
