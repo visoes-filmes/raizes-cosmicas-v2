@@ -34,22 +34,18 @@ apontar algo, conserte antes de montar.
 
 ## Publicar
 
-**Antes do push, troque a versão do cache** em `sw.js`:
-
-```js
-const VERSAO = 'raizes-cosmicas-AAAA-MM-DD';
-```
-
-A estratégia é cache primeiro, rede como reserva — o nome do cache **é** o
-número da versão. Sem trocar essa string, o headset continua servindo o
-cache antigo e a obra nova nunca chega lá. É essa a causa real do "abri e
-parece a versão de antes".
-
-Depois:
-
 ```bash
+python fontes/verificar.py
+python fontes/montar_mr.py
 git add -A && git commit -m "o que mudou" && git push
 ```
+
+**A versão do cache se troca sozinha.** O montador gira o `VERSAO` do
+`sw.js` a cada montagem (data + letra). Ela existe porque o service worker
+serve cache primeiro e o nome do cache *é* a versão: sem trocá-la, o headset
+continua servindo a obra antiga e a nova nunca chega lá. Era feito à mão, e
+à mão significa esquecer — já se perdeu uma tarde olhando um defeito que
+estava corrigido havia meia hora.
 
 GitHub Pages serve a pasta como está. Sem build, sem Actions — Actions foi
 tentado e falhou (token padrão é só de leitura), removido de propósito.
@@ -58,14 +54,50 @@ Conta: **Crisia-poria**, owner da organização `visoes-filmes`.
 
 ---
 
-## O andaime de ateliê
+## O andaime de ateliê — fora da obra
 
-A barra de baixo é ferramenta de trabalho, não parte da peça: cada faixa é
-um momento, com a largura da duração real e a cor do cenário. **Clicar salta
-para aquele ponto** — sem isso não há como trabalhar num cenário que só
-acontece aos 6:30. As marcas laranja são as três janelas de interação.
+Régua, medidores, interruptores e o botão que os chamava **não existem para
+quem visita**: nem escondidos, nem a uma tecla de distância. Isto é um
+ambiente, não um editor.
 
-**Tecla `H`** esconde e mostra tudo.
+Para trabalhar, troque `ANDAIME = false` para `true` em
+`fontes/mr.template.html` e monte de novo: volta a régua (clicar salta para
+qualquer ponto — sem ela não há como alcançar um cenário que só acontece aos
+6:30), os medidores e a tecla `H`.
+
+Ficam sempre, porque são de quem opera a sala e não de quem edita: os **dois
+de emergência** — reiniciar (leva a obra ao zero sem fechar a RM) e encerrar.
+Eles só aparecem **depois** que a obra começa, e vivem na página, não dentro
+do headset.
+
+## O que o Quest faz e ninguém espera
+
+**Nenhum DOM existe dentro do headset.** O navegador do Quest não suporta
+`dom-overlay` em `immersive-ar` — e **não recusa: pendura a promessa**. Não
+volta, não falha, não chama o `catch`. Qualquer botão que precise ser tocado
+dentro da obra tem que ser **desenhado na cena**.
+
+**Peça só `local-floor`.** Medido no aparelho: o pedido mínimo resolve na
+hora. Somar `plane-detection`, `anchors` ou `hit-test` pendura do mesmo
+jeito. A lista de opcionais está em zero de propósito.
+
+**Toda promessa de XR precisa de prazo.** A lição maior não é sobre nenhum
+recurso específico: uma promessa que nunca volta não aciona nenhum
+tratamento de erro que se escreva.
+
+**E a entrada em RM não é condição para a obra existir.** Se a sessão não
+abrir em oito segundos, a obra corre assim mesmo. Numa feira com fila, é
+melhor a obra achatada do que ninguém entendendo por que nada acontece.
+
+---
+
+## Os interruptores
+
+| onde | o quê |
+|---|---|
+| `ANDAIME` em `mr.template.html` | `false` é a obra; `true` devolve régua, medidores e a tecla H |
+| `window.raizes.ir(seg)` / `.cena(n)` | salta cenários — **só quando servida de localhost**, não existe na obra publicada |
+| `node fontes/luz-segue-cena.mjs` | a lâmpada da sala segue o cenário, pelo estúdio do v1 |
 
 ---
 

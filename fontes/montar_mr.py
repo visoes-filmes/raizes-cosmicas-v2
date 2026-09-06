@@ -127,3 +127,46 @@ with open(saida, "w", encoding="utf-8") as f:
 faltando = [k for k in mapa if k in html]
 print(f"\nMarcadores nao substituidos: {faltando if faltando else 'nenhum'}")
 print(f"Gerado: {saida}  ({len(html)//1024} KB)")
+
+
+# --------------------- A VERSAO DO CACHE, SOZINHA ---------------------
+#
+# O sw.js serve cache primeiro, e o NOME do cache e o numero da versao. Sem
+# troca-lo, o headset continua servindo a obra antiga e a nova nunca chega
+# la -- sem erro, sem aviso, so a versao de antes teimando.
+#
+# Isso era feito a mao. E ser feito a mao significa esquecer: ja se perdeu
+# uma tarde olhando um defeito que estava corrigido havia meia hora.
+#
+# Agora e o montador que troca. Ele nao pode esquecer, e a regra fica
+# simples: quem monta, publica versao nova. A marca e a data mais uma letra,
+# porque num dia de ajustes se monta muitas vezes.
+def girar_versao():
+    import datetime, re
+    caminho = os.path.join(RAIZ, "sw.js")
+    if not os.path.exists(caminho):
+        return None
+    texto = open(caminho, encoding="utf-8", newline="").read()
+    achado = re.search(r"const VERSAO = '([^']+)'", texto)
+    if not achado:
+        return None
+    atual = achado.group(1)
+    base = "raizes-cosmicas-" + datetime.date.today().isoformat()
+    if atual.startswith(base):
+        sufixo = atual[len(base):]
+        prox = "b" if not sufixo else chr(ord(sufixo[-1]) + 1)
+        if prox > "z":
+            prox = "aa"
+    else:
+        prox = ""                      # primeira montagem do dia
+    nova = base + prox
+    if nova == atual:
+        return atual
+    open(caminho, "w", encoding="utf-8", newline="").write(
+        texto.replace("const VERSAO = '" + atual + "'", "const VERSAO = '" + nova + "'"))
+    return nova
+
+
+_nova = girar_versao()
+print("Versao do cache: " + (_nova + "   (e esta que o headset vai buscar)" if _nova
+      else "NAO ACHEI o sw.js -- troque a mao antes de publicar"))

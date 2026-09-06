@@ -2,6 +2,9 @@
 <title>Raízes Cósmicas v2</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
+<!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
+     nada, mas suja o console justo onde se vai procurar defeito. -->
+<link rel="icon" href="./icone-192.png">
 <script>
   /* O aparelho guarda a obra inteira depois da primeira abertura.
      Sem isto, abrir sem rede fica por conta do cache do navegador, que nao
