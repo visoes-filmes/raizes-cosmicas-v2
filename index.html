@@ -1626,6 +1626,27 @@ function relatarTex(){
   }
 }
 function contarTex(){ texProntas++; relatarTex(); }
+
+/* O BOTAO NAO PODE FICAR CINZA PARA SEMPRE.
+
+   O portao espera as 17 imagens, e trata falha: quem falha avisa, e a obra
+   abre assim mesmo. Mas ha um terceiro caso, que e o pior — a imagem que
+   NAO carrega e NAO falha, so engasga. Ai nao chega nem load nem error,
+   a conta nunca fecha, e o botao fica cinza indefinidamente: do lado de
+   dentro do capacete isso e exatamente "nada acontece".
+
+   Doze segundos e o limite. Passou disso, abre-se com o que tiver — cor
+   chapada no lugar do que faltar e melhor do que um portao que nunca
+   destranca com a fila esperando. */
+setTimeout(()=>{
+  const b = document.getElementById('bIniciar');
+  if(b && b.disabled){
+    b.disabled = false;
+    const d = document.getElementById('portaoDica');
+    if(d) d.textContent = 'Pronto. ' + texProntas + ' de ' + TEX_TOTAL +
+                          ' imagens — a obra abre com o que carregou.';
+  }
+}, 12000);
 function falharTex(url){
   texFalhas.push(url.slice(0, 40));
   console.warn('textura nao carregou:', url.slice(0, 60));
@@ -2706,9 +2727,16 @@ async function entrarXR(aoEntrar){
       sessao = await navigator.xr.requestSession('immersive-ar',
                                                  { requiredFeatures: ['local-floor'] });
     }catch(e2){
+      /* O ERRO TEM QUE APARECER NA TELA DO HEADSET.
+
+         Dentro do capacete nao ha console, nao ha aba de rede, nao ha nada:
+         ou a causa esta escrita no portao, ou ela se perde e a gente volta
+         a adivinhar. Duas tentativas, dois motivos — e e o segundo que
+         importa, porque foi o que recusou ate o minimo. */
       vXR.textContent='recusado'; vXR.className='no';
       if(ePortaoDica) ePortaoDica.textContent =
-        'O headset recusou a realidade mista. Dá para ver na tela, no botão abaixo.';
+        'O headset recusou: ' + (e2 && (e2.name || e2.message) || 'motivo desconhecido') +
+        ' — e com tudo: ' + (e1 && (e1.name || e1.message) || '?');
       return;
     }
   }
