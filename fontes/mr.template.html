@@ -51,6 +51,36 @@
   }
   #fps.baixo{color:var(--ember);opacity:.85;}
 
+  /* A PARTITURA — andaime de ateliê, some com o resto pela tecla H.
+     Sem ela não há como trabalhar num cenário que só acontece aos 6:30. */
+  #partitura{
+    position:fixed; left:16px; right:16px; bottom:64px; z-index:9;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:10px 14px 12px; backdrop-filter:blur(10px);
+    font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace; font-size:11px;
+  }
+  #partitura .topo{
+    display:flex; align-items:center; gap:12px; margin-bottom:9px;
+    color:var(--ink-dim);
+  }
+  #partitura .topo b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+  #partitura .topo .agora{ flex:1; color:var(--accent); }
+  #partitura button{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    border-radius:6px; padding:3px 9px; font:inherit; cursor:pointer;
+  }
+  #partitura button:hover{ border-color:var(--accent); color:var(--ink); }
+  /* A régua. Cada cenário tem a sua cor, e a largura de cada faixa é a
+     duração real — a barra é o gráfico da partitura, não um enfeite. */
+  .regua{ position:relative; height:22px; cursor:pointer; }
+  .regua .faixa{ position:absolute; top:6px; height:10px; border-radius:2px;
+                 opacity:.34; }
+  .regua .marca{ position:absolute; top:2px; width:1px; height:18px;
+                 background:var(--line); }
+  .regua .marca.janela{ background:var(--ember); opacity:.75; }
+  .regua .cursor{ position:absolute; top:0; width:2px; height:22px;
+                  background:var(--ink); pointer-events:none; }
+
   #bUI{
     position:fixed;right:16px;bottom:16px;z-index:10;
     width:38px;height:38px;padding:0;border-radius:50%;
@@ -184,6 +214,16 @@
 <audio id="trilha" loop preload="auto" src="__TRILHA__"></audio>
 
 <div id="fps">—</div>
+<div class="card oculto" id="partitura">
+  <div class="topo">
+    <button id="bTocar">pausar</button>
+    <b id="vTempo">0:00</b><span>/ 10:00</span>
+    <span class="agora" id="vMomento">—</span>
+    <span>cenário</span><b id="vCena">1</b>
+  </div>
+  <div class="regua" id="regua"><div class="cursor" id="cursor"></div></div>
+</div>
+
 <button id="bUI" title="controles (H)" aria-label="controles">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
        stroke-linecap="round">
@@ -399,8 +439,10 @@ void main(){
 }`;
 const FS_SALA = `
 precision highp float;
-uniform sampler2D panorama;
+uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
+uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
+uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
 varying vec3 vPos;
 const float PI = 3.14159265359;
 void main(){
@@ -412,11 +454,19 @@ void main(){
   // desse luz de cima, o olho reconstruiria a caixa na hora. Sem isso,
   // uma sala e uma esfera são indistinguíveis pra quem está no centro.
   vec3 dir = normalize(vPos - vec3(0.0, olho, 0.0));
+  // Inverter e espelhar a direcao vertical: o mesmo ceu passa a ser lido de
+  // cabeca para baixo, e a floresta do primeiro cenario reaparece sob os pes
+  // no ultimo. Custa uma multiplicacao, nao uma imagem nova.
+  dir.y = mix(dir.y, -dir.y, inverter);
   float lon = atan(dir.x, -dir.z);
   float lat = asin(clamp(dir.y, -1.0, 1.0));
   vec2 st = vec2(fract(lon/(2.0*PI) + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
 
-  vec3 arte = texture2D(panorama, st).rgb;
+  // Dois ceus e uma travessia. Trocar de imagem de um quadro para o outro
+  // seria o unico corte duro da obra inteira; misturando, a passagem tem a
+  // mesma natureza de tudo o mais aqui, que e metamorfose.
+  vec3 arte = mix(texture2D(panorama, st).rgb,
+                  texture2D(panoramaB, st).rgb, mistura);
   arte *= 1.0 + 0.05 * sin(tempo*0.5 + lon*2.0);
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
@@ -976,11 +1026,131 @@ function carregar(t,url){
   im.src = url;
 }
 const texRaiz = novaTex([80,75,120]);
-const texPano = novaTex([30,26,48]);
+/* Os tres ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
+   shader mistura dois deles durante a travessia. */
+const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
+const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
-carregar(texPano, '__TEX_PANORAMA__');
+carregar(CEUS[0], '__TEX_PANORAMA__');
+carregar(CEUS[1], '__CEU_COSMICO__');
+carregar(CEUS[2], '__CEU_ROSA__');
 
 // A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
+
+/* ═══════════ A PARTITURA ═══════════
+   Os dez minutos do roteiro. Cada momento tem hora de comecar e acontece
+   INDEPENDENTE de a pessoa interagir: ha uma janela para ela agir, e
+   passada a janela a narrativa segue. Quem interage conduz, quem nao
+   interage e conduzido — e ninguem trava a fila. */
+const MOMENTOS = [
+  [   0, 1, 'a sala real; o ceu estrelado ja esta la'],
+  [  20, 1, 'as estrelas comecam a cair'],
+  [  60, 1, 'o nascimento: grama, cogumelo, a arvore'],
+  [ 110, 1, 'JANELA — os cogumelos, o casulo'],
+  [ 170, 1, 'a borboleta sobe e o mundo se desintegra'],
+  [ 180, 2, 'as estrelas acendem, da mais distante ate o Sol'],
+  [ 220, 2, 'os planetas descem e orbitam a pessoa'],
+  [ 250, 2, 'eles se dispersam pelo ceu e esperam'],
+  [ 280, 2, 'os buracos negros aparecem'],
+  [ 300, 2, 'o bale dos planetas nao escolhidos'],
+  [ 330, 2, 'JANELA — pegar e dimensionar um planeta'],
+  [ 380, 2, 'entrar no planeta'],
+  [ 390, 3, 'o planeta rosa; a agua sobe ate a cintura'],
+  [ 425, 3, 'a deusa vermelha na margem, com reflexo'],
+  [ 450, 3, 'JANELA — os seres, as pedras, a concha'],
+  [ 505, 3, 'a mao gigante vem, e puxa'],
+  [ 525, 4, 'o mundo de papel sobe, de baixo para cima'],
+  [ 560, 4, 'a deusa que integra tudo'],
+  [ 585, 4, 'tudo se desmancha; sobra o quarto real'],
+];
+const DURACAO = 600;          // dez minutos
+const TRAVESSIA = 6;          // segundos de mistura entre cenarios
+
+/* O ajuste de cada cenario. Nao sao gostos avulsos: cada linha e o clima
+   descrito no roteiro, traduzido nos controles que ja existiam. */
+const CENAS = {
+  1: { ceu:0, ceuB:0, tinta:0.85, nuvem:0.55, marmore:0.80, leite:0.32,
+       poeira:1800, sopro:1.0, raizes:1, ini:0.10, fim:0.80, inverter:0 },
+  2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.18, marmore:0.55, leite:0.18,
+       poeira:2600, sopro:0.5, raizes:0, ini:0.00, fim:0.30, inverter:0 },
+  3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.42, marmore:0.85, leite:0.48,
+       poeira:1100, sopro:1.5, raizes:0, ini:0.28, fim:0.95, inverter:0 },
+  4: { ceu:1, ceuB:0, tinta:0.82, nuvem:0.30, marmore:0.70, leite:0.35,
+       poeira:2000, sopro:0.8, raizes:0, ini:0.02, fim:0.50, inverter:1 },
+};
+
+function cenaEm(t){
+  let c = MOMENTOS[0][1];
+  for(const m of MOMENTOS) if(t >= m[0]) c = m[1];
+  return c;
+}
+function momentoEm(t){
+  let i = 0;
+  for(let k=0;k<MOMENTOS.length;k++) if(t >= MOMENTOS[k][0]) i = k;
+  return i;
+}
+/* Onde comeca o cenario que vale em t. Serve para saber quanto ja se
+   caminhou dentro da travessia. */
+function inicioDaCena(t){
+  const c = cenaEm(t);
+  let ini = 0;
+  for(const m of MOMENTOS){ if(m[1] === c){ ini = m[0]; break; } }
+  return ini;
+}
+
+/* ═══════════ a barra da partitura ═══════════ */
+const CORCENA = {1:'#6fa0a8', 2:'#9a8cd0', 3:'#d98aa8', 4:'#d0b088'};
+
+function montarRegua(){
+  const r = document.getElementById('regua');
+  const cursor = document.getElementById('cursor');
+  // uma faixa por cenario, com a largura da duracao dele
+  for(let i=0;i<MOMENTOS.length;i++){
+    const ini = MOMENTOS[i][0];
+    const fim = (i+1 < MOMENTOS.length) ? MOMENTOS[i+1][0] : DURACAO;
+    const f = document.createElement('div');
+    f.className = 'faixa';
+    f.style.left  = (ini/DURACAO*100) + '%';
+    f.style.width = ((fim-ini)/DURACAO*100) + '%';
+    f.style.background = CORCENA[MOMENTOS[i][1]] || '#555';
+    f.title = MOMENTOS[i][2];
+    r.appendChild(f);
+    const m = document.createElement('div');
+    m.className = 'marca' + (MOMENTOS[i][2].indexOf('JANELA') === 0 ? ' janela' : '');
+    m.style.left = (ini/DURACAO*100) + '%';
+    r.appendChild(m);
+  }
+  r.appendChild(cursor);
+  r.addEventListener('pointerdown', e => {
+    const c = r.getBoundingClientRect();
+    t = Math.max(0, Math.min(DURACAO, (e.clientX - c.left) / c.width * DURACAO));
+    // Saltar zera a travessia: senao o ceu ficaria misturado no meio do
+    // caminho por causa de um salto que a obra nunca faz sozinha.
+    const c2 = cenaEm(t);
+    cenaAtual = c2; ceuA = CENAS[c2].ceu; ceuB = CENAS[c2].ceu; misturaCeu = 1;
+    const a = CENAS[c2];
+    tinta=a.tinta; presenca=a.nuvem; marmore=a.marmore; leitoso=a.leite;
+    sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
+    inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
+    pinta();
+  });
+}
+
+function mmss(x){
+  const m = Math.floor(x/60), sg = Math.floor(x%60);
+  return m + ':' + (sg<10?'0':'') + sg;
+}
+let ultimoMomento = -1;
+function pintarPartitura(){
+  document.getElementById('cursor').style.left = (t/DURACAO*100) + '%';
+  document.getElementById('vTempo').textContent = mmss(t);
+  document.getElementById('vCena').textContent = cenaAtual;
+  const i = momentoEm(t);
+  if(i !== ultimoMomento){
+    ultimoMomento = i;
+    document.getElementById('vMomento').textContent = MOMENTOS[i][2];
+  }
+}
 
 /* ═══════════ estado ═══════════ */
 let yaw=0, pitch=0, tYaw=0, tPitch=0, fov=75*Math.PI/180;
@@ -989,6 +1159,46 @@ let degradeIni=0.10, degradeFim=0.80;   // fração do pé-direito
 let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
 let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
 let emXR = false;
+
+/* O relogio da obra, separado do relogio da animacao. O "relogio" corre
+   sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
+   da partitura, que pode ser pausado e arrastado enquanto se trabalha. */
+let t = 0, andando = true, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
+let ceuA = 0, ceuB = 0;
+
+/* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
+   travessia sao o que impede o unico corte duro que a obra teria. */
+function aproximar(atual, alvo, passo){ return atual + (alvo - atual) * passo; }
+
+function seguirPartitura(dt){
+  if(andando){ t += dt; if(t > DURACAO) t = 0; }
+  const c = cenaEm(t);
+  const a = CENAS[c];
+  if(!a) return;
+
+  // Dentro dos primeiros segundos de um cenario, o ceu anterior ainda esta
+  // presente e vai cedendo. Fora disso, mistura fixa no ceu do cenario.
+  const desde = t - inicioDaCena(t);
+  if(c !== cenaAtual){
+    ceuA = CENAS[cenaAtual] ? CENAS[cenaAtual].ceu : a.ceu;
+    ceuB = a.ceu;
+    cenaAtual = c;
+  }
+  const alvoMistura = desde < TRAVESSIA ? Math.min(1, desde / TRAVESSIA) : 1;
+  misturaCeu = alvoMistura;
+
+  const p = Math.min(1, dt * 0.9);           // suavidade dos ajustes
+  tinta      = aproximar(tinta, a.tinta, p);
+  presenca   = aproximar(presenca, a.nuvem, p);
+  marmore    = aproximar(marmore, a.marmore, p);
+  leitoso    = aproximar(leitoso, a.leite, p);
+  sopro      = aproximar(sopro, a.sopro, p);
+  degradeIni = aproximar(degradeIni, a.ini, p);
+  degradeFim = aproximar(degradeFim, a.fim, p);
+  inverterCeu= aproximar(inverterCeu, a.inverter, p);
+  quantosPo  = Math.round(aproximar(quantosPo, a.poeira, p));
+  raizesOn   = a.raizes > 0.5;
+}
 const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const suave = calmo ? 1 : 0.12;
 
@@ -1014,7 +1224,7 @@ cv.addEventListener('wheel', e=>{
   fov = Math.max(0.4, Math.min(2.0, fov + e.deltaY*0.0015));
 }, {passive:false});
 
-const paineis = ['head','hud','ctl'].map(i=>document.getElementById(i));
+const paineis = ['head','hud','ctl','partitura'].map(i=>document.getElementById(i));
 const bUI = document.getElementById('bUI');
 function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v); }
 let uiAberta = false;
@@ -1045,7 +1255,10 @@ function contarQuadro(){
    próprio clique em "Entrar em RM" já serve, então a trilha entra junto
    com a realidade mista sem precisar de mais nada. */
 const trilha = document.getElementById('trilha');
-let volume = 0.08, somLigado = true, tocando = false;
+let volume = 0.08, somLigado = false, tocando = false;
+/* DESLIGADO enquanto se constroi: a trilha entrando a cada recarga
+   atrapalha quem esta trabalhando na cena. Antes do FIL isto volta a
+   ser true — e a unica coisa que muda. */
 trilha.volume = volume;
 
 function acordarSom(){
@@ -1071,6 +1284,10 @@ sV.addEventListener('input', ()=>{
   trilha.volume = volume;
   vV.textContent = sV.value+'%';
 });
+
+montarRegua();
+const bTocar = document.getElementById('bTocar');
+bTocar.onclick = ()=>{ andando = !andando; bTocar.textContent = andando ? 'pausar' : 'tocar'; };
 
 const bSala=document.getElementById('bSala'), bRaiz=document.getElementById('bRaizes');
 bSala.onclick = ()=>{ salaVisivel=!salaVisivel; pinta(); };
@@ -1198,7 +1415,8 @@ bXR.onclick = async ()=>{
 const uR = n=>gl.getUniformLocation(progRaiz,n);
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex')};
-const locS = {mvp:uS('mvp'), pano:uS('panorama'), tinta:uS('tinta'),
+const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
+             mistura:uS('mistura'), inverter:uS('inverter'), tinta:uS('tinta'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
               altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim')};
 const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(progRaiz,'aNor'),
@@ -1344,7 +1562,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.altura, ALTURA);
     gl.uniform1f(locS.inicio, degradeIni);
     gl.uniform1f(locS.fim, degradeFim);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texPano);
+    gl.uniform1f(locS.mistura, misturaCeu);
+    gl.uniform1f(locS.inverter, inverterCeu);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
+    gl.uniform1i(locS.panoB, 4);
     gl.uniform1i(locS.pano, 0);
     ligar(aS.pos,bS.pos,3); ligar(aS.nor,bS.nor,3);
     ligar(aS.uv,bS.uv,2); ligar(aS.tipo,bS.tipo,1);
@@ -1410,6 +1632,8 @@ function quadro(){
   yaw += (tYaw-yaw)*suave;
   pitch += (tPitch-pitch)*suave;
   relogio += 1/60;
+  seguirPartitura(1/60);
+  pintarPartitura();
   contarQuadro();
   if(figurasOn) assarTinta();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1432,6 +1656,7 @@ function quadroXR(t, frame){
   const pose = frame.getViewerPose(espaco);
   if(!pose) return;
   relogio += 1/72;
+  seguirPartitura(1/72);
   contarQuadro();
 
   if(frame.detectedPlanes)

@@ -41,6 +41,10 @@ mapa = {
     # o panorama inteiro: a sala vira superficie de projecao dele, entao a
     # obra envolve o espaco uma vez so, sem azulejo repetido
     "__TEX_PANORAMA__": embutir(sys.argv[2], (2048, 1024), qualidade=88),
+    "__CEU_COSMICO__":  embutir(os.path.join(AQUI, "ceus/ceu-cosmico-2048.png"),
+                                (2048, 1024), qualidade=86),
+    "__CEU_ROSA__":     embutir(os.path.join(AQUI, "ceus/ceu-rosa-2048.png"),
+                                (2048, 1024), qualidade=86),
     "__TRILHA__":       embutir_audio(sys.argv[4] if len(sys.argv) > 4
                                       else os.path.join(AQUI, "trilha-loop.mp3")),
 }

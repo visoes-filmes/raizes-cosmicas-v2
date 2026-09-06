@@ -22,6 +22,40 @@ Publicado em GitHub Pages, é também o endereço que se abre **dentro do
 Quest 3**: lá o botão *Entrar em RM* troca o cinza pela sua sala de verdade,
 vista pelas câmeras.
 
+### A partitura
+
+A obra corre num relógio de dez minutos, e cada momento acontece
+**independente de a pessoa interagir**: há uma janela para ela agir, e
+passada a janela a narrativa segue. Quem interage conduz, quem não interage
+é conduzido — e ninguém trava a fila.
+
+A barra na parte de baixo é o andaime de ateliê: cada faixa é um momento,
+com a largura da duração real e a cor do cenário a que pertence. As marcas
+laranja são as três **janelas de interação**. Clicar em qualquer ponto salta
+para lá — sem isso não haveria como trabalhar num cenário que só acontece
+aos 6:30.
+
+Ela some com o resto pela tecla **H**.
+
+### Os céus
+
+Os três céus estão embutidos, e o shader **mistura dois** durante a passagem
+entre cenários. Trocar de imagem de um quadro para o outro seria o único
+corte duro da obra; misturando, a passagem tem a mesma natureza de tudo o
+mais aqui, que é metamorfose.
+
+No cenário 4 o céu do primeiro é lido **de cabeça para baixo** — a floresta
+de onde se partiu reaparece sob os pés. Custa uma multiplicação, não uma
+imagem nova.
+
+### O som
+
+**Desligado por padrão enquanto se constrói**, porque a trilha entrando a
+cada recarga atrapalha quem está trabalhando. Antes do FIL isto volta a ser
+`true` em `somLigado` — é a única coisa que muda.
+
+---
+
 Controles pela tecla **H** ou pelo botão no canto. O número no canto inferior
 direito são os quadros por segundo — fica laranja abaixo de 30, que é o aviso
 de que a máquina não está dando conta.
@@ -57,7 +91,7 @@ sw.js                   guarda a obra no aparelho, para abrir sem rede
 manifest.webmanifest    permite instalar no headset como aplicativo
 ```
 
-**Os assets ainda não são consumidos pelo `index.html`.** Ele é a primeira
+**Os céus já são consumidos pelo `index.html`** (vão embutidos nele). As texturas ainda não: Ele é a primeira
 parte da obra e já traz as suas imagens embutidas. O que está em `assets/`
 é material tratado esperando os cenários 2, 3 e 4, que ainda não existem.
 
