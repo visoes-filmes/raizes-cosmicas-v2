@@ -773,9 +773,10 @@ void main(){
 }`;
 const FS_AGUA = `
 precision highp float;
-uniform sampler2D pele, ceu;
+uniform sampler2D pele, ceu, ceu2;
 uniform vec3 olhoPos;
 uniform float tempo, presenca, nivel;
+uniform highp float misturaCeu;
 varying vec3 vMundo;
 const float PI  = 3.14159265359;
 const float PI2 = 6.28318530718;
@@ -811,8 +812,20 @@ void main(){
                              doOlho.z + onda.y * 1.5));
   float lon = atan(refl.x, -refl.z);
   float lat = asin(clamp(refl.y, -1.0, 1.0));
-  vec3 doCeu = texture2D(ceu, vec2(fract(lon/PI2 + 0.5),
-                                   clamp(0.5 - lat/PI, 0.002, 0.998))).rgb;
+  vec2 stCeu = vec2(fract(lon/PI2 + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
+  vec3 doCeu = texture2D(ceu, stCeu).rgb;
+  /* A MESMA TRAVESSIA DA CUPULA, e nao a de chegada.
+
+     A agua lia direto o ceu de DESTINO. Fora da travessia isso da no mesmo,
+     porque destino e atual sao o mesmo ceu. Mas durante os seis segundos de
+     passagem o espelho ia na frente: em cima o ceu cosmico ainda cedia, e na
+     lamina o rosa ja estava inteiro. Um reflexo que discorda do que reflete
+     e o tipo de erro que ninguem sabe nomear e todo mundo sente.
+
+     A segunda busca so acontece durante a travessia, como na cupula: fora
+     dela custa zero. */
+  if(misturaCeu > 0.002)
+    doCeu = mix(doCeu, texture2D(ceu2, stCeu).rgb, misturaCeu);
 
   /* FRESNEL. Olhando quase de cima a agua e transparente; olhando de
      raspao ela vira espelho. E o que faz uma superficie parecer molhada em
@@ -1564,7 +1577,23 @@ function carregarAlfa(t,url){
   };
   im.src = url;
 }
-function carregar(t,url){
+/* O terceiro parametro decide como a imagem se repete, e a diferenca importa.
+
+   PELE (marmore, agua, papel, raiz): repete nos DOIS eixos, porque foi feita
+   para ladrilhar sem emenda.
+
+   CEU: e equirretangular. O eixo horizontal e a longitude e da a volta — ali
+   repetir esta certo. Mas o eixo VERTICAL e a latitude, e os dois extremos
+   dele nao sao vizinhos: um e o zenite e o outro e o nadir. Repetindo, o
+   filtro mistura os dois — o que esta em cima da cabeca recebe uma parte do
+   que esta debaixo dos pes.
+
+   Com mipmap isso piora muito, e e por isso que so aparece agora: no nivel
+   reduzido cada texel cobre uma faixa larga de latitude, e a margem de duas
+   linhas que havia deixa de proteger. O resultado e um halo palido bem no
+   alto da cupula — que e para onde se olha primeiro ao entrar numa obra que
+   tem ceu. */
+function carregar(t,url,ehCeu){
   const im = new Image();
   im.onerror = ()=> console.warn('textura nao carregou:', url.slice(0,60));
   im.onload = ()=>{
@@ -1585,7 +1614,8 @@ function carregar(t,url){
        So funciona porque as duas medidas sao potencia de dois — 2048x1024
        e 512x512. Fora disso o WebGL 1 recusa e devolve preto. */
     gl.generateMipmap(gl.TEXTURE_2D);
-    for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT],
+    for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.REPEAT],
+                        [gl.TEXTURE_WRAP_T, ehCeu ? gl.CLAMP_TO_EDGE : gl.REPEAT],
                         [gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR],
                         [gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
       gl.texParameteri(gl.TEXTURE_2D,k,v);
@@ -1609,9 +1639,9 @@ const texPapel = novaTex([20,18,30]);
 const FIGS = [novaTexAlfa(), novaTexAlfa(), novaTexAlfa(), novaTexAlfa()];
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
-carregar(CEUS[0], '__TEX_PANORAMA__');
-carregar(CEUS[1], '__CEU_COSMICO__');
-carregar(CEUS[2], '__CEU_ROSA__');
+carregar(CEUS[0], '__TEX_PANORAMA__', true);
+carregar(CEUS[1], '__CEU_COSMICO__', true);
+carregar(CEUS[2], '__CEU_ROSA__', true);
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
 carregar(texPapel, '__TEX_PAPEL__');
@@ -2415,6 +2445,7 @@ const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 const uAg = n=>gl.getUniformLocation(progAgua,n);
 const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                largura:uAg('largura'), pele:uAg('pele'), ceu:uAg('ceu'),
+               ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
@@ -2823,8 +2854,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locAg.presenca, aguaPresenca);
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
     gl.uniform1i(locAg.pele, 5);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
-    gl.uniform1i(locAg.ceu, 4);
+    gl.uniform1i(locAg.ceu, 0);
+    gl.uniform1i(locAg.ceu2, 4);
+    gl.uniform1f(locAg.misturaCeu, misturaCeu);
     ligar(aAg.xy, bQ.xy, 2);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.depthMask(true);
