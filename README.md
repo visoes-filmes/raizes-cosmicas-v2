@@ -1,4 +1,7 @@
-# Raízes Cósmicas
+# Raízes Cósmicas v2
+
+**v2** para não confundir com o `floresta-psicodelica-ar`, que também se
+chama Raízes Cósmicas: são a mesma obra, construídas em dois lugares.
 
 Obra em **realidade mista** para Meta Quest 3, em WebXR. Abre no navegador do
 headset — não precisa instalar nada.

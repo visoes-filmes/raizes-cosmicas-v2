@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas em Realidade Mista</title>
+<title>Raízes Cósmicas v2</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <script>
@@ -143,7 +143,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas em realidade mista</h1>
+  <h1>Raízes Cósmicas v2</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -2222,7 +2222,10 @@ bXR.onclick = async ()=>{
   }catch(e){ vXR.textContent='recusado'; vXR.className='no'; return; }
 
   await gl.makeXRCompatible();
-  camadaXR = new XRWebGLLayer(sessao, gl);
+  /* Suavizacao explicita na camada do headset. O padrao ja e ligado onde
+     ha suporte, mas escrever deixa a intencao no codigo — e e a diferenca
+     entre borda macia e a serra que aparece em toda geometria fina. */
+  camadaXR = new XRWebGLLayer(sessao, gl, { antialias: true });
   sessao.updateRenderState({ baseLayer: camadaXR });
   espaco = await sessao.requestReferenceSpace('local-floor');
   emXR = true;
@@ -2387,6 +2390,22 @@ function soltarAtributos(){
   atributosLigados.clear();
 }
 
+/* UMA MATRIZ SO, reaproveitada.
+
+   Criar um Float32Array por programa por quadro sao nove alocacoes por
+   olho — dezoito por quadro dentro do headset, mil e trezentas por
+   segundo. O coletor de lixo do JavaScript nao limpa um pouco de cada
+   vez: ele junta e recolhe tudo de uma vez, e essa parada aparece como
+   ENGASGO PERIODICO. E um dos travamentos mais dificeis de diagnosticar,
+   porque nao tem nada a ver com o que esta na tela no momento.
+
+   Reaproveitar o mesmo espaco elimina a fonte. */
+const mvpBuf = new Float32Array(16);
+function mandarMvp(loc, m){
+  mvpBuf.set(m);
+  gl.uniformMatrix4fv(loc, false, mvpBuf);
+}
+
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   gl.enable(gl.DEPTH_TEST);
 
@@ -2413,7 +2432,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.useProgram(progRaiz);
     soltarAtributos();
-    gl.uniformMatrix4fv(locR.mvp, false, new Float32Array(mvp));
+    mandarMvp(locR.mvp, mvp);
     gl.uniform1f(locR.tempo, relogio);
     gl.uniform1f(locR.crescimento, crescimento);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
@@ -2433,7 +2452,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.depthMask(false);
     gl.useProgram(progSala);
     soltarAtributos();
-    gl.uniformMatrix4fv(locS.mvp, false, new Float32Array(mvp));
+    mandarMvp(locS.mvp, mvp);
     gl.uniform1f(locS.tinta, tinta);
     gl.uniform1f(locS.pass, dentroDeXR ? 1 : 0);
     gl.uniform1f(locS.tempo, relogio);
@@ -2475,7 +2494,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.useProgram(progAstro);
     soltarAtributos();
-    gl.uniformMatrix4fv(locAst.mvp, false, new Float32Array(mvp));
+    mandarMvp(locAst.mvp, mvp);
     ligar(aAst.pos, bE.pos, 3);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
 
@@ -2652,7 +2671,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.CULL_FACE);
     gl.useProgram(progAgua);
     soltarAtributos();
-    gl.uniformMatrix4fv(locAg.mvp, false, new Float32Array(mvp));
+    mandarMvp(locAg.mvp, mvp);
     // segue a pessoa em XZ: andar nunca alcanca a borda da lamina
     gl.uniform2f(locAg.centro, olhoPos[0], olhoPos[2]);
     gl.uniform1f(locAg.nivel, NIVEL_AGUA);
@@ -2680,7 +2699,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.CULL_FACE);
     gl.useProgram(progBolha);
     soltarAtributos();
-    gl.uniformMatrix4fv(locBo.mvp, false, new Float32Array(mvp));
+    mandarMvp(locBo.mvp, mvp);
     gl.uniform3f(locBo.camDir, camDir[0], camDir[1], camDir[2]);
     gl.uniform3f(locBo.camCima, camCima[0], camCima[1], camCima[2]);
     gl.uniform1f(locBo.tempo, relogio);
@@ -2754,7 +2773,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.disable(gl.CULL_FACE);
       gl.useProgram(progFigu);
       soltarAtributos();
-      gl.uniformMatrix4fv(locFi.mvp, false, new Float32Array(mvp));
+      mandarMvp(locFi.mvp, mvp);
       gl.uniform3f(locFi.camDir, camDir[0], camDir[1], camDir[2]);
       gl.uniform3f(locFi.camCima, camCima[0], camCima[1], camCima[2]);
       gl.uniform1f(locFi.tempo, relogio);
@@ -2801,7 +2820,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.CULL_FACE);
     gl.useProgram(progPapel);
     soltarAtributos();
-    gl.uniformMatrix4fv(locPa.mvp, false, new Float32Array(mvp));
+    mandarMvp(locPa.mvp, mvp);
     gl.uniform3f(locPa.camDir, camDir[0], camDir[1], camDir[2]);
     gl.uniform3f(locPa.camCima, camCima[0], camCima[1], camCima[2]);
     gl.uniform1f(locPa.tempo, relogio);
@@ -2834,7 +2853,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.CULL_FACE);      // a cortina é vista dos dois lados
     gl.useProgram(progFig);
     soltarAtributos();
-    gl.uniformMatrix4fv(locF.mvp, false, new Float32Array(mvp));
+    mandarMvp(locF.mvp, mvp);
     gl.uniform1f(locF.tempo, relogio);
     gl.uniform1f(locF.presenca, presenca);
     gl.uniform1f(locF.sopro, sopro);
@@ -2861,7 +2880,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.depthMask(false);
     gl.useProgram(progPo);
     soltarAtributos();
-    gl.uniformMatrix4fv(locPo.mvp, false, new Float32Array(mvp));
+    mandarMvp(locPo.mvp, mvp);
     gl.uniform1f(locPo.tempo, relogio);
     gl.uniform1f(locPo.escalaPonto, escalaPonto);
     gl.uniform1f(locPo.sopro, sopro);
