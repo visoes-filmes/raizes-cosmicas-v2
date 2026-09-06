@@ -2730,7 +2730,33 @@ if(navigator.xr){
 }
 
 async function entrarXR(aoEntrar){
-  if(sessao){ sessao.end(); return; }
+  /* SO ENCERRA O QUE ESTA MESMO ABERTO.
+
+     Havia aqui um if(sessao){ sessao.end(); return; } que parecia obvio:
+     clicar de novo sai da RM. Mas a variavel era preenchida ANTES de a
+     entrada terminar, e o ouvinte de 'end' — o unico que a zera — so era
+     instalado no fim. Qualquer falha no meio deixava a variavel presa com
+     uma sessao meio-aberta, e a partir dali TODO clique caia nesta linha,
+     tentava encerrar um fantasma e voltava. O botao continuava vivo e nao
+     fazia mais nada, para sempre, sem erro nenhum na tela.
+
+     Foi assim que a obra ficou inalcancavel depois da primeira tentativa
+     frustrada: nao era o pedido que falhava, era o segundo clique que nem
+     chegava a pedir.
+
+     Agora so se encerra o que esta de fato em curso, e um fantasma e
+     descartado em vez de bloquear a porta. */
+  if(sessao){
+    const estavaEmXR = emXR;
+    /* end() LANCA se a sessao ja tiver terminado por conta propria — e foi
+       exatamente assim que a obra ficou inalcancavel: a excecao subia como
+       promessa sem tratamento, entrarXR morria antes de pedir qualquer
+       coisa, e o portao ficava dizendo "abrindo a realidade mista..." para
+       sempre. Encerrar um fantasma nunca pode derrubar a entrada. */
+    try{ sessao.end(); }catch(e){ /* ja tinha terminado */ }
+    sessao = null; emXR = false;
+    if(estavaEmXR) return;   // estava mesmo em RM: o clique era para sair
+  }
   /* DUAS TENTATIVAS, E A SEGUNDA E A QUE SALVA O DIA.
 
      Alguns runtimes recusam a LISTA INTEIRA se um unico opcional for
@@ -2742,12 +2768,22 @@ async function entrarXR(aoEntrar){
 
      Entao: pede tudo; se recusarem, pede o minimo. Com local-floor a obra
      inteira funciona — o resto so acrescenta. */
-  const pedido = {
-      requiredFeatures: ['local-floor'],
-      // detecção de superfície é opcional: sem ela as raízes ainda nascem
-      // do chão, só não pinta as paredes reais
-      optionalFeatures: ['plane-detection','anchors','hit-test']
-  };
+  /* SO O QUE FOI PROVADO NO APARELHO.
+
+     Medido no Quest 3 pelo DevTools do proprio headset: pedir
+         { requiredFeatures: ['local-floor'] }
+     resolve na hora, e o aparelho devolve local, viewer, webxr, local-floor.
+     Pedir junto plane-detection, anchors e hit-test PENDURA o pedido —
+     nao recusa, nao volta.
+
+     E pendurar e pior do que recusar: nenhum catch pega, e a primeira
+     tentativa presa ainda atrapalha a segunda. Por isso a lista de
+     opcionais foi a zero.
+
+     O que se perde: a deteccao de superficie, que hoje so alimenta um
+     contador no painel. As raizes nascem do chao do mesmo jeito, porque
+     quem da o chao e o local-floor, e esse continua aqui. */
+  const pedido = { requiredFeatures: ['local-floor'] };
 
   /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
 
@@ -2791,6 +2827,12 @@ async function entrarXR(aoEntrar){
       return;
     }
   }
+
+  /* DAQUI EM DIANTE, QUALQUER TROPECO TEM QUE DEVOLVER A PORTA.
+     Sem isto, uma falha em makeXRCompatible, na camada ou no espaco de
+     referencia deixaria a variavel preenchida e o botao morto — que e
+     exatamente o defeito que este bloco existe para nao repetir. */
+  try{
 
   await gl.makeXRCompatible();
   /* Suavizacao explicita na camada do headset. O padrao ja e ligado onde
@@ -2847,6 +2889,18 @@ async function entrarXR(aoEntrar){
   /* Agora sim: a sessao esta aberta e o primeiro quadro do headset foi
      pedido. E aqui que a obra pode partir do zero. */
   if(aoEntrar) aoEntrar();
+
+  }catch(erro){
+    /* A porta volta a existir. A sessao meio-aberta e descartada, a
+       variavel zerada, e o motivo aparece no portao — dentro do capacete
+       nao ha console para consultar depois. */
+    try{ if(sessao) sessao.end(); }catch(e){}
+    sessao = null; emXR = false;
+    vXR.textContent = 'falhou'; vXR.className = 'no';
+    if(ePortaoDica) ePortaoDica.textContent =
+      'A realidade mista abriu e caiu: ' + (erro && (erro.name || erro.message) || '?') +
+      '. Toque de novo, ou use a tela.';
+  }
 }
 bXR.onclick = ()=>{ entrarXR(); };
 
