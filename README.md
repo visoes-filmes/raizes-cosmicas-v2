@@ -14,6 +14,10 @@ projetada como cúpula em volta, a nuvem cósmica marmorizada, as raízes
 procedurais e a poeira. Um arquivo só, autossuficiente, com as imagens e o
 som embutidos — abre offline, com um clique.
 
+Depois da primeira abertura ele fica **guardado no aparelho** por um service
+worker: abre sem rede, e não trava no meio porque o wi-fi oscilou. Numa feira
+isso não é conforto, é o que decide se a obra funciona.
+
 Publicado em GitHub Pages, é também o endereço que se abre **dentro do
 Quest 3**: lá o botão *Entrar em RM* troca o cinza pela sua sala de verdade,
 vista pelas câmeras.
@@ -49,7 +53,13 @@ assets/ceus/            as panorâmicas 360°, todas 2048×1024
 assets/texturas/        texturas que repetem sem emenda nos dois eixos
 assets/audio/           a trilha, já cortada para fechar em laço
 fontes/                 os programas que geram tudo o que está em assets/
+sw.js                   guarda a obra no aparelho, para abrir sem rede
+manifest.webmanifest    permite instalar no headset como aplicativo
 ```
+
+**Os assets ainda não são consumidos pelo `index.html`.** Ele é a primeira
+parte da obra e já traz as suas imagens embutidas. O que está em `assets/`
+é material tratado esperando os cenários 2, 3 e 4, que ainda não existem.
 
 **Por que 2048×1024.** O WebGL 1 só aceita repetir uma textura — que é o que
 faz a esfera fechar a volta — se as duas medidas forem potência de dois. Fora
@@ -100,7 +110,12 @@ uniforme e ao mesmo tempo mais detalhado do quadro. Detalhe garante que há
 pintura ali; uniformidade garante que a estatística não muda de um canto ao
 outro, que é o que faz o azulejo não denunciar onde ele começa.
 
-Todas emendam de 40–66 para **0,00** nos dois eixos.
+As cinco tiradas dos quadros da Odara emendam de 40–66 para **0,00** nos
+dois eixos.
+
+A `tex-raiz` é a exceção, e de propósito: ela repete **só ao longo do galho**,
+que é o único eixo em que uma casca precisa emendar. Na horizontal ela não
+fecha, e não precisa.
 
 ---
 
@@ -126,8 +141,11 @@ próprio clique em *Entrar em RM* já serve.
 python fontes/nivelar.py entrada.png saida.png 260 70
 python fontes/analise_panorama.py saida.png offset.png
 python fontes/texturas_odara.py
-python fontes/montar_mr.py tex-raiz.png panorama.png index.html
+
+python fontes/montar_mr.py   assets/texturas/tex-raiz.png   assets/ceus/ceu-floresta-2048.png   index.html   assets/audio/trilha-loop.mp3
 ```
+
+Os caminhos são relativos a onde o comando é dado, não a onde o script mora.
 
 O `montar_mr.py` embute as imagens e o som no HTML e recusa a compilação se
 achar uma crase solta fora de um shader — uma crase perdida num comentário de

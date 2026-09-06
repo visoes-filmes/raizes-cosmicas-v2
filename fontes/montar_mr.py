@@ -13,7 +13,7 @@ def embutir_audio(nome):
     """O audio vai embutido pelo mesmo motivo das imagens: a cena tem que
     ser UM arquivo. Publicada como artifact, ela nao pode buscar midia
     externa — a politica de seguranca bloqueia tudo que nao seja data:."""
-    caminho = os.path.join(AQUI, nome)
+    caminho = nome if os.path.isabs(nome) else os.path.abspath(nome)
     b = open(caminho, "rb").read()
     print(f"  {nome:22} {len(b)//1024:4d} KB  mp3")
     return "data:audio/mpeg;base64," + base64.b64encode(b).decode("ascii")
@@ -21,7 +21,7 @@ def embutir_audio(nome):
 
 def embutir(nome, medidas, qualidade=90, com_alfa=False):
     modo = "RGBA" if com_alfa else "RGB"
-    img = Image.open(os.path.join(AQUI, nome)).convert(modo).resize(medidas, Image.LANCZOS)
+    img = Image.open(nome if os.path.isabs(nome) else os.path.abspath(nome)).convert(modo).resize(medidas, Image.LANCZOS)
     b = io.BytesIO()
     if com_alfa:
         # PNG obrigatorio: JPEG nao guarda canal alfa, e e o alfa que faz
@@ -41,7 +41,8 @@ mapa = {
     # o panorama inteiro: a sala vira superficie de projecao dele, entao a
     # obra envolve o espaco uma vez so, sem azulejo repetido
     "__TEX_PANORAMA__": embutir(sys.argv[2], (2048, 1024), qualidade=88),
-    "__TRILHA__":       embutir_audio("trilha-loop.mp3"),
+    "__TRILHA__":       embutir_audio(sys.argv[4] if len(sys.argv) > 4
+                                      else os.path.join(AQUI, "trilha-loop.mp3")),
 }
 
 with open(os.path.join(AQUI, "mr.template.html"), encoding="utf-8") as f:
@@ -67,7 +68,7 @@ for b in blocos:
 for k, v in mapa.items():
     html = html.replace(k, v)
 
-saida = os.path.join(AQUI, sys.argv[3])
+saida = sys.argv[3] if os.path.isabs(sys.argv[3]) else os.path.abspath(sys.argv[3])
 with open(saida, "w", encoding="utf-8") as f:
     f.write(html)
 

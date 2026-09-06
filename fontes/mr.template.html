@@ -1,6 +1,19 @@
 <meta charset="utf-8">
 <title>Raízes Cósmicas em Realidade Mista</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="manifest" href="./manifest.webmanifest">
+<script>
+  /* O aparelho guarda a obra inteira depois da primeira abertura.
+     Sem isto, abrir sem rede fica por conta do cache do navegador, que nao
+     e garantia e some sem aviso — e numa feira o wi-fi e justamente o que
+     falha. O catch vazio e proposital: aberta por file:// ou dentro de um
+     quadro publicado, nao ha service worker, e isso nao e erro. */
+  if ("serviceWorker" in navigator) {
+    addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function () {});
+    });
+  }
+</script>
 <style>
   :root{
     --ground:#08060e; --panel:rgba(21,15,38,.9); --line:#2c2245;
