@@ -777,6 +777,7 @@ uniform sampler2D pele, ceu, ceu2;
 uniform vec3 olhoPos;
 uniform float tempo, presenca, nivel;
 uniform highp float misturaCeu;
+uniform float altura, inicio, fim;   // o mesmo degrade da cupula
 varying vec3 vMundo;
 const float PI  = 3.14159265359;
 const float PI2 = 6.28318530718;
@@ -826,6 +827,26 @@ void main(){
      dela custa zero. */
   if(misturaCeu > 0.002)
     doCeu = mix(doCeu, texture2D(ceu2, stCeu).rgb, misturaCeu);
+
+  /* O CEU DESCE E SOME — E O REFLEXO PRECISA SUMIR JUNTO.
+
+     A cupula nao e opaca do teto ao chao: ela cai por um smoothstep e chega
+     a zero antes do piso, para a sala real aparecer por baixo. O reflexo
+     estava lendo a imagem CRUA, sem essa queda.
+
+     O resultado era uma contradicao no mesmo quadro: olhando de raspao, em
+     cima ja se via a parede de verdade atraves do ceu quase apagado, e na
+     lamina d'agua o mesmo pedaco de ceu chegava inteiro. A agua refletia uma
+     coisa que ali nao estava.
+
+     Aqui o raio refletido sai da lamina e sobe. A altura em que ele encontra
+     a parede da a mesma fracao que a cupula usa — e basta aplicar o mesmo
+     smoothstep. Os 2.1 m sao a distancia tipica ate a parede numa sala de
+     4,0 por 4,7; e uma aproximacao, e ela nao precisa ser exata: o que
+     precisa bater e a QUEDA, nao o milimetro. */
+  float horiz = max(length(refl.xz), 0.15);
+  float hRefl = clamp((nivel + refl.y * 2.1 / horiz) / altura, 0.0, 1.0);
+  doCeu *= smoothstep(inicio, fim, hRefl);
 
   /* FRESNEL. Olhando quase de cima a agua e transparente; olhando de
      raspao ela vira espelho. E o que faz uma superficie parecer molhada em
@@ -2446,6 +2467,7 @@ const uAg = n=>gl.getUniformLocation(progAgua,n);
 const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                largura:uAg('largura'), pele:uAg('pele'), ceu:uAg('ceu'),
                ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
+               altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
@@ -2859,6 +2881,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1i(locAg.ceu, 0);
     gl.uniform1i(locAg.ceu2, 4);
     gl.uniform1f(locAg.misturaCeu, misturaCeu);
+    gl.uniform1f(locAg.altura, ALTURA);
+    gl.uniform1f(locAg.inicio, degradeIni);
+    gl.uniform1f(locAg.fim, degradeFim);
     ligar(aAg.xy, bQ.xy, 2);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.depthMask(true);
