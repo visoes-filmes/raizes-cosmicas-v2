@@ -1923,8 +1923,19 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
 /* O ajuste de cada cenario. Nao sao gostos avulsos: cada linha e o clima
    descrito no roteiro, traduzido nos controles que ja existiam. */
 const CENAS = {
-  1: { ceu:0, ceuB:0, tinta:0.85, nuvem:0.55, marmore:0.80, leite:0.32,
-       poeira:1800, sopro:1.0, raizes:1, ini:0.10, fim:0.80, inverter:0 },
+  /* O CEU DO PRIMEIRO CENARIO E O COSMICO, e nao a aquarela da floresta.
+
+     O roteiro abre com "a sala real; o ceu estrelado ja esta la" — o alto
+     tem que ser escuro. A pintura clara da floresta no teto fazia o
+     contrario: iluminava justo onde a obra precisa de noite, e num
+     passthrough de sala escura isso le como tela acesa, nao como ceu.
+     A floresta continua sendo a floresta: ela nasce embaixo, do chao.
+
+     A poeira caiu de 1800 para 900: as estrelas cadentes eram tantas que
+     viravam chuva, e chuva nao e acontecimento — e clima. Poucas caindo se
+     enxergam uma a uma, que e o que faz cada uma valer. */
+  1: { ceu:1, ceuB:1, tinta:0.85, nuvem:0.55, marmore:0.80, leite:0.32,
+       poeira:900, sopro:1.0, raizes:1, ini:0.10, fim:0.80, inverter:0 },
   2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.18, marmore:0.55, leite:0.18,
        poeira:2600, sopro:0.5, raizes:0, ini:0.00, fim:0.30, inverter:0 },
   3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.42, marmore:0.85, leite:0.48,
@@ -2440,6 +2451,25 @@ function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v);
    fila. */
 const ANDAIME = false;
 
+/* O PORTAO E UMA PORTA, NAO UM PAINEL DE CONTROLE.
+
+   No headset apareciam quatro botoes: Iniciar em RM, Iniciar na tela, e os
+   dois de emergencia — que sao so icones, sem texto, e dentro do capacete
+   leem como dois circulos vazios "carregando". Quem poe o capacete tem que
+   ver UMA porta.
+
+   Entao: a emergencia so existe DEPOIS que a obra comeca (ela e para
+   interromper, e antes de comecar nao ha o que interromper), e o caminho
+   "na tela" e ferramenta de quem trabalha no computador. */
+const eEmergencia = document.getElementById('emergencia');
+function mostrarEmergencia(v){ if(eEmergencia) eEmergencia.style.display = v ? 'flex' : 'none'; }
+mostrarEmergencia(false);
+
+{
+  const bt = document.getElementById('bIniciarTela');
+  if(bt && !ANDAIME) bt.style.display = 'none';
+}
+
 let uiAberta = ANDAIME;
 mostrarUI(uiAberta);
 if(ANDAIME){
@@ -2551,6 +2581,7 @@ function iniciarObra(){
   andando = true;
   bTocar.textContent = 'pausar';
   ePortao.classList.add('foi');
+  mostrarEmergencia(true);
   ultimoInstante = performance.now();   // o tempo parado nao conta como dt
 }
 
@@ -2567,7 +2598,21 @@ bIniciarTela.onclick = iniciarObra;
 bIniciar.onclick = ()=>{
   if(bXR.disabled){ iniciarObra(); return; }   // sem RM aqui: vai na tela
   ePortaoDica.textContent = 'abrindo a realidade mista…';
-  entrarXR(iniciarObra);
+  /* A OBRA COMECA DE QUALQUER JEITO.
+
+     Antes, se a realidade mista nao abrisse, iniciarObra() nunca era
+     chamada: o relogio ficava parado, nada nascia, e quem estava de
+     capacete via um ceu imovel sem entender que a obra nem tinha comecado.
+     Uma falha de sessao virava uma obra que "nao faz nada".
+
+     Agora a entrada em RM e uma melhora, nao uma condicao: se ela abrir,
+     otimo; se nao abrir em oito segundos, a obra corre assim mesmo no
+     painel. Numa feira, com fila, e melhor a obra rodando achatada do que
+     ninguem entendendo por que nada acontece. */
+  let partiu = false;
+  const partir = ()=>{ if(!partiu){ partiu = true; iniciarObra(); } };
+  setTimeout(partir, 8000);
+  entrarXR(partir);
 };
 
 /* ═══════════ os dois de emergencia ═══════════
@@ -2584,6 +2629,32 @@ bIniciar.onclick = ()=>{
 
    ENCERRAR fecha a sessao e devolve o portao. E o do fim do expediente, ou
    do imprevisto — alguem passou mal, a luz caiu, o rastreamento se perdeu. */
+/* SALTAR CENARIOS DE FORA — so quando servida de localhost.
+
+   Sem a regua, nao ha como alcancar um cenario que so acontece aos 6:30
+   para conferi-lo no headset. Isto abre uma porta minima para quem esta
+   testando pelo cabo, e ela nao existe na obra publicada: mesma condicao
+   do service worker, mesmo motivo. */
+const emTesteLocal = location.hostname === 'localhost' ||
+                     location.hostname === '127.0.0.1';
+if(emTesteLocal){
+  window.raizes = {
+    ir(segundos){
+      t = Math.max(0, Math.min(DURACAO, Number(segundos) || 0));
+      const c = cenaEm(t);
+      cenaAtual = c; ceuA = CENAS[c].ceu; ceuB = CENAS[c].ceu; misturaCeu = 1;
+      const a = CENAS[c];
+      tinta=a.tinta; presenca=a.nuvem; marmore=a.marmore; leitoso=a.leite;
+      sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
+      inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
+      return this.onde();
+    },
+    cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
+    onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando}; },
+    pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; }
+  };
+}
+
 const bReiniciar = document.getElementById('bReiniciar');
 const bParar     = document.getElementById('bParar');
 
@@ -2603,6 +2674,7 @@ bParar.onclick = ()=>{
   bTocar.textContent = 'tocar';
   if(TEM_SOM){ trilha.pause(); tocando = false; try{ trilha.currentTime = 0; }catch(e){} }
   ePortao.classList.remove('foi');   // o portao de volta, pronto para o proximo
+  mostrarEmergencia(false);
   if(sessao) sessao.end();           // 'end' devolve sessao = null la embaixo
 };
 
@@ -2888,6 +2960,7 @@ async function entrarXR(aoEntrar){
     andando = false;
     bTocar.textContent = 'tocar';
     ePortao.classList.remove('foi');
+    mostrarEmergencia(false);
     relatarTex();
     requestAnimationFrame(quadro);
   });
