@@ -35,6 +35,12 @@ def embutir(nome, medidas, qualidade=90, com_alfa=False):
     return f"data:image/{tipo};base64," + base64.b64encode(b.getvalue()).decode("ascii")
 
 
+# ── INTERRUPTOR DA TRILHA ────────────────────────────────────────────
+# True deixaria o audio de fora do arquivo inteiro. Fica False: a trilha
+# CONTINUA na cena — o que esta desligado e apenas o inicio automatico dela,
+# em "somLigado" no template. O botao Som liga quando se quiser ouvir.
+SEM_SOM = False
+
 print("Texturas:")
 mapa = {
     "__TEX_RAIZ__":     embutir(sys.argv[1], (256, 512)),
@@ -45,8 +51,15 @@ mapa = {
                                 (2048, 1024), qualidade=86),
     "__CEU_ROSA__":     embutir(os.path.join(AQUI, "ceus/ceu-rosa-2048.png"),
                                 (2048, 1024), qualidade=86),
-    "__TRILHA__":       embutir_audio(sys.argv[4] if len(sys.argv) > 4
-                                      else os.path.join(AQUI, "trilha-loop.mp3")),
+    # As peles dos planetas: recorte da propria pintura, ja tratado para
+    # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
+    "__TEX_MARMORE__":  embutir(os.path.join(AQUI, "texturas/tex-marmore.png"),
+                                (512, 512), qualidade=86),
+    "__TEX_AGUA__":     embutir(os.path.join(AQUI, "texturas/tex-agua.png"),
+                                (512, 512), qualidade=86),
+    "__TRILHA__":       "" if SEM_SOM else embutir_audio(
+        sys.argv[4] if len(sys.argv) > 4
+        else os.path.join(AQUI, "trilha-loop.mp3")),
 }
 
 with open(os.path.join(AQUI, "mr.template.html"), encoding="utf-8") as f:
@@ -62,12 +75,25 @@ restante = re.sub(r"const \w+ = `[\s\S]*?`;", "", html)
 sobra = restante.count("`")
 print(f"Shaders: {len(blocos)}   crases fora de shader: {sobra}")
 if sobra:
-    linhas = [str(i+1) for i, ln in enumerate(restante.splitlines()) if "`" in ln]
-    raise SystemExit(f"ERRO: crase solta fora de shader (linhas {', '.join(linhas)}). "
-                     f"Provavelmente num comentario dentro do GLSL — troque por aspas.")
+    # Mostrar a LINHA do texto despido nao ajuda: ela nao existe no arquivo.
+    # Mostro o trecho, que da pra procurar direto no editor.
+    culpados = [ln.strip()[:90] for ln in restante.splitlines() if "`" in ln]
+    aviso = chr(10).join("    " + c for c in culpados)
+    raise SystemExit(
+        "ERRO: crase solta fora de shader. Troque por aspas." + chr(10) +
+        "Uma crase perdida fecha o template literal do JavaScript no meio" + chr(10) +
+        "e quebra o arquivo inteiro, com o erro aparecendo longe dali." + chr(10) +
+        aviso)
+
 for b in blocos:
     if "${" in b:
         raise SystemExit("ERRO: '${' dentro de shader — o JavaScript vai tentar interpolar.")
+
+if SEM_SOM:
+    # tira o elemento inteiro, nao so a fonte
+    import re as _re
+    html = _re.sub(r"<audio[^>]*id=\"trilha\"[^>]*>\s*</audio>", "", html)
+    print("  trilha: FORA desta montagem (SEM_SOM = True)")
 
 for k, v in mapa.items():
     html = html.replace(k, v)

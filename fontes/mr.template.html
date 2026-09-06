@@ -465,8 +465,16 @@ void main(){
   // Dois ceus e uma travessia. Trocar de imagem de um quadro para o outro
   // seria o unico corte duro da obra inteira; misturando, a passagem tem a
   // mesma natureza de tudo o mais aqui, que e metamorfose.
-  vec3 arte = mix(texture2D(panorama, st).rgb,
-                  texture2D(panoramaB, st).rgb, mistura);
+  //
+  // A segunda busca so acontece DURANTE a travessia. Fora dela os dois ceus
+  // sao o mesmo, e buscar duas vezes a mesma imagem dobraria o custo do ceu
+  // em 95% do tempo. O desvio e por uniforme, igual para todos os pixels do
+  // quadro, entao nao ha divergencia dentro do grupo — e o tipo de desvio
+  // que a placa resolve de graca.
+  vec3 arte = texture2D(panorama, st).rgb;
+  if(mistura > 0.002){
+    arte = mix(arte, texture2D(panoramaB, st).rgb, mistura);
+  }
   arte *= 1.0 + 0.05 * sin(tempo*0.5 + lon*2.0);
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
@@ -549,6 +557,63 @@ void main(){
   float a = smoothstep(0.25, 0.0, r2);
   a *= a;                                   // borda ainda mais desfeita
   gl_FragColor = vec4(vCor * vBrilho, a * vBrilho);
+}`;
+
+/* ═══════════ OS ASTROS ═══════════
+   O Sol e os quatro planetas do cenario 2.
+
+   Uma esfera so de geometria, desenhada cinco vezes com centro, raio e
+   pele diferentes. Nao ha instancing no WebGL 1 sem extensao, e nem faz
+   falta: cinco chamadas de desenho nao custam nada perto do que a nuvem
+   ja faz por pixel.
+
+   A pele sai das texturas recortadas da propria pintura — o marmore para
+   os planetas de rocha, a agua para o liquido. Nao ha material inventado
+   aqui: e a Odara envolvendo uma esfera. */
+const VS_ASTRO = `
+attribute vec3 aPos;
+uniform mat4 mvp;
+uniform vec3 centro;
+uniform float raio, giro, achatar;
+varying vec3 vN;
+varying vec2 vUV;
+void main(){
+  // giro proprio em torno do eixo vertical
+  float c = cos(giro), sn = sin(giro);
+  vec3 q = vec3(aPos.x*c - aPos.z*sn, aPos.y, aPos.x*sn + aPos.z*c);
+  vN = normalize(q);
+
+  // Coordenada esferica para a pele. A latitude e comprimida perto dos
+  // polos como em qualquer mapa de esfera; para textura de marmore isso
+  // nao aparece, porque marmore nao tem direcao propria a denunciar.
+  vUV = vec2(atan(vN.z, vN.x)/6.2831853 + 0.5, acos(clamp(vN.y,-1.0,1.0))/3.14159265);
+
+  // achatar: nem todo planeta e esfera. Outros universos podem nao
+  // respeitar a gravidade que arredonda tudo.
+  q.y *= achatar;
+  gl_Position = mvp * vec4(centro + q * raio, 1.0);
+}`;
+const FS_ASTRO = `
+precision mediump float;
+uniform sampler2D pele;
+uniform vec3 cor, luzDe;
+uniform float presenca, brilhoProprio;
+varying vec3 vN;
+varying vec2 vUV;
+void main(){
+  vec3 t = texture2D(pele, vUV).rgb;
+
+  // A estrela irradia luz e projeta sombra em todos os objetos do cenario.
+  // Aqui isso e um termo so: o quanto a face olha para ela.
+  float lz = max(dot(normalize(vN), normalize(luzDe)), 0.0);
+  float sombreado = mix(0.16, 1.0, lz);
+
+  // O limbo aceso: a borda que olha para fora ganha luz. E o que faz uma
+  // bola pintada parecer um corpo com atmosfera em vez de um adesivo.
+  float limbo = pow(1.0 - abs(vN.z), 3.0) * 0.5;
+
+  vec3 c = t * cor * (sombreado + limbo) + brilhoProprio * cor;
+  gl_FragColor = vec4(c, presenca);
 }`;
 
 /* ═══════════ a bandeja assada ═══════════
@@ -876,6 +941,7 @@ const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
+const progAstro = programa(VS_ASTRO, FS_ASTRO);
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,
@@ -955,6 +1021,26 @@ function semearPoeira(semente){
   return s;
 }
 
+/* ═══════════ a esfera ═══════════
+   Uma so, reaproveitada por todos os astros. Poucos gomos: a pele e que
+   faz o desenho, e gomo demais so custa. */
+function montarEsfera(anel, gomo){
+  const pos = [], idx = [];
+  for(let i=0;i<=anel;i++){
+    const v = i/anel, phi = v*Math.PI;
+    for(let j=0;j<=gomo;j++){
+      const u = j/gomo, th = u*Math.PI*2;
+      pos.push(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
+    }
+  }
+  for(let i=0;i<anel;i++)
+    for(let j=0;j<gomo;j++){
+      const a = i*(gomo+1)+j, b = a+gomo+1;
+      idx.push(a, b, a+1,  b, b+1, a+1);
+    }
+  return {pos, idx};
+}
+
 /* ═══════════ buffers ═══════════ */
 function criarBufs(nomes){
   const o = {};
@@ -965,7 +1051,21 @@ const bR = criarBufs(['pos','nor','uv','alt','fase','idx']);
 const bS = criarBufs(['pos','nor','uv','tipo','idx']);
 const bF = criarBufs(['centro','canto','dado','tam','idx']);
 const bP = criarBufs(['pos','cor','dado']);
-let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0;
+const bE = criarBufs(['pos','idx']);
+let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0, nIdxE = 0;
+/* A fila existe antes de alguem empurrar nela: "enviar" so e chamavel
+   depois que os buffers foram criados, entao a subida da esfera espera
+   aqui e e executada mais abaixo. */
+const enviarDepois = [];
+(function(){
+  const e = montarEsfera(14, 22);
+  enviarDepois.push(()=>{
+    enviar(bE.pos, e.pos);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(e.idx), gl.STATIC_DRAW);
+    nIdxE = e.idx.length;
+  });
+})();
 
 function enviar(buf, arr){
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -988,6 +1088,7 @@ function subirRaizes(s){
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
   nIdxS = s.idx.length;
 })();
+for(const f of enviarDepois) f();
 function subirPoeira(s){
   enviar(bP.pos,s.pos); enviar(bP.cor,s.cor); enviar(bP.dado,s.dado);
   nPo = s.pos.length/3;
@@ -1019,8 +1120,22 @@ function carregar(t,url){
     gl.bindTexture(gl.TEXTURE_2D,t);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,im);
+
+    /* MIPMAP. Sem ele, uma imagem de 2048x1024 vista de raspao faz a placa
+       buscar texels distantes um do outro a cada pixel, e o cache nunca
+       acerta — e o ceu ainda cintila, porque cada pixel pega um texel
+       sorteado em vez da media da regiao que ele cobre.
+
+       Com mipmap a placa escolhe sozinha a versao reduzida do tamanho
+       certo. Custo: um terco a mais de memoria. Ganho: o custo por pixel
+       para de depender do angulo, e o serrilhado do ceu some.
+
+       So funciona porque as duas medidas sao potencia de dois — 2048x1024
+       e 512x512. Fora disso o WebGL 1 recusa e devolve preto. */
+    gl.generateMipmap(gl.TEXTURE_2D);
     for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.REPEAT],[gl.TEXTURE_WRAP_T,gl.REPEAT],
-                        [gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
+                        [gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR],
+                        [gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
       gl.texParameteri(gl.TEXTURE_2D,k,v);
   };
   im.src = url;
@@ -1029,11 +1144,16 @@ const texRaiz = novaTex([80,75,120]);
 /* Os tres ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
    shader mistura dois deles durante a travessia. */
 const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
+/* As peles dos planetas, recortadas da propria pintura e ja tratadas para
+   repetir sem emenda nos dois eixos. Duas bastam: as cores as diferenciam. */
+const PELES = [novaTex([90,70,80]), novaTex([70,90,110])];
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
 carregar(CEUS[0], '__TEX_PANORAMA__');
 carregar(CEUS[1], '__CEU_COSMICO__');
 carregar(CEUS[2], '__CEU_ROSA__');
+carregar(PELES[0], '__TEX_MARMORE__');
+carregar(PELES[1], '__TEX_AGUA__');
 
 // A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
 
@@ -1096,6 +1216,80 @@ function inicioDaCena(t){
   let ini = 0;
   for(const m of MOMENTOS){ if(m[1] === c){ ini = m[0]; break; } }
   return ini;
+}
+
+/* ═══════════ OS ASTROS — a coreografia ═══════════
+
+   O roteiro descreve o cenario 2 como uma sequencia de estados, nao como
+   uma orbita continua. Os planetas surgem em volta do Sol, DESCEM e vem
+   girar em volta da pessoa, e depois se dispersam pelo ceu com espaco
+   entre si — porque amontoados ela nao consegue lidar com nenhum.
+
+   Cada estado e uma posicao; o que se ve e a passagem de um para o outro.
+   As passagens usam smoothstep e nao rampa reta: rampa reta tem quina no
+   comeco e no fim, e a quina se ve como solavanco.
+
+   Nada disto depende de interacao. Quem interage conduz, quem nao
+   interage e conduzido. */
+
+const SOL = [0.55, 3.15, -1.05];
+
+/* Os quatro planetas do roteiro. O rosa e o unico que aceita entrada por
+   enquanto, e por isso e o unico que NAO se afasta: a distancia e o
+   convite, e o que esta ao alcance e o que responde. */
+const PLANETAS = [
+  { nome:'rosa',    cor:[1.00, 0.62, 0.74], raio:0.235, achatar:1.00, pele:0, interativo:true  },
+  { nome:'agua',    cor:[0.62, 0.86, 0.98], raio:0.205, achatar:0.94, pele:1, interativo:false },
+  { nome:'fogo',    cor:[1.00, 0.50, 0.30], raio:0.185, achatar:1.06, pele:0, interativo:false },
+  { nome:'verde',   cor:[0.66, 0.92, 0.72], raio:0.215, achatar:0.90, pele:1, interativo:false },
+];
+
+function rampa(a, b, x){
+  const k = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return k * k * (3 - 2 * k);
+}
+
+/* Onde cada planeta esta no instante t. */
+function ondeEsta(i, t){
+  const p = PLANETAS[i], n = PLANETAS.length;
+  const fase = i / n * Math.PI * 2;
+
+  // 220 → 250: descem do Sol e vem orbitar a pessoa
+  const desceu = rampa(220, 250, t);
+  // 250 → 280: se dispersam pelo ceu, com respiro
+  const dispersou = p.interativo ? 0 : rampa(250, 280, t);
+
+  const w = relogio * 0.11 + fase;
+
+  // A — em volta do Sol, la em cima
+  const rA = 0.85;
+  const A = [SOL[0] + Math.cos(w*1.7)*rA, SOL[1] + Math.sin(w*2.3)*0.16,
+             SOL[2] + Math.sin(w*1.7)*rA];
+
+  // B — em volta da pessoa. O interativo fica dentro de 1,2 m, que e o
+  // alcance util antes de a grade do guardian aparecer.
+  const rB = p.interativo ? 0.95 : 1.35;
+  const B = [Math.cos(w)*rB, 1.35 + Math.sin(w*1.6 + fase)*0.16, Math.sin(w)*rB];
+
+  // C — dispersos no ceu, cada um com espaco em volta
+  const rC = 2.9 + (i % 2) * 0.6;
+  const C = [Math.cos(w*0.5 + fase)*rC, 2.0 + (i % 3) * 0.55,
+             Math.sin(w*0.5 + fase)*rC];
+
+  const ab = [A[0]+(B[0]-A[0])*desceu, A[1]+(B[1]-A[1])*desceu, A[2]+(B[2]-A[2])*desceu];
+  return [ab[0]+(C[0]-ab[0])*dispersou, ab[1]+(C[1]-ab[1])*dispersou,
+          ab[2]+(C[2]-ab[2])*dispersou];
+}
+
+/* Quanto os astros existem. Eles acendem depois do Sol, um a um — o
+   roteiro pede que as estrelas acendam da mais distante para a mais
+   proxima, e os planetas so depois. */
+function presencaAstro(i, t){
+  const nasce = 205 + i * 4;
+  return rampa(nasce, nasce + 14, t) * (1 - rampa(378, 392, t));
+}
+function presencaSol(t){
+  return rampa(182, 214, t) * (1 - rampa(378, 392, t));
 }
 
 /* ═══════════ a barra da partitura ═══════════ */
@@ -1255,14 +1449,20 @@ function contarQuadro(){
    próprio clique em "Entrar em RM" já serve, então a trilha entra junto
    com a realidade mista sem precisar de mais nada. */
 const trilha = document.getElementById('trilha');
+/* A trilha pode nao existir: a montagem tem um interruptor que a deixa de
+   fora do arquivo inteiro (SEM_SOM em montar_mr.py). Sem elemento nao ha
+   como tocar — e e isso que garante silencio de verdade enquanto se
+   trabalha, em vez de depender de um estado que qualquer clique reverte. */
+const TEM_SOM = !!trilha;
 let volume = 0.08, somLigado = false, tocando = false;
-/* DESLIGADO enquanto se constroi: a trilha entrando a cada recarga
-   atrapalha quem esta trabalhando na cena. Antes do FIL isto volta a
-   ser true — e a unica coisa que muda. */
-trilha.volume = volume;
+/* A trilha esta na cena, mas NAO comeca sozinha enquanto se constroi: ela
+   entrando a cada recarga atrapalha quem esta trabalhando em outra coisa na
+   mesma maquina. O botao Som liga na hora que se quiser ouvir. Antes do FIL
+   isto vira "somLigado = TEM_SOM" e ela volta a entrar sozinha. */
+if(TEM_SOM) trilha.volume = volume;
 
 function acordarSom(){
-  if(tocando || !somLigado) return;
+  if(!TEM_SOM || tocando || !somLigado) return;
   trilha.play().then(()=>{
     tocando = true;
     for(const ev of GESTOS) removeEventListener(ev, acordarSom);
@@ -1273,6 +1473,7 @@ for(const ev of GESTOS) addEventListener(ev, acordarSom, {passive:true});
 
 const bSom = document.getElementById('bSom');
 bSom.onclick = ()=>{
+  if(!TEM_SOM) return;
   somLigado = !somLigado;
   if(somLigado){ tocando = false; acordarSom(); }
   else { trilha.pause(); tocando = false; }
@@ -1281,7 +1482,7 @@ bSom.onclick = ()=>{
 const sV = document.getElementById('sVol'), vV = document.getElementById('vVol');
 sV.addEventListener('input', ()=>{
   volume = sV.value/100;
-  trilha.volume = volume;
+  if(TEM_SOM) trilha.volume = volume;
   vV.textContent = sV.value+'%';
 });
 
@@ -1362,7 +1563,9 @@ function pinta(){
   bPo.classList.toggle('on', poeiraOn);
   bPo.textContent = poeiraOn ? 'Poeira ligada' : 'Poeira desligada';
   bSom.classList.toggle('on', somLigado);
-  bSom.textContent = somLigado ? 'Som ligado' : 'Som desligado';
+  bSom.textContent = !TEM_SOM ? 'Sem trilha nesta montagem'
+                   : somLigado ? 'Som ligado' : 'Som desligado';
+  bSom.disabled = !TEM_SOM;
 }
 pinta();
 
@@ -1425,6 +1628,13 @@ const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(
 const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const uFg = n=>gl.getUniformLocation(progFig,n);
+const uAs = n=>gl.getUniformLocation(progAstro,n);
+const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
+                giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
+                cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
+                brilho:uAs('brilhoProprio')};
+const aAst = {pos: gl.getAttribLocation(progAstro,'aPos')};
+
 const locF = {mvp:uFg('mvp'), tempo:uFg('tempo'), presenca:uFg('presenca'),
              tinta:uFg('tinta'), sopro:uFg('sopro'),
              camDir:uFg('camDir'), camCima:uFg('camCima')};
@@ -1572,6 +1782,74 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aS.uv,bS.uv,2); ligar(aS.tipo,bS.tipo,1);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bS.idx);
     gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* 2b) OS ASTROS. Opacos e com profundidade: sao corpos, nao vapor —
+     um planeta que deixa ver o que esta atras dele deixa de ser planeta.
+     Por isso escrevem profundidade — e por isso vem ANTES da nuvem: a
+     nuvem e desenhada depois e testada contra essa profundidade, entao
+     a que passa na frente de um planeta aparece, e a que esta atras dele
+     e escondida. Na ordem inversa o planeta apagaria a nuvem inteira. */
+  const pSol = presencaSol(t);
+  if(nIdxE > 0 && (pSol > 0.004 || cenaAtual === 2)){
+    gl.enable(gl.DEPTH_TEST);
+    /* Enquanto um astro esta nascendo ele e translucido, e escrever
+       profundidade nesse estado esconderia o que esta atras dele por tras
+       de uma coisa que mal se ve. So passa a escrever quando ja e corpo. */
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.useProgram(progAstro);
+    gl.uniformMatrix4fv(locAst.mvp, false, new Float32Array(mvp));
+    ligar(aAst.pos, bE.pos, 3);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+
+    // O SOL. Nao tem sombreado: ele e a fonte, entao brilha por si.
+    if(pSol > 0.004){
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.centro, SOL[0], SOL[1], SOL[2]);
+      gl.uniform1f(locAst.raio, 0.42);
+      gl.uniform1f(locAst.giro, relogio * 0.03);
+      gl.uniform1f(locAst.achatar, 1.0);
+      // Iridescente: as cores se alteram devagar, sem pisca-pisca, com o
+      // branco dominante. Tres senos de periodos primos entre si nunca
+      // repetem o mesmo acorde.
+      gl.uniform3f(locAst.cor,
+        0.95 + 0.05*Math.sin(relogio*0.17),
+        0.93 + 0.07*Math.sin(relogio*0.23 + 2.1),
+        0.96 + 0.04*Math.sin(relogio*0.31 + 4.2));
+      gl.uniform3f(locAst.luzDe, 0, 1, 0);
+      gl.uniform1f(locAst.presenca, pSol);
+      gl.uniform1f(locAst.brilho, 0.85);
+      gl.depthMask(pSol > 0.92);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+    }
+
+    // OS PLANETAS
+    for(let i=0;i<PLANETAS.length;i++){
+      const pl = PLANETAS[i], pr = presencaAstro(i, t);
+      if(pr < 0.004) continue;
+      const c = ondeEsta(i, t);
+      gl.activeTexture(gl.TEXTURE5);
+      gl.bindTexture(gl.TEXTURE_2D, PELES[pl.pele]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.centro, c[0], c[1], c[2]);
+      gl.uniform1f(locAst.raio, pl.raio);
+      gl.uniform1f(locAst.giro, relogio * (0.05 + i*0.017));
+      gl.uniform1f(locAst.achatar, pl.achatar);
+      gl.uniform3f(locAst.cor, pl.cor[0], pl.cor[1], pl.cor[2]);
+      // a luz vem do Sol, de verdade: a direcao e a diferenca de posicao
+      gl.uniform3f(locAst.luzDe, SOL[0]-c[0], SOL[1]-c[1], SOL[2]-c[2]);
+      gl.uniform1f(locAst.presenca, pr);
+      gl.uniform1f(locAst.brilho, 0.04);
+      gl.depthMask(pr > 0.92);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+    }
+    gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }

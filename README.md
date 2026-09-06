@@ -37,6 +37,39 @@ aos 6:30.
 
 Ela some com o resto pela tecla **H**.
 
+### Os astros
+
+O Sol e os quatro planetas do cenário 2. Uma esfera só de geometria,
+desenhada cinco vezes com centro, raio e pele diferentes — não há
+*instancing* no WebGL 1 sem extensão, e nem faz falta: cinco chamadas de
+desenho não custam nada perto do que a nuvem já faz por pixel.
+
+A pele sai das texturas recortadas da pintura. Não há material inventado
+aqui: é a Odara envolvendo uma esfera.
+
+A coreografia é a do roteiro, e é uma sequência de estados, não uma órbita
+contínua: os planetas surgem em volta do Sol, **descem** e vêm girar em
+volta da pessoa, e depois **se dispersam pelo céu com espaço entre si** —
+porque amontoados ela não consegue lidar com nenhum. O planeta que aceita
+entrada é o único que não se afasta: **a distância é o convite**.
+
+Eles são desenhados **antes da nuvem** e escrevem profundidade. Na ordem
+inversa, um planeta apagaria a nuvem que passasse na frente dele — a nuvem
+não escreve profundidade, então quem vem depois vence. E só escrevem
+profundidade quando já estão praticamente opacos: enquanto nascem, esconder
+o que está atrás por trás de uma coisa que mal se vê seria pior.
+
+### Mipmap
+
+As texturas carregadas geram mipmap e usam filtro trilinear. Sem isso, uma
+imagem de 2048×1024 vista de raspão faz a placa buscar texels distantes a
+cada pixel — o cache nunca acerta, e o céu ainda **cintila**, porque cada
+pixel pega um texel sorteado em vez da média da região que ele cobre.
+
+Custa um terço a mais de memória. Em troca, o custo por pixel deixa de
+depender do ângulo e o serrilhado do céu some. Só funciona porque as duas
+medidas são potência de dois.
+
 ### Os céus
 
 Os três céus estão embutidos, e o shader **mistura dois** durante a passagem
