@@ -177,20 +177,18 @@ qualquer diretório e em qualquer máquina.
 
 ## 7. Como publicar
 
-**Primeiro, troque a versão do cache** em `sw.js`:
-
-```js
-const VERSAO = 'raizes-cosmicas-AAAA-MM-DD';
-```
+**A versão do cache se troca sozinha.** O `montar_mr.py` gira o `VERSAO` do
+`sw.js` a cada montagem (data + letra: `2026-09-06`, `…06b`, `…06c`).
 
 O service worker serve **cache primeiro, rede como reserva**, e o nome do
 cache *é* o número da versão: um nome novo cria um cache novo, baixa tudo
 dentro dele e só então apaga o antigo — nunca há um momento em que metade da
-obra é de uma versão e metade de outra. Mas **sem trocar essa string o
-headset continua servindo o cache antigo**, e a obra nova não chega lá.
+obra é de uma versão e metade de outra. **Sem trocá-lo, o headset continua
+servindo o cache antigo** e a obra nova não chega lá.
 
-> É essa a causa real do "abri e parece a versão de antes". Puxar a página
-> para baixo às vezes resolve; trocar a versão sempre resolve.
+> Era feito à mão, e à mão significa esquecer: já se perdeu uma tarde
+> olhando um defeito que estava corrigido havia meia hora. Por isso passou a
+> ser o montador quem troca — ele não pode esquecer.
 
 Depois:
 
@@ -411,16 +409,33 @@ deixa de disfarçar e o que se move ganha rastro visível.
 
 ## 11. O que falta
 
-### Bloqueado por um teste que ninguém fez ainda
+### O teste foi feito em 06/09, e deu negativo
 
-**O rastreamento de mão no escuro.** O Quest se localiza por visão, e a mão
-nua é a primeira coisa a falhar com pouca luz. **Toda a interação depende
-dela.**
+**O Quest não acha as mãos no escuro do estande.** Era o risco que este
+arquivo apontava como o maior do projeto, e ele se confirmou. O rastreamento
+de mão é por visão: sem luz, não há o que ver.
 
-> **O teste mais barato do projeto:** montar 3 × 3 na luz que vocês
-> pretendem, pôr o capacete e mexer as mãos por dois minutos. Vinte
-> minutos, sem programação. Derruba ou confirma metade do que está escrito
-> aqui.
+Isso derruba a interação como estava planejada — **não a obra**. A partitura
+sempre correu sozinha, e continua correndo: quem não interage é conduzido.
+
+**As três saídas, e a primeira já está feita:**
+
+**1. A luz sobe só nas janelas.** A obra pede escuro; a câmera pede luz. Mas
+não pede as duas ao mesmo tempo: as mãos só são necessárias em três
+momentos, somando pouco mais de dois minutos dos dez. A lâmpada da sala sobe
+para 85% nessas janelas e volta a 35% fora delas. Implementado e testado no
+aparelho — `fontes/luz-segue-cena.mjs`.
+
+**2. Os controles Touch no lugar das mãos.** Eles têm emissores próprios e
+não dependem de a câmera enxergar pele. É o caminho mais robusto num estande
+escuro, e o custo é entregar um controle a cada visitante — o que muda a
+recepção da obra, não o código.
+
+**3. Nenhuma interação.** A obra roda inteira sozinha. É a versão que existe
+hoje, e a única que não depende de mais nada.
+
+> O que **não** funciona é insistir na mão nua com a luz que a obra pede.
+> Isso já foi medido.
 
 ### Decidido, mas não construído
 

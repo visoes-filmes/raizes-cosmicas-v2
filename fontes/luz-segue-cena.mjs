@@ -31,6 +31,30 @@ const ESTUDIO = process.env.ESTUDIO ?? 'http://localhost:8600';
 const CDP     = process.env.CDP     ?? 'http://localhost:9222';
 const PAUSA   = Number(process.env.PAUSA ?? 2000);
 
+/* AS TRES JANELAS, E POR QUE A LUZ SOBE NELAS.
+ *
+ * O teste de 06/09 deu negativo: no escuro do estande o Quest NAO acha as
+ * maos. Era o risco que o roteiro ja apontava como o maior do projeto, e
+ * ele se confirmou.
+ *
+ * O rastreamento de mao e por visao: sem luz, nao ha o que ver. Mas a obra
+ * precisa do escuro — e a saida nao e escolher entre os dois, e sim nao
+ * precisar dos dois AO MESMO TEMPO. A obra so pede as maos em tres
+ * momentos, somando pouco mais de dois minutos dos dez.
+ *
+ * Entao a luz sobe so nesses tres, e desce de volta. Nos outros oito
+ * minutos a sala continua escura como a obra pede.
+ *
+ * Os tempos sao os do roteiro. Se a partitura mudar, mudam aqui tambem —
+ * e e por isso que estao escritos com o nome do momento ao lado. */
+const JANELAS = [
+  { de: 110, ate: 170, o_que: 'os cogumelos, o casulo' },
+  { de: 330, ate: 380, o_que: 'pegar e dimensionar um planeta' },
+  { de: 450, ate: 505, o_que: 'os seres, as pedras, a concha' },
+];
+const BRILHO_OBRA   = 35;   // o escuro que a obra pede
+const BRILHO_JANELA = 85;   // o que a camera precisa para achar uma mao
+
 const COR_DA_CENA = {
   1: '#6fa0a8',   // a floresta — verde-azulado de agua parada
   2: '#9a8cd0',   // o sistema solar — o violeta do ceu cosmico
@@ -69,6 +93,21 @@ function perguntar(ws, expressao) {
   });
 }
 
+function emJanela(segundos) {
+  return JANELAS.find(j => segundos >= j.de && segundos <= j.ate) || null;
+}
+
+function paraSegundos(mmss) {
+  const [m, s] = String(mmss).split(':').map(Number);
+  return (m || 0) * 60 + (s || 0);
+}
+
+async function brilhar(v) {
+  const r = await fetch(`${ESTUDIO}/api/luz?acao=brilho&v=${v}`,
+                        { signal: AbortSignal.timeout(6000) });
+  return (await r.json())?.ok === true;
+}
+
 async function pintar(cor) {
   const r = await fetch(`${ESTUDIO}/api/luz?acao=cor&v=${encodeURIComponent(cor)}`,
                         { signal: AbortSignal.timeout(6000) });
@@ -76,7 +115,7 @@ async function pintar(cor) {
 }
 
 console.log('a luz segue a obra — Ctrl+C para parar');
-let ws = null, ultima = null;
+let ws = null, ultima = null, brilhoAgora = null;
 
 for (;;) {
   try {
@@ -95,6 +134,15 @@ for (;;) {
         console.log(`  ${onde.tempo}  cenario ${onde.cena}  ->  ${cor}`);
         ultima = onde.cena;
       }
+    }
+
+    // A luz sobe nas janelas para a camera achar as maos, e volta a descer.
+    const janela = emJanela(paraSegundos(onde.tempo));
+    const querido = janela ? BRILHO_JANELA : BRILHO_OBRA;
+    if (querido !== brilhoAgora && await brilhar(querido)) {
+      console.log(`  ${onde.tempo}  luz ${querido}%` +
+                  (janela ? `  — janela: ${janela.o_que}` : '  — a obra volta ao escuro'));
+      brilhoAgora = querido;
     }
   } catch (e) {
     try { if (ws) ws.close(); } catch { /* nada */ }
