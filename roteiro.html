@@ -748,6 +748,9 @@
     <tr><th>Atributos vazando entre programas</th>
         <td>Ligar um atributo no WebGL vale para sempre, não para o desenho. Com cinco ligados e o programa seguinte usando um, os quatro restantes seguiam apontando para outro buffer, com outra contagem de vértices — leitura fora do intervalo. <b>Em algumas placas sai geometria lixo; em outras o objeto some.</b></td>
         <td><span class="selo ok">corrigido</span></td></tr>
+    <tr><th>O reflexo não caía junto com o céu</th>
+        <td>A cúpula não é opaca do teto ao chão: cai por um <code>smoothstep</code> e chega a zero antes do piso, para a sala real aparecer por baixo. <b>O reflexo na água lia a imagem crua, sem essa queda.</b> Dava contradição no mesmo quadro: olhando de raspão, em cima já se via a parede de verdade através do céu quase apagado, e na lâmina o mesmo pedaço de céu chegava inteiro. Perto do horizonte, no planeta rosa, a cúpula está em ~30% e a água estava em 100% — <b>refletindo uma coisa que ali não estava.</b></td>
+        <td><span class="selo ok">corrigido</span></td></tr>
     <tr><th>Os dois polos do céu misturados</th>
         <td>As imagens de céu repetiam nos <b>dois</b> eixos. No horizontal está certo — é a longitude, e ela dá a volta. No vertical não: é a latitude, e os extremos dela não são vizinhos, um é o zênite e o outro é o nadir. Repetindo, o filtro mistura os dois: <b>o que está em cima da cabeça recebe uma parte do que está debaixo dos pés.</b> Com mipmap piora, porque no nível reduzido cada texel cobre uma faixa larga de latitude. Saía um halo pálido bem no alto da cúpula.</td>
         <td><span class="selo ok">corrigido</span></td></tr>
@@ -955,7 +958,7 @@
   <thead><tr><th>a melhoria</th><th>o que muda</th><th>custo</th></tr></thead>
   <tbody>
     <tr><th>Céu do planeta rosa só no hemisfério de cima</th>
-        <td>É verdade que metade da imagem nunca aparece: ali só se vê o céu <b>acima</b> da água, e o reflexo espelha para cima, então também lê a metade de cima. Mas <b>eu errei ao dizer que a resolução dobraria</b> — fui conferir os arquivos de origem e eles têm 1536 × 768, <b>menores que os 2048 × 1024 do céu montado</b>. Não há detalhe escondido para recuperar; remapear só esticaria os mesmos pixels. <b>O ganho existe, mas depende de material novo</b>, não de código: quando o céu marmorizado e estrelado sair do Midjourney, aí sim vale mapear só na metade que se vê — e aí a nitidez dobra de verdade.</td>
+        <td>Fui medir com o degradê real de cada cenário, e o número certo não é metade. O céu começa a existir a 0,84 m no planeta rosa, então a parte da imagem que nunca é lida ali é de <b>39%</b> — e nos outros três fica entre 29% e 32%. Ainda é bastante, mas é menos do que eu tinha dito. E <b>eu errei ao dizer que a resolução dobraria</b> — fui conferir os arquivos de origem e eles têm 1536 × 768, <b>menores que os 2048 × 1024 do céu montado</b>. Não há detalhe escondido para recuperar; remapear só esticaria os mesmos pixels. <b>O ganho existe, mas depende de material novo</b>, não de código: quando o céu marmorizado e estrelado sair do Midjourney, aí sim vale mapear só na metade que se vê — e aí a nitidez dobra de verdade.</td>
         <td>depende do MJ</td></tr>
     <tr><th>As deusas em vídeo</th>
         <td>Hoje são imagens paradas com balanço. Em vídeo, em bumerangue, elas <b>respiram</b> — e o roteiro pede isso. <b>Um por cenário</b>, carregado antes e só recebendo <i>play</i> na hora.</td>
