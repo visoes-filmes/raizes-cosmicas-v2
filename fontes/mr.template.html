@@ -407,9 +407,21 @@ function montarSala(){
 const VS_RAIZ = `
 attribute vec3 aPos, aNor; attribute vec2 aUV; attribute float aAlt, aFase;
 uniform mat4 mvp; uniform float tempo;
+uniform float crescimento;   // 0 = ainda nao brotou, 1 = inteira
 varying vec2 vUV; varying float vLuz, vAlt;
 void main(){
   vec3 p = aPos;
+
+  /* NASCE DE BAIXO PARA CIMA, nao cresce inteira de uma vez.
+     A frente de crescimento sobe pela planta: o que esta acima dela ainda
+     nao existe e fica recolhido na base. Uma planta que aumenta de tamanho
+     uniformemente le como zoom; esta le como broto, porque e assim que
+     planta faz — a ponta e sempre a parte mais nova. */
+  float frente = crescimento * 1.25;
+  float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
+  vivo = vivo * vivo * (3.0 - 2.0 * vivo);
+  p.y *= vivo;
+  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
   // balanço pelo QUADRADO da altura: ponta fina oscila, base grossa não
   float b = aAlt*aAlt;
   float w = tempo*0.55 + aFase;
@@ -510,6 +522,7 @@ attribute vec3 aCor;
 attribute vec2 aDado;    // .x = fase própria, .y = tamanho em metros
 uniform mat4 mvp;
 uniform float tempo, escalaPonto, sopro;
+uniform float sentido;   // +1 sobe (ambiente), -1 cai (a chegada)
 varying vec3 vCor;
 varying float vBrilho;
 void main(){
@@ -519,8 +532,16 @@ void main(){
   // embaixo. O salto não aparece porque ele já entrou apagado e sai
   // apagado — o desvanecimento nas duas pontas esconde a emenda, e a
   // animação fecha em laço sem precisar de período comum nenhum.
-  float sobe = fract(fase + tempo * 0.014);
+  /* O sentido decide se o grao sobe ou cai. Uma troca de sinal, e a
+     poeira de ambiente vira a chuva de estrelas do primeiro minuto — nao
+     e neve: e como se as estrelas estivessem caindo, ou se aproximando. */
+  float sobe = fract(fase + tempo * 0.014 * sentido);
   float y = aPos.y * sobe;
+
+  /* Se aproximando: caindo, o grao cresce um pouco ao chegar perto do
+     chao. E o que separa "estrela que se aproxima" de "floco de neve" —
+     neve tem tamanho constante porque ja esta perto. */
+  float chegando = (sentido < 0.0) ? (1.0 - sobe) : 0.0;
 
   // Deriva: senos em torno da posição de repouso, sem termo que cresça.
   // Poeira não vai a lugar nenhum, ela roda no lugar.
@@ -538,7 +559,8 @@ void main(){
   // fixo. Sem isso o grão longe fica do mesmo tamanho do perto e a
   // profundidade some. O teto de 24 px protege o preenchimento: grão
   // grande demais deixa de ser poeira e vira bolha.
-  gl_PointSize = clamp(aDado.y * escalaPonto / max(clip.w, 0.05), 1.0, 24.0);
+  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 1.4) * escalaPonto
+                       / max(clip.w, 0.05), 1.0, 26.0);
 
   // Acende e apaga nas pontas da coluna, e cintila devagar.
   float pontas = smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe);
@@ -1348,6 +1370,20 @@ function pintarPartitura(){
 
 /* ═══════════ estado ═══════════ */
 let yaw=0, pitch=0, tYaw=0, tPitch=0, fov=75*Math.PI/180;
+/* O relogio anda com o TEMPO, nao com os quadros. Contar 1/60 por quadro
+   supoe que a maquina faz 60 por segundo: numa que faz 30, a obra roda na
+   metade da velocidade, e no Quest, que faz 72, roda mais rapido. Os dez
+   minutos do roteiro deixariam de ser dez minutos. */
+let ultimoInstante = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function passo(){
+  const agora = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  let dt = (agora - ultimoInstante) / 1000;
+  ultimoInstante = agora;
+  /* Um engasgo nao pode dar um salto na obra. Se a maquina travou meio
+     segundo, e melhor a peca ter pausado meio segundo do que ter pulado
+     meio segundo de narrativa. */
+  return Math.min(dt, 0.1);
+}
 let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
 let degradeIni=0.10, degradeFim=0.80;   // fração do pé-direito
 let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
@@ -1358,6 +1394,10 @@ let emXR = false;
    sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
    da partitura, que pode ser pausado e arrastado enquanto se trabalha. */
 let t = 0, andando = true, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
+/* O primeiro minuto tem dois movimentos proprios, e a partitura conduz os
+   dois: a poeira CAI enquanto as estrelas chegam, e a floresta NASCE de
+   onde elas tocam. Fora desse trecho a poeira volta a ser ambiente. */
+let crescimento = 1, sentidoPoeira = 1;
 let ceuA = 0, ceuB = 0;
 
 /* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
@@ -1365,7 +1405,19 @@ let ceuA = 0, ceuB = 0;
 function aproximar(atual, alvo, passo){ return atual + (alvo - atual) * passo; }
 
 function seguirPartitura(dt){
-  if(andando){ t += dt; if(t > DURACAO) t = 0; }
+  if(andando){
+    t += dt;
+    if(t > DURACAO){
+      t = 0;
+      /* O relogio das animacoes zera JUNTO com a volta da obra. Sem isto
+         ele cresce sem parar: num dia de exposicao chega as dezenas de
+         milhares, e o float do shader perde as casas decimais que fazem o
+         movimento ser suave — as animacoes comecam a tremer. Zerar aqui
+         faz a descontinuidade cair exatamente onde tudo se desmancha e
+         recomeca, que e o unico lugar onde ela nao aparece. */
+      relogio = 0;
+    }
+  }
   const c = cenaEm(t);
   const a = CENAS[c];
   if(!a) return;
@@ -1381,7 +1433,23 @@ function seguirPartitura(dt){
   const alvoMistura = desde < TRAVESSIA ? Math.min(1, desde / TRAVESSIA) : 1;
   misturaCeu = alvoMistura;
 
-  const p = Math.min(1, dt * 0.9);           // suavidade dos ajustes
+  /* A QUEDA. Comeca aos 20 s, que e quando o roteiro diz que as estrelas
+     comecam a cair, e se desfaz ate 1:10 — nesse ponto ja nao ha o que
+     cair, porque o que caiu virou floresta. */
+  const caindo = rampa(18, 26, t) * (1 - rampa(64, 78, t));
+  sentidoPoeira = (c === 1) ? (1 - 2 * caindo) : 1;
+
+  /* O NASCIMENTO. Entre 1:00 e 1:50, na ordem do roteiro: primeiro o
+     rasteiro, depois o alto. Fora do cenario 1 as plantas nao existem, e
+     deixa-las inteiras seria pior do que nao ter: apareceriam de repente
+     no salto de um cenario para outro. */
+  crescimento = (c === 1) ? rampa(58, 112, t) : 0;
+
+  /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
+     por dt parece resolver, mas nao resolve: a fracao que falta encolhe
+     de forma exponencial, nao linear. A conta certa e 1 - e^(-k*dt), que
+     da a MESMA constante de tempo a 30, 60 ou 72 quadros. */
+  const p = 1 - Math.exp(-1.8 * dt);
   tinta      = aproximar(tinta, a.tinta, p);
   presenca   = aproximar(presenca, a.nuvem, p);
   marmore    = aproximar(marmore, a.marmore, p);
@@ -1623,7 +1691,8 @@ bXR.onclick = async ()=>{
 /* ═══════════ desenho ═══════════ */
 const uR = n=>gl.getUniformLocation(progRaiz,n);
 const uS = n=>gl.getUniformLocation(progSala,n);
-const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex')};
+const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
+              crescimento:uR('crescimento')};
 const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
              mistura:uS('mistura'), inverter:uS('inverter'), tinta:uS('tinta'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
@@ -1689,6 +1758,7 @@ function assarTinta(){
   gl.disable(gl.DEPTH_TEST);
   gl.disable(gl.BLEND);
   gl.useProgram(progAssa);
+  soltarAtributos();
   gl.uniform1f(locA.tempo, relogio);
   gl.uniform1f(locA.marmore, marmore);
   gl.uniform1f(locA.leitoso, leitoso);
@@ -1710,7 +1780,7 @@ function assarTinta(){
 }
 
 const uPo = n=>gl.getUniformLocation(progPo,n);
-const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'),
+const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'), sentido:uPo('sentido'),
                escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro')};
 const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
             cor:gl.getAttribLocation(progPo,'aCor'),
@@ -1720,11 +1790,25 @@ const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
             dado:gl.getAttribLocation(progFig,'aDado'),
             tam:gl.getAttribLocation(progFig,'aTam')};
 
+/* O ESTADO DOS ATRIBUTOS E GLOBAL, e essa e a armadilha.
+   Ligar um atributo vale para sempre, nao para o desenho. Se um programa
+   usa cinco e o proximo usa um, os quatro que sobraram continuam ligados
+   apontando para os buffers do anterior — com outra contagem de vertices.
+   O resultado e leitura fora do intervalo: em algumas placas sai geometria
+   lixo, em outras o objeto simplesmente some, e nada aparece no console.
+
+   Por isso todo desenho comeca soltando o que estava ligado. */
+const atributosLigados = new Set();
 function ligar(loc, buf, n){
   if(loc < 0) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
+  atributosLigados.add(loc);
+}
+function soltarAtributos(){
+  for(const loc of atributosLigados) gl.disableVertexAttribArray(loc);
+  atributosLigados.clear();
 }
 
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
@@ -1752,8 +1836,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.useProgram(progRaiz);
+    soltarAtributos();
     gl.uniformMatrix4fv(locR.mvp, false, new Float32Array(mvp));
     gl.uniform1f(locR.tempo, relogio);
+    gl.uniform1f(locR.crescimento, crescimento);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locR.tex, 2);
     ligar(aR.pos,bR.pos,3); ligar(aR.nor,bR.nor,3); ligar(aR.uv,bR.uv,2);
@@ -1770,6 +1856,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
     gl.useProgram(progSala);
+    soltarAtributos();
     gl.uniformMatrix4fv(locS.mvp, false, new Float32Array(mvp));
     gl.uniform1f(locS.tinta, tinta);
     gl.uniform1f(locS.pass, dentroDeXR ? 1 : 0);
@@ -1809,6 +1896,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.useProgram(progAstro);
+    soltarAtributos();
     gl.uniformMatrix4fv(locAst.mvp, false, new Float32Array(mvp));
     ligar(aAst.pos, bE.pos, 3);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
@@ -1869,6 +1957,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);      // a cortina é vista dos dois lados
     gl.useProgram(progFig);
+    soltarAtributos();
     gl.uniformMatrix4fv(locF.mvp, false, new Float32Array(mvp));
     gl.uniform1f(locF.tempo, relogio);
     gl.uniform1f(locF.presenca, presenca);
@@ -1895,10 +1984,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     gl.depthMask(false);
     gl.useProgram(progPo);
+    soltarAtributos();
     gl.uniformMatrix4fv(locPo.mvp, false, new Float32Array(mvp));
     gl.uniform1f(locPo.tempo, relogio);
     gl.uniform1f(locPo.escalaPonto, escalaPonto);
     gl.uniform1f(locPo.sopro, sopro);
+    gl.uniform1f(locPo.sentido, sentidoPoeira);
     ligar(aP.pos,bP.pos,3); ligar(aP.cor,bP.cor,3); ligar(aP.dado,bP.dado,2);
     gl.drawArrays(gl.POINTS, 0, Math.min(nPo, quantosPo));
     gl.depthMask(true);
@@ -1913,10 +2004,16 @@ function quadro(){
   medir();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
-  yaw += (tYaw-yaw)*suave;
-  pitch += (tPitch-pitch)*suave;
-  relogio += 1/60;
-  seguirPartitura(1/60);
+  /* O passo do tempo vem PRIMEIRO: tudo o que se move neste quadro precisa
+     saber quanto tempo passou desde o anterior. */
+  const dt = passo();
+
+  // camera com constante de tempo, nao fracao por quadro
+  const kc = calmo ? 1 : (1 - Math.exp(-9.0 * dt));
+  yaw += (tYaw-yaw)*kc;
+  pitch += (tPitch-pitch)*kc;
+  relogio += dt;
+  seguirPartitura(dt);
   pintarPartitura();
   contarQuadro();
   if(figurasOn) assarTinta();
@@ -1939,8 +2036,9 @@ function quadroXR(t, frame){
   sessao.requestAnimationFrame(quadroXR);
   const pose = frame.getViewerPose(espaco);
   if(!pose) return;
-  relogio += 1/72;
-  seguirPartitura(1/72);
+  const dt = passo();
+  relogio += dt;
+  seguirPartitura(dt);
   contarQuadro();
 
   if(frame.detectedPlanes)
