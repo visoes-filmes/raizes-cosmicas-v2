@@ -2360,22 +2360,33 @@ function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v);
    trabalhando precisa da regua para alcancar um cenario que so acontece aos
    3:30, e abrir a pagina sem nenhum controle a vista faz parecer que nada
    mudou. */
-/* FECHADA. Isto e um ambiente para o visitante, nao um editor.
+/* O INTERRUPTOR DO ANDAIME. Uma palavra, e e a unica que se troca.
 
-   O andaime continua no arquivo e a tecla H o traz de volta em um toque —
-   quem trabalha nao perde nada. Mas quem poe o capacete tem que encontrar
-   a obra, e nao a mesa de quem a fez: reguas, medidores e interruptores
-   dizem "voce esta num programa", que e exatamente o contrario do que dez
-   minutos de realidade mista tentam construir.
+   ANDAIME = false e A OBRA: reguas, medidores, interruptores e o botao que
+   os chama simplesmente nao existem para quem visita. Nem escondidos, nem
+   a uma tecla de distancia — a tecla nao faz nada e o botao sai da tela.
+   Quem poe o capacete tem que encontrar dez minutos de realidade mista, e
+   nao a mesa de quem a construiu.
 
-   A emergencia NAO faz parte disto: ela fica sempre, porque e de quem
-   opera a sala. */
-let uiAberta = false;
-mostrarUI(false);
-bUI.onclick = ()=>{ uiAberta = !uiAberta; mostrarUI(uiAberta); };
-addEventListener('keydown', e=>{
-  if(e.key === 'h' || e.key === 'H'){ uiAberta = !uiAberta; mostrarUI(uiAberta); }
-});
+   ANDAIME = true e A OFICINA: tudo volta como estava, com a regua para
+   alcancar um cenario que so acontece aos 6:30 e o H para sumir com ela.
+   Trocar aqui e montar de novo devolve a ferramenta inteira.
+
+   A EMERGENCIA NAO DEPENDE DISTO. Os dois botoes ficam nas duas posicoes,
+   porque nao sao de quem edita: sao de quem opera a sala, e a sala tem
+   fila. */
+const ANDAIME = false;
+
+let uiAberta = ANDAIME;
+mostrarUI(uiAberta);
+if(ANDAIME){
+  bUI.onclick = ()=>{ uiAberta = !uiAberta; mostrarUI(uiAberta); };
+  addEventListener('keydown', e=>{
+    if(e.key === 'h' || e.key === 'H'){ uiAberta = !uiAberta; mostrarUI(uiAberta); }
+  });
+} else {
+  bUI.remove();
+}
 
 /* O ALVO DA OBRA. No headset ele vira o que o aparelho confirmar; no
    computador fica em 72 mesmo, porque e contra o headset que se mede —
@@ -2657,8 +2668,18 @@ if(navigator.xr){
 
 async function entrarXR(aoEntrar){
   if(sessao){ sessao.end(); return; }
-  try{
-    sessao = await navigator.xr.requestSession('immersive-ar', {
+  /* DUAS TENTATIVAS, E A SEGUNDA E A QUE SALVA O DIA.
+
+     Alguns runtimes recusam a LISTA INTEIRA se um unico opcional for
+     desconhecido — e "opcional" ali quer dizer opcional para nos, nao para
+     eles. Uma tentativa so, como estava aqui, transforma um recurso que
+     nem era necessario em "a obra nao abre": foi assim que o Quest ficou
+     no portao, e o codigo do outro ramo desta mesma obra ja carregava a
+     licao no comentario.
+
+     Entao: pede tudo; se recusarem, pede o minimo. Com local-floor a obra
+     inteira funciona — o resto so acrescenta. */
+  const pedido = {
       requiredFeatures: ['local-floor'],
       // detecção de superfície é opcional: sem ela as raízes ainda nascem
       // do chão, só não pinta as paredes reais
@@ -2674,12 +2695,22 @@ async function entrarXR(aoEntrar){
          E opcional de proposito: onde nao houver, a obra abre igual e os
          botoes continuam servindo na tela do computador. */
       domOverlay: { root: document.getElementById('emergencia') }
-    });
-  }catch(e){
-    vXR.textContent='recusado'; vXR.className='no';
-    if(ePortaoDica) ePortaoDica.textContent =
-      'O headset recusou a realidade mista. Dá para ver na tela, no botão abaixo.';
-    return;
+  };
+
+  try{
+    sessao = await navigator.xr.requestSession('immersive-ar', pedido);
+  }catch(e1){
+    try{
+      // O minimo que basta. Perde-se a pintura das paredes reais e os
+      // botoes dentro do headset; nao se perde a obra.
+      sessao = await navigator.xr.requestSession('immersive-ar',
+                                                 { requiredFeatures: ['local-floor'] });
+    }catch(e2){
+      vXR.textContent='recusado'; vXR.className='no';
+      if(ePortaoDica) ePortaoDica.textContent =
+        'O headset recusou a realidade mista. Dá para ver na tela, no botão abaixo.';
+      return;
+    }
   }
 
   await gl.makeXRCompatible();
