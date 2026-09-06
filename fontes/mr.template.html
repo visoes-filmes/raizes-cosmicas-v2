@@ -581,6 +581,170 @@ void main(){
   gl_FragColor = vec4(vCor * vBrilho, a * vBrilho);
 }`;
 
+/* ═══════════ A AGUA ═══════════
+   O cenario 3. Uma lamina na altura da cintura, e a pessoa dentro dela.
+
+   Em realidade mista este e o efeito mais forte que a obra tem, e nao por
+   causa da agua: e porque METADE DA IMAGEM PASSA A SER A PESSOA. As pernas
+   dela continuam ali, vistas pelas cameras, agora sob uma superficie que
+   as ondula. Nao ha efeito grafico que compita com o proprio corpo.
+
+   Por isso a lamina e TRANSLUCIDA: opaca, ela esconderia as pernas e o
+   feito se perderia. O que ela faz e somar por cima — reflexo do ceu,
+   espuma, e a distorcao do que esta embaixo.
+
+   Uma so chapa horizontal, gigante, seguindo a pessoa em XZ para que
+   andar nunca alcance a borda. Tudo o resto acontece por pixel. */
+const VS_AGUA = `
+attribute vec2 aXY;
+uniform mat4 mvp;
+uniform vec2 centro;
+uniform float nivel, largura;
+varying vec3 vMundo;
+void main(){
+  vec3 p = vec3(centro.x + aXY.x * largura, nivel, centro.y + aXY.y * largura);
+  vMundo = p;
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_AGUA = `
+precision highp float;
+uniform sampler2D pele, ceu;
+uniform vec3 olhoPos;
+uniform float tempo, presenca, nivel;
+varying vec3 vMundo;
+const float PI  = 3.14159265359;
+const float PI2 = 6.28318530718;
+
+/* A ondulacao. Tres senos cruzados de periodos sem razao simples entre si:
+   assim o padrao nunca se repete a olho, que e o que denuncia agua falsa.
+   O gradiente deles e a normal — nao preciso de mapa de normais. */
+vec2 ondular(vec2 q, float t){
+  return vec2(
+    sin(q.x*1.7 + t*0.55) * 0.030 + sin(q.y*2.6 - t*0.41) * 0.020
+      + sin((q.x+q.y)*4.3 + t*0.77) * 0.010,
+    cos(q.y*1.9 - t*0.48) * 0.030 + cos(q.x*3.1 + t*0.36) * 0.018
+      + cos((q.x-q.y)*3.7 - t*0.69) * 0.010);
+}
+
+void main(){
+  vec2 q = vMundo.xz;
+  vec2 onda = ondular(q, tempo);
+
+  /* A PELE, tirada da pintura, correndo em duas camadas com velocidades
+     diferentes. Uma camada so lê como papel de parede deslizando; duas
+     com velocidades diferentes lê como liquido, porque a interferencia
+     entre elas nunca se repete. */
+  vec3 a1 = texture2D(pele, q * 0.17 + onda + vec2(tempo*0.006, tempo*0.004)).rgb;
+  vec3 a2 = texture2D(pele, q * 0.31 - onda * 1.6 + vec2(-tempo*0.009, tempo*0.011)).rgb;
+  vec3 agua = mix(a1, a2, 0.45);
+
+  /* O REFLEXO. O raio que vem do olho bate na lamina e sobe: e so espelhar
+     a componente vertical da direcao e ler o ceu ali. Reflexo de verdade,
+     nao um brilho pintado — e por isso ele acompanha a cabeca. */
+  vec3 doOlho = normalize(vMundo - olhoPos);
+  vec3 refl = normalize(vec3(doOlho.x + onda.x * 1.5, -doOlho.y,
+                             doOlho.z + onda.y * 1.5));
+  float lon = atan(refl.x, -refl.z);
+  float lat = asin(clamp(refl.y, -1.0, 1.0));
+  vec3 doCeu = texture2D(ceu, vec2(fract(lon/PI2 + 0.5),
+                                   clamp(0.5 - lat/PI, 0.002, 0.998))).rgb;
+
+  /* FRESNEL. Olhando quase de cima a agua e transparente; olhando de
+     raspao ela vira espelho. E o que faz uma superficie parecer molhada em
+     vez de pintada — e e a razao pela qual as pernas aparecem: elas estao
+     logo abaixo, onde se olha quase a pino. */
+  float rasante = 1.0 - abs(doOlho.y);
+  float espelho = pow(clamp(rasante, 0.0, 1.0), 3.2);
+
+  vec3 cor = mix(agua, doCeu, espelho * 0.85);
+
+  /* A ESPUMA, so nas cristas. O maximo da ondulacao e onde a agua se
+     dobra; e ali que ela embranquece. */
+  float crista = smoothstep(0.030, 0.052, length(onda));
+  cor = mix(cor, vec3(0.93, 0.95, 0.99), crista * 0.42);
+
+  /* A lamina cede longe, para nao ter borda. Como ela segue a pessoa, a
+     borda nunca chega perto — mas se chegasse, seria uma linha reta no
+     meio de um mundo que nao tem nenhuma. */
+  float d = length(q - olhoPos.xz);
+  float alcance = 1.0 - smoothstep(6.5, 9.0, d);
+
+  float a = presenca * alcance * mix(0.42, 0.92, espelho);
+  if(a < 0.004) discard;
+  gl_FragColor = vec4(cor, a);
+}`;
+
+/* ═══════════ AS CAMADAS DE PAPEL ═══════════
+   O cenario 4. Formas recortadas, uma atras da outra, flutuando no cosmos.
+
+   O que faz isto funcionar nao e o desenho, e a PARALAXE: cada camada esta
+   a uma distancia diferente, entao mover a cabeca as desloca umas em
+   relacao as outras, e o espaco aparece sozinho. E a coisa mais barata que
+   se pode fazer num headset — planos e uma textura — e uma das que mais
+   convence, porque a profundidade nao esta desenhada, esta acontecendo.
+
+   O RECORTE nao vem da imagem: e feito aqui, por uma borda rasgada gerada
+   na hora. Assim cada camada tem uma silhueta propria, e nenhuma repete a
+   da outra — que e o que denunciaria que sao a mesma imagem varias vezes. */
+const VS_PAPEL = `
+attribute vec2 aXY;              // -1..1 no plano da camada
+uniform mat4 mvp;
+uniform vec3 camDir, camCima;
+uniform vec3 centro;
+uniform vec2 tamanho;
+uniform float subir;             // 0 = ainda embaixo, 1 = no lugar
+varying vec2 vXY;
+void main(){
+  vXY = aXY;
+  // A camada encara a pessoa, como a nuvem: assim nunca se ve que e chapa.
+  vec3 p = centro + camDir * (aXY.x * tamanho.x) + camCima * (aXY.y * tamanho.y);
+  // Sobe de baixo para cima ao aparecer, sem nunca saltar.
+  p.y -= (1.0 - subir) * 4.2;
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_PAPEL = `
+precision mediump float;
+uniform sampler2D papel;
+uniform vec2 recorte;            // de onde na imagem esta camada tira o desenho
+uniform float presenca, semente, tempo;
+varying vec2 vXY;
+
+// ruido de valor, o mesmo da bandeja: barato e sem direcao propria
+float h21(vec2 p){
+  p = fract(p * 0.3183099 + vec2(0.71, 0.113));
+  p *= 17.0;
+  return fract(p.x * p.y * (p.x + p.y));
+}
+float ruidoP(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(h21(i), h21(i+vec2(1,0)), f.x),
+             mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y);
+}
+
+void main(){
+  vec2 uv = recorte + (vXY * 0.5 + 0.5) * vec2(0.42, 0.34);
+  vec3 c = texture2D(papel, uv).rgb;
+
+  /* A BORDA RASGADA. A altura em que a camada acaba varia ao longo dela,
+     por ruido — como papel rasgado a mao, que nunca tem corte reto. Duas
+     escalas: uma grande para o rasgo, uma pequena para a fibra. */
+  float x = vXY.x * 1.6 + semente;
+  float rasgo = ruidoP(vec2(x, semente)) * 0.5
+              + ruidoP(vec2(x * 3.7, semente + 5.0)) * 0.16;
+  float alto = 0.34 + rasgo * 0.9;
+  float dentro = smoothstep(alto + 0.05, alto - 0.05, vXY.y);
+
+  // as laterais tambem se desfazem, para a camada nao ter quina
+  dentro *= smoothstep(1.0, 0.72, abs(vXY.x));
+  // e embaixo ela funde no que vem atras
+  dentro *= smoothstep(-1.0, -0.55, vXY.y);
+
+  float a = dentro * presenca;
+  if(a < 0.004) discard;
+  gl_FragColor = vec4(c, a);
+}`;
+
 /* ═══════════ OS ASTROS ═══════════
    O Sol e os quatro planetas do cenario 2.
 
@@ -964,6 +1128,8 @@ const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
+const progPapel = programa(VS_PAPEL, FS_PAPEL);
+const progAgua  = programa(VS_AGUA,  FS_AGUA);
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,
@@ -1074,11 +1240,14 @@ const bS = criarBufs(['pos','nor','uv','tipo','idx']);
 const bF = criarBufs(['centro','canto','dado','tam','idx']);
 const bP = criarBufs(['pos','cor','dado']);
 const bE = criarBufs(['pos','idx']);
+const bQ = criarBufs(['xy']);
 let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0, nIdxE = 0;
 /* A fila existe antes de alguem empurrar nela: "enviar" so e chamavel
    depois que os buffers foram criados, entao a subida da esfera espera
    aqui e e executada mais abaixo. */
 const enviarDepois = [];
+/* um quadrado de -1 a 1, servindo a todas as camadas */
+enviarDepois.push(()=>enviar(bQ.xy, [-1,-1, 1,-1, -1,1, 1,-1, 1,1, -1,1]));
 (function(){
   const e = montarEsfera(14, 22);
   enviarDepois.push(()=>{
@@ -1169,6 +1338,7 @@ const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
 /* As peles dos planetas, recortadas da propria pintura e ja tratadas para
    repetir sem emenda nos dois eixos. Duas bastam: as cores as diferenciam. */
 const PELES = [novaTex([90,70,80]), novaTex([70,90,110])];
+const texPapel = novaTex([20,18,30]);
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
 carregar(CEUS[0], '__TEX_PANORAMA__');
@@ -1176,6 +1346,7 @@ carregar(CEUS[1], '__CEU_COSMICO__');
 carregar(CEUS[2], '__CEU_ROSA__');
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
+carregar(texPapel, '__TEX_PAPEL__');
 
 // A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
 
@@ -1238,6 +1409,69 @@ function inicioDaCena(t){
   let ini = 0;
   for(const m of MOMENTOS){ if(m[1] === c){ ini = m[0]; break; } }
   return ini;
+}
+
+/* A altura da agua. Declarada AQUI, antes de quem a usa: as pedras sao
+   posicionadas em relacao a ela na hora em que o modulo carrega, e uma
+   constante usada antes da propria declaracao mata a pagina inteira.
+   Cintura de quem tem o olho a 1,60 fica por volta de 0,95. */
+const NIVEL_AGUA = 0.95;
+
+/* ═══════════ AS PEDRAS DO PLANETA ROSA ═══════════
+   Meia duzia, na linha d'agua. Sao a mesma esfera dos astros com outros
+   parametros — achatadas, escuras e paradas.
+
+   Ficam FORA do raio de 1,2 m: nao sao para tocar, sao para dar escala.
+   Sem nada com tamanho reconhecivel, uma lamina de agua ate o horizonte
+   nao tem tamanho nenhum, e o lugar deixa de ter medida. */
+const PEDRAS = [];
+(function(){
+  const r = prng(313);
+  for(let i=0;i<6;i++){
+    const ang = (i / 6) * Math.PI * 2 + r() * 0.7;
+    const d = 1.9 + r() * 2.6;
+    PEDRAS.push({
+      x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
+      // afundadas ate quase a linha d'agua: so a lombada aparece
+      y: NIVEL_AGUA - 0.10 - r() * 0.16,
+      raio: 0.20 + r() * 0.30,
+      achatar: 0.42 + r() * 0.26,
+      giro: r() * Math.PI * 2,
+      tom: 0.55 + r() * 0.3,
+    });
+  }
+})();
+
+/* ═══════════ AS CAMADAS — onde cada uma fica ═══════════
+   Sete, do fundo para a frente. Quanto mais longe, maior e mais escura —
+   que e como o ar se comporta. A mais proxima esta a 1,6 m, fora do
+   alcance da mao mas dentro do campo de visao inteiro. */
+const CAMADAS = [];
+(function(){
+  const r = prng(707);
+  for(let i=0;i<7;i++){
+    const k = i / 6;
+    CAMADAS.push({
+      dist:   1.6 + k * 5.2,
+      altura: 1.15 + r() * 1.5,
+      lado:   (r() - 0.5) * 2.2,
+      escala: 1.0 + k * 1.9,
+      recorte:[0.03 + r() * 0.52, 0.03 + r() * 0.60],
+      semente: r() * 40,
+      atraso: i * 0.055,
+    });
+  }
+})();
+
+/* Quanto o mundo de papel ja subiu. Ele nao aparece: vai surgindo de baixo
+   para cima, devagar, enquanto a experiencia se encaminha para o fim. As
+   camadas do fundo sobem primeiro, as da frente depois — o atraso e o que
+   faz o conjunto parecer um lugar se levantando, e nao uma imagem
+   deslizando. */
+function subidaPapel(i, t){
+  const c = CAMADAS[i];
+  return rampa(525 + c.atraso * 22, 560 + c.atraso * 22, t)
+       * (1 - rampa(592, 600, t));
 }
 
 /* ═══════════ OS ASTROS — a coreografia ═══════════
@@ -1398,6 +1632,10 @@ let t = 0, andando = true, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
    dois: a poeira CAI enquanto as estrelas chegam, e a floresta NASCE de
    onde elas tocam. Fora desse trecho a poeira volta a ser ambiente. */
 let crescimento = 1, sentidoPoeira = 1;
+/* Quanto a agua ja subiu. Ela SOBE ate a cintura ao chegar no planeta
+   rosa, em vez de ja estar la: subir e o que faz a pessoa perceber que
+   entrou nela. */
+let aguaPresenca = 0;
 let ceuA = 0, ceuB = 0;
 
 /* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
@@ -1444,6 +1682,9 @@ function seguirPartitura(dt){
      deixa-las inteiras seria pior do que nao ter: apareceriam de repente
      no salto de um cenario para outro. */
   crescimento = (c === 1) ? rampa(58, 112, t) : 0;
+
+  /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
+  aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
      por dt parece resolver, mas nao resolve: a fracao que falta encolhe
@@ -1704,6 +1945,19 @@ const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
+const uAg = n=>gl.getUniformLocation(progAgua,n);
+const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
+               largura:uAg('largura'), pele:uAg('pele'), ceu:uAg('ceu'),
+               olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca')};
+const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
+
+const uPa = n=>gl.getUniformLocation(progPapel,n);
+const locPa = {mvp:uPa('mvp'), camDir:uPa('camDir'), camCima:uPa('camCima'),
+               centro:uPa('centro'), tamanho:uPa('tamanho'), subir:uPa('subir'),
+               papel:uPa('papel'), recorte:uPa('recorte'),
+               presenca:uPa('presenca'), semente:uPa('semente'), tempo:uPa('tempo')};
+const aPa = {xy: gl.getAttribLocation(progPapel,'aXY')};
+
 const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
@@ -1886,7 +2140,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      a que passa na frente de um planeta aparece, e a que esta atras dele
      e escondida. Na ordem inversa o planeta apagaria a nuvem inteira. */
   const pSol = presencaSol(t);
-  if(nIdxE > 0 && (pSol > 0.004 || cenaAtual === 2)){
+  if(nIdxE > 0 && (pSol > 0.004 || cenaAtual === 2 || aguaPresenca > 0.004)){
     gl.enable(gl.DEPTH_TEST);
     /* Enquanto um astro esta nascendo ele e translucido, e escrever
        profundidade nesse estado esconderia o que esta atras dele por tras
@@ -1943,7 +2197,90 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.depthMask(pr > 0.92);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
     }
+    // AS PEDRAS, quando ha agua. Opacas: sao corpos, e ficam abaixo da
+    // lamina, entao precisam escrever profundidade para a agua nao as
+    // atravessar.
+    if(aguaPresenca > 0.004){
+      gl.depthMask(true);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.luzDe, 0.3, 1.0, 0.2);
+      gl.uniform1f(locAst.brilho, 0.02);
+      for(const pd of PEDRAS){
+        gl.uniform3f(locAst.centro, pd.x, pd.y, pd.z);
+        gl.uniform1f(locAst.raio, pd.raio);
+        gl.uniform1f(locAst.giro, pd.giro);
+        gl.uniform1f(locAst.achatar, pd.achatar);
+        gl.uniform3f(locAst.cor, pd.tom*0.72, pd.tom*0.60, pd.tom*0.66);
+        gl.uniform1f(locAst.presenca, aguaPresenca);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      }
+    }
+
     gl.disable(gl.CULL_FACE);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* 2b-bis) A AGUA. Translucida e sem escrever profundidade: ela e uma
+     lamina que soma por cima, nao um chao. Escrever profundidade aqui
+     esconderia as pernas da pessoa, que sao justamente o que faz o efeito. */
+  if(aguaPresenca > 0.004){
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(progAgua);
+    soltarAtributos();
+    gl.uniformMatrix4fv(locAg.mvp, false, new Float32Array(mvp));
+    // segue a pessoa em XZ: andar nunca alcanca a borda da lamina
+    gl.uniform2f(locAg.centro, olhoPos[0], olhoPos[2]);
+    gl.uniform1f(locAg.nivel, NIVEL_AGUA);
+    gl.uniform1f(locAg.largura, 9.5);
+    gl.uniform3f(locAg.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.uniform1f(locAg.tempo, relogio);
+    gl.uniform1f(locAg.presenca, aguaPresenca);
+    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
+    gl.uniform1i(locAg.pele, 5);
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
+    gl.uniform1i(locAg.ceu, 4);
+    ligar(aAg.xy, bQ.xy, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* 2c) AS CAMADAS DE PAPEL. Do fundo para a frente, que e obrigatorio:
+     elas nao escrevem profundidade (sao recortes com alfa macio, e escrever
+     profundidade cortaria a franja de quem vem atras), entao a ordem de
+     desenho E a ordem de profundidade. Desenhar de tras para frente e o
+     unico jeito de a de frente cobrir a de tras. */
+  if(cenaAtual === 4 || t > 520){
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(progPapel);
+    soltarAtributos();
+    gl.uniformMatrix4fv(locPa.mvp, false, new Float32Array(mvp));
+    gl.uniform3f(locPa.camDir, camDir[0], camDir[1], camDir[2]);
+    gl.uniform3f(locPa.camCima, camCima[0], camCima[1], camCima[2]);
+    gl.uniform1f(locPa.tempo, relogio);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, texPapel);
+    gl.uniform1i(locPa.papel, 6);
+    ligar(aPa.xy, bQ.xy, 2);
+    for(let i = CAMADAS.length - 1; i >= 0; i--){
+      const c = CAMADAS[i], sb = subidaPapel(i, t);
+      if(sb < 0.004) continue;
+      gl.uniform3f(locPa.centro, c.lado * c.dist * 0.4, c.altura, -c.dist);
+      gl.uniform2f(locPa.tamanho, 1.15 * c.escala, 0.82 * c.escala);
+      gl.uniform2f(locPa.recorte, c.recorte[0], c.recorte[1]);
+      gl.uniform1f(locPa.semente, c.semente);
+      gl.uniform1f(locPa.subir, sb);
+      // as do fundo sao mais apagadas: e assim que o ar se comporta
+      gl.uniform1f(locPa.presenca, sb * (0.95 - i * 0.075));
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }

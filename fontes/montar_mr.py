@@ -57,6 +57,8 @@ mapa = {
                                 (512, 512), qualidade=86),
     "__TEX_AGUA__":     embutir(os.path.join(AQUI, "texturas/tex-agua.png"),
                                 (512, 512), qualidade=86),
+    "__TEX_PAPEL__":    embutir(os.path.join(AQUI, "tex-papel.png"),
+                                (1024, 512), qualidade=84),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
         sys.argv[4] if len(sys.argv) > 4
         else os.path.join(AQUI, "trilha-loop.mp3")),

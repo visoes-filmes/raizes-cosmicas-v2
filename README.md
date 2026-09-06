@@ -59,6 +59,42 @@ não escreve profundidade, então quem vem depois vence. E só escrevem
 profundidade quando já estão praticamente opacos: enquanto nascem, esconder
 o que está atrás por trás de uma coisa que mal se vê seria pior.
 
+### A água
+
+O cenário 3. Uma lâmina na altura da cintura, e a pessoa dentro dela.
+
+Em realidade mista este é o efeito mais forte que a obra tem — e não por
+causa da água: é porque **metade da imagem passa a ser a pessoa**. As pernas
+dela continuam ali, vistas pelas câmeras, agora sob uma superfície que as
+ondula. Não há efeito gráfico que compita com o próprio corpo.
+
+Por isso a lâmina é **translúcida**. Opaca, ela esconderia as pernas e o
+feito se perderia.
+
+O reflexo é reflexo de verdade: o raio que vem do olho bate na lâmina e
+sobe, então basta espelhar a componente vertical da direção e ler o céu ali
+— e é por isso que ele acompanha a cabeça. O Fresnel faz o resto: olhando
+quase a pino a água é transparente, de raspão vira espelho. É o que faz uma
+superfície parecer molhada em vez de pintada.
+
+### As camadas de papel
+
+O cenário 4. Formas recortadas, uma atrás da outra, flutuando no cosmos.
+
+O que faz isto funcionar não é o desenho, é a **paralaxe**: cada camada
+está a uma distância diferente, então mover a cabeça as desloca umas em
+relação às outras e o espaço aparece sozinho. É a coisa mais barata que se
+pode fazer num headset — planos e uma textura — e uma das que mais
+convence, porque a profundidade não está desenhada, está acontecendo.
+
+O recorte não vem da imagem: é feito no shader, por uma borda rasgada
+gerada na hora. Assim cada camada tem silhueta própria, e nenhuma repete a
+da outra — que é o que denunciaria que são a mesma imagem várias vezes.
+
+Elas são desenhadas **do fundo para a frente**, e isso é obrigatório: não
+escrevem profundidade (escrever cortaria a franja de quem vem atrás), então
+a ordem de desenho *é* a ordem de profundidade.
+
 ### Mipmap
 
 As texturas carregadas geram mipmap e usam filtro trilinear. Sem isso, uma
