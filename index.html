@@ -2493,11 +2493,17 @@ const trilha = document.getElementById('trilha');
    como tocar — e e isso que garante silencio de verdade enquanto se
    trabalha, em vez de depender de um estado que qualquer clique reverte. */
 const TEM_SOM = !!trilha;
-let volume = 0.08, somLigado = false, tocando = false;
-/* A trilha esta na cena, mas NAO comeca sozinha enquanto se constroi: ela
-   entrando a cada recarga atrapalha quem esta trabalhando em outra coisa na
-   mesma maquina. O botao Som liga na hora que se quiser ouvir. Antes do FIL
-   isto vira "somLigado = TEM_SOM" e ela volta a entrar sozinha. */
+let volume = 0.08, somLigado = true, tocando = false;
+/* A TRILHA ENTRA SOZINHA — a obra esta montada, nao em construcao.
+
+   Ficou desligada o tempo todo em que se trabalhou: som entrando a cada
+   recarga atrapalha quem mexe em outra coisa na mesma maquina. Mas com os
+   paineis fora, o botao que a ligava saiu junto, e a obra ficou muda sem
+   que nada dissesse isso — nao havia mais nenhum lugar onde ligar.
+
+   Ela nao comeca no carregamento e sim no primeiro gesto, porque nenhum
+   navegador deixa som comecar sozinho. No Quest, o proprio toque em
+   "Iniciar em RM" ja serve: a trilha entra junto com a realidade mista. */
 if(TEM_SOM) trilha.volume = volume;
 
 function acordarSom(){
