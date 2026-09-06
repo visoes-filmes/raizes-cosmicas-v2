@@ -49,6 +49,43 @@
     font-variant-numeric:tabular-nums;pointer-events:none;
     line-height:38px;
   }
+  /* ── o portão ───────────────────────────────────────────────
+     A obra tem hora de comecar. Antes, o relogio partia no instante em
+     que a pagina abria — e no headset isso quer dizer que os primeiros
+     minutos correm enquanto a pessoa ainda esta ajeitando a tira na
+     cabeca e procurando o botao. Quem entrava chegava no meio.
+
+     Agora nada anda ate alguem mandar. */
+  #portao{
+    position:fixed; inset:0; z-index:100; display:grid; place-items:center;
+    background:rgba(8,6,14,.94); backdrop-filter:blur(6px);
+    text-align:center; padding:24px;
+  }
+  #portao.foi{ display:none; }
+  .portao-caixa{ max-width:420px; }
+  .portao-nome{ font-family:Georgia,"Times New Roman",serif; font-weight:400;
+                font-size:clamp(30px,7vw,46px); color:var(--ink);
+                margin:0 0 6px; letter-spacing:-.01em; }
+  .portao-nome em{ font-style:italic; color:var(--accent); }
+  .portao-sub{ font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+               font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+               color:var(--ink-dim); margin:0 0 30px; }
+  #bIniciar{
+    font-size:17px; padding:13px 40px; border-radius:3px; cursor:pointer;
+    background:var(--accent); color:#1c1030; border:1px solid var(--accent);
+    font-weight:600; font-family:inherit;
+  }
+  #bIniciar:disabled{ background:#241a3d; color:var(--ink-dim);
+                      border-color:var(--line); cursor:default; }
+  #bIniciarTela{
+    display:block; margin:14px auto 0; font-size:13px; padding:8px 20px;
+    background:none; color:var(--ink-dim); border:1px solid var(--line);
+    border-radius:3px; cursor:pointer; font-family:inherit;
+  }
+  #bIniciarTela:hover{ color:var(--ink); border-color:var(--accent); }
+  .portao-dica{ margin:20px 0 0; font-size:13px; color:var(--ink-dim);
+                line-height:1.5; }
+
   #fps.meio{opacity:.55;}
   #fps.baixo{color:var(--ember);opacity:.85;}
 
@@ -154,12 +191,23 @@
   cinza pela sua sala de verdade, vista pelas câmeras.</p>
 </div>
 
+<div id="portao">
+  <div class="portao-caixa">
+    <h1 class="portao-nome">Raízes Cósmicas <em>v2</em></h1>
+    <p class="portao-sub">Visões Filmes · dez minutos</p>
+    <button id="bIniciar">Iniciar em RM</button>
+    <button id="bIniciarTela">Iniciar na tela</button>
+    <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
+  </div>
+</div>
+
 <div class="card oculto" id="hud">
   <span>giro</span><b id="vYaw">0°</b>
   <span>raízes</span><b id="vRaiz">–</b>
   <span>triângulos</span><b id="vTri">–</b>
   <span>WebXR</span><b id="vXR">…</b>
   <span>superfícies</span><b id="vPlanos">–</b>
+  <span>imagens</span><b id="vTex">–</b>
 </div>
 
 <div class="card oculto" id="ctl">
@@ -1506,6 +1554,46 @@ subirPoeira(semearPoeira(53));
 
 /* ═══════════ texturas ═══════════ */
 
+/* CONTAGEM DAS IMAGENS.
+
+   Sao onze, todas embutidas no proprio arquivo. No computador decodificam
+   num piscar; no headset o arquivo tem quase seis megabytes e demora. Se a
+   obra comecar antes disso, os primeiros segundos rodam com cor chapada no
+   lugar da pintura — e quem esta dentro conclui que nao funcionou.
+
+   Por isso o botao so libera quando as onze chegam. E se alguma falhar,
+   isso APARECE: falha silenciosa num cenario escuro passa despercebida ate
+   alguem reparar que esta faltando uma coisa, e ai ja e no dia. */
+const TEX_TOTAL = 11;
+let texProntas = 0, texFalhas = [];
+function relatarTex(){
+  const e = document.getElementById('vTex');
+  if(e) e.textContent = texProntas + '/' + TEX_TOTAL +
+                        (texFalhas.length ? '  ✕' + texFalhas.length : '');
+  const d = document.getElementById('portaoDica');
+  const b = document.getElementById('bIniciar');
+  if(!d || !b) return;
+  if(texFalhas.length){
+    d.textContent = texFalhas.length + ' imagem(ns) nao carregaram. A obra abre '
+                  + 'assim mesmo, com cor chapada no lugar delas.';
+    b.disabled = false;
+  }else if(texProntas >= TEX_TOTAL){
+    d.textContent = 'Ponha o capacete antes de iniciar: os dez minutos correm '
+                  + 'sozinhos a partir daqui.';
+    b.disabled = false;
+  }else{
+    d.textContent = 'carregando as imagens…  ' + texProntas + ' de ' + TEX_TOTAL;
+    b.disabled = true;
+  }
+}
+function contarTex(){ texProntas++; relatarTex(); }
+function falharTex(url){
+  texFalhas.push(url.slice(0, 40));
+  console.warn('textura nao carregou:', url.slice(0, 60));
+  relatarTex();
+}
+
+
 /* FILTRAGEM ANISOTROPICA.
 
    O mipmap resolve o cintilar, mas resolve BORRANDO: ele escolhe um nivel
@@ -1573,8 +1661,9 @@ function novaTexAlfa(){
    halo escuro em volta — o defeito mais comum de recorte em 3D. */
 function carregarAlfa(t,url){
   const im = new Image();
-  im.onerror = ()=> console.warn('textura nao carregou:', url.slice(0,60));
+  im.onerror = ()=>{ falharTex(url); };
   im.onload = ()=>{
+    contarTex();
     /* A UNIDADE PRECISA SER FIXADA AQUI.
 
        bindTexture liga a textura na unidade ATIVA no momento, e este
@@ -1616,8 +1705,9 @@ function carregarAlfa(t,url){
    tem ceu. */
 function carregar(t,url,ehCeu){
   const im = new Image();
-  im.onerror = ()=> console.warn('textura nao carregou:', url.slice(0,60));
+  im.onerror = ()=>{ falharTex(url); };
   im.onload = ()=>{
+    contarTex();
     gl.activeTexture(gl.TEXTURE0);   // pelo mesmo motivo do carregarAlfa
     gl.bindTexture(gl.TEXTURE_2D,t);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
@@ -1648,6 +1738,7 @@ function carregar(t,url,ehCeu){
   };
   im.src = url;
 }
+relatarTex();
 const texRaiz = novaTex([80,75,120]);
 /* Os tres ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
    shader mistura dois deles durante a travessia. */
@@ -2071,7 +2162,7 @@ let emXR = false;
 /* O relogio da obra, separado do relogio da animacao. O "relogio" corre
    sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
    da partitura, que pode ser pausado e arrastado enquanto se trabalha. */
-let t = 0, andando = true, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
+let t = 0, andando = false, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
 /* O primeiro minuto tem dois movimentos proprios, e a partitura conduz os
    dois: a poeira CAI enquanto as estrelas chegam, e a floresta NASCE de
    onde elas tocam. Fora desse trecho a poeira volta a ser ambiente. */
@@ -2277,6 +2368,41 @@ sV.addEventListener('input', ()=>{
 montarRegua();
 const bTocar = document.getElementById('bTocar');
 bTocar.onclick = ()=>{ andando = !andando; bTocar.textContent = andando ? 'pausar' : 'tocar'; };
+bTocar.textContent = 'tocar';
+
+/* ═══════════ o portão ═══════════
+   Comecar do zero e explicito: quem inicia quer o inicio. E o relogio da
+   obra e o relogio do shader zeram juntos, senao a partitura recomeca com
+   as animacoes no meio do movimento. */
+const ePortao  = document.getElementById('portao');
+const bIniciar = document.getElementById('bIniciar');
+const ePortaoDica = document.getElementById('portaoDica');
+
+function iniciarObra(){
+  t = 0; relogio = 0;
+  cenaAtual = 1; misturaCeu = 0;
+  ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
+  andando = true;
+  bTocar.textContent = 'pausar';
+  ePortao.classList.add('foi');
+  ultimoInstante = performance.now();   // o tempo parado nao conta como dt
+}
+
+/* DOIS CAMINHOS, e a diferenca entre eles e onde o relogio parte.
+
+   "Iniciar em RM" pede a sessao e so zera o relogio quando ela ABRE — os
+   dois ou tres segundos que o headset leva para trocar a tela pela camera
+   nao entram na obra. Sem isso, a pessoa perderia o comeco justamente na
+   transicao em que nao esta vendo nada.
+
+   "Iniciar na tela" e para trabalhar no computador, e comeca na hora. */
+const bIniciarTela = document.getElementById('bIniciarTela');
+bIniciarTela.onclick = iniciarObra;
+bIniciar.onclick = ()=>{
+  if(bXR.disabled){ iniciarObra(); return; }   // sem RM aqui: vai na tela
+  ePortaoDica.textContent = 'abrindo a realidade mista…';
+  entrarXR(iniciarObra);
+};
 
 const bSala=document.getElementById('bSala'), bRaiz=document.getElementById('bRaizes');
 bSala.onclick = ()=>{ salaVisivel=!salaVisivel; pinta(); };
@@ -2358,6 +2484,32 @@ function pinta(){
 pinta();
 
 /* ═══════════ WebXR ═══════════ */
+
+/* AS DUAS MISTURAS DA OBRA, e por que precisam de blendFuncSeparate.
+
+   No computador o quadro comeca opaco e so o RGB importa. No headset nao:
+   o quadro comeca com ALFA ZERO, e e esse alfa que o compositor usa para
+   decidir quanto da camera passa. Ou seja, o alfa deixa de ser um detalhe
+   e passa a ser o canal que decide se a obra existe.
+
+   blendFunc trata os quatro canais igual, entao no alfa ele fazia
+       dstA = srcA*srcA + dstA*(1 - srcA)
+   e partindo de zero isso e srcA AO QUADRADO. Uma cupula a 30% compunha a
+   9%; uma nuvem a 15% compunha a 2%. Tudo o que nao fosse quase opaco
+   sumia — e sobrava a sala real, que e exatamente o que se viu no teste.
+
+   Com blendFuncSeparate a cor mistura como sempre e o alfa faz a conta de
+   "over": dstA = srcA + dstA*(1 - srcA). */
+function sobrepor(){
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA,
+                       gl.ONE,       gl.ONE_MINUS_SRC_ALPHA);
+}
+/* Soma de luz (estrelas, brilho): a cor se acumula, e o alfa tambem —
+   senao um ceu de estrelas em cima de nada continua sendo nada. */
+function somarLuz(){
+  gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
+}
+
 const bXR = document.getElementById('bXR');
 const vXR = document.getElementById('vXR');
 const vPlanos = document.getElementById('vPlanos');
@@ -2368,14 +2520,20 @@ if(navigator.xr){
     vXR.textContent = ok ? 'pronto' : 'sem RM';
     vXR.className = ok ? 'ok' : 'no';
     bXR.disabled = !ok;
-    if(!ok) bXR.textContent = 'RM indisponível aqui';
+    if(!ok){
+      bXR.textContent = 'RM indisponível aqui';
+      const bi = document.getElementById('bIniciar');
+      const bt = document.getElementById('bIniciarTela');
+      if(bi) bi.textContent = 'Iniciar';
+      if(bt) bt.style.display = 'none';
+    }
   }).catch(()=>{ vXR.textContent='sem RM'; vXR.className='no'; });
 } else {
   vXR.textContent = 'ausente'; vXR.className = 'no';
   bXR.textContent = 'RM indisponível aqui';
 }
 
-bXR.onclick = async ()=>{
+async function entrarXR(aoEntrar){
   if(sessao){ sessao.end(); return; }
   try{
     sessao = await navigator.xr.requestSession('immersive-ar', {
@@ -2384,7 +2542,12 @@ bXR.onclick = async ()=>{
       // do chão, só não pinta as paredes reais
       optionalFeatures: ['plane-detection','anchors','hit-test']
     });
-  }catch(e){ vXR.textContent='recusado'; vXR.className='no'; return; }
+  }catch(e){
+    vXR.textContent='recusado'; vXR.className='no';
+    if(ePortaoDica) ePortaoDica.textContent =
+      'O headset recusou a realidade mista. Dá para ver na tela, no botão abaixo.';
+    return;
+  }
 
   await gl.makeXRCompatible();
   /* Suavizacao explicita na camada do headset. O padrao ja e ligado onde
@@ -2428,10 +2591,21 @@ bXR.onclick = async ()=>{
     emXR=false; sessao=null;
     bXR.textContent='Entrar em RM';
     vXR.textContent='pronto'; vXR.className='ok';
+    /* Tirou o capacete: a obra PARA e o portao volta. Numa fila de feira e
+       isso que se quer — a proxima pessoa comeca do comeco, e nao no meio
+       do que a anterior deixou. */
+    andando = false;
+    bTocar.textContent = 'tocar';
+    ePortao.classList.remove('foi');
+    relatarTex();
     requestAnimationFrame(quadro);
   });
   sessao.requestAnimationFrame(quadroXR);
-};
+  /* Agora sim: a sessao esta aberta e o primeiro quadro do headset foi
+     pedido. E aqui que a obra pode partir do zero. */
+  if(aoEntrar) aoEntrar();
+}
+bXR.onclick = ()=>{ entrarXR(); };
 
 /* ═══════════ desenho ═══════════ */
 const uR = n=>gl.getUniformLocation(progRaiz,n);
@@ -2643,7 +2817,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   //    translúcida não deve esconder nada, só somar por cima.
   if(salaVisivel && nIdxS > 0){
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.depthMask(false);
     gl.useProgram(progSala);
     soltarAtributos();
@@ -2685,7 +2859,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        de uma coisa que mal se ve. So passa a escrever quando ja e corpo. */
     gl.depthMask(false);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.useProgram(progAstro);
     soltarAtributos();
@@ -2861,7 +3035,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      esconderia as pernas da pessoa, que sao justamente o que faz o efeito. */
   if(aguaPresenca > 0.004){
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);
     gl.useProgram(progAgua);
@@ -2907,7 +3081,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aBo.xy, bQ.xy, 2);
 
     // os buracos: mistura normal, para o nucleo poder ser preto
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.uniform1f(locBo.tipo, 0);
     gl.uniform3f(locBo.cor, 0.78, 0.62, 1.0);
     if(buracoPresenca > 0.004){
@@ -2930,7 +3104,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     // os seres: aditivo, porque sao luz espalhada e nao corpo
     if(seresPresenca > 0.004){
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      somarLuz();
       gl.uniform1f(locBo.tipo, 1);
       gl.uniform1f(locBo.presenca, seresPresenca * 0.85);
       for(const sr of SERES){
@@ -2969,7 +3143,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     for(const f of FIGURAS) if(rampa(f.de, f.de+9, t)*(1-rampa(f.ate-9, f.ate, t)) > 0.004) alguma = true;
     if(alguma){
       gl.enable(gl.BLEND);
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      sobrepor();
       gl.depthMask(false);
       gl.disable(gl.CULL_FACE);
       gl.useProgram(progFigu);
@@ -3015,7 +3189,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      unico jeito de a de frente cobrir a de tras. */
   if(cenaAtual === 4 || t > 520){
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);
     gl.useProgram(progPapel);
@@ -3047,7 +3221,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   //    aparecer aqui. Com alfa normal a cor sai como ela é.
   if(figurasOn && nIdxF > 0){
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    sobrepor();
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);      // a cortina é vista dos dois lados
     gl.useProgram(progFig);
@@ -3075,7 +3249,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   //    câmera — somando, ela acende sobre a sala de verdade.
   if(poeiraOn && nPo > 0){
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    somarLuz();
     gl.depthMask(false);
     gl.useProgram(progPo);
     soltarAtributos();
