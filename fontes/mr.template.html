@@ -355,11 +355,28 @@ function gerarPlanta(rnd, base, escala, fase, s){
 }
 
 let totalRaizes = 0;
+/* Onde a arvore fica, e onde o casulo pende dela.
+
+   A arvore esta LONGE, encostada na parede. O casulo esta PERTO, dentro
+   de 1,2 m do centro — que e o alcance util antes de a grade do guardian
+   aparecer. Entre um e outro ha um fio.
+
+   Isso nao e um arranjo de conveniencia: e a primeira imagem da animacao,
+   um casulo pendurado num fio, sozinho no escuro. */
+const ARVORE_BASE = [-1.35, 0, -1.75];
+const CASULO = [0.42, 1.44, -0.78];
+const FIO_ALTO = 2.95;
+
 function semearMata(semente){
   const rnd = prng(semente);
   const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
   const N = 11;
   totalRaizes = N;
+  /* A ARVORE. Uma so, maior que o resto, encostada na parede — na regiao
+     que fica alem do alcance, onde o roteiro pede que ela esteja. O que
+     vem ate a pessoa nao e a arvore: e o fio com o casulo. */
+  gerarPlanta(rnd, ARVORE_BASE, 2.35, 0.7, s);
+
   for(let i=0;i<N;i++){
     // encostadas nas bordas da sala, deixando o centro livre pra pessoa andar
     const t = i/N * Math.PI*2 + (rnd()-0.5)*0.4;
@@ -579,6 +596,133 @@ void main(){
   float a = smoothstep(0.25, 0.0, r2);
   a *= a;                                   // borda ainda mais desfeita
   gl_FragColor = vec4(vCor * vBrilho, a * vBrilho);
+}`;
+
+/* ═══════════ BURACOS NEGROS E SERES ═══════════
+   Um programa so, com dois desenhos escolhidos por uniforme. Sao as duas
+   coisas da obra que nao vem de imagem nenhuma: nao ha quadro da Odara com
+   um buraco negro nem com os seres do planeta rosa, e inventar textura
+   seria pior do que assumir que sao formas.
+
+   BURACO NEGRO: nucleo preto de verdade — em passagem de video o preto e o
+   que deixa passar a camera, entao um buraco negro em realidade mista e
+   literalmente um buraco na obra — com um anel aceso em volta e a luz
+   entortando na beirada.
+
+   SER: um borrao macio com rastro, sem contorno. Bicho de agua profunda
+   nao se ve inteiro; se ve o brilho e o movimento. */
+const VS_BOLHA = `
+attribute vec2 aXY;
+uniform mat4 mvp;
+uniform vec3 camDir, camCima, centro;
+uniform float raio;
+varying vec2 vXY;
+void main(){
+  vXY = aXY;
+  vec3 p = centro + camDir * (aXY.x * raio) + camCima * (aXY.y * raio);
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_BOLHA = `
+precision mediump float;
+uniform highp float tipo;      // 0 = buraco negro, 1 = ser do mar
+uniform float presenca, tempo, fase;
+uniform vec3 cor;
+varying vec2 vXY;
+void main(){
+  float d = length(vXY);
+  if(d > 1.0) discard;
+
+  float a, brilho;
+  vec3 c;
+
+  if(tipo < 0.5){
+    // BURACO NEGRO: nucleo preto, anel aceso, e a luz alongando na beirada
+    float nucleo = smoothstep(0.46, 0.36, d);
+    float anel = smoothstep(0.40, 0.50, d) * smoothstep(0.72, 0.52, d);
+    float halo = smoothstep(1.0, 0.5, d) * 0.22;
+    // o anel gira devagar, e o giro nao e uniforme: e mais rapido perto
+    float giro = sin(atan(vXY.y, vXY.x) * 3.0 + tempo * (0.9 - d * 0.5) + fase);
+    anel *= 0.62 + 0.38 * giro;
+    c = cor * (anel * 2.1 + halo);
+    a = max(nucleo, anel + halo);
+    // dentro do nucleo a cor e preta: em realidade mista isso abre um
+    // buraco de verdade na obra, e a sala real aparece por ele
+    c *= (1.0 - nucleo);
+  } else {
+    // SER: borrao macio, sem contorno, pulsando devagar
+    float corpo = smoothstep(1.0, 0.05, d);
+    corpo *= corpo;
+    float pulso = 0.72 + 0.28 * sin(tempo * 1.7 + fase);
+    c = cor * corpo * pulso * 1.6;
+    a = corpo * pulso;
+  }
+
+  a *= presenca;
+  if(a < 0.004) discard;
+  gl_FragColor = vec4(c, a);
+}`;
+
+/* ═══════════ AS FIGURAS DA ODARA ═══════════
+   As duas deusas, o ser galactico e a borboleta. Sao recortes da propria
+   animacao, com o alfa tirado da luminancia e uma ORLA CLARA guardada de
+   proposito — e ela que separa a figura do ceu sem precisar de sombra, e
+   ela combina com a animacao, onde tudo tem contorno luminoso.
+
+   Sempre encarando a pessoa, como a nuvem. Uma figura pintada e uma chapa,
+   e chapa vista de lado denuncia. Encarando, o lado nunca aparece.
+
+   ESPELHO: a mesma figura desenhada de cabeca para baixo, escurecida e
+   presa abaixo da linha d'agua, e o reflexo dela no planeta rosa. Reflexo
+   de verdade custaria uma segunda passada de camera; este custa um desenho
+   a mais, e num liquido em movimento ninguem distingue os dois. */
+const VS_FIGU = `
+attribute vec2 aXY;
+uniform mat4 mvp;
+uniform vec3 camDir, camCima, centro;
+uniform vec2 tamanho;
+uniform float espelho, balanco, tempo;
+varying vec2 vUV;
+varying float vAltura;
+void main(){
+  vec2 q = aXY;
+  // o balanco cresce com a altura: o pe fica, a cabeca oscila
+  float alt = q.y * 0.5 + 0.5;
+  q.x += sin(tempo * 0.4 + centro.x * 2.0) * 0.05 * alt * balanco;
+
+  vec3 cima = camCima * (espelho > 0.5 ? -1.0 : 1.0);
+  vec3 p = centro + camDir * (q.x * tamanho.x) + cima * (q.y * tamanho.y);
+  vAltura = p.y;
+  vUV = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5);
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_FIGU = `
+precision mediump float;
+uniform sampler2D figura;
+/* "espelho" tambem existe no shader de vertice, onde float e highp por
+   padrao. Uniforme com o mesmo nome nos dois estagios precisa da MESMA
+   precisao, senao o programa nao linka — e nao linkar aqui nao da erro
+   visivel: as figuras simplesmente nao aparecem. Por isso a precisao dele
+   e escrita, em vez de herdada. */
+uniform highp float espelho;
+uniform float presenca, corte;
+varying vec2 vUV;
+varying float vAltura;
+void main(){
+  vec4 c = texture2D(figura, vUV);
+  float a = c.a * presenca;
+
+  if(espelho > 0.5){
+    /* O reflexo so existe ABAIXO da linha d'agua, e se apaga com a
+       distancia dela: reflexo que chega inteiro ao fundo nao e reflexo,
+       e uma copia. */
+    float fundo = clamp((corte - vAltura) * 1.5, 0.0, 1.0);
+    a *= (1.0 - fundo) * 0.55;
+    if(vAltura > corte) a = 0.0;
+    c.rgb *= vec3(0.72, 0.74, 0.86);
+  }
+
+  if(a < 0.004) discard;
+  gl_FragColor = vec4(c.rgb, a);
 }`;
 
 /* ═══════════ A AGUA ═══════════
@@ -1130,6 +1274,8 @@ const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
 const progPapel = programa(VS_PAPEL, FS_PAPEL);
 const progAgua  = programa(VS_AGUA,  FS_AGUA);
+const progFigu  = programa(VS_FIGU,  FS_FIGU);
+const progBolha = programa(VS_BOLHA, FS_BOLHA);
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,
@@ -1305,6 +1451,27 @@ function novaTex(c){
     gl.texParameteri(gl.TEXTURE_2D,k,v);
   return t;
 }
+/* Textura COM ALFA. Precisa de RGBA e de premultiplicacao desligada: com
+   ela ligada o navegador multiplica a cor pelo alfa antes de subir, e a
+   orla clara que faz a figura se destacar seria a primeira coisa a sumir.
+   Sem mipmap tambem: a figura e vista de longe e parada, e o mipmap de uma
+   imagem com alfa borra a borda para dentro do transparente, deixando um
+   halo escuro em volta — o defeito mais comum de recorte em 3D. */
+function carregarAlfa(t,url){
+  const im = new Image();
+  im.onload = ()=>{
+    gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);
+    for(const [k,v] of [[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],
+                        [gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE],
+                        [gl.TEXTURE_MIN_FILTER,gl.LINEAR],
+                        [gl.TEXTURE_MAG_FILTER,gl.LINEAR]])
+      gl.texParameteri(gl.TEXTURE_2D,k,v);
+  };
+  im.src = url;
+}
 function carregar(t,url){
   const im = new Image();
   im.onload = ()=>{
@@ -1339,6 +1506,8 @@ const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
    repetir sem emenda nos dois eixos. Duas bastam: as cores as diferenciam. */
 const PELES = [novaTex([90,70,80]), novaTex([70,90,110])];
 const texPapel = novaTex([20,18,30]);
+/* As quatro figuras recortadas. Vao com alfa, entao a textura e RGBA. */
+const FIGS = [novaTex([0,0,0]), novaTex([0,0,0]), novaTex([0,0,0]), novaTex([0,0,0])];
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
 carregar(CEUS[0], '__TEX_PANORAMA__');
@@ -1347,6 +1516,10 @@ carregar(CEUS[2], '__CEU_ROSA__');
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
 carregar(texPapel, '__TEX_PAPEL__');
+carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
+carregarAlfa(FIGS[1], '__FIG_DEUSA__');
+carregarAlfa(FIGS[2], '__FIG_INTEGRA__');
+carregarAlfa(FIGS[3], '__FIG_BORBOLETA__');
 
 // A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
 
@@ -1416,6 +1589,127 @@ function inicioDaCena(t){
    constante usada antes da propria declaracao mata a pagina inteira.
    Cintura de quem tem o olho a 1,60 fica por volta de 0,95. */
 const NIVEL_AGUA = 0.95;
+
+/* ═══════════ ONDE FICAM OS BURACOS E OS SERES ═══════════ */
+const BURACOS = [];
+(function(){
+  const r = prng(6161);
+  for(let i=0;i<3;i++){
+    const ang = r() * Math.PI * 2;
+    const d = 3.2 + r() * 1.8;
+    BURACOS.push({
+      x: Math.sin(ang) * d, y: 1.7 + r() * 1.5, z: -Math.cos(ang) * d,
+      raio: 0.42 + r() * 0.34, fase: r() * 6.283,
+    });
+  }
+})();
+
+/* A CONCHA do planeta rosa, com o buraco negro dentro. Grande de proposito:
+   ela precisa ser achada sem procura. Fica na borda do alcance — perto o
+   bastante para a pessoa chegar, longe o bastante para nao estar no
+   caminho enquanto ela olha o resto. */
+const CONCHA = [-0.95, 0.72, -1.05];
+
+const SERES = [];
+(function(){
+  const r = prng(5150);
+  for(let i=0;i<16;i++){
+    SERES.push({
+      raioOrbita: 1.3 + r() * 3.4,
+      ang: r() * 6.283,
+      vel: (0.05 + r() * 0.10) * (r() < 0.5 ? -1 : 1),
+      alt: NIVEL_AGUA + 0.25 + r() * 1.5,
+      sobe: 0.14 + r() * 0.30,
+      raio: 0.055 + r() * 0.085,
+      fase: r() * 6.283,
+      quente: r() < 0.35,
+    });
+  }
+})();
+
+/* ═══════════ OS COGUMELOS ═══════════
+   Nascem depois da grama e antes da arvore, na ordem do roteiro. Cada um
+   e duas esferas: o chapeu achatado e o pe fino. Ficam ao alcance, porque
+   sao eles que ensinam — sem instrucao nenhuma — que da para tocar nas
+   coisas. Depois deles o casulo e obvio. */
+const COGUMELOS = [];
+(function(){
+  const r = prng(4242);
+  for(let i=0;i<13;i++){
+    const ang = r() * Math.PI * 2;
+    const d = 0.55 + r() * 0.62;          // dentro do alcance da mao
+    COGUMELOS.push({
+      x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
+      alt: 0.10 + r() * 0.13,
+      raio: 0.055 + r() * 0.055,
+      tom: 0.55 + r() * 0.45,
+      fase: r() * 6.283,
+    });
+  }
+})();
+
+/* ═══════════ OS ASTEROIDES ═══════════
+   Passam ao acaso pelo cenario 2. Um deles pode ser desviado pelo campo
+   gravitacional da pessoa, dar uma volta nela e seguir — e o que o roteiro
+   pede, e o que transforma "coisa passando" em "coisa que reparou em voce". */
+const ASTEROIDES = [];
+(function(){
+  const r = prng(9001);
+  for(let i=0;i<7;i++){
+    ASTEROIDES.push({
+      periodo: 26 + r() * 34,
+      atraso: r() * 40,
+      alt: 1.5 + r() * 2.2,
+      lado: (r() - 0.5) * 5.0,
+      raio: 0.045 + r() * 0.075,
+      giro: r() * 6.283,
+      desvia: i === 2,                    // so um deles repara em voce
+    });
+  }
+})();
+
+function ondeAsteroide(a, t){
+  const k = ((t + a.atraso) % a.periodo) / a.periodo;     // 0 a 1, atravessa
+  const x = -6.5 + k * 13.0;
+  let z = a.lado - 2.0;
+  let y = a.alt;
+  if(a.desvia){
+    /* O desvio: perto da pessoa a trajetoria curva, como se o corpo dela
+       tivesse massa. Uma gaussiana centrada na passagem mais proxima —
+       nada de fisica de verdade, so a forma da curva que a gravidade faz. */
+    const perto = Math.exp(-Math.pow((k - 0.5) * 5.2, 2));
+    z += perto * 1.5;
+    y -= perto * 0.55;
+  }
+  return [x, y, z];
+}
+
+/* ═══════════ AS FIGURAS — onde e quando ═══════════
+   Uma por cenario, como o roteiro pede: nenhum cenario com duas presencas
+   grandes, senao nao se sabe para onde olhar.
+
+   Todas ficam LONGE, na regiao que a Crisia chama de infinita — alem dos
+   3 m, onde a falta de paralaxe esta correta e uma chapa nao se denuncia. */
+const FIGURAS = [
+  { nome:'galactico', tex:0, centro:[-3.4, 2.75, -5.6], tam:[2.3, 2.3],
+    de:206, ate:376, balanco:0.5, espelha:false },
+  { nome:'deusa',     tex:1, centro:[ 1.85, 1.72, -3.1], tam:[1.25, 1.35],
+    de:420, ate:508, balanco:0.9, espelha:true },
+  { nome:'integra',   tex:2, centro:[ 0.25, 2.35, -3.6], tam:[2.7, 2.7],
+    de:556, ate:594, balanco:0.35, espelha:false },
+];
+
+/* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
+   levando o mundo. A subida acontece entre 2:48 e 3:00, que e a passagem do
+   primeiro cenario para o segundo. */
+function ondeBorboleta(t){
+  const k = rampa(168, 182, t);
+  // sai do casulo, curva e vai para o alto
+  return [0.62 + Math.sin(k * 2.6) * 0.55,
+          1.42 + k * k * 4.6,
+          -1.28 + Math.cos(k * 1.9) * 0.5 - k * 0.9];
+}
+function presencaBorboleta(t){ return rampa(163, 170, t) * (1 - rampa(180, 190, t)); }
 
 /* ═══════════ AS PEDRAS DO PLANETA ROSA ═══════════
    Meia duzia, na linha d'agua. Sao a mesma esfera dos astros com outros
@@ -1636,6 +1930,8 @@ let crescimento = 1, sentidoPoeira = 1;
    rosa, em vez de ja estar la: subir e o que faz a pessoa perceber que
    entrou nela. */
 let aguaPresenca = 0;
+let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0;
+let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0;
 let ceuA = 0, ceuB = 0;
 
 /* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
@@ -1685,6 +1981,18 @@ function seguirPartitura(dt){
 
   /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
   aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
+
+  /* O casulo existe do momento em que a arvore termina de crescer ate a
+     borboleta sair dele. Os cogumelos vem antes da arvore, na ordem do
+     roteiro: grama, cogumelo, arvore. */
+  casuloPresenca  = (c === 1) ? rampa(96, 118, t) * (1 - rampa(166, 173, t)) : 0;
+  cogumeloCresce  = (c === 1) ? rampa(66, 100, t) * (1 - rampa(172, 180, t)) : 0;
+  asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
+  /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
+     planetas ja se montaram e o cenario ja respirou. */
+  buracoPresenca  = rampa(278, 298, t) * (1 - rampa(374, 388, t));
+  conchaPresenca  = rampa(432, 456, t) * (1 - rampa(508, 522, t));
+  seresPresenca   = rampa(402, 432, t) * (1 - rampa(504, 520, t));
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
      por dt parece resolver, mas nao resolve: a fracao que falta encolhe
@@ -1945,6 +2253,20 @@ const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
+const uBo = n=>gl.getUniformLocation(progBolha,n);
+const locBo = {mvp:uBo('mvp'), camDir:uBo('camDir'), camCima:uBo('camCima'),
+               centro:uBo('centro'), raio:uBo('raio'), tipo:uBo('tipo'),
+               presenca:uBo('presenca'), tempo:uBo('tempo'), fase:uBo('fase'),
+               cor:uBo('cor')};
+const aBo = {xy: gl.getAttribLocation(progBolha,'aXY')};
+
+const uFi = n=>gl.getUniformLocation(progFigu,n);
+const locFi = {mvp:uFi('mvp'), camDir:uFi('camDir'), camCima:uFi('camCima'),
+               centro:uFi('centro'), tamanho:uFi('tamanho'), espelho:uFi('espelho'),
+               balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
+               presenca:uFi('presenca'), corte:uFi('corte')};
+const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
+
 const uAg = n=>gl.getUniformLocation(progAgua,n);
 const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                largura:uAg('largura'), pele:uAg('pele'), ceu:uAg('ceu'),
@@ -2140,7 +2462,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      a que passa na frente de um planeta aparece, e a que esta atras dele
      e escondida. Na ordem inversa o planeta apagaria a nuvem inteira. */
   const pSol = presencaSol(t);
-  if(nIdxE > 0 && (pSol > 0.004 || cenaAtual === 2 || aguaPresenca > 0.004)){
+  const querEsfera = pSol > 0.004 || cenaAtual === 2 || aguaPresenca > 0.004
+                  || casuloPresenca > 0.004 || cogumeloCresce > 0.004;
+  if(nIdxE > 0 && querEsfera){
     gl.enable(gl.DEPTH_TEST);
     /* Enquanto um astro esta nascendo ele e translucido, e escrever
        profundidade nesse estado esconderia o que esta atras dele por tras
@@ -2197,6 +2521,102 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.depthMask(pr > 0.92);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
     }
+    /* O CASULO E O FIO. O fio e a mesma esfera esticada ate virar linha:
+       raio minusculo e achatamento enorme. Nao vale a pena um programa so
+       para desenhar um fio. */
+    if(casuloPresenca > 0.004){
+      gl.depthMask(true);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.3);
+      gl.uniform1f(locAst.brilho, 0.05);
+      gl.uniform1f(locAst.presenca, casuloPresenca);
+
+      const meio = (CASULO[1] + FIO_ALTO) * 0.5;
+      const metade = (FIO_ALTO - CASULO[1]) * 0.5;
+      gl.uniform3f(locAst.centro, CASULO[0], meio, CASULO[2]);
+      gl.uniform1f(locAst.raio, 0.0045);
+      gl.uniform1f(locAst.giro, 0);
+      gl.uniform1f(locAst.achatar, metade / 0.0045);
+      gl.uniform3f(locAst.cor, 0.72, 0.70, 0.62);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+
+      // o casulo balanca de leve no fio, como coisa pendurada faz
+      const osc = Math.sin(relogio * 0.7) * 0.022;
+      gl.uniform3f(locAst.centro, CASULO[0] + osc, CASULO[1], CASULO[2] + osc*0.6);
+      gl.uniform1f(locAst.raio, 0.075);
+      gl.uniform1f(locAst.giro, relogio * 0.12);
+      gl.uniform1f(locAst.achatar, 2.15);
+      gl.uniform3f(locAst.cor, 0.86, 0.82, 0.70);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+    }
+
+    /* OS COGUMELOS. Duas esferas cada um: chapeu achatado e pe fino.
+       Crescem junto com o resto, e ficam ao ALCANCE — sao eles que ensinam
+       que da para tocar nas coisas, e ensinar de longe nao ensina. */
+    if(cogumeloCresce > 0.004){
+      gl.depthMask(true);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.luzDe, 0.1, 1.0, 0.2);
+      gl.uniform1f(locAst.giro, 0);
+      for(const cg of COGUMELOS){
+        const k = cogumeloCresce;
+        gl.uniform1f(locAst.presenca, k);
+        // o pe
+        gl.uniform3f(locAst.centro, cg.x, cg.alt * k * 0.5, cg.z);
+        gl.uniform1f(locAst.raio, cg.raio * 0.24);
+        gl.uniform1f(locAst.achatar, (cg.alt * k * 0.5) / (cg.raio * 0.24));
+        gl.uniform3f(locAst.cor, 0.80, 0.78, 0.72);
+        gl.uniform1f(locAst.brilho, 0.02);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+        // o chapeu, que acende devagar por conta propria
+        const aceso = 0.10 + 0.10 * Math.sin(relogio * 0.9 + cg.fase);
+        gl.uniform3f(locAst.centro, cg.x, cg.alt * k, cg.z);
+        gl.uniform1f(locAst.raio, cg.raio * k);
+        gl.uniform1f(locAst.achatar, 0.52);
+        gl.uniform3f(locAst.cor, 0.62*cg.tom + 0.30, 0.52*cg.tom + 0.34, 0.86*cg.tom + 0.14);
+        gl.uniform1f(locAst.brilho, aceso);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      }
+    }
+
+    /* OS ASTEROIDES, atravessando o cenario 2. */
+    if(asteroidePres > 0.004){
+      gl.depthMask(true);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform1f(locAst.brilho, 0.03);
+      gl.uniform1f(locAst.presenca, asteroidePres);
+      for(const ast of ASTEROIDES){
+        const c = ondeAsteroide(ast, relogio);
+        gl.uniform3f(locAst.centro, c[0], c[1], c[2]);
+        gl.uniform1f(locAst.raio, ast.raio);
+        gl.uniform1f(locAst.giro, relogio * 0.35 + ast.giro);
+        gl.uniform1f(locAst.achatar, 0.66);
+        gl.uniform3f(locAst.cor, 0.60, 0.58, 0.62);
+        gl.uniform3f(locAst.luzDe, SOL[0]-c[0], SOL[1]-c[1], SOL[2]-c[2]);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      }
+    }
+
+    /* A CONCHA, com o buraco negro dentro. Achatada e grande: precisa ser
+       achada sem procura. */
+    if(conchaPresenca > 0.004){
+      gl.depthMask(true);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
+      gl.uniform1i(locAst.pele, 5);
+      gl.uniform3f(locAst.centro, CONCHA[0], CONCHA[1], CONCHA[2]);
+      gl.uniform1f(locAst.raio, 0.46);
+      gl.uniform1f(locAst.giro, 0.6);
+      gl.uniform1f(locAst.achatar, 0.44);
+      gl.uniform3f(locAst.cor, 1.0, 0.86, 0.82);
+      gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.4);
+      gl.uniform1f(locAst.brilho, 0.06);
+      gl.uniform1f(locAst.presenca, conchaPresenca);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+    }
+
     // AS PEDRAS, quando ha agua. Opacas: sao corpos, e ficam abaixo da
     // lamina, entao precisam escrever profundidade para a agua nao as
     // atravessar.
@@ -2248,6 +2668,125 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /* 2b-quater) BURACOS NEGROS E SERES. Aditivo para os seres (sao luz) e
+     normal para os buracos (o nucleo precisa poder ser preto de verdade,
+     e preto somado nao escurece nada). Por isso os dois passam aqui em
+     duas levas, e nao numa so. */
+  if(buracoPresenca > 0.004 || conchaPresenca > 0.004 || seresPresenca > 0.004){
+    gl.enable(gl.BLEND);
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(progBolha);
+    soltarAtributos();
+    gl.uniformMatrix4fv(locBo.mvp, false, new Float32Array(mvp));
+    gl.uniform3f(locBo.camDir, camDir[0], camDir[1], camDir[2]);
+    gl.uniform3f(locBo.camCima, camCima[0], camCima[1], camCima[2]);
+    gl.uniform1f(locBo.tempo, relogio);
+    ligar(aBo.xy, bQ.xy, 2);
+
+    // os buracos: mistura normal, para o nucleo poder ser preto
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform1f(locBo.tipo, 0);
+    gl.uniform3f(locBo.cor, 0.78, 0.62, 1.0);
+    if(buracoPresenca > 0.004){
+      gl.uniform1f(locBo.presenca, buracoPresenca);
+      for(const b of BURACOS){
+        gl.uniform3f(locBo.centro, b.x, b.y, b.z);
+        gl.uniform1f(locBo.raio, b.raio);
+        gl.uniform1f(locBo.fase, b.fase);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+    }
+    // o buraco dentro da concha, menor e mais fundo
+    if(conchaPresenca > 0.004){
+      gl.uniform1f(locBo.presenca, conchaPresenca);
+      gl.uniform3f(locBo.centro, CONCHA[0], CONCHA[1] + 0.06, CONCHA[2] + 0.02);
+      gl.uniform1f(locBo.raio, 0.20);
+      gl.uniform1f(locBo.fase, 1.1);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    // os seres: aditivo, porque sao luz espalhada e nao corpo
+    if(seresPresenca > 0.004){
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.uniform1f(locBo.tipo, 1);
+      gl.uniform1f(locBo.presenca, seresPresenca * 0.85);
+      for(const sr of SERES){
+        const w = relogio * sr.vel + sr.ang;
+        const x = Math.cos(w) * sr.raioOrbita;
+        const z = Math.sin(w) * sr.raioOrbita;
+        const y = sr.alt + Math.sin(relogio * sr.sobe + sr.fase) * 0.42;
+        gl.uniform3f(locBo.centro, x, y, z);
+        gl.uniform1f(locBo.raio, sr.raio);
+        gl.uniform1f(locBo.fase, sr.fase);
+        gl.uniform3f(locBo.cor, sr.quente ? 1.0 : 0.55,
+                                sr.quente ? 0.72 : 0.88,
+                                sr.quente ? 0.62 : 1.0);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+    }
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* 2b-ter) AS FIGURAS. Depois da agua para que o reflexo caia sobre ela,
+     e sem escrever profundidade: sao recortes de borda macia, e escrever
+     profundidade cortaria a franja de quem vier depois. */
+  {
+    const desenharFigura = (tex, cen, tam, pres, bal, esp) => {
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(locFi.figura, 7);
+      gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
+      gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
+      gl.uniform1f(locFi.presenca, pres);
+      gl.uniform1f(locFi.balanco, bal);
+      gl.uniform1f(locFi.espelho, esp ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+    let alguma = presencaBorboleta(t) > 0.004;
+    for(const f of FIGURAS) if(rampa(f.de, f.de+9, t)*(1-rampa(f.ate-9, f.ate, t)) > 0.004) alguma = true;
+    if(alguma){
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(progFigu);
+      soltarAtributos();
+      gl.uniformMatrix4fv(locFi.mvp, false, new Float32Array(mvp));
+      gl.uniform3f(locFi.camDir, camDir[0], camDir[1], camDir[2]);
+      gl.uniform3f(locFi.camCima, camCima[0], camCima[1], camCima[2]);
+      gl.uniform1f(locFi.tempo, relogio);
+      gl.uniform1f(locFi.corte, NIVEL_AGUA);
+      ligar(aFi.xy, bQ.xy, 2);
+
+      for(const f of FIGURAS){
+        const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+        if(pr < 0.004) continue;
+        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false);
+        if(f.espelha && aguaPresenca > 0.004){
+          // o reflexo nasce da linha d'agua, nao do pe da figura
+          const c = [f.centro[0], NIVEL_AGUA * 2 - f.centro[1], f.centro[2]];
+          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true);
+        }
+      }
+
+      // A BORBOLETA, com rastro: copias ao longo do caminho que ela acabou
+      // de fazer, cada vez mais apagadas. E o rastro do roteiro, e sai de
+      // graca — a posicao dela ja e funcao do tempo.
+      const pb = presencaBorboleta(t);
+      if(pb > 0.004){
+        for(let k = 5; k >= 0; k--){
+          const c = ondeBorboleta(t - k * 0.42);
+          const desbota = 1 - k / 6;
+          desenharFigura(FIGS[3], c, [0.30 + k*0.02, 0.30 + k*0.02],
+                         pb * desbota * desbota * 0.9, 0.2, false);
+        }
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
   }
 
   /* 2c) AS CAMADAS DE PAPEL. Do fundo para a frente, que e obrigatorio:

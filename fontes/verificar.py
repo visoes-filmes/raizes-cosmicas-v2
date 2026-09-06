@@ -125,13 +125,47 @@ for nome, c in blocos.items():
     for u in sorted(usadas - declaradas - NATIVAS):
         problemas.append("CONSTANTE nao declarada no shader " + nome + ": " + u)
 
+# ── 6b. precisao de uniforme diferente entre os dois estagios ──────
+# No shader de vertice float e highp por padrao; no de fragmento a precisao
+# e a declarada no topo. Um uniforme com o mesmo nome nos dois precisa da
+# mesma precisao, senao o programa NAO LINKA — e nao linkar nao aparece
+# como erro de shader: o desenho simplesmente nao acontece.
+def precisoes(corpo, padrao):
+    fora = {}
+    for m in re.finditer(r"uniform\s+(?:(highp|mediump|lowp)\s+)?(\w+)\s+([^;]+);", corpo):
+        qual, tipo, nomes = m.group(1), m.group(2), m.group(3)
+        if tipo.startswith("sampler"):
+            continue
+        for n in nomes.split(","):
+            n = n.strip().split("[")[0]
+            if n:
+                fora[n] = qual or padrao
+    return fora
+
+for nome in list(blocos):
+    if not nome.startswith("VS_"):
+        continue
+    par = "FS_" + nome[3:]
+    if par not in blocos:
+        continue
+    mp = re.search(r"precision\s+(highp|mediump|lowp)\s+float", blocos[par])
+    padrao_fs = mp.group(1) if mp else "mediump"
+    pv = precisoes(blocos[nome], "highp")
+    pf = precisoes(blocos[par], padrao_fs)
+    for n in set(pv) & set(pf):
+        if pv[n] != pf[n]:
+            problemas.append(
+                "PRECISAO DIFERENTE do uniforme " + n + ": " + pv[n] +
+                " em " + nome + ", " + pf[n] + " em " + par +
+                " — o programa nao vai linkar")
+
 # ── 7. uniformes declarados e nunca buscados ─────────────────────────
 # o codigo usa atalhos como "const uS = n=>gl.getUniformLocation(prog,n)"
 buscados = set(re.findall(r"getUniformLocation\(\w+,\s*'(\w+)'\)", codigo))
 for at in re.findall(r"const\s+(\w+)\s*=\s*n\s*=>\s*gl\.getUniformLocation", codigo):
     buscados |= set(re.findall(at + r"\('(\w+)'\)", codigo))
 for nome, c in blocos.items():
-    for decl in re.findall(r"uniform\s+\w+\s+([^;]+);", c):
+    for decl in re.findall(r"uniform\s+(?:highp|mediump|lowp)?\s*\w+\s+([^;]+);", c):
         for u in decl.split(','):
             u = u.strip().split('[')[0]
             if u and u not in buscados:

@@ -59,6 +59,10 @@ mapa = {
                                 (512, 512), qualidade=86),
     "__TEX_PAPEL__":    embutir(os.path.join(AQUI, "tex-papel.png"),
                                 (1024, 512), qualidade=84),
+    "__FIG_GALACTICO__": embutir("figuras/fig-galactico.png", (512,512), com_alfa=True),
+    "__FIG_DEUSA__":     embutir("figuras/fig-deusa-vermelha.png", (512,512), com_alfa=True),
+    "__FIG_INTEGRA__":   embutir("figuras/fig-deusa-integra.png", (512,512), com_alfa=True),
+    "__FIG_BORBOLETA__": embutir("figuras/fig-borboleta.png", (512,512), com_alfa=True),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
         sys.argv[4] if len(sys.argv) > 4
         else os.path.join(AQUI, "trilha-loop.mp3")),
