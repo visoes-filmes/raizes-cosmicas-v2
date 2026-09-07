@@ -606,6 +606,100 @@ function plantarNuvem(n, nome, base, escala, giro, semente, altBase){
   return postos;
 }
 
+/* AS LUVAS. O modelo de mao virado nuvem, uma por mao rastreada.
+
+   As maos eram duas bolinhas de luz. Funcionavam como sinal, mas nao como
+   presenca: a pessoa via um ponto se mexer, e nao a propria mao. O pedido
+   era luva levemente brilhante, e nao geometria dura.
+
+   Nuvem de pontos e o material certo para isso: tem contorno de mao sem
+   ter superficie de mao. Uma mao modelada com pele, num mundo de aquarela,
+   seria a unica coisa realista da cena — e o realismo, aqui, denuncia tudo
+   em volta. Em pontos ela pertence.
+
+   Ela acende ao chegar perto do que pode ser tocado, como as bolinhas
+   faziam: e a mesma pedagogia, agora com a forma certa. */
+/* O FUNDO DO PLANETA ROSA. Algas, corais, aguas-vivas, pedras e a concha.
+
+   O roteiro pedia "os seres, as pedras, a concha" desde sempre, e o
+   cenario 3 tinha agua e mais nada — a janela de interacao acontecia num
+   lugar vazio. Agora ha um fundo submerso: o que estiver abaixo da lamina
+   se ve atraves dela, e o que passa acima flutua.
+
+   Tudo num banco so, plantado uma vez. Eles nao crescem como a mata: ja
+   estao la quando a agua chega, porque foi a agua que subiu, e nao eles
+   que nasceram. */
+let bMar = null, nMar = 0;
+function prepararFundoDoMar(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(3307);
+  const por = (nome, quantos, faixa, escalaMin, escalaMax, altura) => {
+    for(let i=0;i<quantos;i++){
+      const ang = rnd()*Math.PI*2;
+      const raio = faixa[0] + rnd()*(faixa[1]-faixa[0]);
+      plantarNuvem(n, nome,
+                   [Math.sin(ang)*raio, altura, -Math.cos(ang)*raio],
+                   escalaMin + rnd()*(escalaMax-escalaMin),
+                   rnd()*Math.PI*2, 3300 + i*17, 1.0);
+    }
+  };
+  // as algas ficam no chao e sobem; as tres variantes juntas nao repetem
+  por('seaweed-icon',        7, [0.9, 2.6], 0.35, 0.85, 0);
+  por('seaweed-icon-13702',  6, [1.1, 2.8], 0.30, 0.70, 0);
+  por('seaweed-icon-17190',  6, [0.8, 2.4], 0.30, 0.75, 0);
+  por('coral-icon',          5, [1.0, 2.5], 0.22, 0.50, 0);
+  por('rocks-icon',          7, [0.7, 2.7], 0.18, 0.45, 0);
+  // as aguas-vivas flutuam entre o chao e a cintura
+  for(let i=0;i<9;i++){
+    const ang = rnd()*Math.PI*2, raio = 0.8 + rnd()*2.0;
+    plantarNuvem(n, 'jellyfish-icon',
+                 [Math.sin(ang)*raio, 0.25 + rnd()*0.75, -Math.cos(ang)*raio],
+                 0.14 + rnd()*0.18, rnd()*6.28, 4400+i, 1.0);
+  }
+  if(!n.pos.length) return;
+  bMar = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bMar.pos,n.pos); enviar(bMar.uv,n.uv); enviar(bMar.alt,n.alt);
+  enviar(bMar.fase,n.fase); enviar(bMar.tam,n.tam);
+  nMar = n.pos.length/3;
+}
+
+/* A CONCHA. Ela ja existia no roteiro e nunca teve forma propria — e a
+   nota diz que "ficou feia". Agora e o modelo de vieira, numa nuvem so,
+   posta onde a mao alcanca: e alvo de toque, entao tem que estar ao
+   alcance de quem esta em pe no meio do 3 x 3. A POSICAO dela ja existia
+   no arquivo, entao aqui so se prepara a forma. */
+let bConcha = null, nConcha = 0;
+function prepararConcha(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  plantarNuvem(n, 'scallop-icon', [0,0,0], 0.30, 0.7, 5150, 1.0);
+  if(!n.pos.length) return;
+  bConcha = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bConcha.pos,n.pos); enviar(bConcha.uv,n.uv); enviar(bConcha.alt,n.alt);
+  enviar(bConcha.fase,n.fase); enviar(bConcha.tam,n.tam);
+  nConcha = n.pos.length/3;
+}
+
+let bLuva = null, nLuva = 0;
+function prepararLuva(){
+  const m = decodificarNuvem('hand-icon');
+  if(!m) return;
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(9091);
+  for(let i=0;i<m.n;i++){
+    const x = m.pos[i*3]/8000, y = m.pos[i*3+1]/8000, z = m.pos[i*3+2]/8000;
+    // o modelo vem em pe, com o pe em y=0; a mao da pessoa fica no centro
+    n.pos.push(x, y - 0.5, z);
+    n.uv.push(0.5 + x*0.7, 0.5 + y*0.7);
+    n.alt.push(1.0);              // nao cresce: ja esta inteira
+    n.fase.push(rnd()*6.28);
+    n.tam.push(0.6 + rnd()*0.8);
+  }
+  bLuva = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bLuva.pos,n.pos); enviar(bLuva.uv,n.uv); enviar(bLuva.alt,n.alt);
+  enviar(bLuva.fase,n.fase); enviar(bLuva.tam,n.tam);
+  nLuva = n.pos.length/3;
+}
+
 function amostrarSuperficie(s, porMetroQuadrado, semente){
   const rnd = prng(semente);
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
@@ -727,9 +821,11 @@ function montarSala(){
 const VS_MATA = `
 attribute vec3 aPos; attribute vec2 aUV; attribute float aAlt, aFase, aTam;
 uniform mat4 mvp; uniform float tempo, crescimento, escalaPonto;
+uniform vec3 desloca;        // onde a nuvem esta agora (as maos se mexem)
+uniform float escalaObj;     // e de que tamanho
 varying vec2 vUV; varying float vAlt, vVivo;
 void main(){
-  vec3 p = aPos;
+  vec3 p = aPos * escalaObj + desloca;
 
   /* NASCE DE BAIXO PARA CIMA, igual a malha: a frente de crescimento sobe
      pela planta, e o que esta acima dela ainda nao existe. */
@@ -1985,6 +2081,9 @@ function subirRaizes(s){
   nIdxS = s.idx.length;
 })();
 for(const f of enviarDepois) f();
+prepararLuva();
+prepararFundoDoMar();
+prepararConcha();
 function subirPoeira(s){
   enviar(bP.pos,s.pos); enviar(bP.cor,s.cor); enviar(bP.dado,s.dado);
   nPo = s.pos.length/3;
@@ -2712,7 +2811,7 @@ const MAOS = [
 
 /* Tocar o casulo e um acontecimento, nao um interruptor: a obra nao volta
    atras depois dele. */
-let tocouCasulo = 0;
+let tocouCasulo = 0, tocouConcha = 0;
 
 /* O QUE PODE SER TOCADO, E QUANDO. Um alvo so existe na sua janela. O raio
    e generoso de proposito: no ar, sem apoio, a mao nao acerta alvo
@@ -2729,6 +2828,13 @@ function alvosAgora(){
                     os dez minutos nem cria dois caminhos para manter. */
                  fazer(){ if(t < 163){ t = 163; tocouCasulo = 1;
                                         relato('TOCOU-O-CASULO'); } } });
+  /* A CONCHA. Ela aparece na terceira janela e nunca teve o que fazer.
+     Tocada, ela chama a mao gigante — que e o que o roteiro ja marcava
+     para as 8:25. Como no casulo: o toque ANTECIPA, nao inventa. */
+  if(conchaPresenca > 0.3)
+    lista.push({ x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.26,
+                 fazer(){ if(t < 505){ t = 505; tocouConcha = 1;
+                                       relato('TOCOU-A-CONCHA'); } } });
   return lista;
 }
 
@@ -3573,7 +3679,8 @@ bXR.onclick = ()=>{ entrarXR(); };
 /* ═══════════ desenho ═══════════ */
 const uM = n=>gl.getUniformLocation(progMata,n);
 const locM = {mvp:uM('mvp'), tempo:uM('tempo'), crescimento:uM('crescimento'),
-              escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca')};
+              escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca'),
+              desloca:uM('desloca'), escalaObj:uM('escalaObj')};
 const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(progMata,'aUV'),
             alt:gl.getAttribLocation(progMata,'aAlt'), fase:gl.getAttribLocation(progMata,'aFase'),
             tam:gl.getAttribLocation(progMata,'aTam')};
@@ -3833,6 +3940,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locM.crescimento, crescimento);
     gl.uniform1f(locM.escala, escalaPonto * 0.115);
     gl.uniform1f(locM.presenca, 1.0);
+    gl.uniform3f(locM.desloca, 0, 0, 0);
+    gl.uniform1f(locM.escalaObj, 1.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locM.casca, 2);
     ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
@@ -3947,40 +4056,88 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
     }
-    /* AS MAOS, E O SINAL DE QUE ALGO PODE SER TOCADO.
+    /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
+       subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
+    if(bMar && nMar && aguaPresenca > 0.004){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      sobrepor();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.presenca, aguaPresenca);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
+      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nMar);
 
-       Duas bolinhas de luz, uma em cada mao. Nao sao maos desenhadas: sao
-       a ponta do gesto, e e so isso que a obra precisa mostrar. Uma mao
-       modelada num mundo de aquarela seria a unica coisa realista da
-       cena — e o realismo, aqui, denuncia tudo o que esta em volta.
+      /* A CONCHA, que agora tem forma e acende quando pode ser tocada. */
+      if(bConcha && nConcha && conchaPresenca > 0.004){
+        gl.uniform3f(locM.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
+        gl.uniform1f(locM.presenca,
+                     conchaPresenca * (tocouConcha ? 1.0
+                       : 0.65 + 0.35*Math.sin(relogio*1.9)));
+        ligar(aM.pos,bConcha.pos,3); ligar(aM.uv,bConcha.uv,2);
+        ligar(aM.alt,bConcha.alt,1); ligar(aM.fase,bConcha.fase,1);
+        ligar(aM.tam,bConcha.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nConcha);
+        gl.uniform3f(locM.desloca, 0, 0, 0);
+      }
+      gl.depthMask(true);
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
 
-       Elas ACENDEM ao chegar perto do que pode ser tocado. Esse e o unico
+    /* AS MAOS, EM LUVA DE PIGMENTO.
+
+       Eram duas bolinhas de luz. Funcionavam como sinal e nao como
+       presenca: via-se um ponto se mexer, e nao a propria mao. Agora e o
+       modelo de mao em nuvem — contorno de mao sem superficie de mao, que
+       e o unico jeito de ela pertencer a um mundo de aquarela.
+
+       Ela ACENDE ao chegar perto do que pode ser tocado. Esse e o unico
        ensino da obra: nao ha instrucao, nao ha legenda, so uma luz que
-       cresce quando a mao chega. O roteiro pedia "uma respiracao, um
-       brilho" — e um brilho que responde ao gesto ensina mais rapido do
-       que um que pulsa sozinho. */
-    for(const m of MAOS){
-      if(!m.tem) continue;
-      const brilhoMao = 0.30 + 0.75 * m.aceso;
-      gl.uniform3f(locAst.centro, m.x, m.y, m.z);
-      gl.uniform1f(locAst.giro, 0);
-      gl.uniform1f(locAst.achatar, 1.0);
-      gl.uniform3f(locAst.luzDe, 0, 1, 0);
-      gl.uniform1f(locAst.presenca, 1);
-      // do branco frio ao ambar quando esta em cima de um alvo
-      gl.uniform3f(locAst.cor, 1.0, 0.92 - 0.10*m.aceso, 0.85 - 0.35*m.aceso);
+       cresce quando a mao chega. */
+    if(bLuva && nLuva){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
       somarLuz();
       gl.depthMask(false);
-      gl.uniform1f(locAst.halo, 1.0);
-      gl.uniform1f(locAst.raio, 0.022 + 0.030 * m.aceso);
-      gl.uniform1f(locAst.brilho, brilhoMao);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-      // uma casca maior e fraca: o ar aceso em volta do dedo
-      gl.uniform1f(locAst.raio, 0.075 + 0.10 * m.aceso);
-      gl.uniform1f(locAst.brilho, brilhoMao * 0.35);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-      gl.uniform1f(locAst.halo, 0.0);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);      // ja inteira, sem brotar
+      gl.uniform1f(locM.escalaObj, 0.20);       // uma mao tem uns 20 cm
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bLuva.pos,3); ligar(aM.uv,bLuva.uv,2);
+      ligar(aM.alt,bLuva.alt,1); ligar(aM.fase,bLuva.fase,1); ligar(aM.tam,bLuva.tam,1);
+      for(const m of MAOS){
+        if(!m.tem) continue;
+        gl.uniform3f(locM.desloca, m.x, m.y, m.z);
+        gl.uniform1f(locM.escala, escalaPonto * 0.16);
+        // discreta em repouso, acesa quando ha o que tocar
+        gl.uniform1f(locM.presenca, 0.30 + 0.70 * m.aceso);
+        gl.drawArrays(gl.POINTS, 0, nLuva);
+      }
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.depthMask(true);
       sobrepor();
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
     /* O CASULO E O FIO. O fio e a mesma esfera esticada ate virar linha:
