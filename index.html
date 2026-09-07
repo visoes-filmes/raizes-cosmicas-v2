@@ -1614,6 +1614,34 @@ void main(){
 
   /* A ESPUMA, so nas cristas. O maximo da ondulacao e onde a agua se
      dobra; e ali que ela embranquece. */
+  /* OS FURACOES DO FIM.
+
+     "Furacoes podem surgir no final." Eles nao sao objetos postos na agua:
+     sao a propria agua girando. Tres centros fixos, e em volta de cada um a
+     leitura da superficie e TORCIDA -- quanto mais perto do olho do furacao,
+     mais o giro, e no centro a torcao passa de uma volta inteira.
+
+     Como e a leitura que gira, e nao um desenho colado, os veios da tinta e
+     o reflexo do ceu entram no redemoinho junto. Nada precisa ser modelado:
+     a agua que ja estava ali passa a rodar.
+
+     Eles nascem nos ultimos vinte segundos do cenario, junto com a mao
+     gigante -- que e o que puxa. */
+  if(furacao > 0.004){
+    vec2 olhos[3];
+    olhos[0] = vec2( 1.35, -1.10);
+    olhos[1] = vec2(-1.60,  0.85);
+    olhos[2] = vec2( 0.25,  1.90);
+    for(int k = 0; k < 3; k++){
+      vec2 d = q - olhos[k];
+      float r = length(d);
+      float forca = furacao * 2.4 / (1.0 + r*r*5.0);
+      float ang = forca - tempo * 0.55 * furacao;
+      float cs = cos(ang), sn = sin(ang);
+      q = olhos[k] + vec2(d.x*cs - d.y*sn, d.x*sn + d.y*cs);
+    }
+  }
+
   float crista = smoothstep(0.030, 0.052, length(onda));
   cor = mix(cor, vec3(0.93, 0.95, 0.99), crista * 0.42);
 
@@ -3068,7 +3096,28 @@ let presencaMata = 1;
    Entao a obra mede o movimento -- das maos, quando ha maos, e da cabeca
    sempre, porque quem nao levanta as maos ainda anda. O valor sobe rapido
    e desce devagar: agua nao para no instante em que a pessoa para. */
-let agitacao = 0, nivelExtra = 0;
+let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0;
+
+/* O BURACO NEGRO QUE ENGOLE O PLANETA ROSA.
+
+   O do cenario 2 e um objeto entre outros. Este e outra coisa: ele CRESCE
+   ate ocupar tudo, e e ele que faz a passagem para o ultimo cenario. A nota
+   e clara -- "pode ir crescendo ate ocupar tudo e mudar de cenario".
+
+   A diferenca importa na dramaturgia: nos outros cenarios a travessia
+   acontece por dissolucao, sem causa visivel. Aqui ela tem um autor. A
+   pessoa ve o que a esta levando embora.
+
+   Ele nasce pequeno aos 8:25, junto com a mao gigante, e aos 8:45 ja e
+   maior que o campo de visao -- que e exatamente quando o cenario 4 comeca.
+   O raio cresce como potencia, nao reto: assim ele parece se aproximar em
+   vez de inchar. */
+let buracoFinal = { presenca: 0, raio: 0 };
+function seguirBuracoFinal(t){
+  const k = rampa(505, 528, t);
+  buracoFinal.presenca = k * (1 - rampa(530, 540, t));
+  buracoFinal.raio = 0.35 + k * k * 7.5;
+}
 let ondeEstavaAMao = [0,0,0,0,0,0], ondeEstavaACabeca = [0,0,0];
 function medirAgitacao(dt, olhoPos){
   let mexeu = 0;
@@ -3297,6 +3346,11 @@ function seguirPartitura(dt){
      alguns centimetros com a agitacao e volta sozinho. Poucos centimetros
      bastam -- numa lamina na altura da cintura, tres centimetros sao
      visiveis no corpo inteiro. */
+  /* Os furacoes nascem com a mao gigante, aos 8:25, e crescem ate a
+     travessia. Antes disso a agua e so agua. */
+  furacaoPresenca = rampa(496, 520, t) * (1 - rampa(524, 532, t));
+  seguirBuracoFinal(t);
+
   nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
 
   aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
@@ -4116,7 +4170,7 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
                altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca'),
-               agitacao:uAg('agitacao')};
+               agitacao:uAg('agitacao'), furacao:uAg('furacao')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
 const uPa = n=>gl.getUniformLocation(progPapel,n);
@@ -4887,6 +4941,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locAg.tempo, relogio);
     gl.uniform1f(locAg.presenca, aguaPresenca);
     gl.uniform1f(locAg.agitacao, agitacao);
+    gl.uniform1f(locAg.furacao, furacaoPresenca);
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
     gl.uniform1i(locAg.pele, 5);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
@@ -4907,7 +4962,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      normal para os buracos (o nucleo precisa poder ser preto de verdade,
      e preto somado nao escurece nada). Por isso os dois passam aqui em
      duas levas, e nao numa so. */
-  if(buracoPresenca > 0.004 || conchaPresenca > 0.004 || seresPresenca > 0.004){
+  if(buracoPresenca > 0.004 || conchaPresenca > 0.004 || seresPresenca > 0.004
+     || buracoFinal.presenca > 0.004){
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);
