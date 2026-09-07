@@ -930,6 +930,7 @@ uniform mat4 mvp; uniform float tempo, crescimento, escalaPonto;
 uniform vec3 desloca;        // onde a nuvem esta agora (as maos se mexem)
 uniform float escalaObj;     // e de que tamanho
 uniform float deriva;        // quanto a nuvem inteira vagueia no lugar
+uniform float inverte;       // 1 = a planta cresce de cabeca para baixo
 varying vec2 vUV; varying float vAlt, vVivo;
 void main(){
   vec3 p = aPos * escalaObj + desloca;
@@ -961,6 +962,19 @@ void main(){
     p.y += sin(tempo*0.029 + aFase*1.7)    * deriva * 0.55;
     p.z += cos(tempo*0.023 + aFase*0.61)   * deriva;
   }
+
+  /* DE CABECA PARA BAIXO, no ultimo cenario.
+
+     A mesma floresta do inicio, agora pendurada no teto e crescendo para
+     baixo. Nao e outra floresta: e a MESMA, vista do outro lado -- que e o
+     argumento da obra, descer o bastante e subir o bastante chegam ao
+     mesmo lugar.
+
+     A virada acontece DEPOIS do crescimento e do balanco, entao a frente de
+     crescimento tambem inverte: ela desce pela planta em vez de subir, e a
+     ponta nova fica embaixo. Invertendo antes, a planta cresceria para
+     cima de cabeca para baixo, que e um absurdo que se ve na hora. */
+  if(inverte > 0.5) p.y = -p.y;
 
   vec4 vista = mvp * vec4(p,1.0);
   gl_Position = vista;
@@ -1055,6 +1069,7 @@ uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
+uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
 varying vec3 vPos;
 const float PI = 3.14159265359;
 void main(){
@@ -1114,6 +1129,14 @@ void main(){
      fecham desenho -- e desenho repetido seria pior que o borrao. */
   float grao2 = texture2D(panorama, st.yx * vec2(23.0, 17.0) + 0.37).r;
   arte *= 1.0 + (grao2 - 0.5) * 0.22 * esticada;
+
+  /* O TOM DO CENARIO.
+
+     O ultimo pede "um tom mais pro verde turquesa". Nao e trocar a pintura:
+     e a mesma tinta sob outra luz -- como um mesmo quarto ao amanhecer e ao
+     entardecer. Multiplicar a arte pela cor do cenario faz isso, e mantem
+     todo o desenho intacto: so o clima muda. */
+  arte *= corCena;
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
   // Uso smoothstep e não uma rampa reta justamente pra não ter serrilhado:
@@ -3096,7 +3119,7 @@ let presencaMata = 1;
    Entao a obra mede o movimento -- das maos, quando ha maos, e da cabeca
    sempre, porque quem nao levanta as maos ainda anda. O valor sobe rapido
    e desce devagar: agua nao para no instante em que a pessoa para. */
-let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0;
+let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, crescimentoTeto = 0;
 
 /* O BURACO NEGRO QUE ENGOLE O PLANETA ROSA.
 
@@ -3350,6 +3373,11 @@ function seguirPartitura(dt){
      travessia. Antes disso a agua e so agua. */
   furacaoPresenca = rampa(496, 520, t) * (1 - rampa(524, 532, t));
   seguirBuracoFinal(t);
+
+  /* A FLORESTA DO TETO. Ela nasce quando o mundo de papel sobe, aos 8:45, e
+     cresce ao contrario ate o fim. E a floresta do primeiro cenario voltando
+     pelo outro lado -- por isso usa a MESMA nuvem, so virada. */
+  crescimentoTeto = (c === 4) ? rampa(528, 586, t) : 0;
 
   nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
 
@@ -4129,7 +4157,8 @@ bXR.onclick = ()=>{ entrarXR(); };
 const uM = n=>gl.getUniformLocation(progMata,n);
 const locM = {mvp:uM('mvp'), tempo:uM('tempo'), crescimento:uM('crescimento'),
               escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca'),
-              desloca:uM('desloca'), escalaObj:uM('escalaObj'), deriva:uM('deriva')};
+              desloca:uM('desloca'), escalaObj:uM('escalaObj'), deriva:uM('deriva'),
+              inverte:uM('inverte')};
 const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(progMata,'aUV'),
             alt:gl.getAttribLocation(progMata,'aAlt'), fase:gl.getAttribLocation(progMata,'aFase'),
             tam:gl.getAttribLocation(progMata,'aTam')};
@@ -4148,6 +4177,7 @@ const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(
 const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const locSalaCentro = gl.getUniformLocation(progSala,'centro');
+const locSalaCor = gl.getUniformLocation(progSala,'corCena');
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
 const uBo = n=>gl.getUniformLocation(progBolha,n);
@@ -4353,6 +4383,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        sala, ela anda junto: nenhum paralaxe, e o olho le como distante. E
        como nao ocupa profundidade, tudo o mais passa na frente dela. */
     gl.uniform3f(locSalaCentro, olhoPos[0], olhoPos[1], olhoPos[2]);
+    /* Turquesa no ultimo cenario, e branco (sem alteracao) nos outros. */
+    if(cenaAtual === 4) gl.uniform3f(locSalaCor, 0.62, 1.02, 0.98);
+    else                gl.uniform3f(locSalaCor, 1.0, 1.0, 1.0);
     gl.depthMask(false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
@@ -4394,11 +4427,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locM.desloca, 0, 0, 0);
     gl.uniform1f(locM.escalaObj, 1.0);
     gl.uniform1f(locM.deriva, 0.0);
+    gl.uniform1f(locM.inverte, 0.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locM.casca, 2);
     ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
     ligar(aM.alt,bM.alt,1); ligar(aM.fase,bM.fase,1); ligar(aM.tam,bM.tam,1);
     gl.drawArrays(gl.POINTS, 0, nMata);
+
+    /* E A MESMA FLORESTA NO TETO, de cabeca para baixo.
+
+       Nao ha segunda nuvem: e a mesma, com a virada ligada e deslocada
+       para o pe-direito. Sai de graca em memoria e, mais importante, sai
+       de graca em COERENCIA -- e literalmente a floresta do comeco, e nao
+       uma parecida com ela. */
+    if(crescimentoTeto > 0.004){
+      gl.uniform1f(locM.inverte, 1.0);
+      gl.uniform1f(locM.crescimento, crescimentoTeto);
+      gl.uniform1f(locM.presenca, crescimentoTeto);
+      gl.uniform3f(locM.desloca, 0, ALTURA + 0.15, 0);
+      gl.drawArrays(gl.POINTS, 0, nMata);
+      gl.uniform1f(locM.inverte, 0.0);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+    }
+
     gl.depthMask(true);
     gl.disable(gl.CULL_FACE);
   }
