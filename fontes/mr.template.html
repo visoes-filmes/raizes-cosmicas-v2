@@ -1525,10 +1525,33 @@ const VS_AGUA = `
 attribute vec2 aXY;
 uniform mat4 mvp;
 uniform vec2 centro;
-uniform float nivel, largura;
+uniform float nivel, largura, tempo, agitacao;
 varying vec3 vMundo;
+varying float vOnda;
 void main(){
   vec3 p = vec3(centro.x + aXY.x * largura, nivel, centro.y + aXY.y * largura);
+
+  /* A AGUA DEIXA DE SER UM PLANO.
+
+     Ela era uma lamina rigorosamente horizontal: todo o movimento estava na
+     COR, e nenhum na forma. Isso funciona numa tela, onde nao ha paralaxe;
+     em realidade mista o olho tem duas vistas e MEDE a superficie -- e uma
+     superficie que nao sobe nem desce le como vidro pintado, nao como agua.
+
+     Agora a malha ondula em quatro ondas de periodos que nao fecham entre
+     si. Sao centimetros: agua parada de interior nao faz vagalhao, faz
+     respiracao.
+
+     E a AGITACAO cresce quando a pessoa se mexe -- o corpo dela e o que
+     move esta agua. */
+  float o = sin(p.x*1.30 + tempo*0.62) * 0.026
+          + sin(p.z*1.70 - tempo*0.47) * 0.022
+          + sin((p.x+p.z)*2.60 + tempo*0.83) * 0.013
+          + sin((p.x-p.z)*3.90 - tempo*0.61) * 0.008;
+  o *= 1.0 + agitacao * 2.6;
+  p.y += o;
+
+  vOnda = o;
   vMundo = p;
   gl_Position = mvp * vec4(p, 1.0);
 }`;
@@ -1622,6 +1645,21 @@ void main(){
      dobra; e ali que ela embranquece. */
   float crista = smoothstep(0.030, 0.052, length(onda));
   cor = mix(cor, vec3(0.93, 0.95, 0.99), crista * 0.42);
+
+  /* A COR RESPONDE AO CORPO.
+
+     "Fica mais colorido quando a pessoa se mexe." Nao e efeito ligado e
+     desligado: e a agua devolvendo o gesto. Parada, ela e quase monocroma
+     -- o rosa do planeta e o reflexo do ceu. Mexida, os veios de tinta que
+     ja existem nela ACENDEM, cada canal numa fase diferente, e o que era
+     agua colorida vira agua viva.
+
+     A onda entra na conta junto com a agitacao: as cristas coloram mais que
+     os vales, e assim a cor tem FORMA em vez de ser um filtro por cima. */
+  float vivo = clamp(agitacao * 1.4 + crista * 0.5, 0.0, 1.2);
+  vec3 acende = 0.5 + 0.5*cos(6.2831*(vOnda*7.0 + tempo*0.06
+                                      + vec3(0.0, 0.36, 0.68)));
+  cor = mix(cor, cor * (0.55 + 1.7*acende), vivo * 0.55);
 
   /* A lamina cede longe, para nao ter borda. Como ela segue a pessoa, a
      borda nunca chega perto — mas se chegasse, seria uma linha reta no
@@ -3052,6 +3090,38 @@ let aguaPresenca = 0;
 let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0, fundoDoMar = 0;
 let presencaMata = 1;
 
+/* QUANTO A PESSOA ESTA MEXENDO A AGUA.
+
+   A interacao do planeta rosa nao e tocar um objeto: e o PROPRIO CORPO na
+   agua. "Fica mais colorido quando a pessoa se mexe, e a agua levanta."
+
+   Entao a obra mede o movimento -- das maos, quando ha maos, e da cabeca
+   sempre, porque quem nao levanta as maos ainda anda. O valor sobe rapido
+   e desce devagar: agua nao para no instante em que a pessoa para. */
+let agitacao = 0, nivelExtra = 0;
+let ondeEstavaAMao = [0,0,0,0,0,0], ondeEstavaACabeca = [0,0,0];
+function medirAgitacao(dt, olhoPos){
+  let mexeu = 0;
+  for(let i=0;i<2;i++){
+    const m = MAOS[i];
+    if(!m.tem) continue;
+    const dx = m.x - ondeEstavaAMao[i*3],
+          dy = m.y - ondeEstavaAMao[i*3+1],
+          dz = m.z - ondeEstavaAMao[i*3+2];
+    mexeu += Math.sqrt(dx*dx + dy*dy + dz*dz);
+    ondeEstavaAMao[i*3] = m.x; ondeEstavaAMao[i*3+1] = m.y; ondeEstavaAMao[i*3+2] = m.z;
+  }
+  const cx = olhoPos[0]-ondeEstavaACabeca[0],
+        cy = olhoPos[1]-ondeEstavaACabeca[1],
+        cz = olhoPos[2]-ondeEstavaACabeca[2];
+  mexeu += Math.sqrt(cx*cx + cy*cy + cz*cz) * 0.7;
+  ondeEstavaACabeca[0]=olhoPos[0]; ondeEstavaACabeca[1]=olhoPos[1]; ondeEstavaACabeca[2]=olhoPos[2];
+
+  const alvo = Math.min(1, mexeu / Math.max(dt, 0.001) * 0.55);
+  // sobe depressa, desce devagar: a agua guarda o gesto por um instante
+  agitacao += (alvo - agitacao) * (alvo > agitacao ? 0.35 : 0.03);
+}
+
 /* AS MAOS. Dois pontos no espaco, e cada um pode estar tocando alguma
    coisa. Vale igual para a mao nua e para o controle Touch: o WebXR
    entrega os dois pelo mesmo caminho, e a obra nao precisa saber qual e
@@ -3252,6 +3322,12 @@ function seguirPartitura(dt){
 
      Agora ele nasce com o cenario e sai com ele. */
   fundoDoMar = rampa(386, 402, t) * (1 - rampa(516, 530, t));
+
+  /* E ELA LEVANTA. "A agua levanta" quando a pessoa se mexe: o nivel sobe
+     alguns centimetros com a agitacao e volta sozinho. Poucos centimetros
+     bastam -- numa lamina na altura da cintura, tres centimetros sao
+     visiveis no corpo inteiro. */
+  nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
 
   aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
 
@@ -4069,7 +4145,8 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                largura:uAg('largura'), pele:uAg('pele'), ceu:uAg('ceu'),
                ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
                altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
-               olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca')};
+               olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca'),
+               agitacao:uAg('agitacao')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
 const uPa = n=>gl.getUniformLocation(progPapel,n);
@@ -4763,11 +4840,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     mandarMvp(locAg.mvp, mvp);
     // segue a pessoa em XZ: andar nunca alcanca a borda da lamina
     gl.uniform2f(locAg.centro, olhoPos[0], olhoPos[2]);
-    gl.uniform1f(locAg.nivel, NIVEL_AGUA);
+    gl.uniform1f(locAg.nivel, NIVEL_AGUA + nivelExtra);
     gl.uniform1f(locAg.largura, 9.5);
     gl.uniform3f(locAg.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.uniform1f(locAg.tempo, relogio);
     gl.uniform1f(locAg.presenca, aguaPresenca);
+    gl.uniform1f(locAg.agitacao, agitacao);
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
     gl.uniform1i(locAg.pele, 5);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
@@ -5035,6 +5113,7 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
      capacete nao ha como olhar variavel nenhuma, e sem isto a diferenca
      entre "nao desenhou" e "desenhou invisivel" fica indistinguivel. */
