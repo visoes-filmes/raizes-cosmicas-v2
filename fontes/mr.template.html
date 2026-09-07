@@ -1292,6 +1292,7 @@ const FS_SALA = `
 precision highp float;
 uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
+uniform float giroCeu;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
@@ -1310,7 +1311,11 @@ void main(){
   // cabeca para baixo, e a floresta do primeiro cenario reaparece sob os pes
   // no ultimo. Custa uma multiplicacao, nao uma imagem nova.
   dir.y = mix(dir.y, -dir.y, inverter);
-  float lon = atan(dir.x, -dir.z);
+  /* A PINTURA RODA COM AS ESTRELAS. Se so elas girassem, o olho leria
+     estrelas escorregando sobre um fundo parado, e nao um ceu virando. E o
+     mesmo ceu: uma coisa so, que gira inteira. Sao os dois na mesma conta,
+     e por isso e o mesmo angulo. */
+  float lon = atan(dir.x, -dir.z) + giroCeu;
   float lat = asin(clamp(dir.y, -1.0, 1.0));
   vec2 st = vec2(fract(lon/(2.0*PI) + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
 
@@ -1956,6 +1961,7 @@ uniform vec3 olhoPos;
 uniform float tempo, presenca, nivel;
 uniform highp float misturaCeu;
 uniform float altura, inicio, fim;   // o mesmo degrade da cupula
+uniform float giroCeu;               // e a mesma volta: reflexo tem que bater
 uniform float agitacao;              // quanto a pessoa esta mexendo a agua
 uniform float furacao;               // 0 no meio da cena, 1 no fim dela
 varying float vOnda;
@@ -1992,7 +1998,11 @@ void main(){
   vec3 doOlho = normalize(vMundo - olhoPos);
   vec3 refl = normalize(vec3(doOlho.x + onda.x * 1.5, -doOlho.y,
                              doOlho.z + onda.y * 1.5));
-  float lon = atan(refl.x, -refl.z);
+  /* O REFLEXO GIRA COM O CEU. A agua le o ceu pela propria conta de
+     longitude; sem somar a mesma volta, o que se ve na agua deixa de ser o
+     que esta em cima -- e no cenario 3, com a deriva lenta ja acumulada,
+     a diferenca passa de meia volta. */
+  float lon = atan(refl.x, -refl.z) + giroCeu;
   float lat = asin(clamp(refl.y, -1.0, 1.0));
   vec2 stCeu = vec2(fract(lon/PI2 + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
   vec3 doCeu = texture2D(ceu, stCeu).rgb;
@@ -3449,6 +3459,32 @@ function rampa(a, b, x){
   return k * k * (3 - 2 * k);
 }
 
+/* O CEU GIRA NA PASSAGEM PARA A FLORESTA.
+
+   A nota: "elas girarem quando for mudar para a cena da floresta, tipo como
+   se fosse uma passagem de tempo". E o gesto mais antigo que existe para
+   dizer que o tempo andou -- o ceu roda, e quem esta embaixo percebe que
+   ficou ali mais do que pensava.
+
+   A volta acontece entre 0:14 e 0:42, que e exatamente a janela do
+   nascimento (a floresta brota de 0:15 a 1:09) e da chegada da pintura
+   (0:20 a 0:36). Cento e trinta e cinco graus em vinte e oito segundos: uns
+   cinco graus por segundo, movimento que se ve sem sobressalto. Como a
+   rampa e suave nas duas pontas, ela parte do repouso e volta a ele -- nao
+   ha o instante em que "liga".
+
+   EM TORNO DA VERTICAL, e nao de um eixo inclinado. Assim as estrelas do
+   alto quase nao andam e as de perto do horizonte varrem, que e o desenho
+   de ceu rodando que o olho conhece; e, sobretudo, o degrade continua
+   preso ao horizonte em vez de rodar junto com ele.
+
+   Depois dos 42 s sobra uma deriva lentissima que nunca para. Nao se ve
+   olhando: ve-se tendo olhado duas vezes. */
+const VOLTA_DO_CEU = 2.35;                 // ~135 graus
+function anguloDoCeu(x){
+  return VOLTA_DO_CEU * rampa(14, 42, x) + x * 0.0021;
+}
+
 /* Onde cada planeta esta no instante t. */
 function ondeEsta(i, t){
   const p = PLANETAS[i], n = PLANETAS.length;
@@ -4744,7 +4780,8 @@ const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
 const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
              mistura:uS('mistura'), inverter:uS('inverter'), tinta:uS('tinta'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
-              altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim')};
+              altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim'),
+              giroCeu:uS('giroCeu')};
 const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(progRaiz,'aNor'),
             uv:gl.getAttribLocation(progRaiz,'aUV'), alt:gl.getAttribLocation(progRaiz,'aAlt'),
             fase:gl.getAttribLocation(progRaiz,'aFase')};
@@ -4854,7 +4891,8 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
                altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca'),
-               agitacao:uAg('agitacao'), furacao:uAg('furacao')};
+               agitacao:uAg('agitacao'), furacao:uAg('furacao'),
+               giroCeu:uAg('giroCeu')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
 const uPa = n=>gl.getUniformLocation(progPapel,n);
@@ -4982,6 +5020,21 @@ function soltarAtributos(){
    porque nao tem nada a ver com o que esta na tela no momento.
 
    Reaproveitar o mesmo espaco elimina a fonte. */
+/* A MESMA MVP, GIRADA EM TORNO DA VERTICAL. Reaproveita um buffer proprio
+   porque isto acontece duas vezes por quadro, e alocar por quadro e o que
+   vira engasgo do coletor de lixo -- regra da casa. */
+const mvpCeu = new Float32Array(16);
+function girarCeuY(m, ang){
+  const co = Math.cos(ang), se = Math.sin(ang);
+  for(let j=0;j<4;j++){
+    const a0 = m[j], a1 = m[4+j], a2 = m[8+j];
+    mvpCeu[j]    =  a0*co - a2*se;
+    mvpCeu[4+j]  =  a1;
+    mvpCeu[8+j]  =  a0*se + a2*co;
+    mvpCeu[12+j] =  m[12+j];
+  }
+  return mvpCeu;
+}
 const mvpBuf = new Float32Array(16);
 function mandarMvp(loc, m){
   mvpBuf.set(m);
@@ -5050,6 +5103,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.fim, degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.inverter, inverterCeu);
+    gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
     /* A CUPULA ACOMPANHA A CABECA e nao escreve profundidade. Andando pela
        sala, ela anda junto: nenhum paralaxe, e o olho le como distante. E
        como nao ocupa profundidade, tudo o mais passa na frente dela. */
@@ -5149,7 +5203,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.enable(gl.BLEND);
       somarLuz();
       gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
+      // giradas: e a mesma volta que a pintura da cupula faz
+      mandarMvp(locM.mvp, girarCeuY(mvp, anguloDoCeu(t)));
       gl.uniform1f(locM.tempo, relogio);
       gl.uniform1f(locM.crescimento, 9.0);
       gl.uniform1f(locM.escalaObj, 1.0);
@@ -5169,6 +5224,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawArrays(gl.POINTS, 0, nEstrelas);
 
       gl.uniform1f(locM.pontiaguda, 0.0);   // so as estrelas tem pontas
+      /* E A MVP VOLTA AO NORMAL. O que vem depois neste mesmo bloco -- o
+         ser, as folhas -- esta no chao da sala, e chao nao gira com o ceu.
+         Esquecer esta linha poe a floresta a rodar junto, e o defeito so
+         aparece quando os objetos forem religados. */
+      mandarMvp(locM.mvp, mvp);
 
       /* O ALIENIGENA. Presenca de um decimo, e a cor sai da textura do ceu
          e nao da casca: e o que faz dele parte da nuvem em vez de um
@@ -5702,6 +5762,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1i(locAg.ceu2, 4);
     gl.uniform1f(locAg.misturaCeu, misturaCeu);
     gl.uniform1f(locAg.altura, ALTURA);
+    gl.uniform1f(locAg.giroCeu, anguloDoCeu(t));
     gl.uniform1f(locAg.inicio, degradeIni);
     gl.uniform1f(locAg.fim, degradeFim);
     ligar(aAg.xy, bQ.xy, 2);
