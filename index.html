@@ -610,19 +610,6 @@ function plantarNuvem(n, nome, base, escala, giro, semente, altBase){
   return postos;
 }
 
-/* AS LUVAS. O modelo de mao virado nuvem, uma por mao rastreada.
-
-   As maos eram duas bolinhas de luz. Funcionavam como sinal, mas nao como
-   presenca: a pessoa via um ponto se mexer, e nao a propria mao. O pedido
-   era luva levemente brilhante, e nao geometria dura.
-
-   Nuvem de pontos e o material certo para isso: tem contorno de mao sem
-   ter superficie de mao. Uma mao modelada com pele, num mundo de aquarela,
-   seria a unica coisa realista da cena — e o realismo, aqui, denuncia tudo
-   em volta. Em pontos ela pertence.
-
-   Ela acende ao chegar perto do que pode ser tocado, como as bolinhas
-   faziam: e a mesma pedagogia, agora com a forma certa. */
 /* O FUNDO DO PLANETA ROSA. Algas, corais, aguas-vivas, pedras e a concha.
 
    O roteiro pedia "os seres, as pedras, a concha" desde sempre, e o
@@ -818,26 +805,6 @@ function prepararHorizonte(){
   nHorizonte = n.pos.length/3;
 }
 
-let bLuva = null, nLuva = 0;
-function prepararLuva(){
-  const m = decodificarNuvem('hand-icon');
-  if(!m) return;
-  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
-  const rnd = prng(9091);
-  for(let i=0;i<m.n;i++){
-    const x = m.pos[i*3]/8000, y = m.pos[i*3+1]/8000, z = m.pos[i*3+2]/8000;
-    // o modelo vem em pe, com o pe em y=0; a mao da pessoa fica no centro
-    n.pos.push(x, y - 0.5, z);
-    n.uv.push(0.5 + x*0.7, 0.5 + y*0.7);
-    n.alt.push(1.0);              // nao cresce: ja esta inteira
-    n.fase.push(rnd()*6.28);
-    n.tam.push(0.6 + rnd()*0.8);
-  }
-  bLuva = criarBufs(['pos','uv','alt','fase','tam']);
-  enviar(bLuva.pos,n.pos); enviar(bLuva.uv,n.uv); enviar(bLuva.alt,n.alt);
-  enviar(bLuva.fase,n.fase); enviar(bLuva.tam,n.tam);
-  nLuva = n.pos.length/3;
-}
 
 function amostrarSuperficie(s, porMetroQuadrado, semente){
   const rnd = prng(semente);
@@ -2342,7 +2309,6 @@ function subirRaizes(s){
   nIdxS = s.idx.length;
 })();
 for(const f of enviarDepois) f();
-prepararLuva();
 prepararRaizesDosAstros();
 prepararHorizonte();
 prepararEstrelas();
@@ -3689,7 +3655,7 @@ if(emTesteLocal){
     onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
                      estrelas: nEstrelas, folhas: nFolhas, mar: nMar,
-                     luva: nLuva, concha: nConcha}; },
+                     concha: nConcha}; },
     pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; }
   };
 }
@@ -4622,6 +4588,109 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
+    /* AS MAOS SAO AS DA PESSOA, E NAO AS NOSSAS.
+
+       Aqui havia uma luva de pigmento desenhada sobre cada mao rastreada.
+       Ela nao funcionou -- e a razao e a mesma que faz o passthrough ser
+       poderoso: EM REALIDADE MISTA A MAO JA ESTA LA. Ela e vista pelas
+       cameras, com a luz da sala, com o anel de quem visita. Desenhar por
+       cima disso nao acrescenta presenca, disputa com ela: duas maos no
+       mesmo lugar, uma de verdade e uma pintada, e a pintada perde sempre.
+
+       O rastreamento continua, e e o que faz o toque existir. O que saiu
+       foi so o desenho.
+
+       E o sinal de que algo pode ser tocado nao se perdeu com ele: quem
+       chama e o OBJETO, respirando -- o casulo e a concha acendem quando
+       podem ser tocados. E melhor assim, aliais: a obra convida em vez de
+       a pessoa procurar. */
+
+    /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
+       subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
+    /* OS SERES AQUATICOS NO ESPACO. A nota os pede no cenario 2, e nao so
+       na agua: "voce esqueceu os seres aquaticos estranhos". Eles nao sao
+       fauna de um lugar -- sao a mesma materia viva aparecendo onde quer
+       que a obra esteja, que e o argumento dela. No espaco flutuam entre
+       os planetas, sem chao a que pertencer. */
+    if(bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.presenca, asteroidePres * 0.45);
+      gl.uniform1f(locM.deriva, 0.9);        // no vazio eles vagueiam mais
+      gl.uniform3f(locM.desloca, 0, 1.7, 0); // na altura dos planetas
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
+      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nMar);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.deriva, 0.0);
+      gl.depthMask(true);
+      sobrepor();
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
+
+    if(bMar && nMar && fundoDoMar > 0.004){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      sobrepor();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.presenca, fundoDoMar);
+      gl.uniform1f(locM.deriva, 0.0);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
+      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nMar);
+
+      /* O HORIZONTE: montanhas, terra e as raizes no ceu. Vem com o mesmo
+         fundo, porque e a mesma paisagem — o que muda e a distancia. */
+      if(bHorizonte && nHorizonte){
+        ligar(aM.pos,bHorizonte.pos,3); ligar(aM.uv,bHorizonte.uv,2);
+        ligar(aM.alt,bHorizonte.alt,1); ligar(aM.fase,bHorizonte.fase,1);
+        ligar(aM.tam,bHorizonte.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nHorizonte);
+      }
+
+      /* A CONCHA, que agora tem forma e acende quando pode ser tocada. */
+      if(bConcha && nConcha && conchaPresenca > 0.004){
+        gl.uniform3f(locM.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
+        gl.uniform1f(locM.presenca,
+                     conchaPresenca * (tocouConcha ? 1.0
+                       : 0.65 + 0.35*Math.sin(relogio*1.9)));
+        ligar(aM.pos,bConcha.pos,3); ligar(aM.uv,bConcha.uv,2);
+        ligar(aM.alt,bConcha.alt,1); ligar(aM.fase,bConcha.fase,1);
+        ligar(aM.tam,bConcha.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nConcha);
+        gl.uniform3f(locM.desloca, 0, 0, 0);
+      }
+      gl.depthMask(true);
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
+
     /* AS MAOS, EM LUVA DE PIGMENTO.
 
        Eram duas bolinhas de luz. Funcionavam como sinal e nao como
@@ -4632,38 +4701,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        Ela ACENDE ao chegar perto do que pode ser tocado. Esse e o unico
        ensino da obra: nao ha instrucao, nao ha legenda, so uma luz que
        cresce quando a mao chega. */
-    if(bLuva && nLuva){
-      gl.useProgram(progMata);
-      soltarAtributos();
-      gl.enable(gl.BLEND);
-      somarLuz();
-      gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
-      gl.uniform1f(locM.tempo, relogio);
-      gl.uniform1f(locM.crescimento, 9.0);      // ja inteira, sem brotar
-      gl.uniform1f(locM.escalaObj, 0.20);       // uma mao tem uns 20 cm
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bLuva.pos,3); ligar(aM.uv,bLuva.uv,2);
-      ligar(aM.alt,bLuva.alt,1); ligar(aM.fase,bLuva.fase,1); ligar(aM.tam,bLuva.tam,1);
-      for(const m of MAOS){
-        if(!m.tem) continue;
-        gl.uniform3f(locM.desloca, m.x, m.y, m.z);
-        gl.uniform1f(locM.escala, escalaPonto * 0.16);
-        // discreta em repouso, acesa quando ha o que tocar
-        gl.uniform1f(locM.presenca, 0.30 + 0.70 * m.aceso);
-        gl.drawArrays(gl.POINTS, 0, nLuva);
-      }
-      gl.uniform3f(locM.desloca, 0, 0, 0);
-      gl.uniform1f(locM.escalaObj, 1.0);
-      gl.depthMask(true);
-      sobrepor();
-      gl.useProgram(progAstro);
-      soltarAtributos();
-      mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
-    }
 
     /* AS RAIZES DOS PLANETAS. Uma nuvem so, desenhada em volta de cada
        um: o planeta deixa de ser bola no vazio e vira no. */
