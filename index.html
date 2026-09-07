@@ -2921,7 +2921,35 @@ function ondeBorboleta(t){
           1.42 + k * k * 4.6,
           -1.28 + Math.cos(k * 1.9) * 0.5 - k * 0.9];
 }
-function presencaBorboleta(t){ return rampa(163, 170, t) * (1 - rampa(180, 190, t)); }
+function presencaBorboleta(t){
+  /* DUAS VIDAS. A primeira e a do roteiro: sai do casulo aos 2:43 e sobe
+     levando o mundo. A segunda e o fim -- ela volta no ultimo cenario,
+     voa em volta de quem visita e entra no coracao da deusa. */
+  const primeira = rampa(163, 170, t) * (1 - rampa(180, 190, t));
+  const segunda  = rampa(552, 560, t) * (1 - rampa(586, 592, t));
+  return Math.max(primeira, segunda);
+}
+
+/* O VOO DO FIM.
+
+   Ela nao repete a subida do comeco: ali ela ia embora, aqui ela CHEGA. Voa
+   em volta da pessoa, em espiral que se fecha, e termina entrando na deusa
+   -- que e a unica coisa nesta obra que acontece EM cima de outra, e nao ao
+   lado.
+
+   O raio encolhe de tres metros a zero, e a altura sobe do peito ate o
+   coracao dela. Nos ultimos segundos ela ja esta dentro, e o que se ve e
+   a deusa. */
+function ondeBorboletaNoFim(t){
+  const k = rampa(552, 586, t);
+  const deusa = FIGURAS[2].centro;
+  const voltas = 2.6;
+  const raio = 3.0 * (1 - k) * (1 - k);
+  const ang = k * voltas * Math.PI * 2 + 1.1;
+  return [ deusa[0] * k + Math.sin(ang) * raio,
+           1.45 + (deusa[1] - 1.45) * k * k + Math.sin(k*Math.PI) * 0.55,
+           deusa[2] * k + Math.cos(ang) * raio - (1 - k) * 0.4 ];
+}
 
 /* ═══════════ AS PEDRAS DO PLANETA ROSA ═══════════
    Meia duzia, na linha d'agua. Sao a mesma esfera dos astros com outros
@@ -2952,19 +2980,42 @@ const PEDRAS = [];
    Sete, do fundo para a frente. Quanto mais longe, maior e mais escura —
    que e como o ar se comporta. A mais proxima esta a 1,6 m, fora do
    alcance da mao mas dentro do campo de visao inteiro. */
+/* AS CAMADAS VAO PARA O INFINITO.
+
+   A nota: "o papel cortado nao funcionou e a qualidade ficou muito ruim.
+   tente de novo e tem que ficar bem mais distante la na regiao do
+   infinito". As duas coisas tem a MESMA causa.
+
+   Elas comecavam a 1,6 m -- ao alcance do braco -- e a essa distancia um
+   plano de um metro com textura de aquarela mostra cada pixel dela: a
+   qualidade "ruim" era a imagem ampliada, o mesmo defeito do ceu. E perto
+   assim a paralaxe entre camadas fica violenta: mover a cabeca meio metro
+   desloca a primeira camada mais que a ultima inteira, e o empilhamento --
+   que e a coisa toda -- desmonta.
+
+   Agora a mais proxima esta a 6 m e a mais distante a 26, e todas crescem
+   junto para manter o tamanho aparente. A doze metros a mesma textura tem
+   quatro vezes mais pixels por grau, e a paralaxe volta a ser suave: as
+   camadas deslizam umas sobre as outras em vez de saltarem.
+
+   E sao NOVE em vez de sete, porque com mais distancia sobra espaco entre
+   elas -- e camada de papel recortado e como veu: quanto mais, mais fundo. */
 const CAMADAS = [];
 (function(){
   const r = prng(707);
-  for(let i=0;i<7;i++){
-    const k = i / 6;
+  for(let i=0;i<9;i++){
+    const k = i / 8;
+    const d = 6.0 + k * 20.0;
     CAMADAS.push({
-      dist:   1.6 + k * 5.2,
-      altura: 1.15 + r() * 1.5,
-      lado:   (r() - 0.5) * 2.2,
-      escala: 1.0 + k * 1.9,
+      dist:   d,
+      altura: 1.4 + r() * 3.2,
+      lado:   (r() - 0.5) * 2.2 * (0.6 + k),
+      // cresce com a distancia: o tamanho aparente fica igual, e o que muda
+      // e so o quanto ela se desloca quando a pessoa anda
+      escala: (1.0 + k * 1.9) * (d / 3.4),
       recorte:[0.03 + r() * 0.52, 0.03 + r() * 0.60],
       semente: r() * 40,
-      atraso: i * 0.055,
+      atraso: i * 0.048,
     });
   }
 })();
@@ -5227,8 +5278,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   {
     const pb = presencaBorboleta(t);
     if(pb > 0.004){
-      const aqui = ondeBorboleta(t);
-      const antes = ondeBorboleta(t - 0.20);
+      const noFim = t > 545;
+      const aqui  = noFim ? ondeBorboletaNoFim(t)        : ondeBorboleta(t);
+      const antes = noFim ? ondeBorboletaNoFim(t - 0.20) : ondeBorboleta(t - 0.20);
       let fx = aqui[0]-antes[0], fy = aqui[1]-antes[1], fz = aqui[2]-antes[2];
       const comp = Math.sqrt(fx*fx+fy*fy+fz*fz) || 1;
       fx /= comp; fy /= comp; fz /= comp;
