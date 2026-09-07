@@ -1356,6 +1356,82 @@ void main(){
 
    Ela tambem se INCLINA para o lado que vira, como quem faz curva. Sem
    isso, voar em curva le como objeto arrastado por um trilho. */
+/* ═══════════ O TEXTO, DESENHADO NA CENA ═══════════
+
+   A frase do fim, o titulo e o botao nao podem ser HTML: dentro do headset
+   nao existe DOM -- o navegador do Quest nao suporta dom-overlay em
+   realidade mista, e isso ja custou uma noite a este projeto.
+
+   Entao o texto e pintado num quadro fora da tela, vira textura, e e
+   desenhado como qualquer outra coisa da obra. Ganha-se de brinde a
+   tipografia inteira do sistema, e o texto passa a existir NO ESPACO: a
+   frase fica a tres metros, no escuro, e a pessoa a le como le uma
+   inscricao numa parede -- nao como um aviso colado nos olhos.
+
+   O quadro e grande de proposito (2048 de largura): letra e a coisa que
+   mais denuncia falta de resolucao, porque o olho conhece a forma exata
+   dela e percebe qualquer degrau. */
+function textoEmTextura(linhas, largura, altura){
+  const c = document.createElement('canvas');
+  c.width = largura; c.height = altura;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, largura, altura);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for(const l of linhas){
+    g.font = l.fonte;
+    g.fillStyle = l.cor || 'rgba(245,238,252,0.97)';
+    /* Um halo escuro por tras de cada letra. Em realidade mista o fundo e
+       a SALA DE VERDADE, e nao se sabe se ela e clara ou escura: texto
+       claro sobre parede clara some. O halo garante leitura em qualquer
+       parede, e some junto com a letra quando ela desaparece. */
+    g.shadowColor = 'rgba(0,0,0,0.75)';
+    g.shadowBlur = l.halo || 26;
+    g.fillText(l.texto, largura/2, l.y);
+    g.shadowBlur = 0;
+  }
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+/* O quadro do texto encara a pessoa, e so isso: sem recorte, sem vinheta,
+   sem desvanecer de borda. Tudo o que se faz com uma figura para ela
+   pertencer a cena, aqui se evita — texto que se dissolve nas beiradas
+   nao se le. */
+const VS_TEXTO = `
+attribute vec2 aXY;
+uniform mat4 mvp;
+uniform vec3 olhoPos, centro;
+uniform vec2 tamanho;
+varying vec2 vUV;
+void main(){
+  vec3 paraMim = olhoPos - centro;
+  paraMim.y = 0.0;
+  float d = length(paraMim);
+  vec3 frente = d > 0.0005 ? paraMim / d : vec3(0.0, 0.0, 1.0);
+  vec3 lado = vec3(frente.z, 0.0, -frente.x);
+  vec3 p = centro + lado * (aXY.x * tamanho.x) + vec3(0.0, aXY.y * tamanho.y, 0.0);
+  vUV = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5);
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_TEXTO = `
+precision highp float;
+uniform sampler2D letra;
+uniform float presenca;
+varying vec2 vUV;
+void main(){
+  vec4 c = texture2D(letra, vUV);
+  float a = c.a * presenca;
+  if(a < 0.003) discard;
+  gl_FragColor = vec4(c.rgb, a);
+}`;
+
 const VS_BORBO = `
 attribute vec2 aXY;
 attribute float aLado;          // -1 asa esquerda, +1 asa direita
@@ -2241,6 +2317,7 @@ const progAgua  = programa(VS_AGUA,  FS_AGUA);
 const progFigu  = programa(VS_FIGU,  FS_FIGU);
 const progBolha = programa(VS_BOLHA, FS_BOLHA);
 const progBorbo = programa(VS_BORBO, FS_BORBO);
+const progTexto = programa(VS_TEXTO, FS_TEXTO);
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,
@@ -2926,7 +3003,7 @@ function presencaBorboleta(t){
      levando o mundo. A segunda e o fim -- ela volta no ultimo cenario,
      voa em volta de quem visita e entra no coracao da deusa. */
   const primeira = rampa(163, 170, t) * (1 - rampa(180, 190, t));
-  const segunda  = rampa(552, 560, t) * (1 - rampa(586, 592, t));
+  const segunda  = rampa(552, 560, t) * (1 - rampa(594, 599, t));
   return Math.max(primeira, segunda);
 }
 
@@ -3237,6 +3314,39 @@ let presencaMata = 1;
    e desce devagar: agua nao para no instante em que a pessoa para. */
 let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, crescimentoTeto = 0;
 
+/* ═══════════ O FIM, E A ESPERA ═══════════
+
+   A obra terminava se desmanchando e voltando ao zero. Agora ela ACABA: a
+   borboleta vem ao rosto, tudo vira ceu escuro estrelado, a frase aparece e
+   se apaga, e fica a pagina de espera ate alguem tocar em "rizomar".
+
+   Isso muda a obra de laco para PECA. Um laco nao tem fim, e o que nao tem
+   fim nao tem peso: quem entra no meio nao sabe que entrou no meio, e quem
+   fica ate o final nao ganha nada por isso. Com um fim, os dez minutos
+   passam a ser uma travessia com as duas margens.
+
+   E numa feira a espera resolve uma coisa pratica: o proximo visitante
+   encontra a obra parada, no comeco, esperando por ele -- e nao no meio do
+   que o anterior deixou. */
+let fecho = 0;        // 0 a 1: quanto o mundo ja se apagou no fim
+let frasePresenca = 0;
+let esperando = false;
+let esperaPresenca = 0;
+
+/* Onde fica o botao: a frente de quem olha, na altura dos olhos, ao alcance
+   do braco. Ele nao pisca nem chama -- so a palavra, e ela basta. */
+const RIZOMAR = [0, 1.42, -1.05];
+
+function seguirFecho(t){
+  /* 9:45 a 9:58 -- o mundo se apaga. E o unico momento da obra em que a
+     tinta se retira de tudo ao mesmo tempo: ate aqui as coisas sempre
+     cederam uma de cada vez. */
+  fecho = rampa(585, 598, t);
+  /* A frase entra depois de o mundo sair, e nao junto: ela precisa do
+     silencio para ser lida. */
+  frasePresenca = rampa(592, 597, t) * (1 - rampa(606, 612, t));
+}
+
 /* O BURACO NEGRO QUE ENGOLE O PLANETA ROSA.
 
    O do cenario 2 e um objeto entre outros. Este e outra coisa: ele CRESCE
@@ -3319,7 +3429,30 @@ function alvosAgora(){
     lista.push({ x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.26,
                  fazer(){ if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
+  /* O RIZOMAR. Na espera, a unica coisa tocavel da obra -- e o que a
+     recomeca. Raio generoso: e o primeiro gesto que alguem faz aqui, e
+     errar o primeiro ensina que a obra nao responde. */
+  if(esperando && esperaPresenca > 0.5)
+    lista.push({ x:RIZOMAR[0], y:RIZOMAR[1], z:RIZOMAR[2], raio:0.34,
+                 fazer(){ recomecarAViagem(); } });
+
   return lista;
+}
+
+/* RECOMECAR nao e so zerar o relogio: e devolver tudo ao estado de quem
+   nunca entrou -- a floresta por nascer, os toques por acontecer, a agua
+   parada. Sem isso o segundo visitante herdaria o mundo do primeiro. */
+function recomecarAViagem(){
+  esperando = false;
+  t = 0; relogio = 0;
+  crescimento = 0; crescimentoTeto = 0;
+  tocouCasulo = 0; tocouConcha = 0;
+  agitacao = 0; nivelExtra = 0;
+  cenaAtual = 1; misturaCeu = 0;
+  ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
+  andando = true;
+  relato('RIZOMAR-TOCADO');
+  if(TEM_SOM){ try{ trilha.currentTime = 0; }catch(e){} }
 }
 
 /* LER AS MAOS DO QUADRO. Cada fonte tem a pose do PUNHO e a do RAIO. Para
@@ -3374,7 +3507,23 @@ function aproximar(atual, alvo, passo){ return atual + (alvo - atual) * passo; }
 function seguirPartitura(dt){
   if(andando){
     t += dt;
-    if(t > DURACAO){
+    /* A OBRA ACABA, e nao volta sozinha.
+
+       Aqui ela zerava o relogio e recomecava. Agora para e entra na ESPERA:
+       a frase fica, e depois dela o titulo e o "rizomar". So um toque
+       recomeca -- e quem recomeca e a proxima pessoa, nao o relogio.
+
+       Isso muda a obra de laco para peca. Um laco nao tem fim, e o que nao
+       tem fim nao tem peso: quem entra no meio nao sabe que entrou no meio,
+       e quem fica ate o final nao ganha nada por isso.
+
+       Os catorze segundos alem dos dez minutos sao o tempo da frase. */
+    if(t > DURACAO + 14){
+      andando = false;
+      esperando = true;
+      t = DURACAO + 14;
+    }
+    if(false){
       t = 0;
       /* O relogio das animacoes zera JUNTO com a volta da obra. Sem isto
          ele cresce sem parar: num dia de exposicao chega as dezenas de
@@ -3470,6 +3619,7 @@ function seguirPartitura(dt){
      a floresta inteira, e se concluia que a presenca nao funcionava. */
   presencaMata = dt > 0 ? aproximar(presencaMata, alvoMata, 1 - Math.exp(-1.4*dt))
                         : alvoMata;
+  presencaMata *= 1 - fecho;
 
   /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
   /* O MAR EXISTE POR SI. Ele estava preso a agua: so aparecia quando ela
@@ -3489,6 +3639,9 @@ function seguirPartitura(dt){
      travessia. Antes disso a agua e so agua. */
   furacaoPresenca = rampa(496, 520, t) * (1 - rampa(524, 532, t));
   seguirBuracoFinal(t);
+  seguirFecho(t);
+  esperaPresenca = aproximar(esperaPresenca, esperando ? 1 : 0,
+                             dt > 0 ? 1 - Math.exp(-1.6*dt) : 1);
 
   /* A FLORESTA DO TETO. Ela nasce quando o mundo de papel sobe, aos 8:45, e
      cresce ao contrario ate o fim. E a floresta do primeiro cenario voltando
@@ -3516,8 +3669,16 @@ function seguirPartitura(dt){
      de forma exponencial, nao linear. A conta certa e 1 - e^(-k*dt), que
      da a MESMA constante de tempo a 30, 60 ou 72 quadros. */
   const p = 1 - Math.exp(-1.8 * dt);
-  tinta      = aproximar(tinta, a.tinta * ceuPintado, p);
-  presenca   = aproximar(presenca, a.nuvem, p);
+  /* O FECHO APAGA TUDO. E o unico momento em que a tinta se retira de tudo
+     ao mesmo tempo -- ate aqui as coisas sempre cederam uma de cada vez.
+     O que sobra e o ceu estrelado escuro, que e onde a obra comecou. */
+  const alvoTinta = a.tinta * ceuPintado * (1 - fecho);
+  tinta      = dt > 0 ? aproximar(tinta, alvoTinta, p) : alvoTinta;
+  /* A nuvem tambem cede no fecho. Era a ultima coisa acesa quando tudo o
+     mais ja tinha se apagado, e por isso a espera acontecia num fundo
+     leitoso em vez do ceu escuro estrelado que a obra pede. */
+  const alvoNuvem = a.nuvem * (1 - fecho);
+  presenca   = dt > 0 ? aproximar(presenca, alvoNuvem, p) : alvoNuvem;
   marmore    = aproximar(marmore, a.marmore, p);
   leitoso    = aproximar(leitoso, a.leite, p);
   sopro      = aproximar(sopro, a.sopro, p);
@@ -3854,7 +4015,11 @@ if(emTesteLocal){
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
                      estrelas: nEstrelas, folhas: nFolhas, mar: nMar,
                      concha: nConcha}; },
-    pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; }
+    pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; },
+    /* Ir direto para a espera. Sem isto so se chega la deixando os dez
+       minutos correrem, e ninguem confere um fim assim. */
+    espera(){ t = DURACAO + 14; andando = false; esperando = true;
+              seguirPartitura(0); return 'na espera'; }
   };
 }
 
@@ -4298,6 +4463,67 @@ const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
 /* A BORBOLETA. Duas asas, seis vertices cada: o menor objeto da obra e o
    unico que precisa de geometria propria, porque e o unico que se dobra. */
+/* O TEXTO DA OBRA. Tres quadros: a frase do fim, o titulo com os nomes, e
+   o botao. Sao feitos uma vez, no carregamento, e nunca mais mudam. */
+const uTx = n=>gl.getUniformLocation(progTexto,n);
+const locTx = {mvp:uTx('mvp'), olhoPos:uTx('olhoPos'), centro:uTx('centro'),
+               tamanho:uTx('tamanho'), letra:uTx('letra'), presenca:uTx('presenca')};
+const aTx = {xy: gl.getAttribLocation(progTexto,'aXY')};
+
+/* FEITAS AGORA, e nao na fila do "enviarDepois".
+
+   Elas estavam nessa fila, que ja tinha sido esvaziada muito antes deste
+   ponto do arquivo: as texturas nunca chegavam a existir, e o fim da obra
+   acontecia em silencio absoluto -- sem erro nenhum, porque desenhar
+   textura nula so nao desenha.
+
+   Ordem de arquivo e ordem de execucao, e aqui as duas divergiam. */
+let texFrase = null, texTitulo = null, texBotao = null;
+
+/* O TEMPO, DISCRETO.
+
+   "O tempo aparece em baixo bem discreto." Ele nao e informacao para quem
+   visita -- e para quem OPERA: saber, sem tirar o capacete de ninguem, se a
+   pessoa esta no comeco ou perto do fim, e quanto falta para a fila andar.
+
+   Por isso fica baixo, pequeno e apagado: quem esta dentro da obra nao
+   repara; quem procura, acha. Ele e refeito uma vez por segundo, e nao a
+   cada quadro -- refazer uma textura setenta vezes por segundo para mudar
+   dois digitos e desperdicio que aparece no orcamento de quadros. */
+let texTempo = null, tempoMostrado = -1;
+function atualizarTempo(t){
+  const s = Math.floor(t);
+  if(s === tempoMostrado) return;
+  tempoMostrado = s;
+  if(texTempo) gl.deleteTexture(texTempo);
+  const m = Math.floor(s/60), r = s % 60;
+  texTempo = textoEmTextura([
+    { texto: m + ':' + (r<10?'0':'') + r,
+      fonte: '84px "Inter", Helvetica, Arial, sans-serif',
+      y: 96, cor:'rgba(226,214,246,0.55)', halo: 14 },
+  ], 512, 192);
+}
+(function(){
+  const serifa = '"Cormorant Garamond", "Georgia", "Times New Roman", serif';
+  const seca   = '"Inter", "Helvetica Neue", Arial, sans-serif';
+
+  texFrase = textoEmTextura([
+    { texto:'Raízes do universo', fonte:'italic 132px ' + serifa, y:190 },
+    { texto:'estão em nós.',      fonte:'italic 132px ' + serifa, y:340 },
+  ], 2048, 512);
+
+  texTitulo = textoEmTextura([
+    { texto:'Raízes Cósmicas', fonte:'150px ' + serifa, y:190 },
+    { texto:'Plinio Hit  ·  Crisia', fonte:'52px ' + seca, y:330,
+      cor:'rgba(214,200,236,0.88)', halo:18 },
+  ], 2048, 512);
+
+  texBotao = textoEmTextura([
+    { texto:'rizomar', fonte:'92px ' + seca, y:128,
+      cor:'rgba(238,228,255,0.98)' },
+  ], 1024, 256);
+})();
+
 const uBb = n=>gl.getUniformLocation(progBorbo,n);
 const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
                bater:uBb('bater'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
@@ -5279,8 +5505,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     const pb = presencaBorboleta(t);
     if(pb > 0.004){
       const noFim = t > 545;
-      const aqui  = noFim ? ondeBorboletaNoFim(t)        : ondeBorboleta(t);
-      const antes = noFim ? ondeBorboletaNoFim(t - 0.20) : ondeBorboleta(t - 0.20);
+      let aqui  = noFim ? ondeBorboletaNoFim(t)        : ondeBorboleta(t);
+      let antes = noFim ? ondeBorboletaNoFim(t - 0.20) : ondeBorboleta(t - 0.20);
+
+      /* E ENTAO ELA VEM AO ROSTO.
+
+         Depois de entrar na deusa, ela sai dela e vem ate quem visita --
+         nao ate perto, ate O ROSTO. E o unico momento da obra em que
+         alguma coisa invade o espaco pessoal de quem esta ali, e e o
+         ultimo: um instante depois tudo se apaga e sobra o ceu.
+
+         Ela para a vinte centimetros dos olhos, que e onde uma borboleta
+         de verdade pousaria sem tocar. */
+      const vindo = rampa(586, 596, t);
+      if(vindo > 0.001){
+        const alvo = [olhoPos[0], olhoPos[1] - 0.03, olhoPos[2] - 0.20];
+        const k = vindo * vindo;
+        aqui  = [aqui[0]  + (alvo[0]-aqui[0])*k,
+                 aqui[1]  + (alvo[1]-aqui[1])*k,
+                 aqui[2]  + (alvo[2]-aqui[2])*k];
+        antes = [antes[0] + (alvo[0]-antes[0])*k*0.96,
+                 antes[1] + (alvo[1]-antes[1])*k*0.96,
+                 antes[2] + (alvo[2]-antes[2])*k*0.96];
+      }
       let fx = aqui[0]-antes[0], fy = aqui[1]-antes[1], fz = aqui[2]-antes[2];
       const comp = Math.sqrt(fx*fx+fy*fy+fz*fz) || 1;
       fx /= comp; fy /= comp; fz /= comp;
@@ -5312,12 +5559,63 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
   }
 
+  /* 2b-quinquies) O TEXTO: a frase do fim, e a espera.
+
+     Desenhado por ultimo e sem escrever profundidade, porque nada pode
+     passar na frente de uma palavra que se esta lendo. */
+  atualizarTempo(t);
+  if(true){
+    gl.enable(gl.BLEND);
+    sobrepor();
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(progTexto);
+    soltarAtributos();
+    mandarMvp(locTx.mvp, mvp);
+    gl.uniform3f(locTx.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    ligar(aTx.xy, bQ.xy, 2);
+    gl.activeTexture(gl.TEXTURE7);
+
+    const porTexto = (tex, cen, larg, alt, pres) => {
+      if(!tex || pres < 0.004) return;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(locTx.letra, 7);
+      gl.uniform3f(locTx.centro, cen[0], cen[1], cen[2]);
+      gl.uniform2f(locTx.tamanho, larg, alt);
+      gl.uniform1f(locTx.presenca, pres);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+
+    /* A FRASE, a tres metros e na altura dos olhos: distancia de inscricao
+       numa parede, e nao de aviso colado nos olhos. */
+    /* Maior e mais perto do que a primeira tentativa: a 3 m e com 1,5 m de
+       largura ela ficava do tamanho de um cartaz distante, e a frase que
+       fecha uma obra de dez minutos nao pode ser lida de esguelha. */
+    porTexto(texFrase, [0, 1.52, -2.2], 1.9, 0.475, frasePresenca);
+
+    /* A ESPERA: o titulo em cima, o rizomar ao alcance do braco. */
+    porTexto(texTitulo, [0, 1.95, -2.2], 1.15, 0.29, esperaPresenca);
+    porTexto(texBotao, RIZOMAR, 0.34, 0.085,
+             esperaPresenca * (0.72 + 0.28*Math.sin(relogio*1.6)));
+
+    /* O tempo, la embaixo. Fora da espera ele aparece so para quem procura:
+       um quinto de opacidade, na altura da cintura. */
+    porTexto(texTempo, [0, 0.92, -1.9], 0.13, 0.049,
+             esperando ? esperaPresenca * 0.5 : 0.22);
+
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
   /* 2c) AS CAMADAS DE PAPEL. Do fundo para a frente, que e obrigatorio:
      elas nao escrevem profundidade (sao recortes com alfa macio, e escrever
      profundidade cortaria a franja de quem vem atras), entao a ordem de
      desenho E a ordem de profundidade. Desenhar de tras para frente e o
      unico jeito de a de frente cobrir a de tras. */
-  if(cenaAtual === 4 || t > 520){
+  /* O papel tambem cede no fecho. Ele era a unica coisa que continuava
+     inteira enquanto o mundo se apagava, e por isso a frase nascia em cima
+     dele em vez de no escuro. */
+  if((cenaAtual === 4 || t > 520) && fecho < 0.97){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
@@ -5339,7 +5637,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locPa.semente, c.semente);
       gl.uniform1f(locPa.subir, sb);
       // as do fundo sao mais apagadas: e assim que o ar se comporta
-      gl.uniform1f(locPa.presenca, sb * (0.95 - i * 0.075));
+      gl.uniform1f(locPa.presenca, sb * (0.95 - i * 0.075) * (1 - fecho));
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.depthMask(true);
