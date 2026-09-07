@@ -541,6 +541,50 @@ function quad(s, p0,p1,p2,p3, repU, repV, tipo){
   }
   s.idx.push(b,b+1,b+2, b,b+2,b+3);
 }
+/* A CUPULA INFINITA — e por que a caixa nao servia.
+
+   O ceu estava projetado nas SEIS FACES DE UMA CAIXA de 4,00 x 4,70 x 3,00,
+   a dois metros de quem olha. O shader ate calculava direcao e amostrava a
+   panoramica certo, mas a geometria continuava perto: bastava mexer a
+   cabeca para o paralaxe entregar a parede. Ceu infinito nao e uma questao
+   de imagem, e de DISTANCIA — e a unica distancia que le como infinita e a
+   que nao tem paralaxe nenhum.
+
+   Entao a cupula acompanha a cabeca. Ela e uma esfera grande centrada em
+   quem olha: virando a cabeca, muda o que se ve; ANDANDO, nada muda. E
+   exatamente assim que o ceu se comporta no mundo, e e por isso que o olho
+   aceita como distante sem que ninguem precise explicar.
+
+   Ela nao escreve profundidade e e desenhada antes de tudo, entao qualquer
+   coisa da obra passa na frente dela — como passa na frente do ceu. */
+function montarCupula(anexos, meridianos){
+  const s = {pos:[],nor:[],uv:[],tipo:[],idx:[]};
+  const R = 60;                       // longe o bastante para nao ter escala
+  for(let a=0; a<=anexos; a++){
+    // de -PI/2 (nadir) a +PI/2 (zenite): a esfera inteira, porque em RM se
+    // olha para baixo tanto quanto para cima
+    const lat = -Math.PI/2 + Math.PI * (a/anexos);
+    for(let m=0; m<=meridianos; m++){
+      const lon = 2*Math.PI * (m/meridianos);
+      const x = R * Math.cos(lat) * Math.sin(lon);
+      const y = R * Math.sin(lat);
+      const z = -R * Math.cos(lat) * Math.cos(lon);
+      s.pos.push(x,y,z);
+      s.nor.push(-x/R, -y/R, -z/R);   // olhando para dentro
+      s.uv.push(m/meridianos, a/anexos);
+      s.tipo.push(1);
+    }
+  }
+  const largura = meridianos + 1;
+  for(let a=0; a<anexos; a++){
+    for(let m=0; m<meridianos; m++){
+      const i = a*largura + m;
+      s.idx.push(i, i+largura, i+largura+1,  i, i+largura+1, i+1);
+    }
+  }
+  return s;
+}
+
 function montarSala(){
   const s = {pos:[],nor:[],uv:[],tipo:[],idx:[]};
   const x = LARG/2, z = PROF/2, h = ALTURA;
@@ -597,10 +641,14 @@ void main(){
 const VS_SALA = `
 attribute vec3 aPos, aNor; attribute vec2 aUV; attribute float aTipo;
 uniform mat4 mvp;
+uniform vec3 centro;         // a cabeca: a cupula anda junto com ela
 varying vec3 vPos;
 void main(){
-  vPos = aPos;                 // posição no mundo, pra projetar a obra
-  gl_Position = mvp * vec4(aPos,1.0);
+  /* vPos e a DIRECAO a partir do centro da cupula, e nao a posicao no
+     mundo. E o que faz o ceu ser lido por onde se OLHA e nao por onde se
+     esta -- que e a definicao de longe. */
+  vPos = aPos;
+  gl_Position = mvp * vec4(aPos + centro, 1.0);
 }`;
 const FS_SALA = `
 precision highp float;
@@ -618,7 +666,7 @@ void main(){
   // SEM SOMBREAMENTO POR FACE, de propósito. Se eu escurecesse o teto ou
   // desse luz de cima, o olho reconstruiria a caixa na hora. Sem isso,
   // uma sala e uma esfera são indistinguíveis pra quem está no centro.
-  vec3 dir = normalize(vPos - vec3(0.0, olho, 0.0));
+  vec3 dir = normalize(vPos);   // a cupula ja e centrada em quem olha
   // Inverter e espelhar a direcao vertical: o mesmo ceu passa a ser lido de
   // cabeca para baixo, e a floresta do primeiro cenario reaparece sob os pes
   // no ultimo. Custa uma multiplicacao, nao uma imagem nova.
@@ -647,7 +695,19 @@ void main(){
   // a rampa reta tem quina no começo e no fim do trecho, e a quina é o
   // que o olho lê como listra. O smoothstep chega e sai com inclinação
   // zero, então a passagem não tem onde "engatar".
-  float h = clamp(vPos.y / altura, 0.0, 1.0);
+  /* O DEGRADE E POR ANGULO, NAO POR ALTURA DE SALA.
+
+     Enquanto o ceu era uma caixa, media-se a altura do ponto no comodo:
+     vPos.y / ALTURA. Numa cupula que acompanha a cabeca isso perde sentido
+     -- o ponto esta a sessenta metros, e a altura dele nao diz nada sobre o
+     comodo de ninguem.
+
+     O que vale agora e PARA ONDE SE OLHA: para cima, a obra; para baixo, a
+     sala real. A passagem acontece em volta do horizonte, e e o mesmo par
+     inicio/fim que a controla -- so que agora em fracao do quarto de volta,
+     e nao de pe-direito. Por isso ela pode subir bem mais alto sem que o
+     ceu deixe de existir. */
+  float h = clamp(dir.y, 0.0, 1.0);     // 0 no horizonte, 1 no zenite
   float grad = smoothstep(inicio, fim, h);
   float a = tinta * grad;
 
@@ -1701,7 +1761,9 @@ function subirRaizes(s){
     ((nIdxR+nIdxS)/3).toLocaleString('pt-BR');
 }
 (function(){
-  const s = montarSala();
+  // 48 x 32 = 3 072 triangulos. Numa cupula que ocupa o campo inteiro,
+  // menos que isso faz o horizonte virar poligono visivel.
+  const s = montarCupula(32, 48);
   enviar(bS.pos,s.pos); enviar(bS.nor,s.nor); enviar(bS.uv,s.uv); enviar(bS.tipo,s.tipo);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bS.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
@@ -2012,26 +2074,35 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
 
 /* O ajuste de cada cenario. Nao sao gostos avulsos: cada linha e o clima
    descrito no roteiro, traduzido nos controles que ja existiam. */
+/* INICIO e FIM agora sao ANGULO, nao pe-direito.
+
+   0 e o horizonte, 1 e o zenite. O ceu comeca a existir em "ini" e esta
+   cheio em "fim" — entao abaixo de "ini" fica a sala real, e e por isso que
+   se ve o chao.
+
+   Os valores subiram: com a caixa, a graduacao ficava baixa e o ceu descia
+   pelas paredes, que era metade da sensacao de estar num quarto pintado.
+   Numa cupula, subir a passagem devolve o horizonte — o que esta em cima e
+   obra, o que esta na altura dos olhos e a sala de quem visita. */
+/* A NUVEM CEDE, E A MARMORIZACAO APARECE.
+
+   A nuvem tapava o cenario. Mas o problema nao era ela existir: era a MASSA
+   dela, o leitoso, que e o que enche o espaco de neblina. A marmorizacao —
+   os veios, as gotas, os rastelos — e o que se quer ver, e ela estava
+   afogada dentro da propria nuvem.
+
+   Entao "nuvem" cai para perto de um terco, "leite" cai junto, e "marmore"
+   sobe. O resultado e menos nuvem e mais desenho: da para ver atraves, que
+   era o criterio. */
 const CENAS = {
-  /* O CEU DO PRIMEIRO CENARIO E O COSMICO, e nao a aquarela da floresta.
-
-     O roteiro abre com "a sala real; o ceu estrelado ja esta la" — o alto
-     tem que ser escuro. A pintura clara da floresta no teto fazia o
-     contrario: iluminava justo onde a obra precisa de noite, e num
-     passthrough de sala escura isso le como tela acesa, nao como ceu.
-     A floresta continua sendo a floresta: ela nasce embaixo, do chao.
-
-     A poeira caiu de 1800 para 900: as estrelas cadentes eram tantas que
-     viravam chuva, e chuva nao e acontecimento — e clima. Poucas caindo se
-     enxergam uma a uma, que e o que faz cada uma valer. */
-  1: { ceu:1, ceuB:1, tinta:0.85, nuvem:0.55, marmore:0.80, leite:0.32,
-       poeira:900, sopro:1.0, raizes:1, ini:0.10, fim:0.80, inverter:0 },
-  2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.18, marmore:0.55, leite:0.18,
-       poeira:2600, sopro:0.5, raizes:0, ini:0.00, fim:0.30, inverter:0 },
-  3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.42, marmore:0.85, leite:0.48,
-       poeira:1100, sopro:1.5, raizes:0, ini:0.28, fim:0.95, inverter:0 },
-  4: { ceu:1, ceuB:0, tinta:0.82, nuvem:0.30, marmore:0.70, leite:0.35,
-       poeira:2000, sopro:0.8, raizes:0, ini:0.02, fim:0.50, inverter:1 },
+  1: { ceu:1, ceuB:1, tinta:0.85, nuvem:0.20, marmore:0.95, leite:0.14,
+       poeira:900, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
+  2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.07, marmore:0.78, leite:0.08,
+       poeira:2600, sopro:0.5, raizes:0, ini:0.12, fim:0.58, inverter:0 },
+  3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.16, marmore:0.98, leite:0.20,
+       poeira:1100, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
+  4: { ceu:1, ceuB:0, tinta:0.82, nuvem:0.11, marmore:0.88, leite:0.15,
+       poeira:2000, sopro:0.8, raizes:0, ini:0.10, fim:0.55, inverter:1 },
 };
 
 function cenaEm(t){
@@ -3292,6 +3363,7 @@ const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(
             fase:gl.getAttribLocation(progRaiz,'aFase')};
 const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
+const locSalaCentro = gl.getUniformLocation(progSala,'centro');
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
 const uBo = n=>gl.getUniformLocation(progBolha,n);
@@ -3502,6 +3574,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.fim, degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.inverter, inverterCeu);
+    /* A CUPULA ACOMPANHA A CABECA e nao escreve profundidade. Andando pela
+       sala, ela anda junto: nenhum paralaxe, e o olho le como distante. E
+       como nao ocupa profundidade, tudo o mais passa na frente dela. */
+    gl.uniform3f(locSalaCentro, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.depthMask(false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
     gl.uniform1i(locS.panoB, 4);
