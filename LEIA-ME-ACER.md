@@ -409,33 +409,36 @@ deixa de disfarçar e o que se move ganha rastro visível.
 
 ## 11. O que falta
 
-### O teste foi feito em 06/09, e deu negativo
+### O teste de rastreamento: o que se concluiu errado, e o que é verdade
 
-**O Quest não acha as mãos no escuro do estande.** Era o risco que este
-arquivo apontava como o maior do projeto, e ele se confirmou. O rastreamento
-de mão é por visão: sem luz, não há o que ver.
+**Em 06/09 o teste de mão falhou, e concluímos que era a escuridão da sala.
+Estava errado.** Medido no aparelho em 06/09, à noite, na mesma luz:
 
-Isso derruba a interação como estava planejada — **não a obra**. A partitura
-sempre correu sozinha, e continua correndo: quem não interage é conduzido.
+```
+RM-ABRIU espaco=local-floor
+features = viewer, plane-detection, webxr, hit-test,
+           anchors, local, local-floor, hand-tracking
+MAO-0 apareceu tipo=mao-nua
+MAO-1 apareceu tipo=mao-nua
+```
 
-**As três saídas, e a primeira já está feita:**
+As duas mãos, rastreadas, na luz que temos. **O rastreamento sempre
+funcionou.**
 
-**1. A luz sobe só nas janelas.** A obra pede escuro; a câmera pede luz. Mas
-não pede as duas ao mesmo tempo: as mãos só são necessárias em três
-momentos, somando pouco mais de dois minutos dos dez. A lâmpada da sala sobe
-para 85% nessas janelas e volta a 35% fora delas. Implementado e testado no
-aparelho — `fontes/luz-segue-cena.mjs`.
+O que havia era que **a obra nunca pediu `hand-tracking`**. Quando os
+recursos opcionais foram a zero para destravar a sessão, ele foi junto — e
+sem pedir, o WebXR não entrega mão nenhuma, com ou sem luz. Uma linha de
+código produziu uma conclusão sobre iluminação que quase redesenhou o
+projeto.
 
-**2. Os controles Touch no lugar das mãos.** Eles têm emissores próprios e
-não dependem de a câmera enxergar pele. É o caminho mais robusto num estande
-escuro, e o custo é entregar um controle a cada visitante — o que muda a
-recepção da obra, não o código.
+> A lição não é sobre WebXR: é que **um teste negativo só vale se o que se
+> testa estiver ligado**. Antes de concluir sobre o mundo, confira se o
+> aparelho foi de fato solicitado.
 
-**3. Nenhuma interação.** A obra roda inteira sozinha. É a versão que existe
-hoje, e a única que não depende de mais nada.
-
-> O que **não** funciona é insistir na mão nua com a luz que a obra pede.
-> Isso já foi medido.
+**A luz continua importando**, mas por outro motivo: ela é cenografia da
+obra, e o `fontes/luz-segue-cena.mjs` já a faz seguir o cenário e subir nas
+três janelas de interação. Isso agora é escolha estética, não muleta
+técnica.
 
 ### Decidido, mas não construído
 

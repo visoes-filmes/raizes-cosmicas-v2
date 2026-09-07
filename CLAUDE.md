@@ -72,22 +72,54 @@ do headset.
 
 ## O que o Quest faz e ninguém espera
 
+**A regra que custou uma noite inteira: em WebXR, nunca `await` em nada de
+que a obra não precise para existir.** Três promessas penduraram no Quest
+num único dia — `dom-overlay`, o pedido de permissão, e
+`updateTargetFrameRate`. Elas não resolvem, não falham, e **`try` não pega
+promessa que nunca volta**. A terceira travou a obra com a sessão já aberta:
+tela preta, mãos aparecendo por cima, e nenhum erro em lugar nenhum.
+
 **Nenhum DOM existe dentro do headset.** O navegador do Quest não suporta
-`dom-overlay` em `immersive-ar` — e **não recusa: pendura a promessa**. Não
-volta, não falha, não chama o `catch`. Qualquer botão que precise ser tocado
-dentro da obra tem que ser **desenhado na cena**.
+`dom-overlay` em `immersive-ar` — e pendura em vez de recusar. O que precisar
+ser tocado dentro da obra tem que ser **desenhado na cena**.
 
-**Peça só `local-floor`.** Medido no aparelho: o pedido mínimo resolve na
-hora. Somar `plane-detection`, `anchors` ou `hit-test` pendura do mesmo
-jeito. A lista de opcionais está em zero de propósito.
+**Nada em `requiredFeatures`.** Exigir significa "se não puder dar, não abra
+nada". Tudo é opcional; o que vier, vem. Medido no aparelho, o Quest concede:
+`viewer, plane-detection, webxr, hit-test, anchors, local, local-floor,
+hand-tracking` — e 72 Hz.
 
-**Toda promessa de XR precisa de prazo.** A lição maior não é sobre nenhum
-recurso específico: uma promessa que nunca volta não aciona nenhum
-tratamento de erro que se escreva.
+**O chão pode faltar.** `local-floor` só existe quando o Quest mapeou o
+espaço. Sem ele, cai-se em `local` deslocado pela altura dos olhos: a obra
+abre torta em vez de não abrir.
 
-**E a entrada em RM não é condição para a obra existir.** Se a sessão não
-abrir em oito segundos, a obra corre assim mesmo. Numa feira com fila, é
-melhor a obra achatada do que ninguém entendendo por que nada acontece.
+**A permissão é humana e não tem pressa.** O Quest mostra a caixa dentro do
+capacete e a promessa espera. Qualquer prazo curto aí não é prudência, é
+sabotagem — e o pedido pendurado ainda envenena todos os seguintes, porque o
+aparelho só admite uma sessão por vez.
+
+**A entrada em RM não é condição para a obra existir.** Recusada, ela corre
+na tela com o motivo escrito no portão.
+
+---
+
+## Testar no aparelho
+
+```bash
+python fontes/servir.py 8766        # CERT=<pasta> para HTTPS na rede
+```
+
+Um servidor por pedido, sem cache. O de prateleira (`http.server`) atende uma
+conexão por vez, e com 7 MB num arquivo só o Quest desiste no meio — aparece
+como "carrega as imagens e nada acontece".
+
+**A obra relata o que acontece dentro do headset** pedindo `/_relato/…` ao
+servidor: cada passo sai no log com `>>`. Dentro do capacete não há console,
+e a depuração remota do Quest cai com facilidade. É bilhete jogado pela
+janela, e funciona quando o resto não.
+
+> **Produção é só `visoes-filmes.github.io`.** Qualquer outro endereço é
+> teste. A regra já foi `localhost` e furou no primeiro teste pela rede: a
+> obra se achou publicada, guardou cache e calou os relatos.
 
 ---
 
