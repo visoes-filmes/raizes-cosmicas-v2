@@ -527,6 +527,64 @@ function semearMata(semente){
 }
 
 /* ═══════════ geometria da sala ═══════════ */
+/* ═══════════ A MATA VIRA NUVEM DE PONTOS ═══════════
+
+   A planta continua sendo construida como malha — ela e a FORMA de onde os
+   pontos saem, e continua sendo ela que decide a silhueta. Mas a malha nao
+   e mais desenhada: o que se ve sao pontos amostrados na superficie dela.
+
+   POR QUE. A queixa era que os objetos "parecem cubas": textura de aquarela
+   esticada sobre superficie curva enruga, emenda e inventa concavidade onde
+   nao ha. Ponto nao tem UV para distorcer. O defeito deixa de existir em vez
+   de ser consertado.
+
+   E A PINTURA NAO SE PERDE. Cada ponto guarda a coordenada de textura do
+   lugar da malha de onde saiu, e busca ali a sua cor. A tinta da Odara
+   continua decidindo tudo — so que ponto a ponto, como pigmento, em vez de
+   esticada como papel de parede.
+
+   A amostragem e por AREA: um triangulo grande recebe mais pontos que um
+   pequeno, senao a ponta fina de um galho fica tao densa quanto o tronco e
+   a planta vira um bicho de pelucia. */
+function amostrarSuperficie(s, porMetroQuadrado, semente){
+  const rnd = prng(semente);
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const P = s.pos, U = s.uv, A = s.alt, F = s.fase, I = s.idx;
+
+  for(let k = 0; k < I.length; k += 3){
+    const a = I[k], b = I[k+1], c = I[k+2];
+    const ax=P[a*3], ay=P[a*3+1], az=P[a*3+2];
+    const bx=P[b*3], by=P[b*3+1], bz=P[b*3+2];
+    const cx=P[c*3], cy=P[c*3+1], cz=P[c*3+2];
+    // area pelo produto vetorial: metade do modulo
+    const ux=bx-ax, uy=by-ay, uz=bz-az;
+    const vx=cx-ax, vy=cy-ay, vz=cz-az;
+    const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    const area = 0.5 * Math.sqrt(nx*nx+ny*ny+nz*nz);
+
+    let quantos = area * porMetroQuadrado;
+    // a parte fracionaria vira sorteio, senao triangulos pequenos somem
+    quantos = Math.floor(quantos) + (rnd() < (quantos % 1) ? 1 : 0);
+
+    for(let i = 0; i < quantos; i++){
+      // ponto uniforme dentro do triangulo: a raiz quadrada corrige o vies
+      // que jogaria tudo para um canto
+      let r1 = Math.sqrt(rnd()), r2 = rnd();
+      const w0 = 1 - r1, w1 = r1 * (1 - r2), w2 = r1 * r2;
+      n.pos.push(ax*w0 + bx*w1 + cx*w2,
+                 ay*w0 + by*w1 + cy*w2,
+                 az*w0 + bz*w1 + cz*w2);
+      n.uv.push(U[a*2]*w0 + U[b*2]*w1 + U[c*2]*w2,
+                U[a*2+1]*w0 + U[b*2+1]*w1 + U[c*2+1]*w2);
+      n.alt.push(A[a]*w0 + A[b]*w1 + A[c]*w2);
+      n.fase.push(F[a]);
+      // tamanhos desiguais: nuvem de pontos iguais le como grade
+      n.tam.push(0.5 + rnd()*1.1);   // desiguais: pontos iguais leem como grade
+    }
+  }
+  return n;
+}
+
 function quad(s, p0,p1,p2,p3, repU, repV, tipo){
   const b = s.pos.length/3;
   const u = sub(p1,p0), v = sub(p3,p0);
@@ -601,6 +659,70 @@ function montarSala(){
 }
 
 /* ═══════════ shaders ═══════════ */
+/* ═══════════ A MATA EM PONTOS ═══════════
+   O mesmo crescimento e o mesmo balanco da malha, ponto a ponto. O que muda
+   e que aqui nao ha superficie: a cor vem da aquarela pelo UV que o ponto
+   herdou, e o tamanho na tela cai com a distancia como cai qualquer coisa
+   que se afasta. */
+const VS_MATA = `
+attribute vec3 aPos; attribute vec2 aUV; attribute float aAlt, aFase, aTam;
+uniform mat4 mvp; uniform float tempo, crescimento, escalaPonto;
+varying vec2 vUV; varying float vAlt, vVivo;
+void main(){
+  vec3 p = aPos;
+
+  /* NASCE DE BAIXO PARA CIMA, igual a malha: a frente de crescimento sobe
+     pela planta, e o que esta acima dela ainda nao existe. */
+  float frente = crescimento * 1.25;
+  float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
+  vivo = vivo * vivo * (3.0 - 2.0 * vivo);
+  p.y *= vivo;
+  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
+
+  // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
+  float b = aAlt*aAlt;
+  float w = tempo*0.55 + aFase;
+  p.x += sin(w)*0.055*b;
+  p.z += cos(w*0.83+1.3)*0.045*b;
+
+  vec4 vista = mvp * vec4(p,1.0);
+  gl_Position = vista;
+
+  /* O TAMANHO CAI COM A DISTANCIA. Sem isto os pontos de uma planta longe
+     ficam do mesmo tamanho dos de uma perto, e a mata inteira vira papel
+     picado colado no vidro. */
+  gl_PointSize = clamp(aTam * escalaPonto / max(vista.w, 0.15), 1.0, 9.0);
+
+  vUV = aUV; vAlt = aAlt; vVivo = vivo;
+}`;
+const FS_MATA = `
+/* HIGHP, E NAO MEDIUMP. No shader de vertice float e highp por padrao, e
+   varying com precisao diferente entre os dois estagios NAO LINKA — e nao
+   linkar nao aparece como erro: os pontos simplesmente nao sao desenhados.
+   E a armadilha numero 5 da lista deste projeto, e ela pegou de novo. */
+precision highp float;
+uniform sampler2D casca;
+uniform float presenca;
+varying vec2 vUV; varying float vAlt, vVivo;
+void main(){
+  /* PONTO REDONDO, E COM BORDA MACIA. Quadrado le como pixel, e pixel e a
+     unica coisa que nao pode aparecer numa obra de aquarela. */
+  vec2 d = gl_PointCoord - 0.5;
+  float r = dot(d,d) * 4.0;
+  if(r > 1.0) discard;
+  float borda = 1.0 - smoothstep(0.45, 1.0, r);
+
+  /* A COR VEM DA PINTURA. O ponto guarda de onde saiu na malha e busca ali
+     a sua tinta: a aquarela decide tudo, so que como pigmento e nao como
+     papel de parede esticado. */
+  vec3 c = texture2D(casca, vUV).rgb;
+
+  // a ponta nova e mais clara, como broto de verdade
+  c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
+
+  gl_FragColor = vec4(c, borda * presenca * vVivo);
+}`;
+
 const VS_RAIZ = `
 attribute vec3 aPos, aNor; attribute vec2 aUV; attribute float aAlt, aFase;
 uniform mat4 mvp; uniform float tempo;
@@ -1609,6 +1731,7 @@ function programa(v,f){
   return p;
 }
 const progRaiz = programa(VS_RAIZ, FS_RAIZ);
+const progMata = programa(VS_MATA, FS_MATA);
 const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
@@ -1724,12 +1847,16 @@ function criarBufs(nomes){
   return o;
 }
 const bR = criarBufs(['pos','nor','uv','alt','fase','idx']);
+const bM = criarBufs(['pos','uv','alt','fase','tam']);
 const bS = criarBufs(['pos','nor','uv','tipo','idx']);
 const bF = criarBufs(['centro','canto','dado','tam','idx']);
 const bP = criarBufs(['pos','cor','dado']);
 const bE = criarBufs(['pos','idx']);
 const bQ = criarBufs(['xy']);
 let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0, nIdxE = 0;
+// quantos pontos a mata tem — declarado aqui porque subirRaizes o preenche
+// muito antes de o programa de pontos existir
+let nMata = 0;
 /* A fila existe antes de alguem empurrar nela: "enviar" so e chamavel
    depois que os buffers foram criados, entao a subida da esfera espera
    aqui e e executada mais abaixo. */
@@ -1756,6 +1883,14 @@ function subirRaizes(s){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
   nIdxR = s.idx.length;
+
+  /* A NUVEM SAI DA MESMA MALHA. 2 600 pontos por metro quadrado: abaixo
+     disso a planta fica rala e se ve o vazio entre os pontos; muito acima
+     ela volta a parecer solida e o ganho se perde. */
+  const nuvem = amostrarSuperficie(s, 14000, 7717);
+  enviar(bM.pos, nuvem.pos); enviar(bM.uv, nuvem.uv);
+  enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
+  nMata = nuvem.pos.length/3;
   document.getElementById('vRaiz').textContent = totalRaizes;
   document.getElementById('vTri').textContent =
     ((nIdxR+nIdxS)/3).toLocaleString('pt-BR');
@@ -2930,10 +3065,16 @@ if(emTesteLocal){
       tinta=a.tinta; presenca=a.nuvem; marmore=a.marmore; leitoso=a.leite;
       sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
       inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
+      /* Saltar tem que acertar TAMBEM o que a partitura calcula por quadro
+         -- crescimento, presencas, agua. Sem isto, num navegador que limita
+         os quadros o salto muda o relogio e nao muda a cena, e se conclui
+         que a obra quebrou quando ela so nao teve um quadro para pensar. */
+      seguirPartitura(0);
       return this.onde();
     },
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
-    onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando}; },
+    onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
+                     pontosDaMata: nMata, crescimento: +crescimento.toFixed(2)}; },
     pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; }
   };
 }
@@ -3350,6 +3491,13 @@ async function entrarXR(aoEntrar){
 bXR.onclick = ()=>{ entrarXR(); };
 
 /* ═══════════ desenho ═══════════ */
+const uM = n=>gl.getUniformLocation(progMata,n);
+const locM = {mvp:uM('mvp'), tempo:uM('tempo'), crescimento:uM('crescimento'),
+              escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca')};
+const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(progMata,'aUV'),
+            alt:gl.getAttribLocation(progMata,'aAlt'), fase:gl.getAttribLocation(progMata,'aFase'),
+            tam:gl.getAttribLocation(progMata,'aTam')};
+
 const uR = n=>gl.getUniformLocation(progRaiz,n);
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
@@ -3538,25 +3686,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
   // 1) RAÍZES PRIMEIRO, opacas. Se a sala translúcida viesse antes, ela
   //    gravaria profundidade e apagaria as raízes atrás dela.
-  if(raizesOn && nIdxR > 0){
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
-    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
-    gl.useProgram(progRaiz);
-    soltarAtributos();
-    mandarMvp(locR.mvp, mvp);
-    gl.uniform1f(locR.tempo, relogio);
-    gl.uniform1f(locR.crescimento, crescimento);
-    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-    gl.uniform1i(locR.tex, 2);
-    ligar(aR.pos,bR.pos,3); ligar(aR.nor,bR.nor,3); ligar(aR.uv,bR.uv,2);
-    ligar(aR.alt,bR.alt,1); ligar(aR.fase,bR.fase,1);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
-    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
-    gl.disable(gl.CULL_FACE);
-  }
+  /* 1) O CEU PRIMEIRO, porque e o fundo de tudo.
 
-  // 2) SALA DEPOIS, com mistura e SEM gravar profundidade: superfície
+     Ele vinha depois da mata, e funcionava enquanto a mata era malha
+     opaca: ela escrevia profundidade e a cupula batia nela. Com a mata em
+     PONTOS, que nao escrevem profundidade, a cupula passou a pintar por
+     cima e a floresta sumiu inteira -- sem erro nenhum, so ausencia.
+
+     Ceu se desenha primeiro. E o unico lugar onde a ordem nao e escolha. */
   //    translúcida não deve esconder nada, só somar por cima.
   if(salaVisivel && nIdxS > 0){
     gl.enable(gl.BLEND);
@@ -3589,6 +3726,40 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  if(raizesOn && nIdxR > 0){
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    /* A MATA E DESENHADA COMO NUVEM, e nao como malha.
+
+       A malha continua existindo e continua decidindo a silhueta -- e dela
+       que os pontos sairam. O que deixou de existir e a SUPERFICIE, e com
+       ela a textura esticada que fazia tronco e cogumelo parecerem cuba.
+
+       Sobreposicao sem escrever profundidade: pontos que se cobrem devem se
+       acumular como pigmento sobre pigmento. Escrevendo profundidade, o
+       primeiro ponto de cada pixel recortaria os de tras e a nuvem viraria
+       recorte chapado. */
+    gl.useProgram(progMata);
+    soltarAtributos();
+    gl.disable(gl.CULL_FACE);
+    gl.enable(gl.BLEND);          // o bloco chega aqui com a mistura desligada
+    sobrepor();
+    gl.depthMask(false);
+    mandarMvp(locM.mvp, mvp);
+    gl.uniform1f(locM.tempo, relogio);
+    gl.uniform1f(locM.crescimento, crescimento);
+    gl.uniform1f(locM.escala, escalaPonto * 0.115);
+    gl.uniform1f(locM.presenca, 1.0);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1i(locM.casca, 2);
+    ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
+    ligar(aM.alt,bM.alt,1); ligar(aM.fase,bM.fase,1); ligar(aM.tam,bM.tam,1);
+    gl.drawArrays(gl.POINTS, 0, nMata);
+    gl.depthMask(true);
+    gl.disable(gl.CULL_FACE);
   }
 
   /* 2b) OS ASTROS. Opacos e com profundidade: sao corpos, nao vapor —
