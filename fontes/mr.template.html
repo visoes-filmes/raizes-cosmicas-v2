@@ -855,7 +855,20 @@ void main(){
      O smoothstep devolve esse rarear: o que ja era quase opaco continua
      opaco, e a franja translucida do recorte vira transicao em vez de
      serrilha. E o gesto de quem levanta o pincel. */
-  float a = smoothstep(0.04, 0.55, c.a) * presenca;
+  /* A NEVOA QUE DESENHAVA O RETANGULO.
+
+     Medido nos arquivos: 13 a 15% de cada figura e tinta fraquissima
+     (alfa entre 1 e 90), espalhada por TODA a imagem. Espalhada assim ela
+     nao vira desenho: vira um veu leitoso que cobre o quadrado inteiro do
+     recorte — e o olho le a borda desse veu como uma moldura retangular,
+     mesmo sem nenhuma linha ali.
+
+     Duas coisas contra isso. O corte comeca mais alto, entao o que era
+     quase nada passa a ser nada mesmo. E o que sobra e elevado a uma
+     potencia: o meio-tom cede muito, o opaco quase nao sente. O desenho
+     continua inteiro; o que some e so o veu. */
+  float a = smoothstep(0.17, 0.62, c.a);
+  a = pow(a, 1.5) * presenca;
 
   /* O PE SE DISSOLVE, E ISSO NAO E ESTILO: E CONSERTO.
 
@@ -889,7 +902,16 @@ void main(){
      recebe um pouco do ar em volta — muito na franja, quase nada no miolo,
      que e como a atmosfera se comporta: contorna antes de atravessar. */
   float franja = 1.0 - smoothstep(0.35, 0.95, c.a);
-  c.rgb = mix(c.rgb, c.rgb * ambiente * 1.35, franja * 0.65);
+  c.rgb = mix(c.rgb, c.rgb * ambiente * 1.35, franja * 0.85);
+
+  /* E O QUE NAO E MIOLO NAO COBRE: SOMA.
+
+     Uma figura translucida desenhada por cima esconde o cenario atras
+     dela, e esconder e o que faz um recorte parecer colado sobre a cena em
+     vez de estar dentro dela. Na franja, ela passa a se comportar como
+     tinta sobre vidro: clareia o que esta atras sem apagar. E por isso que
+     o fundo continua legivel atraves dos contornos. */
+  c.rgb *= mix(1.0, 0.55, franja);
 
   /* E ela nao brilha mais que o mundo. O recorte vinha da pintura, onde
      era o assunto e podia ocupar toda a luz. Aqui e uma presenca dentro de
