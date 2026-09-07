@@ -2794,7 +2794,7 @@ let crescimento = 1, sentidoPoeira = 1;
    rosa, em vez de ja estar la: subir e o que faz a pessoa perceber que
    entrou nela. */
 let aguaPresenca = 0;
-let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0;
+let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0, fundoDoMar = 0;
 
 /* AS MAOS. Dois pontos no espaco, e cada um pode estar tocando alguma
    coisa. Vale igual para a mao nua e para o controle Touch: o WebXR
@@ -2929,6 +2929,15 @@ function seguirPartitura(dt){
   crescimento = (c === 1) ? rampa(15, 69, t) : 0;
 
   /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
+  /* O MAR EXISTE POR SI. Ele estava preso a agua: so aparecia quando ela
+     subia, e sumia quando ela baixava. Mas o fundo nao e consequencia da
+     lamina — a agua e que subiu SOBRE um fundo que ja estava la. Preso a
+     ela, o cenario 3 comecava vazio e so ganhava mundo depois, o que e o
+     contrario do que a cena conta.
+
+     Agora ele nasce com o cenario e sai com ele. */
+  fundoDoMar = rampa(386, 402, t) * (1 - rampa(516, 530, t));
+
   aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
 
   /* O casulo existe do momento em que a arvore termina de crescer ate a
@@ -4058,7 +4067,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
     /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
        subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
-    if(bMar && nMar && aguaPresenca > 0.004){
+    if(bMar && nMar && fundoDoMar > 0.004){
       gl.useProgram(progMata);
       soltarAtributos();
       gl.enable(gl.BLEND);
@@ -4070,7 +4079,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locM.escalaObj, 1.0);
       gl.uniform3f(locM.desloca, 0, 0, 0);
       gl.uniform1f(locM.escala, escalaPonto * 0.115);
-      gl.uniform1f(locM.presenca, aguaPresenca);
+      gl.uniform1f(locM.presenca, fundoDoMar);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
       ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
