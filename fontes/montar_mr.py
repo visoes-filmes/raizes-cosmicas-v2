@@ -139,6 +139,22 @@ faltando = [k for k in mapa if k in html]
 print(f"\nMarcadores nao substituidos: {faltando if faltando else 'nenhum'}")
 print(f"Gerado: {saida}  ({len(html)//1024} KB)")
 
+# A COPIA DE TESTE, sempre junto.
+#
+# O headset carrega /nova.html e nao /index.html, por um motivo bobo e real:
+# ha um service worker antigo instalado no aparelho que intercepta o
+# index.html e serve a versao dele, do cache, ignorando o servidor. Um
+# endereco que ele nao conhece passa direto.
+#
+# Ela era copiada a mao, e por duas vezes eu a apaguei ao limpar a pasta --
+# o headset passou a receber 404 e a mostrar a versao de horas antes, e se
+# perdeu tempo achando que a obra e que tinha quebrado. Agora o montador
+# cuida disso.
+if saida == os.path.join(RAIZ, "index.html"):
+    import shutil
+    shutil.copy(saida, os.path.join(RAIZ, "nova.html"))
+    print("Copia de teste: nova.html (e esta que o headset abre)")
+
 
 # --------------------- A VERSAO DO CACHE, SOZINHA ---------------------
 #

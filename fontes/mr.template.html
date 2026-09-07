@@ -2500,7 +2500,7 @@ const CENAS = {
   2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.07, marmore:0.78, leite:0.08,
        poeira:2600, sopro:0.5, raizes:0, ini:0.12, fim:0.58, inverter:0 },
   3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.16, marmore:0.98, leite:0.20,
-       poeira:1100, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
+       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
   4: { ceu:1, ceuB:0, tinta:0.82, nuvem:0.11, marmore:0.88, leite:0.15,
        poeira:2000, sopro:0.8, raizes:0, ini:0.10, fim:0.55, inverter:1 },
 };
@@ -2531,18 +2531,18 @@ function inicioDaCena(t){
 const NIVEL_AGUA = 0.95;
 
 /* ═══════════ ONDE FICAM OS BURACOS E OS SERES ═══════════ */
-const BURACOS = [];
-(function(){
-  const r = prng(6161);
-  for(let i=0;i<3;i++){
-    const ang = r() * Math.PI * 2;
-    const d = 3.2 + r() * 1.8;
-    BURACOS.push({
-      x: Math.sin(ang) * d, y: 1.7 + r() * 1.5, z: -Math.cos(ang) * d,
-      raio: 0.42 + r() * 0.34, fase: r() * 6.283,
-    });
-  }
-})();
+/* UM SO, E NO CHAO.
+
+   Eram tres, espalhados pelo alto. Tres buracos negros nao sao tres vezes
+   mais impressionantes que um: sao um efeito repetido, e repeticao tira
+   justamente o que faz um buraco negro funcionar, que e ser unico e
+   irreversivel.
+
+   E ele desce. No alto era mais um objeto no ceu; no chao, entre os pes de
+   quem visita, ele e um lugar onde nao se pode pisar. */
+const BURACOS = [
+  { x: 0.85, y: 0.18, z: -1.15, raio: 0.62, fase: 1.7 },
+];
 
 /* A CONCHA do planeta rosa, com o buraco negro dentro. Grande de proposito:
    ela precisa ser achada sem procura. Fica na borda do alcance — perto o
@@ -2630,12 +2630,23 @@ function ondeAsteroide(a, t){
 
    Todas ficam LONGE, na regiao que a Crisia chama de infinita — alem dos
    3 m, onde a falta de paralaxe esta correta e uma chapa nao se denuncia. */
+/* MAIS LONGE, E MAIORES NA MESMA MEDIDA.
+
+   A nota e precisa: "ela pode ficar grande, mas ao mesmo tempo distante,
+   pra percebermos melhor". Sao duas coisas, e uma sem a outra nao serve --
+   longe e pequena vira detalhe, perto e grande vira cartaz.
+
+   Elas moram na parte INFINITA do cenario, que e onde o roteiro sempre as
+   pos. Afastar e aumentar na mesma proporcao mantem o tamanho aparente e
+   muda o que importa: o PARALAXE. Andando pela sala, uma figura a doze
+   metros quase nao se desloca -- e e isso que o olho le como "esta longe",
+   nao o tamanho dela. */
 const FIGURAS = [
-  { nome:'galactico', tex:0, centro:[-3.4, 2.75, -5.6], tam:[2.3, 2.3],
+  { nome:'galactico', tex:0, centro:[-7.2, 4.60, -11.8], tam:[5.0, 5.0],
     de:206, ate:376, balanco:0.5, espelha:false },
-  { nome:'deusa',     tex:1, centro:[ 1.85, 1.72, -3.1], tam:[1.25, 1.35],
+  { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
     de:420, ate:508, balanco:0.9, espelha:true },
-  { nome:'integra',   tex:2, centro:[ 0.25, 2.35, -3.6], tam:[2.7, 2.7],
+  { nome:'integra',   tex:2, centro:[ 0.55, 4.20,  -8.2], tam:[6.2, 6.2],
     de:556, ate:594, balanco:0.35, espelha:false },
 ];
 
@@ -2737,11 +2748,21 @@ const SOL = [0.55, 3.15, -1.05];
    saturado sobre a nebulosa rosa some com o azul e o dourado que ela tem
    dentro. Entao a cor recua para perto do branco e fica so como um
    sopro — o suficiente para o planeta ainda se reconhecer de longe. */
+/* A COR VOLTA A SER COR.
+
+   Estavam quase brancas -- 0,90 a 1,00 nos tres canais -- por um raciocinio
+   que fazia sentido e nao funcionou: como a pele ja chega colorida, tingir
+   forte apagaria o que se foi buscar. So que multiplicar por quase-branco
+   nao preserva a pele: ACHATA. O planeta fica lavado, e a nota e direta --
+   "a cor dos planetas tem que ficar mais intensa".
+
+   Agora cada um puxa para a sua propria familia, e a pele desenha dentro
+   dela. */
 const PLANETAS = [
-  { nome:'rosa',    cor:[1.00, 0.90, 0.94], raio:0.235, achatar:1.00, pele:3, interativo:true  },
-  { nome:'agua',    cor:[0.88, 0.95, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false },
-  { nome:'fogo',    cor:[1.00, 0.88, 0.82], raio:0.185, achatar:1.06, pele:7, interativo:false },
-  { nome:'verde',   cor:[0.90, 1.00, 0.93], raio:0.215, achatar:0.90, pele:5, interativo:false },
+  { nome:'rosa',    cor:[1.00, 0.62, 0.78], raio:0.235, achatar:1.00, pele:3, interativo:true  },
+  { nome:'agua',    cor:[0.50, 0.78, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false },
+  { nome:'fogo',    cor:[1.00, 0.60, 0.38], raio:0.185, achatar:1.06, pele:7, interativo:false },
+  { nome:'verde',   cor:[0.62, 1.00, 0.74], raio:0.215, achatar:0.90, pele:5, interativo:false },
 ];
 
 function rampa(a, b, x){
@@ -2768,8 +2789,15 @@ function ondeEsta(i, t){
 
   // B — em volta da pessoa. O interativo fica dentro de 1,2 m, que e o
   // alcance util antes de a grade do guardian aparecer.
-  const rB = p.interativo ? 0.95 : 1.35;
-  const B = [Math.cos(w)*rB, 1.35 + Math.sin(w*1.6 + fase)*0.16, Math.sin(w)*rB];
+  /* MAIS LONGE E MAIS ALTO -- menos o rosa.
+
+     Orbitavam todos a pouco mais de um metro, na altura do peito: de perto
+     assim um planeta nao le como planeta, le como balao. A nota pede "mais
+     distantes, para cima; so esse fica mais perto (o rosa)" -- e faz
+     sentido, porque o rosa e o unico que se pega. */
+  const rB = p.interativo ? 0.95 : 2.6;
+  const alturaB = p.interativo ? 1.30 : 2.35;
+  const B = [Math.cos(w)*rB, alturaB + Math.sin(w*1.6 + fase)*0.22, Math.sin(w)*rB];
 
   // C — dispersos no ceu, cada um com espaco em volta
   const rC = 2.9 + (i % 2) * 0.6;
