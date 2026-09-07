@@ -1122,6 +1122,32 @@ void main(){
   }
   arte *= 1.0 + 0.05 * sin(tempo*0.5 + lon*2.0);
 
+  /* A NITIDEZ QUE A IMAGEM NAO TEM.
+
+     A panoramica e 2048 x 1024 cobrindo 360 graus: cerca de 5,7 pixels por
+     grau. O olho do Quest resolve muito mais que isso, entao ele nao ve
+     uma pintura -- ve uma pintura AMPLIADA, e ampliacao le como borrao.
+     Nao ha como inventar o pixel que nao foi pintado.
+
+     Mas da para devolver ESTRUTURA. A mesma imagem, lida numa frequencia
+     muito mais alta, vira um grao com a cor e o gesto da propria aquarela;
+     usada como MULTIPLICADOR em volta de 1, ela nao muda o desenho, muda a
+     superficie: onde havia leite liso agora ha fibra, e fibra e o que o
+     olho usa para julgar se algo esta em foco.
+
+     E o peso cresce com a inclinacao. No zenite a equirretangular converge
+     e ja tem detalhe de sobra; e perto do HORIZONTE que ela estica e
+     achata, e e la que o grao precisa entrar. */
+  float grao = texture2D(panorama, st * vec2(11.0, 7.0)).g;
+  float esticada = 1.0 - abs(dir.y);            // 0 no zenite, 1 no horizonte
+  arte *= 1.0 + (grao - 0.5) * 0.42 * esticada;
+
+  /* E UM SEGUNDO GRAO, mais fino e girado, para o primeiro nao virar
+     padrao. Duas frequencias que nao sao multiplo uma da outra nunca
+     fecham desenho -- e desenho repetido seria pior que o borrao. */
+  float grao2 = texture2D(panorama, st.yx * vec2(23.0, 17.0) + 0.37).r;
+  arte *= 1.0 + (grao2 - 0.5) * 0.22 * esticada;
+
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
   // Uso smoothstep e não uma rampa reta justamente pra não ter serrilhado:
   // a rampa reta tem quina no começo e no fim do trecho, e a quina é o
