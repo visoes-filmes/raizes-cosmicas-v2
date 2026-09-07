@@ -683,6 +683,70 @@ function prepararConcha(){
   nConcha = n.pos.length/3;
 }
 
+/* AS ESTRELAS COM FORMA DE ESTRELA.
+
+   A nota do cenario 1 e literal: "estrelas estaticas em formato de estrela
+   mesmo, mais distantes". A obra tinha pontos de luz — que sao poeira, nao
+   estrela — e a diferenca importa: ponto de luz e atmosfera, estrela e
+   objeto. Uma esta perto e passa; a outra esta longe e fica.
+
+   Elas moram numa CASCA DISTANTE, entre 14 e 22 metros, muito alem do
+   comodo. Nao crescem, nao balancam e nao se aproximam: e o que faz o olho
+   entender que estao fora do lugar onde a pessoa esta. */
+let bEstrelas = null, nEstrelas = 0;
+function prepararEstrelas(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(8823);
+  for(let i=0;i<46;i++){
+    // distribuidas na meia esfera de cima: nao ha estrela debaixo do chao
+    const lon = rnd()*Math.PI*2;
+    const lat = 0.12 + rnd()*1.3;              // do horizonte ao zenite
+    const raio = 14 + rnd()*8;
+    const base = [Math.cos(lat)*Math.sin(lon)*raio,
+                  Math.sin(lat)*raio,
+                  -Math.cos(lat)*Math.cos(lon)*raio];
+    /* GRANDES PORQUE ESTAO LONGE. A 20 metros, meio metro de estrela
+       ocupa menos de dois graus e o olho le como poeira — que e
+       exatamente o que a obra ja tinha e a nota pedia para trocar. Entre
+       um e tres metros, a 14-22 m, ela ocupa o bastante para a forma de
+       estrela aparecer sem virar objeto perto. */
+    plantarNuvem(n, 'star', base, 1.1 + rnd()*1.9, rnd()*6.28, 8800+i, 1.0);
+  }
+  if(!n.pos.length) return;
+  bEstrelas = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bEstrelas.pos,n.pos); enviar(bEstrelas.uv,n.uv); enviar(bEstrelas.alt,n.alt);
+  enviar(bEstrelas.fase,n.fase); enviar(bEstrelas.tam,n.tam);
+  nEstrelas = n.pos.length/3;
+}
+
+/* AS FOLHAS. Elas caem das arvores no primeiro cenario e ficam no chao —
+   a nota pedia folhinhas para arvores diferentes, e o modelo de folhas de
+   outono serve as duas coisas: no alto, presas; embaixo, caidas. */
+let bFolhas = null, nFolhas = 0;
+function prepararFolhas(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(6644);
+  for(let i=0;i<16;i++){
+    const ang = rnd()*Math.PI*2, raio = 0.6 + rnd()*2.2;
+    const alto = rnd() < 0.55;
+    plantarNuvem(n, alto ? 'autumn-leaves-icon' : 'autumn-leaves-icon-22705',
+                 [Math.sin(ang)*raio, alto ? 1.1 + rnd()*1.4 : 0.02,
+                  -Math.cos(ang)*raio],
+                 0.10 + rnd()*0.16, rnd()*6.28, 6600+i, 1.0);
+  }
+  for(let i=0;i<6;i++){    // trevo e soja rasteiros, entre a grama
+    const ang = rnd()*Math.PI*2, raio = 0.5 + rnd()*1.8;
+    plantarNuvem(n, i%2 ? 'clover-icon' : 'soya-icon',
+                 [Math.sin(ang)*raio, 0, -Math.cos(ang)*raio],
+                 0.12 + rnd()*0.10, rnd()*6.28, 6700+i, 0.0);
+  }
+  if(!n.pos.length) return;
+  bFolhas = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bFolhas.pos,n.pos); enviar(bFolhas.uv,n.uv); enviar(bFolhas.alt,n.alt);
+  enviar(bFolhas.fase,n.fase); enviar(bFolhas.tam,n.tam);
+  nFolhas = n.pos.length/3;
+}
+
 let bLuva = null, nLuva = 0;
 function prepararLuva(){
   const m = decodificarNuvem('hand-icon');
@@ -2106,6 +2170,8 @@ function subirRaizes(s){
 })();
 for(const f of enviarDepois) f();
 prepararLuva();
+prepararEstrelas();
+prepararFolhas();
 prepararFundoDoMar();
 prepararConcha();
 function subirPoeira(s){
@@ -2813,7 +2879,11 @@ let t = 0, andando = false, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
 /* O primeiro minuto tem dois movimentos proprios, e a partitura conduz os
    dois: a poeira CAI enquanto as estrelas chegam, e a floresta NASCE de
    onde elas tocam. Fora desse trecho a poeira volta a ser ambiente. */
-let crescimento = 1, sentidoPoeira = 1;
+/* COMECA EM ZERO. Estava em 1, e a obra abria com a floresta ja feita: o
+   nascimento -- que e o primeiro acontecimento da partitura, aos 0:15 --
+   nunca acontecia para quem entrava. Ninguem via, porque quem testa salta
+   direto para o meio. */
+let crescimento = 0, sentidoPoeira = 1;
 /* Quanto a agua ja subiu. Ela SOBE ate a cintura ao chegar no planeta
    rosa, em vez de ja estar la: subir e o que faz a pessoa perceber que
    entrou nela. */
@@ -2924,6 +2994,7 @@ function seguirPartitura(dt){
          faz a descontinuidade cair exatamente onde tudo se desmancha e
          recomeca, que e o unico lugar onde ela nao aparece. */
       relogio = 0;
+      crescimento = 0;   // a volta recomeca sem floresta: ela nasce de novo
     }
   }
   const c = cenaEm(t);
@@ -2962,7 +3033,13 @@ function seguirPartitura(dt){
      cenario nao e a existencia dela, e a presenca: cheia na floresta, um
      fio de tinta nos outros — presente para quem procurar, discreta para
      quem nao. */
-  crescimento = Math.max(crescimento, rampa(15, 69, t));
+  /* Cresce uma vez e fica crescida — mas SO enquanto a volta e a mesma.
+     Com Math.max puro, o laco de dez minutos recomecaria com a floresta ja
+     feita, e o nascimento, que e o primeiro acontecimento da obra, nunca
+     mais aconteceria. No salto (dt zero) tambem se assenta no valor da
+     hora, senao voltar para o comeco mostraria o fim. */
+  const brotando = rampa(15, 69, t);
+  crescimento = dt > 0 ? Math.max(crescimento, brotando) : brotando;
 
   /* Um decimo e o suficiente para o olho registrar que ha alguma coisa ali
      sem que ela dispute com o cenario. Abaixo disso vira sujeira; acima,
@@ -3316,7 +3393,9 @@ if(emTesteLocal){
     },
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
     onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
-                     pontosDaMata: nMata, crescimento: +crescimento.toFixed(2)}; },
+                     pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
+                     estrelas: nEstrelas, folhas: nFolhas, mar: nMar,
+                     luva: nLuva, concha: nConcha}; },
     pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; }
   };
 }
@@ -4112,6 +4191,49 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
     }
+    /* AS ESTRELAS COM FORMA DE ESTRELA. Sempre la, como o ceu: elas nao
+       pertencem a um cenario, pertencem ao universo em que os cenarios
+       acontecem. Somam luz, entao brilham sem apagar o que esta atras. */
+    if(bEstrelas && nEstrelas){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.presenca, 0.85);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bEstrelas.pos,3); ligar(aM.uv,bEstrelas.uv,2);
+      ligar(aM.alt,bEstrelas.alt,1); ligar(aM.fase,bEstrelas.fase,1);
+      ligar(aM.tam,bEstrelas.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nEstrelas);
+
+      /* AS FOLHAS acompanham a floresta: mesma presenca da mata, porque
+         sao dela. */
+      if(bFolhas && nFolhas && presencaMata > 0.004){
+        sobrepor();
+        gl.uniform1f(locM.presenca, presencaMata);
+        gl.uniform1f(locM.crescimento, crescimento * 1.2);
+        ligar(aM.pos,bFolhas.pos,3); ligar(aM.uv,bFolhas.uv,2);
+        ligar(aM.alt,bFolhas.alt,1); ligar(aM.fase,bFolhas.fase,1);
+        ligar(aM.tam,bFolhas.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nFolhas);
+      }
+      gl.depthMask(true);
+      sobrepor();
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
+
     /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
        subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
     if(bMar && nMar && fundoDoMar > 0.004){
