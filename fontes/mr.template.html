@@ -546,6 +546,66 @@ function semearMata(semente){
    A amostragem e por AREA: um triangulo grande recebe mais pontos que um
    pequeno, senao a ponta fina de um galho fica tao densa quanto o tronco e
    a planta vira um bicho de pelucia. */
+/* ═══════════ OS MODELOS 3D, JA EM PONTOS ═══════════
+
+   Grama, alga, agua-viva, coral, concha, pedra, estrela, mao. Eles nao
+   chegam como malha: chegam como nuvens de pontos, assadas por
+   fontes/modelos_em_pontos.py na hora de montar.
+
+   Assim a obra continua sem carregador de GLB, sem biblioteca e sem
+   sistema de materiais — e o modelo entra na mesma linguagem de tudo o
+   mais, como pigmento. Ele contribui a FORMA; a cor continua vindo da
+   pintura da Odara.
+
+   Cada nuvem chega com o pe em y = 0 e altura 1, entao plantar e so dizer
+   onde e de que tamanho, em metros. */
+__NUVENS__
+
+function decodificarNuvem(nome){
+  const m = NUVENS[nome];
+  if(!m) return null;
+  const bruto = atob(m.pos);
+  const bytes = new Uint8Array(bruto.length);
+  for(let i=0;i<bruto.length;i++) bytes[i] = bruto.charCodeAt(i);
+  const pos = new Int16Array(bytes.buffer);
+  return { n: m.n, pos };            // milesimos de altura: dividir por 8000
+}
+
+/* PLANTAR UM MODELO dentro da nuvem da mata: os pontos dele entram nos
+   mesmos vetores, e a partir dai ele e a mata — cresce com a mesma frente,
+   balanca com o mesmo vento, e e desenhado na mesma chamada. Um modelo que
+   precisasse de chamada propria custaria mais do que a forma vale. */
+function plantarNuvem(n, nome, base, escala, giro, semente, altBase){
+  const m = decodificarNuvem(nome);
+  if(!m) return 0;
+  const rnd = prng(semente);
+  const cos = Math.cos(giro), sin = Math.sin(giro);
+  let postos = 0;
+  for(let i=0;i<m.n;i++){
+    const x = m.pos[i*3]/8000, y = m.pos[i*3+1]/8000, z = m.pos[i*3+2]/8000;
+    /* O DISCO DE BASE FICA DE FORA. Estes modelos vem com um pedestal — um
+       disco de terra, uma pedra sob a planta — que existe para o icone
+       pousar numa pagina. Aqui embaixo ja ha chao de verdade, visto pelas
+       cameras, e o pedestal seria uma mancha flutuando sobre ele. */
+    if(y < 0.12) continue;
+    n.pos.push(base[0] + (x*cos - z*sin) * escala,
+               base[1] +  y * escala,
+               base[2] + (x*sin + z*cos) * escala);
+    /* UV FALSA, DE PROPOSITO. O modelo nao traz coordenada de textura util
+       — e nem interessa a que ele traria, porque a pele dele nao entra na
+       obra. O que entra e a aquarela: cada ponto pega a tinta de um lugar
+       da pintura escolhido pela propria posicao, entao pontos vizinhos
+       recebem cores vizinhas e o objeto ganha variacao continua em vez de
+       chapado. */
+    n.uv.push(0.5 + x*0.6 + (z*0.17), 0.5 + y*0.55 - (x*0.13));
+    n.alt.push(altBase + y * (1 - altBase));   // cresce de baixo para cima
+    n.fase.push(rnd()*Math.PI*2);
+    n.tam.push(0.5 + rnd()*1.1);
+    postos++;
+  }
+  return postos;
+}
+
 function amostrarSuperficie(s, porMetroQuadrado, semente){
   const rnd = prng(semente);
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
@@ -1888,6 +1948,26 @@ function subirRaizes(s){
      disso a planta fica rala e se ve o vazio entre os pontos; muito acima
      ela volta a parecer solida e o ganho se perde. */
   const nuvem = amostrarSuperficie(s, 14000, 7717);
+
+  /* A GRAMA, E ELA E MODELO DE VERDADE.
+
+     O roteiro pedia grama e ela nunca existiu — havia raizes e cogumelos,
+     e o rasteiro ficou de fora. Agora entra o modelo de grama, plantado em
+     tufos pelo chao da area caminhavel.
+
+     A BASE DO MODELO NAO APARECE. Ele vem com um disco de terra embaixo,
+     que num chao real de passthrough seria uma mancha flutuando sobre o
+     piso de verdade. Os pontos abaixo de 12% da altura sao descartados na
+     hora de plantar: sobra so a folhagem, saindo do chao que ja existe. */
+  const rnd = prng(4211);
+  let tufos = 0;
+  for(let i=0;i<34;i++){
+    const ang = rnd()*Math.PI*2, raio = 0.5 + rnd()*1.9;
+    const base = [Math.sin(ang)*raio, 0, -Math.cos(ang)*raio];
+    tufos += plantarNuvem(nuvem, 'grass-icon', base,
+                          0.16 + rnd()*0.16, rnd()*Math.PI*2,
+                          7000+i, 0.0);
+  }
   enviar(bM.pos, nuvem.pos); enviar(bM.uv, nuvem.uv);
   enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
   nMata = nuvem.pos.length/3;

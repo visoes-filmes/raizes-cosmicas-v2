@@ -114,6 +114,17 @@ if SEM_SOM:
     html = _re.sub(r"<audio[^>]*id=\"trilha\"[^>]*>\s*</audio>", "", html)
     print("  trilha: FORA desta montagem (SEM_SOM = True)")
 
+# AS NUVENS DOS MODELOS 3D. Geradas por modelos_em_pontos.py e embutidas
+# aqui, para a obra continuar sendo um arquivo unico. Se o arquivo nao
+# existir, a obra monta do mesmo jeito -- so sem os modelos.
+_nuvens = os.path.join(AQUI, "nuvens.js")
+if os.path.exists(_nuvens):
+    mapa["__NUVENS__"] = open(_nuvens, encoding="utf-8").read()
+    print(f"  nuvens dos modelos: {os.path.getsize(_nuvens)//1024} KB")
+else:
+    mapa["__NUVENS__"] = "const NUVENS = {};"
+    print("  nuvens dos modelos: NAO ENCONTRADAS (rode modelos_em_pontos.py)")
+
 for k, v in mapa.items():
     html = html.replace(k, v)
 
