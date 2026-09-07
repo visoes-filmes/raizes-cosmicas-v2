@@ -1338,6 +1338,70 @@ void main(){
    presa abaixo da linha d'agua, e o reflexo dela no planeta rosa. Reflexo
    de verdade custaria uma segunda passada de camera; este custa um desenho
    a mais, e num liquido em movimento ninguem distingue os dois. */
+/* ═══════════ A BORBOLETA, EM TRES DIMENSOES ═══════════
+
+   Ela era um recorte plano preso ao caminho -- um adesivo voando. Um
+   recorte plano de borboleta e o pior caso possivel de bilhete: a borboleta
+   e o unico bicho cuja forma so existe QUANDO SE MEXE, e ela e feita de
+   duas superficies que se dobram. Parada e chapada, ela e uma mancha.
+
+   Agora sao duas asas de verdade, cada uma girando em torno do eixo do
+   corpo, com a textura da propria pintura -- a asa esquerda le a metade
+   esquerda do recorte, a direita le a direita espelhada. O batimento nao e
+   um seno puro: sobe rapido e desce devagar, que e como asa bate.
+
+   Ela tambem se INCLINA para o lado que vira, como quem faz curva. Sem
+   isso, voar em curva le como objeto arrastado por um trilho. */
+const VS_BORBO = `
+attribute vec2 aXY;
+attribute float aLado;          // -1 asa esquerda, +1 asa direita
+uniform mat4 mvp;
+uniform vec3 centro, frente;
+uniform float bater, tamanho, inclina;
+varying vec2 vUV;
+void main(){
+  /* A asa e um quadrado que nasce no corpo e se abre para o lado. O
+     batimento gira em torno do eixo do corpo (a frente do voo). */
+  float ang = bater * aLado;
+  float c = cos(ang), s = sin(ang);
+
+  vec3 f = normalize(frente);
+  vec3 cima = vec3(0.0, 1.0, 0.0);
+  vec3 lado = normalize(cross(f, cima));
+  cima = cross(lado, f);
+
+  // inclinacao do corpo na curva
+  float ci = cos(inclina), si = sin(inclina);
+  vec3 lado2 = lado*ci + cima*si;
+  vec3 cima2 = cima*ci - lado*si;
+
+  // aXY.x = ao longo da asa (0 no corpo, 1 na ponta); aXY.y = ao longo do corpo
+  float larg = aXY.x * aLado;
+  vec3 p = centro
+         + lado2 * (larg * c) * tamanho
+         + cima2 * (larg * s) * tamanho
+         + f * (aXY.y * tamanho * 0.75);
+
+  // a metade esquerda le a esquerda da imagem; a direita, espelhada
+  vUV = vec2(aLado < 0.0 ? 0.5 - aXY.x*0.5 : 0.5 + aXY.x*0.5,
+             0.5 - aXY.y*0.5);
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_BORBO = `
+precision highp float;
+uniform sampler2D asa;
+uniform float presenca;
+varying vec2 vUV;
+void main(){
+  vec4 c = texture2D(asa, vUV);
+  float a = smoothstep(0.16, 0.60, c.a) * presenca;
+  // a beirada do recorte nunca aparece
+  vec2 d = min(vUV, 1.0 - vUV);
+  a *= smoothstep(0.0, 0.03, min(d.x, d.y));
+  if(a < 0.004) discard;
+  gl_FragColor = vec4(c.rgb, a);
+}`;
+
 const VS_FIGU = `
 attribute vec2 aXY;
 uniform mat4 mvp;
@@ -2172,6 +2236,7 @@ const progPapel = programa(VS_PAPEL, FS_PAPEL);
 const progAgua  = programa(VS_AGUA,  FS_AGUA);
 const progFigu  = programa(VS_FIGU,  FS_FIGU);
 const progBolha = programa(VS_BOLHA, FS_BOLHA);
+const progBorbo = programa(VS_BORBO, FS_BORBO);
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,
@@ -4176,6 +4241,25 @@ const locSalaCentro = gl.getUniformLocation(progSala,'centro');
 const locSalaCor = gl.getUniformLocation(progSala,'corCena');
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
+/* A BORBOLETA. Duas asas, seis vertices cada: o menor objeto da obra e o
+   unico que precisa de geometria propria, porque e o unico que se dobra. */
+const uBb = n=>gl.getUniformLocation(progBorbo,n);
+const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
+               bater:uBb('bater'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
+               asa:uBb('asa'), presenca:uBb('presenca')};
+const aBb = {xy: gl.getAttribLocation(progBorbo,'aXY'),
+             lado: gl.getAttribLocation(progBorbo,'aLado')};
+const bBb = criarBufs(['xy','lado']);
+(function(){
+  const xy = [], lado = [];
+  for(const l of [-1, 1]){
+    // dois triangulos por asa, do corpo (x=0) ate a ponta (x=1)
+    const q = [[0,-1],[1,-0.7],[1,0.9], [0,-1],[1,0.9],[0,1]];
+    for(const [a,b] of q){ xy.push(a,b); lado.push(l); }
+  }
+  enviar(bBb.xy, xy); enviar(bBb.lado, lado);
+})();
+
 const uBo = n=>gl.getUniformLocation(progBolha,n);
 const locBo = {mvp:uBo('mvp'), camDir:uBo('camDir'), camCima:uBo('camCima'),
                centro:uBo('centro'), raio:uBo('raio'), tipo:uBo('tipo'),
@@ -5118,15 +5202,55 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       // A BORBOLETA, com rastro: copias ao longo do caminho que ela acabou
       // de fazer, cada vez mais apagadas. E o rastro do roteiro, e sai de
       // graca — a posicao dela ja e funcao do tempo.
-      const pb = presencaBorboleta(t);
-      if(pb > 0.004){
-        for(let k = 5; k >= 0; k--){
-          const c = ondeBorboleta(t - k * 0.42);
-          const desbota = 1 - k / 6;
-          desenharFigura(FIGS[3], c, [0.30 + k*0.02, 0.30 + k*0.02],
-                         pb * desbota * desbota * 0.9, 0.2, false);
-        }
-      }
+      /* A borboleta plana saiu daqui: agora ela e objeto de verdade, com
+         asas que batem, desenhado logo abaixo. O rastro foi junto -- um
+         rastro de copias chapadas era o que fazia o recorte plano parecer
+         movimento, e movimento de verdade nao precisa de rastro. */
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+  }
+
+  /* 2b-quater) A BORBOLETA, EM TRES DIMENSOES.
+
+     Duas asas que batem, com a textura da propria pintura. O batimento nao
+     e um seno puro: sobe rapido e desce devagar, que e como asa bate -- e a
+     diferenca entre isso e um seno e o que separa voo de metronomo.
+
+     A frente do voo sai da propria trajetoria: onde ela estava um instante
+     atras contra onde esta agora. Assim ela sempre olha para onde vai, sem
+     que ninguem precise dizer. */
+  {
+    const pb = presencaBorboleta(t);
+    if(pb > 0.004){
+      const aqui = ondeBorboleta(t);
+      const antes = ondeBorboleta(t - 0.20);
+      let fx = aqui[0]-antes[0], fy = aqui[1]-antes[1], fz = aqui[2]-antes[2];
+      const comp = Math.sqrt(fx*fx+fy*fy+fz*fz) || 1;
+      fx /= comp; fy /= comp; fz /= comp;
+
+      const fase = (relogio * 6.2) % (Math.PI * 2);
+      const bater = 0.95 * (fase < Math.PI * 0.7
+                    ? Math.sin(fase / 0.7)
+                    : -0.55 * Math.sin((fase - Math.PI*0.7) / 1.3));
+
+      gl.enable(gl.BLEND);
+      sobrepor();
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(progBorbo);
+      soltarAtributos();
+      mandarMvp(locBb.mvp, mvp);
+      gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
+      gl.uniform3f(locBb.frente, fx, fy, fz);
+      gl.uniform1f(locBb.bater, bater);
+      gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
+      gl.uniform1f(locBb.tamanho, 0.34);
+      gl.uniform1f(locBb.presenca, pb);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
+      gl.uniform1i(locBb.asa, 7);
+      ligar(aBb.xy, bBb.xy, 2); ligar(aBb.lado, bBb.lado, 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 12);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
