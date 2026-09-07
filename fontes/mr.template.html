@@ -839,15 +839,62 @@ uniform sampler2D figura;
 /* "espelho" tambem existe no shader de vertice, onde float e highp por
    padrao. Uniforme com o mesmo nome nos dois estagios precisa da MESMA
    precisao, senao o programa nao linka — e nao linkar aqui nao da erro
-   visivel: as figuras simplesmente nao aparecem. Por isso a precisao dele
-   e escrita, em vez de herdada. */
+   visivel: as figuras simplesmente nao aparecem. */
 uniform highp float espelho;
 uniform float presenca, corte;
+uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
 void main(){
   vec4 c = texture2D(figura, vUV);
-  float a = c.a * presenca;
+
+  /* A BORDA. O recorte vinha com alfa duro: ou o pixel era figura, ou nao
+     era. E isso o que faz uma figura parecer ADESIVO COLADO — na aquarela
+     de origem nao existe borda assim, existe tinta rareando.
+
+     O smoothstep devolve esse rarear: o que ja era quase opaco continua
+     opaco, e a franja translucida do recorte vira transicao em vez de
+     serrilha. E o gesto de quem levanta o pincel. */
+  float a = smoothstep(0.04, 0.55, c.a) * presenca;
+
+  /* O PE SE DISSOLVE, E ISSO NAO E ESTILO: E CONSERTO.
+
+     Os recortes foram tirados da aquarela por um corte reto, e o corte
+     passou por dentro de area cheia. Medido no arquivo da deusa vermelha:
+     os 10% de baixo estao 85% opacos, com alfa medio 220. Na cena isso
+     aparecia como um BLOCO RETANGULAR no pe da figura, pousado na agua —
+     a moldura do recorte, visivel.
+
+     Apagar a franja de baixo resolve, e resolve para as quatro figuras de
+     uma vez, sem refazer arquivo nenhum. E o que sobra e melhor do que um
+     pe desenhado: a figura emerge do chao e da agua em vez de estar
+     apoiada sobre eles, que e como as figuras da Odara existem — saindo da
+     tinta, nao de pe sobre ela. */
+  a *= 1.0 - smoothstep(0.82, 0.99, vUV.y);
+
+  /* E A MOLDURA INTEIRA, porque cada figura foi cortada de um lado
+     diferente. Medido nos quatro arquivos: a galactica encosta no topo
+     (alfa 71) e no pe (141); a borboleta encosta nas duas laterais (44 e
+     67). Onde a tinta toca a beirada do arquivo, a cena mostra a beirada.
+
+     Uma faixa estreita de desvanecimento em volta apaga isso sem comer
+     nada do desenho: 4% de cada lado, que numa figura de dois metros e
+     menos de um palmo. Melhor perder um palmo de asa do que ver o
+     retangulo em que ela foi recortada. */
+  vec2 d = min(vUV, 1.0 - vUV);            // distancia ate a beirada mais perto
+  a *= smoothstep(0.0, 0.04, min(d.x, d.y));
+
+  /* O AR DO CENARIO ENTRA NELA. Uma figura pintada com a luz que tinha na
+     tela de origem nunca vai pertencer a um lugar de outra luz. Aqui ela
+     recebe um pouco do ar em volta — muito na franja, quase nada no miolo,
+     que e como a atmosfera se comporta: contorna antes de atravessar. */
+  float franja = 1.0 - smoothstep(0.35, 0.95, c.a);
+  c.rgb = mix(c.rgb, c.rgb * ambiente * 1.35, franja * 0.65);
+
+  /* E ela nao brilha mais que o mundo. O recorte vinha da pintura, onde
+     era o assunto e podia ocupar toda a luz. Aqui e uma presenca dentro de
+     um cenario, e presenca que estoura de brilho vira cartaz. */
+  c.rgb *= 0.88;
 
   if(espelho > 0.5){
     /* O reflexo so existe ABAIXO da linha d'agua, e se apaga com a
@@ -859,7 +906,7 @@ void main(){
     c.rgb *= vec3(0.72, 0.74, 0.86);
   }
 
-  if(a < 0.004) discard;
+  if(a < 0.003) discard;
   gl_FragColor = vec4(c.rgb, a);
 }`;
 
@@ -2752,6 +2799,16 @@ function relato(assunto){
   catch(e){ /* um relato que falha nao pode atrapalhar a obra */ }
 }
 
+/* MEDIR SE UM TOQUE DE FORA CHEGA. Em teste, qualquer toque na pagina
+   avisa o servidor com a coordenada. Serve para saber se o headset aceita
+   entrada injetada pelo cabo -- se aceitar, da para testar a obra inteira
+   sem alguem de capacete; se nao, fica provado e para-se de tentar. */
+if(location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+  addEventListener('pointerdown', e=>relato('TOQUE ' + Math.round(e.clientX) + ',' + Math.round(e.clientY)), true);
+  addEventListener('keydown',     e=>relato('TECLA ' + e.key), true);
+}
+
+
 if(emTesteLocal){
   window.raizes = {
     ir(segundos){
@@ -3137,7 +3194,7 @@ const locBo = {mvp:uBo('mvp'), camDir:uBo('camDir'), camCima:uBo('camCima'),
 const aBo = {xy: gl.getAttribLocation(progBolha,'aXY')};
 
 const uFi = n=>gl.getUniformLocation(progFigu,n);
-const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'),
+const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                centro:uFi('centro'), tamanho:uFi('tamanho'), espelho:uFi('espelho'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
                presenca:uFi('presenca'), corte:uFi('corte')};
@@ -3718,9 +3775,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      e sem escrever profundidade: sao recortes de borda macia, e escrever
      profundidade cortaria a franja de quem vier depois. */
   {
+    /* A COR DO AR DE CADA CENARIO. Sao as mesmas da regua da partitura e
+       as mesmas que a lampada da sala usa: a figura, a barra e a luz real
+       do estande passam a concordar sobre em que lugar a obra esta. */
+    const AR = {1:[0.44,0.63,0.66], 2:[0.60,0.55,0.82],
+                3:[0.85,0.54,0.66], 4:[0.82,0.69,0.53]};
+    const ar = AR[cenaAtual] || AR[1];
+
     const desenharFigura = (tex, cen, tam, pres, bal, esp) => {
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(locFi.figura, 7);
+      gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
       gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
       gl.uniform1f(locFi.presenca, pres);
