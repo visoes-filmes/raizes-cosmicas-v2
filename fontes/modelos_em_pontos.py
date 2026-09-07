@@ -59,6 +59,7 @@ QUANTOS = {
     "berry-pick":       1800,
     "soya-icon":        1600,
     "rutabaga":         1800,
+    "alienigena":       4200,   # camuflado no ceu: precisa de silhueta legivel
 }
 PADRAO = 2000
 
@@ -209,10 +210,21 @@ def main():
     if not os.path.isdir(PASTA):
         raise SystemExit(f"nao achei a pasta de modelos: {PASTA}")
     saida = {}
-    for arquivo in sorted(os.listdir(PASTA)):
-        if not arquivo.lower().endswith(".glb"):
-            continue
-        caminho = os.path.join(PASTA, arquivo)
+    # O ser alienigena mora um nivel acima, solto na pasta da Visoes. Ele
+    # entra pelo nome porque nao esta na colecao -- e a versao "rigged", que
+    # e a unica com esqueleto, embora a obra use so a forma dele.
+    extras = []
+    acima = os.path.dirname(PASTA)
+    for nome in ("ser_alienigena_rigged.glb", "ser_alienigena.glb"):
+        c = os.path.join(acima, nome)
+        if os.path.exists(c):
+            extras.append(c)
+            break
+
+    caminhos = [os.path.join(PASTA, a) for a in sorted(os.listdir(PASTA))
+                if a.lower().endswith(".glb")] + extras
+    for caminho in caminhos:
+        arquivo = os.path.basename(caminho)
         curto = nome_curto(arquivo, saida)
         quantos = next((v for k, v in QUANTOS.items() if k in curto), PADRAO)
         try:

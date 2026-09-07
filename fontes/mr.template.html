@@ -420,6 +420,89 @@ const norm=v=>{const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]
 
 const LADOS = 7, SEG = 6, MAXP = 4;
 
+/* Um tronco: anel por anel, cada um com o seu raio e o seu desvio. E o
+   tijolo de que a arvore-mae inteira e feita -- tronco e galho sao a mesma
+   coisa, com numeros diferentes. */
+function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
+  const LADOS = 7;
+  const base = s.pos.length/3;
+  for(let i=0;i<pontos.length;i++){
+    const p = pontos[i], r = raios[i];
+    // um eixo perpendicular qualquer, estavel ao longo do tubo
+    const d = i < pontos.length-1
+      ? norm(sub(pontos[i+1], p))
+      : norm(sub(p, pontos[i-1]));
+    let up = Math.abs(d[1]) > 0.9 ? [1,0,0] : [0,1,0];
+    const lado = norm(cruz(d, up));
+    const cima = cruz(lado, d);
+    const k = i/(pontos.length-1);
+    for(let j=0;j<=LADOS;j++){
+      const a = j/LADOS * Math.PI*2;
+      const nx = lado[0]*Math.cos(a) + cima[0]*Math.sin(a);
+      const ny = lado[1]*Math.cos(a) + cima[1]*Math.sin(a);
+      const nz = lado[2]*Math.cos(a) + cima[2]*Math.sin(a);
+      s.pos.push(p[0]+nx*r, p[1]+ny*r, p[2]+nz*r);
+      s.nor.push(nx, ny, nz);
+      s.uv.push(j/LADOS * 1.6, k * 2.2);
+      s.alt.push(altBase + (altTopo-altBase)*k);
+      s.fase.push(fase);
+    }
+  }
+  const larg = LADOS+1;
+  for(let i=0;i<pontos.length-1;i++){
+    for(let j=0;j<LADOS;j++){
+      const a = base + i*larg + j;
+      s.idx.push(a, a+larg, a+larg+1,  a, a+larg+1, a+1);
+    }
+  }
+}
+
+function gerarArvoreMae(rnd, base, s){
+  const ALTURA = 7.0;
+  const H = ALTURA * 0.62;          // ate onde vai o tronco
+
+  // o tronco: nove aneis, afinando, com desvio em arco
+  const pontos = [], raios = [];
+  for(let i=0;i<=9;i++){
+    const k = i/9;
+    const y = k * H;
+    pontos.push([ base[0] + Math.sin(k*2.1)*0.30,
+                  base[1] + y,
+                  base[2] + Math.sin(k*1.4 + 1.1)*0.22 ]);
+    // pe de elefante: o expoente faz a base alargar sem engrossar o meio
+    raios.push(0.40 * Math.pow(1-k, 1.35) + 0.085);
+  }
+  tuboAoLongo(s, pontos, raios, 0.7, 0.0, 0.62);
+  totalRaizes++;
+
+  /* OS GALHOS. Tres baixos, dentro do comodo -- e e de um deles que o
+     casulo pende. Os de cima ficam acima do forro, na parte virtual. */
+  const galho = (kAltura, azimute, inclinacao, comprimento, grosso) => {
+    const i = Math.round(kAltura * 9);
+    const de = pontos[Math.min(i, 9)];
+    const dirH = [Math.sin(azimute), 0, -Math.cos(azimute)];
+    const seg = [], rr = [];
+    for(let j=0;j<=5;j++){
+      const t2 = j/5;
+      // o galho sobe e vai abrindo: nenhum galho de arvore e reto
+      seg.push([ de[0] + dirH[0]*comprimento*t2,
+                 de[1] + Math.sin(inclinacao)*comprimento*t2
+                       - t2*t2*comprimento*0.10,
+                 de[2] + dirH[2]*comprimento*t2 ]);
+      rr.push(grosso * Math.pow(1-t2, 1.2) + 0.012);
+    }
+    tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
+  };
+
+  galho(0.42, 0.7,  0.30, 1.15, 0.075);   // e deste que o casulo pende
+  galho(0.55, 3.1,  0.42, 0.95, 0.065);
+  galho(0.63, 4.9,  0.24, 1.05, 0.070);
+  galho(0.78, 1.9,  0.52, 1.55, 0.060);   // ja acima do forro
+  galho(0.86, 4.2,  0.60, 1.70, 0.052);
+  galho(0.93, 2.6,  0.70, 1.45, 0.045);
+  galho(0.97, 5.6,  0.66, 1.30, 0.040);
+}
+
 function gerarPlanta(rnd, base, escala, fase, s){
   function esqueleto(origem, dir, comp, prof){
     const no = {origem, dir, comp, prof, filhos:[], raio:0};
@@ -511,7 +594,29 @@ function semearMata(semente){
   /* A ARVORE. Uma so, maior que o resto, encostada na parede — na regiao
      que fica alem do alcance, onde o roteiro pede que ela esteja. O que
      vem ate a pessoa nao e a arvore: e o fio com o casulo. */
-  gerarPlanta(rnd, ARVORE_BASE, 2.35, 0.7, s);
+  /* A ARVORE-MAE, na forma do v1.
+
+     A que existia aqui era a mesma planta das outras, so tres vezes maior:
+     galhos que se dividem em dois indefinidamente, todos da mesma grossura
+     relativa. Isso da arbusto grande, e nao arvore.
+
+     A do Plinio tem tres coisas que a nossa nao tinha, e sao elas que fazem
+     a diferenca:
+
+     TRONCO UNICO, que afina de baixo para cima com um pe de elefante na
+     base. Nao ha bifurcacao nos primeiros dois tercos -- e a bifurcacao
+     precoce que faz uma arvore parecer um brocolis.
+
+     UM DESVIO EM ARCO, e nao um sorteio. Tronco que ziguezagueia le como
+     raio; tronco que curva de leve, sempre para o mesmo lado, le como
+     coisa que cresceu procurando luz.
+
+     E ELA ATRAVESSA O TETO. Sete metros num pe-direito de tres: o tronco e
+     os galhos baixos ficam aqui dentro, e a copa fica LA FORA, acima do
+     forro, onde o ceu e virtual e portanto visivel. E o que transforma o
+     comodo num lugar dentro de algo maior -- e e de um galho de dentro que
+     o casulo pende. */
+  gerarArvoreMae(rnd, ARVORE_BASE, s);
 
   for(let i=0;i<N;i++){
     // encostadas nas bordas da sala, deixando o centro livre pra pessoa andar
@@ -676,6 +781,33 @@ function prepararConcha(){
    Elas moram numa CASCA DISTANTE, entre 14 e 22 metros, muito alem do
    comodo. Nao crescem, nao balancam e nao se aproximam: e o que faz o olho
    entender que estao fora do lugar onde a pessoa esta. */
+/* O SER ALIENIGENA, CAMUFLADO NO CEU.
+
+   Ele nao e fauna nem personagem: e uma FORMA QUE ESTA LA. Grande, distante
+   e quase invisivel -- do tipo que a pessoa nao ve nos primeiros minutos e,
+   quando ve, ja estava ali o tempo todo. Isso e diferente de aparecer: o
+   que aparece assusta ou impressiona; o que ja estava faz duvidar do que
+   mais nao se viu.
+
+   Por isso a presenca e baixissima e a cor vem do proprio ceu, e nao dele:
+   camuflagem nao e transparencia, e ter a MESMA COR DO FUNDO. Ele so se
+   destaca pela borda, quando a cabeca se move e o paralaxe o separa das
+   nuvens -- que e exatamente como se ve um bicho parado no mato.
+
+   Ele respira devagar, e e a unica coisa que o entrega. */
+let bAlien = null, nAlien = 0;
+function prepararAlienigena(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  // um so, grande, alto e para o lado: nao no caminho do olhar
+  plantarNuvem(n, 'ser_alienigena_rigged',
+               [-6.5, 3.2, -13.5], 7.5, 0.6, 4242, 1.0);
+  if(!n.pos.length) return;
+  bAlien = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bAlien.pos,n.pos); enviar(bAlien.uv,n.uv); enviar(bAlien.alt,n.alt);
+  enviar(bAlien.fase,n.fase); enviar(bAlien.tam,n.tam);
+  nAlien = n.pos.length/3;
+}
+
 let bEstrelas = null, nEstrelas = 0;
 function prepararEstrelas(){
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
@@ -2501,6 +2633,7 @@ for(const f of enviarDepois) f();
 prepararRaizesDosAstros();
 prepararHorizonte();
 prepararEstrelas();
+prepararAlienigena();
 prepararFolhas();
 prepararFundoDoMar();
 prepararConcha();
@@ -4942,6 +5075,23 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aM.alt,bEstrelas.alt,1); ligar(aM.fase,bEstrelas.fase,1);
       ligar(aM.tam,bEstrelas.tam,1);
       gl.drawArrays(gl.POINTS, 0, nEstrelas);
+
+      /* O ALIENIGENA. Presenca de um decimo, e a cor sai da textura do ceu
+         e nao da casca: e o que faz dele parte da nuvem em vez de um
+         objeto posto na frente dela. Respira devagar, e so isso o
+         entrega. */
+      if(bAlien && nAlien){
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
+        gl.uniform1f(locM.presenca, 0.085 + 0.035*Math.sin(relogio*0.21));
+        gl.uniform1f(locM.deriva, 0.16);
+        ligar(aM.pos,bAlien.pos,3); ligar(aM.uv,bAlien.uv,2);
+        ligar(aM.alt,bAlien.alt,1); ligar(aM.fase,bAlien.fase,1);
+        ligar(aM.tam,bAlien.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nAlien);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      }
 
       /* AS FOLHAS acompanham a floresta: mesma presenca da mata, porque
          sao dela. */
