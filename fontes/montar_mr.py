@@ -155,6 +155,22 @@ if saida == os.path.join(RAIZ, "index.html"):
     shutil.copy(saida, os.path.join(RAIZ, "nova.html"))
     print("Copia de teste: nova.html (e esta que o headset abre)")
 
+    # A OFICINA: a mesma obra, com o andaime ligado.
+    #
+    # A obra sai limpa -- sem regua, sem medidor, sem interruptores -- porque
+    # e um ambiente e nao um editor. Mas quem trabalha nela PRECISA da regua:
+    # sem ela nao ha como alcancar um cenario que so acontece aos 6:30, e
+    # julgar a obra esperando dez minutos a cada ajuste e inviavel.
+    #
+    # Entao sai um segundo arquivo, com ANDAIME = true. E a mesma obra, o
+    # mesmo codigo, a mesma montagem: muda uma palavra. Assim nunca ha
+    # duvida sobre se a oficina e a obra -- ela e, com as ferramentas a
+    # vista.
+    oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
+    with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
+        f.write(oficina)
+    print("Oficina: oficina.html (a mesma obra, com a regua e os medidores)")
+
 
 # --------------------- A VERSAO DO CACHE, SOZINHA ---------------------
 #

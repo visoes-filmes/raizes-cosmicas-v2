@@ -394,6 +394,34 @@ function multiplicar(a,b){
   }
   return o;
 }
+/* ONDE A PESSOA ESTA, NA VERSAO DE TELA.
+
+   No headset quem anda e o corpo. No computador nao havia como andar: a
+   camera girava no lugar, presa a origem. E andar e justamente o que revela
+   metade do que esta em jogo -- a cupula so se prova infinita quando se
+   caminha e ela nao escorrega; o papel so se prova em camadas quando as
+   camadas deslizam umas sobre as outras.
+
+   Sem isso, julgar a obra na tela era julgar uma fotografia dela. */
+let andarX = 0, andarZ = 0;
+const TECLAS = Object.create(null);
+addEventListener('keydown', e=>{ TECLAS[e.code] = true; });
+addEventListener('keyup',   e=>{ TECLAS[e.code] = false; });
+
+function caminhar(dt){
+  let f = 0, l = 0;
+  if(TECLAS.KeyW || TECLAS.ArrowUp)    f += 1;
+  if(TECLAS.KeyS || TECLAS.ArrowDown)  f -= 1;
+  if(TECLAS.KeyD || TECLAS.ArrowRight) l += 1;
+  if(TECLAS.KeyA || TECLAS.ArrowLeft)  l -= 1;
+  if(!f && !l) return;
+  // 1,1 m/s: passo de quem olha, e nao de quem atravessa
+  const v = (TECLAS.ShiftLeft || TECLAS.ShiftRight ? 2.4 : 1.1) * dt;
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  andarX +=  (sy*f + cy*l) * v;
+  andarZ += (-cy*f + sy*l) * v;
+}
+
 function visaoOrbita(yaw, pitch, alturaOlho){
   const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
   const r = [ cy, sy*sp, sy*cp,  0, cp, -sp,  -sy, cy*sp, cy*cp ];
@@ -1202,6 +1230,7 @@ uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
+uniform float escuro;       // quanto do alto e preto desenhado, e nao a sala real
 varying vec3 vPos;
 const float PI = 3.14159265359;
 void main(){
@@ -1289,7 +1318,26 @@ void main(){
      ceu deixe de existir. */
   float h = clamp(dir.y, 0.0, 1.0);     // 0 no horizonte, 1 no zenite
   float grad = smoothstep(inicio, fim, h);
-  float a = tinta * grad;
+
+  /* ESCURO NAO E TRANSPARENTE, e essa e a diferenca que faltava.
+
+     Nos primeiros vinte segundos eu tinha zerado a TINTA para o ceu nao
+     mostrar a pintura. So que em realidade mista zerar a tinta nao deixa o
+     alto escuro: deixa o alto VAZIO, e o compositor mostra o teto da sala
+     de verdade por ele. O pedido era ceu preto, e o que apareceu foi o
+     forro do lugar.
+
+     Preto de verdade precisa ser DESENHADO: opaco, e da cor da noite. Duas
+     coisas somam no mesmo lugar -- quanto de pintura ha (tinta) e quanto de
+     escuridao ha (escuro). No comeco so a segunda; depois dos 20 s a
+     primeira toma conta e o escuro se retira por baixo dela.
+
+     E o degrade continua mandando nos dois: o alto e ceu, seja preto ou
+     pintado, e a altura dos olhos continua sendo a sala de quem visita. */
+  float presencaCeu = max(tinta, escuro);
+  float parteDaTinta = tinta / max(presencaCeu, 0.0001);
+  arte = mix(vec3(0.020, 0.019, 0.041), arte, parteDaTinta);
+  float a = presencaCeu * grad;
 
   if(passthrough > 0.5){
     // No headset: onde a arte sumiu, não desenho nada — a câmera aparece
@@ -1828,6 +1876,9 @@ uniform vec3 olhoPos;
 uniform float tempo, presenca, nivel;
 uniform highp float misturaCeu;
 uniform float altura, inicio, fim;   // o mesmo degrade da cupula
+uniform float agitacao;              // quanto a pessoa esta mexendo a agua
+uniform float furacao;               // 0 no meio da cena, 1 no fim dela
+varying float vOnda;
 varying vec3 vMundo;
 const float PI  = 3.14159265359;
 const float PI2 = 6.28318530718;
@@ -3446,6 +3497,7 @@ let presencaMata = 1;
    sempre, porque quem nao levanta as maos ainda anda. O valor sobe rapido
    e desce devagar: agua nao para no instante em que a pessoa para. */
 let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, crescimentoTeto = 0;
+let escuroDoCeu = 0.92;
 
 /* ═══════════ O FIM, E A ESPERA ═══════════
 
@@ -3727,6 +3779,11 @@ function seguirPartitura(dt){
      o nascimento da floresta. Antes disso o alto e preto -- e preto, em
      realidade mista, e a sala de verdade de quem visita. */
   const ceuPintado = (c === 1) ? rampa(20, 36, t) : 1.0;
+
+  /* O ALTO E PRETO DESDE O PRIMEIRO SEGUNDO. Ele nasce cheio e so cede
+     quando a pintura chega -- assim nunca ha um instante em que o teto da
+     sala de verdade aparece no lugar do ceu. */
+  escuroDoCeu = (c === 1) ? 0.92 * (1 - ceuPintado * 0.85) : 0;
 
   /* Um decimo e o suficiente para o olho registrar que ha alguma coisa ali
      sem que ela dispute com o cenario. Abaixo disso vira sujeira; acima,
@@ -4592,6 +4649,7 @@ const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const locSalaCentro = gl.getUniformLocation(progSala,'centro');
 const locSalaCor = gl.getUniformLocation(progSala,'corCena');
+const locSalaEscuro = gl.getUniformLocation(progSala,'escuro');
 const uFg = n=>gl.getUniformLocation(progFig,n);
 const uAs = n=>gl.getUniformLocation(progAstro,n);
 /* A BORBOLETA. Duas asas, seis vertices cada: o menor objeto da obra e o
@@ -4880,6 +4938,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* Turquesa no ultimo cenario, e branco (sem alteracao) nos outros. */
     if(cenaAtual === 4) gl.uniform3f(locSalaCor, 0.62, 1.02, 0.98);
     else                gl.uniform3f(locSalaCor, 1.0, 1.0, 1.0);
+    gl.uniform1f(locSalaEscuro, escuroDoCeu);
     gl.depthMask(false);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuB]);
