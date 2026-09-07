@@ -958,6 +958,7 @@ attribute vec3 aPos; attribute vec2 aUV; attribute float aAlt, aFase, aTam;
 uniform mat4 mvp; uniform float tempo, crescimento, escalaPonto;
 uniform vec3 desloca;        // onde a nuvem esta agora (as maos se mexem)
 uniform float escalaObj;     // e de que tamanho
+uniform float deriva;        // quanto a nuvem inteira vagueia no lugar
 varying vec2 vUV; varying float vAlt, vVivo;
 void main(){
   vec3 p = aPos * escalaObj + desloca;
@@ -975,6 +976,20 @@ void main(){
   float w = tempo*0.55 + aFase;
   p.x += sin(w)*0.055*b;
   p.z += cos(w*0.83+1.3)*0.045*b;
+
+  /* A DERIVA. As estrelas estavam PARADAS, e a nota pede que "flutuem por
+     nos". Parada, uma estrela e cenario pintado; flutuando devagar, ela
+     esta no mesmo espaco que a pessoa — e e essa a diferenca entre olhar
+     um ceu e estar dentro de um.
+
+     Cada uma tem a sua fase, entao elas nao andam juntas: um ceu que se
+     move em bloco le como panorama girando, que e o contrario do efeito.
+     Os periodos sao lentos e primos entre si para nunca fecharem ciclo. */
+  if(deriva > 0.001){
+    p.x += sin(tempo*0.037 + aFase)        * deriva;
+    p.y += sin(tempo*0.029 + aFase*1.7)    * deriva * 0.55;
+    p.z += cos(tempo*0.023 + aFase*0.61)   * deriva;
+  }
 
   vec4 vista = mvp * vec4(p,1.0);
   gl_Position = vista;
@@ -3351,7 +3366,7 @@ const trilha = document.getElementById('trilha');
    como tocar — e e isso que garante silencio de verdade enquanto se
    trabalha, em vez de depender de um estado que qualquer clique reverte. */
 const TEM_SOM = !!trilha;
-let volume = 0.08, somLigado = true, tocando = false;
+let volume = 0.16, somLigado = true, tocando = false;
 /* A TRILHA ENTRA SOZINHA — a obra esta montada, nao em construcao.
 
    Ficou desligada o tempo todo em que se trabalhou: som entrando a cada
@@ -3364,12 +3379,35 @@ let volume = 0.08, somLigado = true, tocando = false;
    "Iniciar em RM" ja serve: a trilha entra junto com a realidade mista. */
 if(TEM_SOM) trilha.volume = volume;
 
+/* UM PEDIDO POR VEZ.
+
+   O Quest dispara pointerdown E touchstart no mesmo toque. A marca de "ja
+   esta tocando" so era posta DEPOIS que a promessa voltava, entao os dois
+   eventos chamavam play() antes de a marca existir -- e mandar tocar duas
+   vezes o mesmo elemento faz o audio engasgar no comeco.
+
+   Agora a marca e posta ANTES de pedir. Se o pedido falhar, ela e desfeita
+   e o proximo gesto tenta de novo. */
+let pedindoSom = false;
 function acordarSom(){
-  if(!TEM_SOM || tocando || !somLigado) return;
-  trilha.play().then(()=>{
-    tocando = true;
+  if(!TEM_SOM || tocando || pedindoSom || !somLigado) return;
+  pedindoSom = true;
+  trilha.play().then(function(){
+    tocando = true; pedindoSom = false;
     for(const ev of GESTOS) removeEventListener(ev, acordarSom);
-  }).catch(()=>{ /* ainda não permitido; o próximo gesto tenta de novo */ });
+  }).catch(function(){ pedindoSom = false; });
+}
+
+/* E A VOLTA DO LACO, POR SEGURANCA. O arquivo ja foi cortado para fechar em
+   si mesmo e o atributo loop deveria bastar. Mas em headset o laco do HTML
+   as vezes escorrega: o decodificador engasga na emenda e o som para de
+   vez, sem erro. Dez minutos de obra em silencio por uma emenda perdida
+   seria caro demais. */
+if(TEM_SOM){
+  trilha.addEventListener('ended', function(){
+    if(!somLigado) return;
+    try{ trilha.currentTime = 0; trilha.play().catch(function(){}); }catch(e){}
+  });
 }
 const GESTOS = ['pointerdown','keydown','touchstart'];
 for(const ev of GESTOS) addEventListener(ev, acordarSom, {passive:true});
@@ -3935,7 +3973,7 @@ bXR.onclick = ()=>{ entrarXR(); };
 const uM = n=>gl.getUniformLocation(progMata,n);
 const locM = {mvp:uM('mvp'), tempo:uM('tempo'), crescimento:uM('crescimento'),
               escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca'),
-              desloca:uM('desloca'), escalaObj:uM('escalaObj')};
+              desloca:uM('desloca'), escalaObj:uM('escalaObj'), deriva:uM('deriva')};
 const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(progMata,'aUV'),
             alt:gl.getAttribLocation(progMata,'aAlt'), fase:gl.getAttribLocation(progMata,'aFase'),
             tam:gl.getAttribLocation(progMata,'aTam')};
@@ -4198,6 +4236,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locM.presenca, presencaMata);
     gl.uniform3f(locM.desloca, 0, 0, 0);
     gl.uniform1f(locM.escalaObj, 1.0);
+    gl.uniform1f(locM.deriva, 0.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locM.casca, 2);
     ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
@@ -4328,6 +4367,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locM.desloca, 0, 0, 0);
       gl.uniform1f(locM.escala, escalaPonto * 0.115);
       gl.uniform1f(locM.presenca, 0.85);
+      /* Meio metro de vagar, a vinte metros de distancia: quase nada em
+         angulo, e o bastante para o olho perceber que elas nao estao
+         coladas no fundo. */
+      gl.uniform1f(locM.deriva, 0.55);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
       ligar(aM.pos,bEstrelas.pos,3); ligar(aM.uv,bEstrelas.uv,2);
@@ -4339,6 +4382,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          sao dela. */
       if(bFolhas && nFolhas && presencaMata > 0.004){
         sobrepor();
+        gl.uniform1f(locM.deriva, 0.0);      // folha nao vagueia, balanca
         gl.uniform1f(locM.presenca, presencaMata);
         gl.uniform1f(locM.crescimento, crescimento * 1.2);
         ligar(aM.pos,bFolhas.pos,3); ligar(aM.uv,bFolhas.uv,2);
@@ -4370,6 +4414,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locM.desloca, 0, 0, 0);
       gl.uniform1f(locM.escala, escalaPonto * 0.115);
       gl.uniform1f(locM.presenca, fundoDoMar);
+      gl.uniform1f(locM.deriva, 0.0);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
       ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
@@ -4461,6 +4506,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locM.crescimento, 9.0);
       gl.uniform1f(locM.escalaObj, 1.0);
       gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.deriva, 0.0);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
       ligar(aM.pos,bRaizAstro.pos,3); ligar(aM.uv,bRaizAstro.uv,2);
