@@ -743,6 +743,77 @@ function prepararFolhas(){
   nFolhas = n.pos.length/3;
 }
 
+/* AS RAIZES QUE SAEM DOS PLANETAS.
+
+   "Seria legal se saissem raizes deles." E o argumento da obra inteira
+   cabendo num detalhe: se tudo esta ligado por um eixo, um planeta nao e
+   uma bola no vazio -- e um no, com o que o prende ao resto saindo por
+   todos os lados.
+
+   Uma nuvem so, desenhada em volta de cada planeta com deslocamento: o
+   coral serve de forma porque coral e literalmente isso, ramificacao que
+   sai de um corpo. */
+let bRaizAstro = null, nRaizAstro = 0;
+function prepararRaizesDosAstros(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(2277);
+  for(let i=0;i<7;i++){
+    // em volta da origem, para depois seguir cada planeta pelo deslocamento
+    const lon = rnd()*Math.PI*2, lat = -0.9 + rnd()*1.8;
+    const d = 0.16;
+    plantarNuvem(n, 'coral-icon',
+                 [Math.cos(lat)*Math.sin(lon)*d, Math.sin(lat)*d,
+                  -Math.cos(lat)*Math.cos(lon)*d],
+                 0.16 + rnd()*0.16, rnd()*6.28, 2270+i, 1.0);
+  }
+  if(!n.pos.length) return;
+  bRaizAstro = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bRaizAstro.pos,n.pos); enviar(bRaizAstro.uv,n.uv); enviar(bRaizAstro.alt,n.alt);
+  enviar(bRaizAstro.fase,n.fase); enviar(bRaizAstro.tam,n.tam);
+  nRaizAstro = n.pos.length/3;
+}
+
+/* O HORIZONTE DO PLANETA ROSA: montanhas e porcoes de terra.
+
+   O cenario 3 e agua ate onde a vista alcanca, e agua sem margem nao e
+   paisagem, e piscina. A nota pede montanhas bem grandes na parte
+   infinita, e algumas porcoes de terra.
+
+   Elas ficam entre 9 e 16 metros, muito alem da area caminhavel, e sao
+   pedras do modelo em escala grande -- a mesma forma que faz uma pedra de
+   punho faz uma montanha, e a escala e que decide qual das duas o olho ve.
+
+   E as RAIZES NO CEU, delicadas: as algas servem, porque alga e raiz que
+   flutua. */
+let bHorizonte = null, nHorizonte = 0;
+function prepararHorizonte(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(1919);
+  for(let i=0;i<9;i++){                    // as montanhas
+    const ang = rnd()*Math.PI*2, d = 9 + rnd()*7;
+    plantarNuvem(n, 'rocks-icon',
+                 [Math.sin(ang)*d, -0.4, -Math.cos(ang)*d],
+                 2.2 + rnd()*3.4, rnd()*6.28, 1900+i, 1.0);
+  }
+  for(let i=0;i<6;i++){                    // as porcoes de terra, mais perto
+    const ang = rnd()*Math.PI*2, d = 3.2 + rnd()*2.4;
+    plantarNuvem(n, 'rocks-icon',
+                 [Math.sin(ang)*d, -0.12, -Math.cos(ang)*d],
+                 0.5 + rnd()*0.7, rnd()*6.28, 1950+i, 1.0);
+  }
+  for(let i=0;i<10;i++){                   // as raizes no ceu
+    const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
+    plantarNuvem(n, i%2 ? 'seaweed-icon' : 'seaweed-icon-17190',
+                 [Math.sin(ang)*d, 2.6 + rnd()*2.4, -Math.cos(ang)*d],
+                 0.5 + rnd()*0.8, rnd()*6.28, 1970+i, 1.0);
+  }
+  if(!n.pos.length) return;
+  bHorizonte = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bHorizonte.pos,n.pos); enviar(bHorizonte.uv,n.uv); enviar(bHorizonte.alt,n.alt);
+  enviar(bHorizonte.fase,n.fase); enviar(bHorizonte.tam,n.tam);
+  nHorizonte = n.pos.length/3;
+}
+
 let bLuva = null, nLuva = 0;
 function prepararLuva(){
   const m = decodificarNuvem('hand-icon');
@@ -1175,13 +1246,36 @@ void main(){
 
   if(tipo < 0.5){
     // BURACO NEGRO: nucleo preto, anel aceso, e a luz alongando na beirada
-    float nucleo = smoothstep(0.46, 0.36, d);
-    float anel = smoothstep(0.40, 0.50, d) * smoothstep(0.72, 0.52, d);
-    float halo = smoothstep(1.0, 0.5, d) * 0.22;
-    // o anel gira devagar, e o giro nao e uniforme: e mais rapido perto
-    float giro = sin(atan(vXY.y, vXY.x) * 3.0 + tempo * (0.9 - d * 0.5) + fase);
-    anel *= 0.62 + 0.38 * giro;
-    c = cor * (anel * 2.1 + halo);
+    /* MENOS BURACO, MAIS MARMORE.
+
+       Ele era um alvo: nucleo redondo, anel concentrico, tudo simetrico em
+       volta do centro. Simetria perfeita e o que faz uma coisa parecer
+       desenhada -- e a nota pede o contrario: "menos simetrico, mais
+       marbling, e menos buraco em si, com efeitos mais esfumacados do
+       lado".
+
+       Entao o raio deixa de ser raio: e amassado por tres senos de
+       periodos que nao fecham entre si, e a borda passa a ondular como
+       tinta na agua. O nucleo encolhe, o marmore toma o lugar dele, e o
+       halo cresce e fica mole. */
+    float ang = atan(vXY.y, vXY.x);
+    float ondula = 0.10*sin(ang*2.0 + tempo*0.31 + fase)
+                 + 0.07*sin(ang*3.0 - tempo*0.23 + fase*1.7)
+                 + 0.05*sin(ang*5.0 + tempo*0.17);
+    float dm = d * (1.0 + ondula);
+
+    float nucleo = smoothstep(0.30, 0.20, dm);
+    float anel = smoothstep(0.24, 0.40, dm) * smoothstep(0.86, 0.46, dm);
+    float halo = smoothstep(1.0, 0.28, d) * 0.34;
+
+    /* O MARMORE: veios correndo em volta, no lugar do anel liso. E o mesmo
+       gesto da marmorizacao da obra, e e o que liga este buraco ao resto
+       do que se ve. */
+    float veio = sin(ang*4.0 + dm*9.0 - tempo*0.6 + fase)
+               * sin(ang*2.0 - dm*6.0 + tempo*0.4);
+    anel *= 0.45 + 0.55 * (0.5 + 0.5*veio);
+
+    c = cor * (anel * 2.3 + halo);
     a = max(nucleo, anel + halo);
     // dentro do nucleo a cor e preta: em realidade mista isso abre um
     // buraco de verdade na obra, e a sala real aparece por ele
@@ -2166,6 +2260,8 @@ function subirRaizes(s){
 })();
 for(const f of enviarDepois) f();
 prepararLuva();
+prepararRaizesDosAstros();
+prepararHorizonte();
 prepararEstrelas();
 prepararFolhas();
 prepararFundoDoMar();
@@ -3892,7 +3988,8 @@ const aPa = {xy: gl.getAttribLocation(progPapel,'aXY')};
 const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
-                brilho:uAs('brilhoProprio'), halo:uAs('halo')};
+                brilho:uAs('brilhoProprio'), halo:uAs('halo'),
+                iris:uAs('iris'), tempoIris:uAs('tempoIris')};
 const aAst = {pos: gl.getAttribLocation(progAstro,'aPos')};
 
 const locF = {mvp:uFg('mvp'), tempo:uFg('tempo'), presenca:uFg('presenca'),
@@ -4279,6 +4376,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
       gl.drawArrays(gl.POINTS, 0, nMar);
 
+      /* O HORIZONTE: montanhas, terra e as raizes no ceu. Vem com o mesmo
+         fundo, porque e a mesma paisagem — o que muda e a distancia. */
+      if(bHorizonte && nHorizonte){
+        ligar(aM.pos,bHorizonte.pos,3); ligar(aM.uv,bHorizonte.uv,2);
+        ligar(aM.alt,bHorizonte.alt,1); ligar(aM.fase,bHorizonte.fase,1);
+        ligar(aM.tam,bHorizonte.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nHorizonte);
+      }
+
       /* A CONCHA, que agora tem forma e acende quando pode ser tocada. */
       if(bConcha && nConcha && conchaPresenca > 0.004){
         gl.uniform3f(locM.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
@@ -4342,6 +4448,41 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
+    /* AS RAIZES DOS PLANETAS. Uma nuvem so, desenhada em volta de cada
+       um: o planeta deixa de ser bola no vazio e vira no. */
+    if(bRaizAstro && nRaizAstro && cenaAtual === 2){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      sobrepor();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bRaizAstro.pos,3); ligar(aM.uv,bRaizAstro.uv,2);
+      ligar(aM.alt,bRaizAstro.alt,1); ligar(aM.fase,bRaizAstro.fase,1);
+      ligar(aM.tam,bRaizAstro.tam,1);
+      for(let i=0;i<PLANETAS.length;i++){
+        const pr = presencaAstro(i, t);
+        if(pr < 0.004) continue;
+        const c = ondeEsta(i, t);
+        gl.uniform3f(locM.desloca, c[0], c[1], c[2]);
+        gl.uniform1f(locM.presenca, pr * 0.75);
+        gl.drawArrays(gl.POINTS, 0, nRaizAstro);
+      }
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.depthMask(true);
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
+
     /* O CASULO E O FIO. O fio e a mesma esfera esticada ate virar linha:
        raio minusculo e achatamento enorme. Nao vale a pena um programa so
        para desenhar um fio. */
@@ -4352,6 +4493,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.3);
       gl.uniform1f(locAst.brilho, 0.05);
       gl.uniform1f(locAst.halo, 0.0);   // o casulo e corpo, nao fonte
+      gl.uniform1f(locAst.iris, 0.0);
       /* A RESPIRACAO DO CASULO. Enquanto ele pode ser tocado e ainda nao
          foi, respira devagar. Depois do toque para: ja disse o que tinha a
          dizer, e continuar chamando seria pedir de novo o que ja foi
