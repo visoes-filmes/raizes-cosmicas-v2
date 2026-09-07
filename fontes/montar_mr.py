@@ -166,6 +166,26 @@ if saida == os.path.join(RAIZ, "index.html"):
     # mesmo codigo, a mesma montagem: muda uma palavra. Assim nunca ha
     # duvida sobre se a oficina e a obra -- ela e, com as ferramentas a
     # vista.
+    # O SIMULADOR: a oficina, mais um aparelho de RM de mentira.
+    #
+    # Metade dos defeitos deste projeto so aparece DENTRO da sessao imersiva
+    # -- o alfa do passthrough, as maos, o toque, a ordem de desenho no
+    # quadro do headset. Testar qualquer um exigia alguem de capacete, e uma
+    # rodada levava minutos: o resultado foi coisas dadas por feitas que
+    # nunca tinham rodado uma vez.
+    #
+    # O simulador nao substitui o headset. Ele elimina as viagens ao headset
+    # que eram so para descobrir que alguma coisa nao desenhava.
+    _sim = os.path.join(AQUI, "simulador.js")
+    if os.path.exists(_sim):
+        shim = "<script>" + open(_sim, encoding="utf-8").read() + "</script>"
+        simulador = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
+        # antes do script principal, para enganar o navigator.xr a tempo
+        simulador = simulador.replace("<script>", shim + "<script>", 1)
+        with open(os.path.join(RAIZ, "simulador.html"), "w", encoding="utf-8") as f:
+            f.write(simulador)
+        print("Simulador: simulador.html (entra em RM sem headset)")
+
     oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
     with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
         f.write(oficina)
