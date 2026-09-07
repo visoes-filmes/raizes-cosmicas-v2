@@ -3206,11 +3206,41 @@ function seguirPartitura(dt){
   const brotando = rampa(15, 69, t);
   crescimento = dt > 0 ? Math.max(crescimento, brotando) : brotando;
 
+  /* OS PRIMEIROS VINTE SEGUNDOS NAO TEM TEXTURA DE CEU.
+
+     A nota e literal: "aqui nao tem textura no ceu, apenas voce pode criar
+     com codigo mesmo". E faz sentido dramaturgico: a obra abre na sala
+     real, no escuro, e o que existe la e o que o codigo faz -- a nuvem
+     cosmica passando, as estrelas, as raizes aparecendo. A pintura da
+     Odara e o que CHEGA depois, quando o mundo comeca a se formar.
+
+     Comecar com a panoramica ja no teto entrega tudo no primeiro segundo,
+     e nao sobra nada para acontecer.
+
+     Entao a tinta do ceu nasce em zero e sobe entre 0:20 e 0:36, junto com
+     o nascimento da floresta. Antes disso o alto e preto -- e preto, em
+     realidade mista, e a sala de verdade de quem visita. */
+  const ceuPintado = (c === 1) ? rampa(20, 36, t) : 1.0;
+
   /* Um decimo e o suficiente para o olho registrar que ha alguma coisa ali
      sem que ela dispute com o cenario. Abaixo disso vira sujeira; acima,
      vira floresta no lugar errado. */
+  /* NOS PRIMEIROS VINTE SEGUNDOS ELAS SURGEM E SOMEM.
+
+     A nota: "e ai pode ter as raizes que falei surgindo e desaparecendo, e
+     nao bolinhas". Antes do nascimento a floresta ainda nao esta decidida
+     -- ela pisca, se anuncia e recua, como coisa que ainda vai acontecer.
+     Depois dos 20 s ela fica, e ai sim cresce.
+
+     Tres senos lentos e primos entre si: nunca fecham ciclo, entao nao ha
+     ritmo para o olho decorar. */
+  const antesDoNascimento = 1 - rampa(15, 26, t);
+  const piscando = 0.10 + 0.90 * Math.max(0,
+      0.5 + 0.5*Math.sin(t*0.9) * Math.sin(t*0.41 + 1.3) * Math.sin(t*0.23));
+
   const cheia = (c === 1) ? 1.0 : 0.0;
-  const alvoMata = 0.10 + 0.90*cheia;
+  const alvoMata = (0.10 + 0.90*cheia)
+                 * (1 - antesDoNascimento) + antesDoNascimento * piscando * 0.55;
   /* dt zero e o salto de cenario, que nao tem tempo para desvanecer nada:
      ali se assenta de uma vez. Sem isto, saltar para o cenario 2 mostrava
      a floresta inteira, e se concluia que a presenca nao funcionava. */
@@ -3246,7 +3276,7 @@ function seguirPartitura(dt){
      de forma exponencial, nao linear. A conta certa e 1 - e^(-k*dt), que
      da a MESMA constante de tempo a 30, 60 ou 72 quadros. */
   const p = 1 - Math.exp(-1.8 * dt);
-  tinta      = aproximar(tinta, a.tinta, p);
+  tinta      = aproximar(tinta, a.tinta * ceuPintado, p);
   presenca   = aproximar(presenca, a.nuvem, p);
   marmore    = aproximar(marmore, a.marmore, p);
   leitoso    = aproximar(leitoso, a.leite, p);
@@ -4431,6 +4461,41 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
        subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
+    /* OS SERES AQUATICOS NO ESPACO. A nota os pede no cenario 2, e nao so
+       na agua: "voce esqueceu os seres aquaticos estranhos". Eles nao sao
+       fauna de um lugar -- sao a mesma materia viva aparecendo onde quer
+       que a obra esteja, que e o argumento dela. No espaco flutuam entre
+       os planetas, sem chao a que pertencer. */
+    if(bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.115);
+      gl.uniform1f(locM.presenca, asteroidePres * 0.45);
+      gl.uniform1f(locM.deriva, 0.9);        // no vazio eles vagueiam mais
+      gl.uniform3f(locM.desloca, 0, 1.7, 0); // na altura dos planetas
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
+      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nMar);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.deriva, 0.0);
+      gl.depthMask(true);
+      sobrepor();
+      gl.useProgram(progAstro);
+      soltarAtributos();
+      mandarMvp(locAst.mvp, mvp);
+      ligar(aAst.pos, bE.pos, 3);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+    }
+
     if(bMar && nMar && fundoDoMar > 0.004){
       gl.useProgram(progMata);
       soltarAtributos();
