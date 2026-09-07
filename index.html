@@ -22,8 +22,16 @@
      contamina tudo o que se testa depois.
 
      Na feira o endereco e outro e o guardiao volta a valer. */
-  var emTeste = location.hostname === "localhost" ||
-                location.hostname === "127.0.0.1";
+  /* TESTE E TUDO QUE NAO E O ENDERECO PUBLICADO.
+
+     A regra era "localhost", e furou no primeiro teste de verdade: com o
+     cabo caido, a obra passou a ser servida pela REDE, com https e o ip da
+     maquina. Ai ela se achou publicada -- guardou tudo em cache e calou os
+     relatos, justamente na hora em que eles eram a unica forma de saber o
+     que acontecia dentro do capacete.
+
+     Invertida, nao ha como errar: so o endereco do FIL e producao. */
+  var emTeste = location.hostname !== "visoes-filmes.github.io";
 
   if ("serviceWorker" in navigator) {
     if (emTeste) {
@@ -354,6 +362,16 @@
 <script>
 (function(){
 "use strict";
+
+/* DECLARADA AQUI EM CIMA, ANTES DE QUALQUER USO.
+
+   Ela estava no meio do arquivo e passou a ser lida antes -- "constante
+   usada antes de existir", que e a armadilha numero 3 da lista deste
+   projeto. Nao da erro visivel: o script inteiro morre de uma vez, a obra
+   nao desenha nada e nem os relatos saem, entao nem da para saber por que.
+
+   Quem decide o comportamento da obra inteira mora no topo. */
+const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -2377,7 +2395,7 @@ let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
 let degradeIni=0.10, degradeFim=0.80;   // fração do pé-direito
 let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
 let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
-let emXR = false;
+let emXR = false, janelaContada = false;
 
 /* O relogio da obra, separado do relogio da animacao. O "relogio" corre
    sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
@@ -2621,7 +2639,7 @@ const ANDAIME = false;
 
    So em localhost: na obra publicada o foco nao muda nada e ninguem
    esbarra nisso. */
-if(location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+if(emTesteLocal){
   const b = document.getElementById('bIniciar');
   if(b) setTimeout(()=>{ try{ b.focus(); }catch(e){} }, 400);
 }
@@ -2762,23 +2780,25 @@ function iniciarObra(){
 const bIniciarTela = document.getElementById('bIniciarTela');
 bIniciarTela.onclick = iniciarObra;
 bIniciar.onclick = ()=>{
+  relato('APERTOU botaoRM=' + (bXR.disabled ? 'DESLIGADO-vai-na-tela' : 'ligado-vai-para-RM'));
   if(bXR.disabled){ iniciarObra(); return; }   // sem RM aqui: vai na tela
   ePortaoDica.textContent = 'abrindo a realidade mista…';
-  /* A OBRA COMECA DE QUALQUER JEITO.
+  /* A OBRA COMECA DE QUALQUER JEITO — MAS SO DEPOIS DE SABER.
 
-     Antes, se a realidade mista nao abrisse, iniciarObra() nunca era
-     chamada: o relogio ficava parado, nada nascia, e quem estava de
-     capacete via um ceu imovel sem entender que a obra nem tinha comecado.
-     Uma falha de sessao virava uma obra que "nao faz nada".
+     Aqui havia um temporizador de oito segundos: nao abriu a RM, comeca
+     achatada. Parecia prudente e era atrapalho — ele disparava JUSTO
+     enquanto a pessoa estava lendo o pedido de permissao dentro do
+     capacete, e a obra partia pelas costas dela.
 
-     Agora a entrada em RM e uma melhora, nao uma condicao: se ela abrir,
-     otimo; se nao abrir em oito segundos, a obra corre assim mesmo no
-     painel. Numa feira, com fila, e melhor a obra rodando achatada do que
-     ninguem entendendo por que nada acontece. */
+     Agora se espera a resposta, qualquer que seja. Se a RM abrir, a obra
+     comeca dentro dela; se for recusada, comeca na tela com o motivo
+     escrito. O que nao acontece mais e comecar antes de saber. */
   let partiu = false;
   const partir = ()=>{ if(!partiu){ partiu = true; iniciarObra(); } };
-  setTimeout(partir, 8000);
-  entrarXR(partir);
+  entrarXR(partir).then(()=>{
+    // recusada: a obra ainda assim acontece, achatada, em vez de nada
+    if(!partiu && !sessao) setTimeout(partir, 1200);
+  });
 };
 
 /* ═══════════ os dois de emergencia ═══════════
@@ -2801,8 +2821,6 @@ bIniciar.onclick = ()=>{
    para conferi-lo no headset. Isto abre uma porta minima para quem esta
    testando pelo cabo, e ela nao existe na obra publicada: mesma condicao
    do service worker, mesmo motivo. */
-const emTesteLocal = location.hostname === 'localhost' ||
-                     location.hostname === '127.0.0.1';
 
 /* CONTAR O QUE ACONTECE, DE DENTRO DO HEADSET.
 
@@ -2825,7 +2843,7 @@ function relato(assunto){
    avisa o servidor com a coordenada. Serve para saber se o headset aceita
    entrada injetada pelo cabo -- se aceitar, da para testar a obra inteira
    sem alguem de capacete; se nao, fica provado e para-se de tentar. */
-if(location.hostname === 'localhost' || location.hostname === '127.0.0.1'){
+if(emTesteLocal){
   addEventListener('pointerdown', e=>relato('TOQUE ' + Math.round(e.clientX) + ',' + Math.round(e.clientY)), true);
   addEventListener('keydown',     e=>relato('TECLA ' + e.key), true);
 }
@@ -2988,6 +3006,7 @@ if(navigator.xr){
     vXR.textContent = ok ? 'pronto' : 'sem RM';
     vXR.className = ok ? 'ok' : 'no';
     bXR.disabled = !ok;
+    relato('SUPORTE immersive-ar=' + ok);
     if(!ok){
       bXR.textContent = 'RM indisponível aqui';
       const bi = document.getElementById('bIniciar');
@@ -3053,9 +3072,20 @@ async function entrarXR(aoEntrar){
      A rede e o prazo logo abaixo: se esta lista pendurar ou for recusada,
      em seis segundos se pede o minimo, e com local-floor a obra inteira
      funciona. Pedir de mais nunca pode custar a obra. */
+  /* NADA E EXIGIDO. E a diferenca entre a obra abrir e nao abrir.
+
+     'local-floor' estava em requiredFeatures, e exigir significa: se o
+     aparelho nao puder dar, que nao abra nada. Num lugar onde o Quest nao
+     consegue mapear o espaco — e ele mesmo avisa isso, dizendo que talvez
+     esteja escuro demais — isso derrubava a obra inteira por causa do
+     chao.
+
+     Aqui nada e exigido. O que vier, vem; o que faltar, se contorna. Uma
+     obra que abre torta e mil vezes melhor do que uma obra que nao abre,
+     principalmente com fila esperando. */
   const pedido = {
-    requiredFeatures: ['local-floor'],
-    optionalFeatures: ['hand-tracking','plane-detection','anchors','hit-test']
+    requiredFeatures: [],
+    optionalFeatures: ['local-floor','hand-tracking','plane-detection','anchors','hit-test']
   };
 
   /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
@@ -3075,45 +3105,59 @@ async function entrarXR(aoEntrar){
      volta nao aciona nenhum tratamento de erro que se escreva. Sem prazo,
      qualquer recurso que o aparelho nao conheca trava a obra inteira em
      silencio. Seis segundos, e passa-se ao minimo. */
-  function comPrazo(promessa, ms){
-    return Promise.race([
-      promessa,
-      new Promise((_, falhar) =>
-        setTimeout(() => falhar(new Error('sem resposta em ' + (ms/1000) + 's')), ms))
-    ]);
-  }
+  /* UMA TENTATIVA SO, E COM TEMPO DE GENTE.
+
+     Aqui morava um erro meu, e ele custou a noite inteira. Eu tinha posto
+     prazo de 6 s e uma segunda tentativa como "rede de seguranca". Medido
+     no aparelho, o que acontecia era:
+
+         completo = Error            (o meu prazo estourando)
+         minimo   = InvalidStateError (a 2a batendo na 1a, ainda pendente)
+
+     O Quest mostra um PEDIDO DE PERMISSAO dentro do capacete, e a promessa
+     fica pendente ate alguem olhar e aceitar. Seis segundos nao dao tempo
+     de uma pessoa fazer isso. E como um pedido pendurado envenena todos os
+     seguintes — o aparelho so admite uma sessao por vez — a rede virou a
+     armadilha: ela garantia que a segunda tentativa falhasse.
+
+     A licao: com permissao humana no meio, prazo curto nao e prudencia, e
+     sabotagem. Aqui se pede UMA vez, se espera o tempo de uma pessoa
+     decidir, e se avisa na tela o que ela precisa fazer. */
+  if(ePortaoDica) ePortaoDica.textContent =
+    'Olhe para o headset e aceite a permissão de realidade mista.';
 
   try{
-    sessao = await comPrazo(
-      navigator.xr.requestSession('immersive-ar', pedido), 6000);
-  }catch(e1){
-    try{
-      // O minimo que basta: com local-floor a obra inteira funciona.
-      sessao = await comPrazo(
-        navigator.xr.requestSession('immersive-ar',
-                                    { requiredFeatures: ['local-floor'] }), 6000);
-    }catch(e2){
-      relato('RM-RECUSOU minimo=' + (e2 && e2.name) + ' completo=' + (e1 && e1.name));
-      vXR.textContent='recusado'; vXR.className='no';
-      if(ePortaoDica) ePortaoDica.textContent =
-        'O headset recusou: ' + (e2 && (e2.name || e2.message) || 'motivo desconhecido') +
-        ' — e com tudo: ' + (e1 && (e1.name || e1.message) || '?');
-      return;
-    }
+    sessao = await navigator.xr.requestSession('immersive-ar', pedido);
+  }catch(erroPedido){
+    relato('RM-RECUSOU ' + (erroPedido && erroPedido.name));
+    vXR.textContent='recusado'; vXR.className='no';
+    if(ePortaoDica) ePortaoDica.textContent =
+      'O headset recusou a realidade mista: ' +
+      (erroPedido && (erroPedido.name || erroPedido.message) || 'motivo desconhecido') +
+      '. Toque de novo para tentar outra vez.';
+    return;
   }
 
   /* DAQUI EM DIANTE, QUALQUER TROPECO TEM QUE DEVOLVER A PORTA.
-     Sem isto, uma falha em makeXRCompatible, na camada ou no espaco de
-     referencia deixaria a variavel preenchida e o botao morto — que e
-     exatamente o defeito que este bloco existe para nao repetir. */
+
+     Ligar o WebGL ao headset -- makeXRCompatible, a camada, o espaco de
+     referencia -- e onde a sessao ABRE E CAI. Sem este try, a variavel
+     ficava preenchida com uma sessao morta e o botao nunca mais funcionava.
+
+     (O try tinha sumido numa substituicao minha, e o catch orfao la embaixo
+     matava o arquivo inteiro com um erro de sintaxe: nada desenhava, nem os
+     relatos saiam. Uma chave a menos custou tres rodadas de teste.) */
   try{
 
+  relato('PASSO-1 sessao aberta, ligando o webgl');
   await gl.makeXRCompatible();
   /* Suavizacao explicita na camada do headset. O padrao ja e ligado onde
      ha suporte, mas escrever deixa a intencao no codigo — e e a diferenca
      entre borda macia e a serra que aparece em toda geometria fina. */
+  relato('PASSO-2 webgl ligado, criando a camada');
   camadaXR = new XRWebGLLayer(sessao, gl, { antialias: true });
   sessao.updateRenderState({ baseLayer: camadaXR });
+  relato('PASSO-3 camada criada');
 
   /* 72 E O ALVO, E AGORA E PEDIDO.
 
@@ -3138,13 +3182,54 @@ async function entrarXR(aoEntrar){
       // a taxa suportada mais proxima de 72, sem supor que 72 exista
       let alvo = taxas[0];
       for(const t of taxas) if(Math.abs(t - 72) < Math.abs(alvo - 72)) alvo = t;
-      await sessao.updateTargetFrameRate(alvo);
-      TAXA_ALVO = alvo;
+      /* PEDE-SE, MAS NAO SE ESPERA.
+
+         Aqui havia um await, e ele custou a noite: no Quest esta promessa
+         PENDURA -- nao resolve, nao falha, e um try nao pega promessa que
+         nunca volta. A sessao ja estava aberta, o compositor ja mostrava o
+         quadro, e o laco de desenho nunca comecava: dentro do capacete isso
+         e a obra inteira PRETA, com as maos aparecendo por cima.
+
+         E a terceira vez hoje que uma promessa pendurada nos derruba --
+         dom-overlay, a permissao, e agora esta. A regra que fica: em WebXR,
+         nunca esperar por nada de que a obra nao precise para existir.
+
+         A taxa de quadros e exatamente isso: um pedido de conforto. Se o
+         aparelho responder, otimo; se nao, a obra roda na taxa dele. */
+      sessao.updateTargetFrameRate(alvo).then(
+        function(){ TAXA_ALVO = alvo; relato('TAXA aceita ' + alvo); },
+        function(){ relato('TAXA recusada, seguindo com a do aparelho'); });
     }
   }catch(e){ /* navegador sem a extensao: fica no padrao dele, e tudo bem */ }
-  espaco = await sessao.requestReferenceSpace('local-floor');
+  /* O CHAO E DESEJAVEL, NAO OBRIGATORIO.
+
+     O Quest so entrega 'local-floor' quando conseguiu MAPEAR O ESPACO. Num
+     lugar que ele nao consegue ler — parede lisa demais, pouca textura,
+     luz difusa sem sombra — ele avisa "o espaco pode estar escuro demais"
+     e nao estabelece o chao. Exigindo local-floor, a sessao abria e caia
+     em seguida, e a obra ficava inalcancavel por um motivo que nao tem
+     nada a ver com ela.
+
+     'local' sempre existe: e a origem na cabeca de quem entrou. Perde-se
+     saber onde fica o chao de verdade — entao assume-se a altura dos olhos
+     do rider, que e a mesma medida que a obra ja usa no computador.
+
+     Numa feira isso e a diferenca entre a obra abrir e nao abrir. Ela nasce
+     um pouco fora de altura em vez de nao nascer. */
+  relato('PASSO-4 pedindo o espaco de referencia');
+  let tipoEspaco = 'local-floor';
+  try{
+    espaco = await sessao.requestReferenceSpace('local-floor');
+  }catch(semChao){
+    tipoEspaco = 'local';
+    espaco = await sessao.requestReferenceSpace('local');
+    /* Sem chao mapeado, a origem e a cabeca. Baixar o mundo pela altura
+       dos olhos poe o chao da obra de volta onde o chao esta. */
+    espaco = espaco.getOffsetReferenceSpace(
+      new XRRigidTransform({x:0, y:-OLHO, z:0}));
+  }
   emXR = true;
-  relato('RM-ABRIU features=' + Array.from(sessao.enabledFeatures || []).join('+'));
+  relato('RM-ABRIU espaco=' + tipoEspaco + ' features=' + Array.from(sessao.enabledFeatures || []).join('+'));
   bXR.textContent = 'Sair da RM';
   vXR.textContent = 'em RM'; vXR.className = 'ok';
   sessao.addEventListener('end', ()=>{
@@ -3182,6 +3267,7 @@ async function entrarXR(aoEntrar){
     /* A porta volta a existir. A sessao meio-aberta e descartada, a
        variavel zerada, e o motivo aparece no portao — dentro do capacete
        nao ha console para consultar depois. */
+    relato('RM-ABRIU-E-CAIU ' + (erro && (erro.name + ': ' + String(erro.message).slice(0,90))));
     try{ if(sessao) sessao.end(); }catch(e){}
     sessao = null; emXR = false;
     vXR.textContent = 'falhou'; vXR.className = 'no';
@@ -3983,6 +4069,16 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
+     capacete nao ha como olhar variavel nenhuma, e sem isto a diferenca
+     entre "nao desenhou" e "desenhou invisivel" fica indistinguivel. */
+  if(!janelaContada){
+    janelaContada = true;
+    relato('QUADRO-1 cena=' + cenaAtual + ' tinta=' + tinta.toFixed(2) +
+           ' nuvem=' + presenca.toFixed(2) + ' raizes=' + (raizesOn?1:0) +
+           ' salaVisivel=' + (salaVisivel?1:0) + ' texturas=' + texProntas + '/' + TEX_TOTAL +
+           ' t=' + t.toFixed(0) + ' andando=' + (andando?1:0));
+  }
   relogio += dt;
   seguirPartitura(dt);
   contarQuadro();

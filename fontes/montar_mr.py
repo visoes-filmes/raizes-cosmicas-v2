@@ -154,9 +154,21 @@ def girar_versao():
     base = "raizes-cosmicas-" + datetime.date.today().isoformat()
     if atual.startswith(base):
         sufixo = atual[len(base):]
-        prox = "b" if not sufixo else chr(ord(sufixo[-1]) + 1)
-        if prox > "z":
-            prox = "aa"
+        # a letra anda em base 26: a, b, ... z, aa, ab ... Antes eu fazia
+        # chr(ord(ultima)+1), e depois de "aa" isso voltava para "b" -- uma
+        # versao MAIS VELHA com nome novo, que e o pior dos dois mundos.
+        letras = "abcdefghijklmnopqrstuvwxyz"
+        if not sufixo:
+            prox = "b"
+        else:
+            n = 0
+            for c in sufixo:
+                n = n * 26 + (letras.index(c) + 1)
+            n += 1
+            prox = ""
+            while n:
+                n, r = divmod(n - 1, 26)
+                prox = letras[r] + prox
     else:
         prox = ""                      # primeira montagem do dia
     nova = base + prox
