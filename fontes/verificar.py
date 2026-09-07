@@ -171,6 +171,13 @@ for nome, c in blocos.items():
             if u and u not in buscados:
                 problemas.append("UNIFORME nunca buscado: " + u + " (em " + nome + ")")
 
+def _semComentario(txt):
+    """O codigo do shader sem prosa: so o que a placa le."""
+    txt = re.sub(r"/\*.*?\*/", " ", txt, flags=re.S)
+    txt = re.sub(r"//[^\n]*", " ", txt)
+    return txt
+
+
 # -- 8. o CONTRARIO: usado no shader e nunca declarado ----------------
 #
 # Esta escapou duas vezes num dia so, e as duas custaram caro: o shader da
@@ -202,6 +209,28 @@ for _vs, _fs in re.findall(r"programa\((VS_\w+),\s*(FS_\w+)\)", codigo):
             problemas.append(
                 "UNIFORME BUSCADO E NUNCA DECLARADO: " + _u + " (programa "
                 + _prog + ") -- o shader nao compila, e isso nao aparece na tela")
+        else:
+            # E POR ESTAGIO, e nao pelo par. Um uniforme declarado no
+            # vertice e USADO no fragmento nao compila: em GLSL cada estagio
+            # tem as suas declaracoes, e o que se ve num e invisivel no
+            # outro. Este caso passou pela verificacao acima justamente
+            # porque ela olhava os dois shaders somados -- e custou mais uma
+            # rodada de "por que nada desenha".
+            for _est in (_vs, _fs):
+                # SEM OS COMENTARIOS. Este arquivo comenta em portugues, e
+                # palavras como "centro", "raio" e "pele" aparecem em prosa o
+                # tempo todo -- a primeira versao desta verificacao acusou
+                # nove defeitos que eram todos frases explicando o codigo.
+                _corpo = _semComentario(blocos.get(_est, ""))
+                _usa = re.search(r"\b" + re.escape(_u) + r"\b", _corpo)
+                _decl = re.search(
+                    r"\buniform\b[^;]*\b" + re.escape(_u) + r"\b", _corpo)
+                if _usa and not _decl:
+                    problemas.append(
+                        "UNIFORME USADO SEM DECLARAR EM " + _est + ": " + _u
+                        + " -- esta declarado no outro estagio, e GLSL nao"
+                        + " compartilha declaracao entre eles")
+
 
 
 print("shaders: " + str(len(blocos)) + "   linhas: " + str(len(fonte.splitlines())))

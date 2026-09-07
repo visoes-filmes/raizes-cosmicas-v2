@@ -372,6 +372,27 @@
 
    Quem decide o comportamento da obra inteira mora no topo. */
 const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
+
+/* ═══════════ O QUE ESTA DESLIGADO PARA SE VER LIMPO ═══════════
+
+   A floresta ficou coberta: poeira cosmica, tufos de grama, folhas, trevo,
+   soja -- tudo somando pontos sobre pontos ate nao se distinguir mais o que
+   e a obra do que e enfeite. Antes de decidir o que fica, e preciso ver o
+   que ha embaixo.
+
+   Estes tres interruptores existem para isso, e sao temporarios. Cada um
+   volta com uma palavra, e o que estiver desligado quando o FIL chegar sera
+   uma escolha, e nao um esquecimento.
+
+   POEIRA_NA_FLORESTA -- as particulas do cenario 1. As que CAEM aos 0:05,
+   que sao as estrelas cadentes, ficam: elas sao acontecimento, e nao
+   ambiente. O que sai e o po de fundo.
+
+   OBJETOS_NO_CHAO -- grama, folhas, trevo, soja, cogumelo e o ser. Tudo o
+   que e modelo 3D virado em pontos. Sao os modelos 3D, e sao
+   justamente o que mais enche o rasteiro. */
+const POEIRA_NA_FLORESTA = false;
+const OBJETOS_NO_CHAO    = false;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -803,16 +824,7 @@ function prepararConcha(){
   nConcha = n.pos.length/3;
 }
 
-/* AS ESTRELAS COM FORMA DE ESTRELA.
 
-   A nota do cenario 1 e literal: "estrelas estaticas em formato de estrela
-   mesmo, mais distantes". A obra tinha pontos de luz — que sao poeira, nao
-   estrela — e a diferenca importa: ponto de luz e atmosfera, estrela e
-   objeto. Uma esta perto e passa; a outra esta longe e fica.
-
-   Elas moram numa CASCA DISTANTE, entre 14 e 22 metros, muito alem do
-   comodo. Nao crescem, nao balancam e nao se aproximam: e o que faz o olho
-   entender que estao fora do lugar onde a pessoa esta. */
 /* O SER ALIENIGENA, CAMUFLADO NO CEU.
 
    Ele nao e fauna nem personagem: e uma FORMA QUE ESTA LA. Grande, distante
@@ -841,25 +853,47 @@ function prepararAlienigena(){
 }
 
 let bEstrelas = null, nEstrelas = 0;
+/* UM PONTO E UMA ESTRELA. Nao uma nuvem de pontos com forma de estrela.
+
+   A versao anterior plantava quarenta e seis copias do modelo "star", cada
+   uma com mil e seiscentos pontos coloridos amostrados da aquarela: setenta
+   e quatro mil pontos que, a catorze metros, o olho lia como confete. A
+   nota foi exata -- "nao sao aquelas particulas coloridas que voce fez".
+
+   Estrela e o contrario disso: UM ponto, longe, quase branco, com espigas.
+   A forma vem do desenho do sprite (o ramo pontiagudo do fragmento), nao da
+   geometria. Entao aqui so ha o que uma estrela tem: onde ela esta, de que
+   tamanho ela parece, e em que instante do proprio pulsar ela esta.
+
+   ESPACADAS de proposito. Oitenta e quatro numa meia esfera inteira e
+   pouco, e e para ser pouco: ceu cheio de estrela e planetario de plastico.
+   O que se quer e o outro -- o preto ganhando, e o brilho sendo excecao. */
 function prepararEstrelas(){
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
   const rnd = prng(8823);
-  for(let i=0;i<46;i++){
-    // distribuidas na meia esfera de cima: nao ha estrela debaixo do chao
+  for(let i=0;i<84;i++){
     const lon = rnd()*Math.PI*2;
-    const lat = 0.12 + rnd()*1.3;              // do horizonte ao zenite
-    const raio = 14 + rnd()*8;
-    const base = [Math.cos(lat)*Math.sin(lon)*raio,
-                  Math.sin(lat)*raio,
-                  -Math.cos(lat)*Math.cos(lon)*raio];
-    /* GRANDES PORQUE ESTAO LONGE. A 20 metros, meio metro de estrela
-       ocupa menos de dois graus e o olho le como poeira — que e
-       exatamente o que a obra ja tinha e a nota pedia para trocar. Entre
-       um e tres metros, a 14-22 m, ela ocupa o bastante para a forma de
-       estrela aparecer sem virar objeto perto. */
-    plantarNuvem(n, 'star', base, 1.1 + rnd()*1.9, rnd()*6.28, 8800+i, 1.0);
+    /* Adensadas para o alto: elevacao pela potencia 0,75 tira estrela de
+       cima da linha da mata, que e onde a floresta vai crescer e onde uma
+       estrela pareceria vagalume preso no galho. */
+    const lat  = 0.16 + Math.pow(rnd(), 0.75) * 1.34;
+    /* TRINTA A QUARENTA E SEIS METROS. Antes eram catorze, e catorze metros
+       nao e longe: e do outro lado da sala. A esta distancia a estrela nao
+       tem paralaxe percebida quando a cabeca anda, que e justamente o que
+       faz o ceu parecer ceu e nao teto pintado. */
+    const raio = 30 + rnd()*16;
+    n.pos.push(Math.cos(lat)*Math.sin(lon)*raio,
+               Math.sin(lat)*raio,
+               -Math.cos(lat)*Math.cos(lon)*raio);
+    // a tinta ainda vem da pintura, so que o fragmento a puxa para o branco
+    n.uv.push(0.46 + rnd()*0.08, 0.10 + rnd()*0.10);
+    n.alt.push(1.0);                    // ja nascida: estrela nao brota
+    n.fase.push(rnd()*6.283);
+    /* TAMANHOS MUITO DESIGUAIS. A potencia 2,2 deixa a maioria miuda e
+       poucas grandes -- e essa desigualdade que le como profundidade. Todas
+       do mesmo tamanho viram furos numa cartolina. */
+    n.tam.push(0.55 + Math.pow(rnd(), 2.2) * 3.1);
   }
-  if(!n.pos.length) return;
   bEstrelas = criarBufs(['pos','uv','alt','fase','tam']);
   enviar(bEstrelas.pos,n.pos); enviar(bEstrelas.uv,n.uv); enviar(bEstrelas.alt,n.alt);
   enviar(bEstrelas.fase,n.fase); enviar(bEstrelas.tam,n.tam);
@@ -1091,6 +1125,7 @@ uniform vec3 desloca;        // onde a nuvem esta agora (as maos se mexem)
 uniform float escalaObj;     // e de que tamanho
 uniform float deriva;        // quanto a nuvem inteira vagueia no lugar
 uniform float inverte;       // 1 = a planta cresce de cabeca para baixo
+uniform float pontiaguda;    // 1 = desenhar estrela de pontas, e nao bolinha
 varying vec2 vUV; varying float vAlt, vVivo;
 void main(){
   vec3 p = aPos * escalaObj + desloca;
@@ -1154,14 +1189,42 @@ const FS_MATA = `
 precision highp float;
 uniform sampler2D casca;
 uniform float presenca;
+/* Declarado AQUI tambem, e nao so no vertice: em GLSL cada estagio tem as
+   suas declaracoes, e um uniforme visto num e invisivel no outro. */
+uniform float pontiaguda;
 varying vec2 vUV; varying float vAlt, vVivo;
 void main(){
-  /* PONTO REDONDO, E COM BORDA MACIA. Quadrado le como pixel, e pixel e a
-     unica coisa que nao pode aparecer numa obra de aquarela. */
   vec2 d = gl_PointCoord - 0.5;
-  float r = dot(d,d) * 4.0;
-  if(r > 1.0) discard;
-  float borda = 1.0 - smoothstep(0.45, 1.0, r);
+  float borda;
+
+  if(pontiaguda > 0.5){
+    /* ESTRELA DE PONTAS, e nao bolinha.
+
+       As estrelas eram nuvens de pontos coloridos amostrados num modelo:
+       de longe isso nao le como estrela, le como confete. Estrela e outra
+       coisa -- um nucleo pequeno e duro com QUATRO ESPIGAS saindo dele, que
+       e como o olho (e a lente) veem uma fonte de luz pontual.
+
+       As espigas sao feitas dividindo pela distancia ao eixo: perto do eixo
+       horizontal o valor explode e vira raio; longe, some. Duas cruzes, uma
+       reta e uma a quarenta e cinco graus, dao as oito pontas que uma
+       estrela de verdade insinua. */
+    float rr = length(d) * 2.0;
+    if(rr > 1.0) discard;
+    float nucleo = exp(-rr * rr * 22.0);
+    vec2 a = abs(d) * 2.0;
+    float cruz  = exp(-a.x*a.x*260.0) + exp(-a.y*a.y*260.0);
+    vec2 g = abs(vec2(d.x+d.y, d.x-d.y)) * 1.414;
+    float aspa  = exp(-g.x*g.x*420.0) + exp(-g.y*g.y*420.0);
+    float espigas = (cruz + aspa * 0.55) * exp(-rr*rr*3.2) * 0.32;
+    borda = clamp(nucleo + espigas, 0.0, 1.0);
+  } else {
+    /* PONTO REDONDO, E COM BORDA MACIA. Quadrado le como pixel, e pixel e a
+       unica coisa que nao pode aparecer numa obra de aquarela. */
+    float r = dot(d,d) * 4.0;
+    if(r > 1.0) discard;
+    borda = 1.0 - smoothstep(0.45, 1.0, r);
+  }
 
   /* A COR VEM DA PINTURA. O ponto guarda de onde saiu na malha e busca ali
      a sua tinta: a aquarela decide tudo, so que como pigmento e nao como
@@ -1170,6 +1233,12 @@ void main(){
 
   // a ponta nova e mais clara, como broto de verdade
   c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
+
+  /* ESTRELA E QUASE BRANCA. A aquarela da a variacao -- uma puxa para o
+     azul, outra para o palha -- mas o corpo da cor e luz, nao pigmento.
+     Sem isto elas saiam coloridas como o resto da mata, que e exatamente o
+     confete que a nota mandou tirar. */
+  if(pontiaguda > 0.5) c = mix(c, vec3(1.0, 0.985, 0.955), 0.86);
 
   gl_FragColor = vec4(c, borda * presenca * vVivo);
 }`;
@@ -2699,7 +2768,10 @@ function subirRaizes(s){
      hora de plantar: sobra so a folhagem, saindo do chao que ja existe. */
   const rnd = prng(4211);
   let tufos = 0;
-  for(let i=0;i<34;i++){
+  /* A grama vive DENTRO da nuvem da mata, e nao num buffer proprio: o
+     interruptor tem que agir aqui, na plantacao, porque na hora de
+     desenhar ela ja e indistinguivel do resto da floresta. */
+  for(let i=0;i<(OBJETOS_NO_CHAO ? 34 : 0);i++){
     const ang = rnd()*Math.PI*2, raio = 0.5 + rnd()*1.9;
     const base = [Math.sin(ang)*raio, 0, -Math.cos(ang)*raio];
     tufos += plantarNuvem(nuvem, 'grass-icon', base,
@@ -3908,7 +3980,8 @@ function seguirPartitura(dt){
   degradeIni = aproximar(degradeIni, a.ini, p);
   degradeFim = aproximar(degradeFim, a.fim, p);
   inverterCeu= aproximar(inverterCeu, a.inverter, p);
-  quantosPo  = Math.round(aproximar(quantosPo, a.poeira, p));
+  const alvoPoeira = (!POEIRA_NA_FLORESTA && c === 1) ? 0 : a.poeira;
+  quantosPo  = Math.round(dt > 0 ? aproximar(quantosPo, alvoPoeira, p) : alvoPoeira);
   raizesOn   = a.raizes > 0.5;
 }
 const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3962,6 +4035,7 @@ function mostrarUI(v){ for(const e of paineis) e.classList.toggle('oculto', !v);
    porque nao sao de quem edita: sao de quem opera a sala, e a sala tem
    fila. */
 const ANDAIME = false;
+
 
 /* O PORTAO E UMA PORTA, NAO UM PAINEL DE CONTROLE.
 
@@ -4662,7 +4736,7 @@ const uM = n=>gl.getUniformLocation(progMata,n);
 const locM = {mvp:uM('mvp'), tempo:uM('tempo'), crescimento:uM('crescimento'),
               escala:uM('escalaPonto'), casca:uM('casca'), presenca:uM('presenca'),
               desloca:uM('desloca'), escalaObj:uM('escalaObj'), deriva:uM('deriva'),
-              inverte:uM('inverte')};
+              inverte:uM('inverte'), pontiaguda:uM('pontiaguda')};
 const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(progMata,'aUV'),
             alt:gl.getAttribLocation(progMata,'aAlt'), fase:gl.getAttribLocation(progMata,'aFase'),
             tam:gl.getAttribLocation(progMata,'aTam')};
@@ -5029,6 +5103,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locM.escalaObj, 1.0);
     gl.uniform1f(locM.deriva, 0.0);
     gl.uniform1f(locM.inverte, 0.0);
+    gl.uniform1f(locM.pontiaguda, 0.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locM.casca, 2);
     ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
@@ -5064,6 +5139,82 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   const pSol = presencaSol(t);
   const querEsfera = pSol > 0.004 || cenaAtual === 2 || aguaPresenca > 0.004
                   || casuloPresenca > 0.004 || cogumeloCresce > 0.004;
+  /* AS ESTRELAS COM FORMA DE ESTRELA, O SER, AS FOLHAS.
+     FORA do bloco dos astros de proposito. Estavam dentro dele, e o bloco
+     dos astros so acontece quando ha sol, agua, casulo ou cogumelo -- ou
+     seja: em nenhum instante dos primeiros vinte segundos. As estrelas
+     existiam no codigo, no buffer e no shader, e nao apareciam nunca no
+     unico trecho da obra em que sao a obra inteira.
+     Ceu nao depende de cenario: o cenario e que acontece dentro dele.
+     Somam luz, entao brilham sem apagar o que esta atras. */
+    if(bEstrelas && nEstrelas){
+      gl.useProgram(progMata);
+      soltarAtributos();
+      gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      mandarMvp(locM.mvp, mvp);
+      gl.uniform1f(locM.tempo, relogio);
+      gl.uniform1f(locM.crescimento, 9.0);
+      gl.uniform1f(locM.escalaObj, 1.0);
+      gl.uniform3f(locM.desloca, 0, 0, 0);
+      gl.uniform1f(locM.escala, escalaPonto * 0.75);   // a 35 m, precisa de tamanho
+      gl.uniform1f(locM.presenca, 0.95);
+      gl.uniform1f(locM.pontiaguda, 1.0);
+      /* Meio metro de vagar, a vinte metros de distancia: quase nada em
+         angulo, e o bastante para o olho perceber que elas nao estao
+         coladas no fundo. */
+      gl.uniform1f(locM.deriva, 0.55);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locM.casca, 2);
+      ligar(aM.pos,bEstrelas.pos,3); ligar(aM.uv,bEstrelas.uv,2);
+      ligar(aM.alt,bEstrelas.alt,1); ligar(aM.fase,bEstrelas.fase,1);
+      ligar(aM.tam,bEstrelas.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nEstrelas);
+
+      gl.uniform1f(locM.pontiaguda, 0.0);   // so as estrelas tem pontas
+
+      /* O ALIENIGENA. Presenca de um decimo, e a cor sai da textura do ceu
+         e nao da casca: e o que faz dele parte da nuvem em vez de um
+         objeto posto na frente dela. Respira devagar, e so isso o
+         entrega. */
+      if(OBJETOS_NO_CHAO && bAlien && nAlien){
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
+        gl.uniform1f(locM.presenca, 0.085 + 0.035*Math.sin(relogio*0.21));
+        gl.uniform1f(locM.deriva, 0.16);
+        ligar(aM.pos,bAlien.pos,3); ligar(aM.uv,bAlien.uv,2);
+        ligar(aM.alt,bAlien.alt,1); ligar(aM.fase,bAlien.fase,1);
+        ligar(aM.tam,bAlien.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nAlien);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      }
+
+      /* AS FOLHAS acompanham a floresta: mesma presenca da mata, porque
+         sao dela. */
+      if(OBJETOS_NO_CHAO && bFolhas && nFolhas && presencaMata > 0.004){
+        sobrepor();
+        gl.uniform1f(locM.deriva, 0.0);      // folha nao vagueia, balanca
+        gl.uniform1f(locM.presenca, presencaMata);
+        gl.uniform1f(locM.crescimento, crescimento * 1.2);
+        ligar(aM.pos,bFolhas.pos,3); ligar(aM.uv,bFolhas.uv,2);
+        ligar(aM.alt,bFolhas.alt,1); ligar(aM.fase,bFolhas.fase,1);
+        ligar(aM.tam,bFolhas.tam,1);
+        gl.drawArrays(gl.POINTS, 0, nFolhas);
+      }
+      // o estado geral volta sempre; o do programa dos astros so quando ha
+      // esfera para ele desenhar
+      gl.depthMask(true);
+      sobrepor();
+      if(nIdxE > 0){
+        gl.useProgram(progAstro);
+        soltarAtributos();
+        mandarMvp(locAst.mvp, mvp);
+        ligar(aAst.pos, bE.pos, 3);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
+      }
+    }
   if(nIdxE > 0 && querEsfera){
     gl.enable(gl.DEPTH_TEST);
     /* Enquanto um astro esta nascendo ele e translucido, e escrever
@@ -5159,70 +5310,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.halo, 0.0);
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
-    }
-    /* AS ESTRELAS COM FORMA DE ESTRELA. Sempre la, como o ceu: elas nao
-       pertencem a um cenario, pertencem ao universo em que os cenarios
-       acontecem. Somam luz, entao brilham sem apagar o que esta atras. */
-    if(bEstrelas && nEstrelas){
-      gl.useProgram(progMata);
-      soltarAtributos();
-      gl.enable(gl.BLEND);
-      somarLuz();
-      gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
-      gl.uniform1f(locM.tempo, relogio);
-      gl.uniform1f(locM.crescimento, 9.0);
-      gl.uniform1f(locM.escalaObj, 1.0);
-      gl.uniform3f(locM.desloca, 0, 0, 0);
-      gl.uniform1f(locM.escala, escalaPonto * 0.115);
-      gl.uniform1f(locM.presenca, 0.85);
-      /* Meio metro de vagar, a vinte metros de distancia: quase nada em
-         angulo, e o bastante para o olho perceber que elas nao estao
-         coladas no fundo. */
-      gl.uniform1f(locM.deriva, 0.55);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bEstrelas.pos,3); ligar(aM.uv,bEstrelas.uv,2);
-      ligar(aM.alt,bEstrelas.alt,1); ligar(aM.fase,bEstrelas.fase,1);
-      ligar(aM.tam,bEstrelas.tam,1);
-      gl.drawArrays(gl.POINTS, 0, nEstrelas);
-
-      /* O ALIENIGENA. Presenca de um decimo, e a cor sai da textura do ceu
-         e nao da casca: e o que faz dele parte da nuvem em vez de um
-         objeto posto na frente dela. Respira devagar, e so isso o
-         entrega. */
-      if(bAlien && nAlien){
-        gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
-        gl.uniform1f(locM.presenca, 0.085 + 0.035*Math.sin(relogio*0.21));
-        gl.uniform1f(locM.deriva, 0.16);
-        ligar(aM.pos,bAlien.pos,3); ligar(aM.uv,bAlien.uv,2);
-        ligar(aM.alt,bAlien.alt,1); ligar(aM.fase,bAlien.fase,1);
-        ligar(aM.tam,bAlien.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nAlien);
-        gl.activeTexture(gl.TEXTURE2);
-        gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      }
-
-      /* AS FOLHAS acompanham a floresta: mesma presenca da mata, porque
-         sao dela. */
-      if(bFolhas && nFolhas && presencaMata > 0.004){
-        sobrepor();
-        gl.uniform1f(locM.deriva, 0.0);      // folha nao vagueia, balanca
-        gl.uniform1f(locM.presenca, presencaMata);
-        gl.uniform1f(locM.crescimento, crescimento * 1.2);
-        ligar(aM.pos,bFolhas.pos,3); ligar(aM.uv,bFolhas.uv,2);
-        ligar(aM.alt,bFolhas.alt,1); ligar(aM.fase,bFolhas.fase,1);
-        ligar(aM.tam,bFolhas.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nFolhas);
-      }
-      gl.depthMask(true);
-      sobrepor();
-      gl.useProgram(progAstro);
-      soltarAtributos();
-      mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
     /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
@@ -5503,7 +5590,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* OS COGUMELOS. Duas esferas cada um: chapeu achatado e pe fino.
        Crescem junto com o resto, e ficam ao ALCANCE — sao eles que ensinam
        que da para tocar nas coisas, e ensinar de longe nao ensina. */
-    if(cogumeloCresce > 0.004){
+    if(OBJETOS_NO_CHAO && cogumeloCresce > 0.004){
       gl.depthMask(true);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
       gl.uniform1i(locAst.pele, 5);
