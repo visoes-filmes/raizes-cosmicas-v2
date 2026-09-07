@@ -393,6 +393,14 @@ const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
    justamente o que mais enche o rasteiro. */
 const POEIRA_NA_FLORESTA = false;
 const OBJETOS_NO_CHAO    = false;
+/* PEDRAS_NA_FLORESTA -- vem separado dos outros de proposito. As pedras
+   foram pedidas DEPOIS de o chao ser limpo, entao apaga-las junto com a
+   grama seria desfazer o pedido novo com o interruptor do pedido velho. */
+const PEDRAS_NO_CHAO     = true;
+/* MATA_SOLIDA -- as arvores como superficie, e nao como nuvem de pontos.
+   false devolve a nuvem inteira, e nada mais muda: as duas crescem pela
+   mesma conta, entao a troca e de materia e nao de coreografia. */
+const MATA_SOLIDA        = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -473,7 +481,17 @@ const LADOS = 7, SEG = 6, MAXP = 4;
    tijolo de que a arvore-mae inteira e feita -- tronco e galho sao a mesma
    coisa, com numeros diferentes. */
 function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
-  const LADOS = 7;
+  /* DOZE LADOS, E NAO SETE.
+
+     Sete bastava enquanto a planta era nuvem de pontos: o ponto nao tem
+     silhueta, entao o poligono do tubo nunca aparecia. Com a superficie de
+     volta, sete lados viram sete facetas visiveis -- um galho lido como
+     cristal, e nao como galho.
+
+     O custo e um terco a mais de triangulos numa malha de catorze mil, que
+     e nada; e a nuvem nao muda, porque ela e amostrada por metro quadrado
+     e nao por triangulo. */
+  const LADOS = 12;
   const base = s.pos.length/3;
   for(let i=0;i<pontos.length;i++){
     const p = pontos[i], r = raios[i];
@@ -899,6 +917,48 @@ function prepararEstrelas(){
 /* AS FOLHAS. Elas caem das arvores no primeiro cenario e ficam no chao —
    a nota pedia folhinhas para arvores diferentes, e o modelo de folhas de
    outono serve as duas coisas: no alto, presas; embaixo, caidas. */
+/* AS PEDRAS DO CHAO.
+
+   Chao de floresta nao e so o que cresce: e tambem o que esta ali ha mais
+   tempo que a floresta. A pedra e o unico elemento do cenario que nao
+   nasceu -- ela ja estava, e e isso que ela diz ao estar.
+
+   ELAS EMERGEM, e nao brotam. "altBase" em zero faz a frente de crescimento
+   subir por elas de baixo para cima, entao a pedra aparece saindo do chao
+   em vez de surgir inteira no ar. Numa obra em que tudo o mais nasce, a
+   pedra vindo a tona e o mesmo gesto lido ao contrario.
+
+   ENTERRADAS UM DEDO. "plantarNuvem" descarta os pontos abaixo de 12% da
+   altura do modelo -- os pedestais de icone. Numa planta isso nao se ve;
+   numa pedra, deixaria ela pairando um centimetro acima do chao de
+   verdade, que e o tipo de coisa que o passthrough denuncia na hora. Por
+   isso a base desce 13% da escala: o que sobra do modelo encosta no piso.
+
+   POUCAS E DESIGUAIS. Onze, quatro grandes e sete miudas, entre 55 cm e
+   dois metros do centro -- fora de onde a pessoa pisa, e perto o bastante
+   para ela poder se abaixar e olhar. */
+let bPedras = null, nPedras = 0;
+function prepararPedras(){
+  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
+  const rnd = prng(3307);
+  const QUANTAS = 11;
+  for(let i=0;i<QUANTAS;i++){
+    // o angulo sai espalhado e nao sorteado puro: sorteio puro amontoa
+    const ang = (i / QUANTAS) * Math.PI * 2 + rnd() * 0.5;
+    const raio = 0.55 + rnd() * 1.5;
+    const grande = i < 4;
+    const escala = grande ? 0.20 + rnd()*0.14 : 0.07 + rnd()*0.08;
+    plantarNuvem(n, 'rocks-icon',
+                 [Math.sin(ang)*raio, -0.13*escala, -Math.cos(ang)*raio],
+                 escala, rnd()*6.28, 3300+i, 0.0);
+  }
+  if(!n.pos.length) return;
+  bPedras = criarBufs(['pos','uv','alt','fase','tam']);
+  enviar(bPedras.pos,n.pos); enviar(bPedras.uv,n.uv); enviar(bPedras.alt,n.alt);
+  enviar(bPedras.fase,n.fase); enviar(bPedras.tam,n.tam);
+  nPedras = n.pos.length/3;
+}
+
 let bFolhas = null, nFolhas = 0;
 function prepararFolhas(){
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
@@ -1274,6 +1334,107 @@ void main(){
   vec3 c = texture2D(tex, vUV).rgb * vLuz;
   c += c * vAlt * 0.30;
   gl_FragColor = vec4(c, 1.0);
+}`;
+
+/* ═══════════ A MATA SOLIDA ═══════════
+
+   Superficie de verdade, e nao nuvem de pontos. A nota foi direta: "tem que
+   ser solida mesmo".
+
+   A GEOMETRIA JA EXISTIA. A malha das arvores era construida, mandada para
+   a placa em bR/nIdxR -- e nunca desenhada: servia so para ser amostrada em
+   pontos. Sao catorze mil triangulos, contra duzentos e oitenta e cinco mil
+   pontos: o solido custa MENOS que a nuvem, e nao mais.
+
+   O QUE IMPEDIA NAO ERA A MALHA, ERA A TINTA. A UV do tubo estica: a mesma
+   imagem cobre um anel largo na base e um estreito na ponta, e o resultado
+   e a pintura escorrida que fez "os objetos parecerem cubas". A nuvem de
+   pontos resolveu aquilo abolindo a superficie -- ponto nao tem UV para
+   distorcer. Custou a solidez.
+
+   TRIPLANAR e a terceira saida: a superficie volta, e a UV nao. A tinta e
+   lida TRES vezes, cada uma por um par de coordenadas do MUNDO (zy, xz,
+   xy), e as tres se misturam pelo peso da normal -- a face que aponta para
+   cima usa a leitura de cima, a que aponta para o lado usa a do lado. Como
+   a coordenada e o lugar no mundo e nao o lugar na malha, nao ha o que
+   esticar: a pintura se comporta como pedra tingida, e nao como papel
+   colado. Um tronco que afina nao afina a tinta junto.
+
+   E ela permanece a MESMA aquarela da Odara, na mesma escala, seja num
+   tronco de trinta centimetros ou num galho de tres. */
+const VS_SOLIDA = `
+attribute vec3 aPos, aNor; attribute float aAlt, aFase;
+uniform mat4 mvp; uniform float tempo;
+uniform float crescimento;   // 0 = ainda nao brotou, 1 = inteira
+uniform float inverte;       // 1 = a floresta do teto, de cabeca para baixo
+uniform vec3 desloca;        // onde ela esta (o teto fica a ALTURA + 0.15)
+varying vec3 vMundo, vNor;
+varying float vAlt, vVivo;
+void main(){
+  /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
+     identicas, trocar de uma para a outra mudaria a coreografia da obra e
+     nao so a aparencia dela. */
+  vec3 p = aPos + desloca;
+  float frente = crescimento * 1.25;
+  float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
+  vivo = vivo * vivo * (3.0 - 2.0 * vivo);
+  p.y *= vivo;
+  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
+
+  // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
+  float b = aAlt*aAlt;
+  float w = tempo*0.55 + aFase;
+  p.x += sin(w)*0.055*b;
+  p.z += cos(w*0.83+1.3)*0.045*b;
+
+  vec3 nn = aNor;
+  /* VIRAR A NORMAL JUNTO COM A PLANTA. Sem isto a floresta do teto ficaria
+     iluminada por baixo e tingida pelo lado errado da triplanar -- ela
+     estaria de cabeca para baixo, mas a tinta nao. */
+  if(inverte > 0.5){ p.y = -p.y; nn.y = -nn.y; }
+
+  /* A TINTA SEGUE O CORPO. vMundo e a posicao DEPOIS de crescer e balancar:
+     assim o pigmento anda com o galho em vez de o galho deslizar por dentro
+     de uma pintura parada. */
+  vMundo = p;
+  vNor = nn;
+  vAlt = aAlt; vVivo = vivo;
+  gl_Position = mvp * vec4(p,1.0);
+}`;
+const FS_SOLIDA = `
+precision highp float;
+uniform sampler2D casca;
+uniform float presenca;
+uniform float escalaTinta;   // quantas voltas da pintura por metro
+varying vec3 vMundo, vNor;
+varying float vAlt, vVivo;
+void main(){
+  vec3 n = normalize(vNor);
+
+  /* O PESO DE CADA PLANO, pelo cubo do valor absoluto da normal. Ao
+     quadrado a mistura fica lavada nas quinas; ao cubo ela decide, e cada
+     face pega quase inteira a leitura do seu proprio plano. Normalizar
+     depois garante que as tres somem exatamente um -- sem isso a superficie
+     escurece ou estoura conforme a inclinacao. */
+  vec3 w = abs(n);
+  w = w * w * w;
+  w /= (w.x + w.y + w.z);
+
+  vec2 sx = vMundo.zy * escalaTinta;
+  vec2 sy = vMundo.xz * escalaTinta;
+  vec2 sz = vMundo.xy * escalaTinta;
+  vec3 c = texture2D(casca, sx).rgb * w.x
+         + texture2D(casca, sy).rgb * w.y
+         + texture2D(casca, sz).rgb * w.z;
+
+  // a mesma luz das raizes, para as duas coisas pertencerem ao mesmo dia
+  float luz = 0.44 + 0.56 * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
+  c *= luz;
+
+  // a ponta nova e mais clara, como broto de verdade
+  c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
+
+  gl_FragColor = vec4(c, presenca * vVivo);
 }`;
 
 const VS_SALA = `
@@ -2602,6 +2763,7 @@ function programa(v,f){
   return p;
 }
 const progRaiz = programa(VS_RAIZ, FS_RAIZ);
+const progSolida = programa(VS_SOLIDA, FS_SOLIDA);
 const progMata = programa(VS_MATA, FS_MATA);
 const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
@@ -2804,6 +2966,7 @@ for(const f of enviarDepois) f();
 prepararRaizesDosAstros();
 prepararHorizonte();
 prepararEstrelas();
+prepararPedras();
 prepararAlienigena();
 prepararFolhas();
 prepararFundoDoMar();
@@ -4774,6 +4937,14 @@ const aM = {pos:gl.getAttribLocation(progMata,'aPos'), uv:gl.getAttribLocation(p
             tam:gl.getAttribLocation(progMata,'aTam')};
 
 const uR = n=>gl.getUniformLocation(progRaiz,n);
+const uSo = n=>gl.getUniformLocation(progSolida,n);
+const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'),
+               inverte:uSo('inverte'), desloca:uSo('desloca'), casca:uSo('casca'),
+               presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta')};
+const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
+             nor:gl.getAttribLocation(progSolida,'aNor'),
+             alt:gl.getAttribLocation(progSolida,'aAlt'),
+             fase:gl.getAttribLocation(progSolida,'aFase')};
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
               crescimento:uR('crescimento')};
@@ -5124,6 +5295,52 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
+  /* A MATA SOLIDA. Vem ANTES da nuvem porque ela ESCREVE PROFUNDIDADE, e o
+     que vem depois -- as pedras, a poeira -- precisa ser testado contra
+     ela: na ordem inversa uma pedra atras de um tronco apareceria na frente
+     dele. Face de tras descartada, porque tubo fechado nao mostra o avesso
+     e desenhar o avesso e pagar duas vezes pelo mesmo pixel. */
+  if(MATA_SOLIDA && nIdxR > 0 && presencaMata > 0.004){
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.enable(gl.BLEND);
+    sobrepor();
+    /* SO ESCREVE PROFUNDIDADE QUANDO E CORPO. Nos outros cenarios a mata e
+       um fio de tinta, e um fio que escreve profundidade esconde o que esta
+       atras dele por tras de uma coisa que mal se ve. */
+    gl.depthMask(presencaMata > 0.985);
+    gl.useProgram(progSolida);
+    soltarAtributos();
+    mandarMvp(locSo.mvp, mvp);
+    gl.uniform1f(locSo.tempo, relogio);
+    gl.uniform1f(locSo.crescimento, crescimento);
+    gl.uniform1f(locSo.presenca, presencaMata);
+    gl.uniform1f(locSo.inverte, 0.0);
+    gl.uniform3f(locSo.desloca, 0, 0, 0);
+    /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
+       aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
+       que o olho pega na hora. */
+    gl.uniform1f(locSo.escalaTinta, 1.25);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1i(locSo.casca, 2);
+    ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
+    ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+
+    // e a mesma floresta no teto, virada
+    if(crescimentoTeto > 0.004){
+      gl.uniform1f(locSo.inverte, 1.0);
+      gl.uniform1f(locSo.crescimento, crescimentoTeto);
+      gl.uniform1f(locSo.presenca, crescimentoTeto);
+      gl.uniform3f(locSo.desloca, 0, ALTURA + 0.15, 0);
+      gl.depthMask(false);
+      gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+    }
+    gl.disable(gl.CULL_FACE);
+    gl.depthMask(true);
+  }
+
   if(nMata > 0 && presencaMata > 0.004){
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -5158,7 +5375,18 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1i(locM.casca, 2);
     ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
     ligar(aM.alt,bM.alt,1); ligar(aM.fase,bM.fase,1); ligar(aM.tam,bM.tam,1);
-    gl.drawArrays(gl.POINTS, 0, nMata);
+    if(!MATA_SOLIDA) gl.drawArrays(gl.POINTS, 0, nMata);
+
+    /* AS PEDRAS. Mesmo programa, mesmo estado, mesma frente de crescimento
+       -- so nao vagueiam, porque pedra nao vagueia. */
+    if(PEDRAS_NO_CHAO && bPedras && nPedras){
+      ligar(aM.pos,bPedras.pos,3); ligar(aM.uv,bPedras.uv,2);
+      ligar(aM.alt,bPedras.alt,1); ligar(aM.fase,bPedras.fase,1);
+      ligar(aM.tam,bPedras.tam,1);
+      gl.drawArrays(gl.POINTS, 0, nPedras);
+      ligar(aM.pos,bM.pos,3); ligar(aM.uv,bM.uv,2);
+      ligar(aM.alt,bM.alt,1); ligar(aM.fase,bM.fase,1); ligar(aM.tam,bM.tam,1);
+    }
 
     /* E A MESMA FLORESTA NO TETO, de cabeca para baixo.
 
@@ -5171,7 +5399,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locM.crescimento, crescimentoTeto);
       gl.uniform1f(locM.presenca, crescimentoTeto);
       gl.uniform3f(locM.desloca, 0, ALTURA + 0.15, 0);
-      gl.drawArrays(gl.POINTS, 0, nMata);
+      if(!MATA_SOLIDA) gl.drawArrays(gl.POINTS, 0, nMata);
       gl.uniform1f(locM.inverte, 0.0);
       gl.uniform3f(locM.desloca, 0, 0, 0);
     }
