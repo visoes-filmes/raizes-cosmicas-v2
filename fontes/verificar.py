@@ -171,6 +171,39 @@ for nome, c in blocos.items():
             if u and u not in buscados:
                 problemas.append("UNIFORME nunca buscado: " + u + " (em " + nome + ")")
 
+# -- 8. o CONTRARIO: usado no shader e nunca declarado ----------------
+#
+# Esta escapou duas vezes num dia so, e as duas custaram caro: o shader da
+# agua ficou horas sem compilar porque "furacao" e "agitacao" foram
+# declarados no JavaScript e esquecidos no GLSL. O cenario 3 inteiro ficou
+# sem agua e ninguem viu, porque o unico sinal e uma linha no console -- e
+# dentro do capacete nao ha console.
+#
+# A verificacao 7 olhava so um lado: uniforme declarado que ninguem busca.
+# Ela nao dizia nada sobre o lado que QUEBRA a obra.
+#
+# A conta e simples: tudo o que o JavaScript busca de um programa precisa
+# existir no shader dele. Como um programa e um par vertice/fragmento,
+# procura-se nos dois.
+for _vs, _fs in re.findall(r"programa\((VS_\w+),\s*(FS_\w+)\)", codigo):
+    _m = re.search(r"const\s+(\w+)\s*=\s*programa\(" + _vs + r"\s*,", codigo)
+    if not _m:
+        continue
+    _prog = _m.group(1)
+    _fonte = blocos.get(_vs, "") + "\n" + blocos.get(_fs, "")
+    _pedidos = set(re.findall(
+        r"getUniformLocation\(" + _prog + r"\s*,\s*'(\w+)'\)", codigo))
+    for _at in re.findall(
+            r"const\s+(\w+)\s*=\s*n\s*=>\s*gl\.getUniformLocation\("
+            + _prog + r"\s*,", codigo):
+        _pedidos |= set(re.findall(_at + r"\('(\w+)'\)", codigo))
+    for _u in sorted(_pedidos):
+        if not re.search(r"\buniform\b[^;]*\b" + re.escape(_u) + r"\b", _fonte):
+            problemas.append(
+                "UNIFORME BUSCADO E NUNCA DECLARADO: " + _u + " (programa "
+                + _prog + ") -- o shader nao compila, e isso nao aparece na tela")
+
+
 print("shaders: " + str(len(blocos)) + "   linhas: " + str(len(fonte.splitlines())))
 if problemas:
     print(chr(10).join(problemas))

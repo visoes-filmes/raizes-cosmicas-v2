@@ -2147,6 +2147,8 @@ uniform sampler2D pele;
 uniform vec3 cor, luzDe;
 uniform float presenca, brilhoProprio;
 uniform float halo;          // 0 = o corpo; >0 = a luz que ele derrama
+uniform float iris;          // 0 = corpo comum; 1 = iridescente (o Sol)
+uniform float tempoIris;
 varying vec3 vN;
 varying vec2 vUV;
 void main(){
@@ -2176,7 +2178,28 @@ void main(){
   float limbo = pow(1.0 - abs(vN.z), 3.0) * 0.5;
 
   vec3 c = t * cor * (sombreado + limbo) + brilhoProprio * cor;
-  gl_FragColor = vec4(c, presenca);
+
+  /* A IRIDESCENCIA DO SOL. A nota pede a superficie daquela foto de objeto
+     colorido desfocado: cor que MUDA COM O ANGULO, e nao cor pintada. E
+     isso que separa iridescente de colorido -- o oleo na poca, a asa do
+     besouro, a bolha de sabao devolvem outra cor conforme se olha.
+
+     O angulo aqui e abs(vN.z): 1 no meio do disco, 0 no limbo. Tres
+     cossenos defasados sobre ele dao o arco que corre do centro para a
+     borda, e o tempo o faz escorregar devagar. */
+  if(iris > 0.5){
+    float ang = 1.0 - abs(vN.z);
+    vec3 arco = 0.5 + 0.5*cos(6.2831*(ang*1.6 + vec3(0.0, 0.33, 0.67))
+                              + tempoIris*0.35);
+    c = mix(c, c * (0.45 + 1.15*arco), 0.72);
+  }
+
+  /* A BORDA. Uma esfera opaca contra o ceu escuro serrilha: o pixel ou e do
+     planeta ou nao e, e a diagonal vira escada. Desvanecer a ultima lasca
+     do limbo transforma escada em passagem, e custa uma linha. A nota
+     reclama disso "principalmente do Sol", que e o mais claro e por isso o
+     que mais mostra. */
+  gl_FragColor = vec4(c, presenca * smoothstep(0.0, 0.055, abs(vN.z)));
 }`;
 
 /* ═══════════ a bandeja assada ═══════════
@@ -4920,7 +4943,24 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
      Ceu se desenha primeiro. E o unico lugar onde a ordem nao e escolha. */
   //    translúcida não deve esconder nada, só somar por cima.
-  if(salaVisivel && nIdxS > 0){
+  /* O CEU ESTA SEMPRE PRESENTE. So varia.
+
+     Ele dependia de "salaVisivel" -- um interruptor de ateliê que podia
+     apaga-lo por inteiro. Um ceu que pode ser desligado nao e um ceu, e um
+     objeto na cena; e ja aconteceu duas vezes hoje de ele sumir por um
+     caminho que ninguem esperava.
+
+     Agora nada o remove. O que muda e:
+
+       a TINTA -- entre noite fechada e a aquarela inteira;
+       a GRADUACAO -- ate onde ele desce antes de dar lugar a sala;
+       a COR DO CENARIO -- o turquesa do ultimo, por exemplo.
+
+     A opacidade nao entra nessa lista, e essa e a regra: no alto ele e
+     sempre opaco, e a unica coisa que o abre e o degrade descendo. Se
+     algum dia o alto voltar a mostrar o forro do lugar, o defeito esta em
+     alguma coisa que mexeu no alfa -- e nao deveria haver nenhuma. */
+  if(nIdxS > 0){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
