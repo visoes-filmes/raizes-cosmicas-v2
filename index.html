@@ -1254,7 +1254,27 @@ void main(){
      nada do desenho: 4% de cada lado, que numa figura de dois metros e
      menos de um palmo. Melhor perder um palmo de asa do que ver o
      retangulo em que ela foi recortada. */
-  vec2 d = min(vUV, 1.0 - vUV);            // distancia ate a beirada mais perto
+  /* O ESFUMACADO EM VOLTA, e ele nao e enfeite: e conserto.
+
+     Medido no ser galactico: a metade de baixo do recorte tem 46% dos
+     pixels quase opacos, e a borda de cima e a de baixo encostam no
+     arquivo. O corte guardou um PEDACO RETANGULAR DO FUNDO da pintura —
+     nao e franja, e fundo. Nenhum ajuste de alfa resolve isso, porque
+     aquilo la e tinta cheia, igual a da figura.
+
+     Entao a figura se dissolve para as bordas do proprio quadro, em
+     circulo. O miolo fica intacto; o que estava perto da beirada — que e
+     justamente onde mora o resto de fundo — vira nevoa e some. E o mesmo
+     gesto de quem passa o dedo na aquarela ainda umida.
+
+     Circulo e nao quadrado de proposito: desvanecer em quadrado ainda
+     deixa cantos, e canto e o que o olho le como moldura. */
+  vec2 doCentro = (vUV - 0.5) * 2.0;
+  float raio = length(doCentro * vec2(1.0, 0.92));
+  a *= 1.0 - smoothstep(0.55, 0.99, raio);
+
+  // e a beirada do arquivo, que nunca pode aparecer inteira
+  vec2 d = min(vUV, 1.0 - vUV);
   a *= smoothstep(0.0, 0.04, min(d.x, d.y));
 
   /* O AR DO CENARIO ENTRA NELA. Uma figura pintada com a luz que tinha na
@@ -2799,6 +2819,7 @@ let crescimento = 1, sentidoPoeira = 1;
    entrou nela. */
 let aguaPresenca = 0;
 let casuloPresenca = 0, cogumeloCresce = 0, asteroidePres = 0, fundoDoMar = 0;
+let presencaMata = 1;
 
 /* AS MAOS. Dois pontos no espaco, e cada um pode estar tocando alguma
    coisa. Vale igual para a mao nua e para o controle Touch: o WebXR
@@ -2930,7 +2951,29 @@ function seguirPartitura(dt){
      rasteiro, depois o alto. Fora do cenario 1 as plantas nao existem, e
      deixa-las inteiras seria pior do que nao ter: apareceriam de repente
      no salto de um cenario para outro. */
-  crescimento = (c === 1) ? rampa(15, 69, t) : 0;
+  /* AS RAIZES NUNCA SOMEM — SO FICAM QUASE INVISIVEIS.
+
+     Antes: crescimento = (c===1) ? rampa(...) : 0. Fora do cenario 1 elas
+     encolhiam de volta para o nada, e na troca de cena desapareciam de um
+     quadro para o outro. Isso e o oposto do que a obra diz: a raiz e o que
+     liga tudo, e o que liga nao pode existir so num capitulo.
+
+     Agora ela CRESCE uma vez e fica crescida. O que muda de cenario para
+     cenario nao e a existencia dela, e a presenca: cheia na floresta, um
+     fio de tinta nos outros — presente para quem procurar, discreta para
+     quem nao. */
+  crescimento = Math.max(crescimento, rampa(15, 69, t));
+
+  /* Um decimo e o suficiente para o olho registrar que ha alguma coisa ali
+     sem que ela dispute com o cenario. Abaixo disso vira sujeira; acima,
+     vira floresta no lugar errado. */
+  const cheia = (c === 1) ? 1.0 : 0.0;
+  const alvoMata = 0.10 + 0.90*cheia;
+  /* dt zero e o salto de cenario, que nao tem tempo para desvanecer nada:
+     ali se assenta de uma vez. Sem isto, saltar para o cenario 2 mostrava
+     a floresta inteira, e se concluia que a presenca nao funcionava. */
+  presencaMata = dt > 0 ? aproximar(presencaMata, alvoMata, 1 - Math.exp(-1.4*dt))
+                        : alvoMata;
 
   /* A agua sobe entre 6:30 e 7:05, fica, e some quando a mao gigante puxa. */
   /* O MAR EXISTE POR SI. Ele estava preso a agua: so aparecia quando ela
@@ -3928,7 +3971,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
-  if(raizesOn && nIdxR > 0){
+  if(nMata > 0 && presencaMata > 0.004){
     gl.depthMask(true);
     gl.disable(gl.BLEND);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
@@ -3952,7 +3995,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locM.tempo, relogio);
     gl.uniform1f(locM.crescimento, crescimento);
     gl.uniform1f(locM.escala, escalaPonto * 0.115);
-    gl.uniform1f(locM.presenca, 1.0);
+    gl.uniform1f(locM.presenca, presencaMata);
     gl.uniform3f(locM.desloca, 0, 0, 0);
     gl.uniform1f(locM.escalaObj, 1.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
