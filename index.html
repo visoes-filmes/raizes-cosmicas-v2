@@ -2720,6 +2720,23 @@ uniform float giroCeu;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
+uniform float aspectoCeu;   // largura/altura da pintura em uso
+
+/* O ENQUADRAMENTO DA PINTURA NO CEU.
+
+   Elevacao do centro do quadro e meia-abertura horizontal, em tangente.
+   A meia-abertura vertical NAO e escolhida: sai da tangente horizontal
+   dividida pela proporcao da imagem, e e isso que garante que a pintura
+   apareca na forma dela e nao numa forma que eu inventei. */
+const float CEU_ELEV = 0.94;      // 54 graus acima do horizonte
+const float CEU_TAN  = 1.85;      // tan(62 graus): 124 graus de largura
+
+/* QUANTO DE NOITE FICA FORA DO QUADRO. Zero deixa o resto do ceu
+   transparente -- em realidade mista, a sala de verdade. Um preenche a
+   cupula inteira de noite e a pintura flutua dentro dela. E um numero, e
+   nao um caminho: subir para 0,35 devolve um ceu fechado sem mexer em
+   nada mais. */
+const float CEU_FORA = 0.0;
 varying vec3 vPos;
 const float PI = 3.14159265359;
 void main(){
@@ -2735,61 +2752,79 @@ void main(){
   // cabeca para baixo, e a floresta do primeiro cenario reaparece sob os pes
   // no ultimo. Custa uma multiplicacao, nao uma imagem nova.
   dir.y = mix(dir.y, -dir.y, inverter);
-  /* A PINTURA RODA COM AS ESTRELAS. Se so elas girassem, o olho leria
-     estrelas escorregando sobre um fundo parado, e nao um ceu virando. E o
-     mesmo ceu: uma coisa so, que gira inteira. Sao os dois na mesma conta,
-     e por isso e o mesmo angulo. */
-  float lon = atan(dir.x, -dir.z) + giroCeu;
-  float lat = asin(clamp(dir.y, -1.0, 1.0));
-  vec2 st = vec2(fract(lon/(2.0*PI) + 0.5), clamp(0.5 - lat/PI, 0.002, 0.998));
+
+  /* A PINTURA INTEIRA, PROJETADA -- e nao esticada em volta da cupula.
+
+     O QUE ESTAVA ERRADO, e eram tres coisas somadas:
+
+       1. a imagem, que e 16:9, era achatada para 2:1 na preparacao;
+       2. o que sobrava era esticado por 360 graus de longitude e 180 de
+          latitude, o que perto do horizonte achata a tinta ate ela virar
+          borrao -- havia dois "graos" de textura no shader existindo so
+          para disfarcar esse borrao;
+       3. e o fract() emendava a borda esquerda na direita. Uma pintura nao
+          e uma panoramica sem costura: a emenda aparecia.
+
+     O QUE ENTRA e o que um projetor de slides faz: a pintura e um QUADRO
+     no espaco, e cada direcao do olhar cai num ponto dele. De onde a pessoa
+     esta -- o centro da cupula, que e onde a cupula e centrada -- isso e
+     projecao gnomonica, e projecao gnomonica de um retangulo visto do
+     centro nao tem distorcao NENHUMA: a pintura aparece exatamente como
+     foi pintada.
+
+     Nao ha emenda porque nao ha volta: a imagem comeca e acaba. Fora dela
+     nao ha imagem -- ha o que CEU_FORA disser.
+
+     A proporcao vem de fora, por uniforme, e nao esta escrita aqui: assim
+     trocar a pintura por outra de qualquer formato nao pede shader novo. */
+  vec3 d = dir;
+  float cg = cos(giroCeu), sg = sin(giroCeu);
+  d = vec3(d.x*cg - d.z*sg, d.y, d.x*sg + d.z*cg);
+
+  vec3 eixo  = vec3(0.0, sin(CEU_ELEV), -cos(CEU_ELEV));
+  vec3 lado  = vec3(1.0, 0.0, 0.0);
+  vec3 acima = cross(lado, eixo);
+  float prof = dot(d, eixo);
+
+  vec2 st = vec2(0.5);
+  float dentro = 0.0;
+  if(prof > 0.04){
+    vec2 q = vec2(dot(d, lado), dot(d, acima)) / prof;
+    st = q / vec2(CEU_TAN, CEU_TAN / aspectoCeu) * 0.5 + 0.5;
+    /* A BORDA DO QUADRO E DESFOCADA, e nao cortada. Retangulo com aresta
+       viva no ceu le como adesivo colado; quatro por cento de esfumado
+       e o bastante para a pintura ACABAR em vez de ser recortada. */
+    vec2 b = min(st, 1.0 - st);
+    dentro = smoothstep(0.0, 0.04, min(b.x, b.y));
+  }
 
   // Dois ceus e uma travessia. Trocar de imagem de um quadro para o outro
   // seria o unico corte duro da obra inteira; misturando, a passagem tem a
   // mesma natureza de tudo o mais aqui, que e metamorfose.
-  //
-  // A segunda busca so acontece DURANTE a travessia. Fora dela os dois ceus
-  // sao o mesmo, e buscar duas vezes a mesma imagem dobraria o custo do ceu
-  // em 95% do tempo. O desvio e por uniforme, igual para todos os pixels do
-  // quadro, entao nao ha divergencia dentro do grupo — e o tipo de desvio
-  // que a placa resolve de graca.
-  vec3 arte = texture2D(panorama, st).rgb;
+  vec4 aA = texture2D(panorama, st);
+  vec3 arte = aA.rgb;
+  float alfaArte = aA.a;
   if(mistura > 0.002){
-    arte = mix(arte, texture2D(panoramaB, st).rgb, mistura);
+    vec4 aB = texture2D(panoramaB, st);
+    arte = mix(arte, aB.rgb, mistura);
+    alfaArte = mix(alfaArte, aB.a, mistura);
   }
-  arte *= 1.0 + 0.05 * sin(tempo*0.5 + lon*2.0);
+  arte *= 1.0 + 0.05 * sin(tempo*0.5 + st.x*6.0);
 
-  /* A NITIDEZ QUE A IMAGEM NAO TEM.
+  /* UM GRAO SO, e nao dois.
 
-     A panoramica e 2048 x 1024 cobrindo 360 graus: cerca de 5,7 pixels por
-     grau. O olho do Quest resolve muito mais que isso, entao ele nao ve
-     uma pintura -- ve uma pintura AMPLIADA, e ampliacao le como borrao.
-     Nao ha como inventar o pixel que nao foi pintado.
+     Eles existiam porque a equirretangular dava 5,7 pixels por grau e o
+     olho do Quest resolve muito mais: a pintura aparecia AMPLIADA, e
+     ampliacao le como borrao. Projetada em 124 graus, a mesma imagem da
+     16,5 pixels por grau -- quase o triplo. O segundo grao deixou de ter
+     defeito para consertar, e com ele foi embora uma leitura de textura
+     por pixel do ceu inteiro.
 
-     Mas da para devolver ESTRUTURA. A mesma imagem, lida numa frequencia
-     muito mais alta, vira um grao com a cor e o gesto da propria aquarela;
-     usada como MULTIPLICADOR em volta de 1, ela nao muda o desenho, muda a
-     superficie: onde havia leite liso agora ha fibra, e fibra e o que o
-     olho usa para julgar se algo esta em foco.
+     O que sobra e superficie: a propria aquarela lida numa frequencia alta,
+     como multiplicador em volta de um. Nao muda o desenho, muda a pele. */
+  float grao = texture2D(panorama, st * vec2(9.0, 6.0)).g;
+  arte *= 1.0 + (grao - 0.5) * 0.30;
 
-     E o peso cresce com a inclinacao. No zenite a equirretangular converge
-     e ja tem detalhe de sobra; e perto do HORIZONTE que ela estica e
-     achata, e e la que o grao precisa entrar. */
-  float grao = texture2D(panorama, st * vec2(11.0, 7.0)).g;
-  float esticada = 1.0 - abs(dir.y);            // 0 no zenite, 1 no horizonte
-  arte *= 1.0 + (grao - 0.5) * 0.42 * esticada;
-
-  /* E UM SEGUNDO GRAO, mais fino e girado, para o primeiro nao virar
-     padrao. Duas frequencias que nao sao multiplo uma da outra nunca
-     fecham desenho -- e desenho repetido seria pior que o borrao. */
-  float grao2 = texture2D(panorama, st.yx * vec2(23.0, 17.0) + 0.37).r;
-  arte *= 1.0 + (grao2 - 0.5) * 0.22 * esticada;
-
-  /* O TOM DO CENARIO.
-
-     O ultimo pede "um tom mais pro verde turquesa". Nao e trocar a pintura:
-     e a mesma tinta sob outra luz -- como um mesmo quarto ao amanhecer e ao
-     entardecer. Multiplicar a arte pela cor do cenario faz isso, e mantem
-     todo o desenho intacto: so o clima muda. */
   arte *= corCena;
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
@@ -2845,8 +2880,21 @@ void main(){
 
      E com isso o primeiro momento da obra fica certo sem truque: tinta em
      zero da preto opaco, e nao um buraco para o forro do lugar. */
-  arte = mix(vec3(0.020, 0.019, 0.041), arte, clamp(tinta, 0.0, 1.0));
-  float a = grad;
+  /* A NOITE E DA CUPULA, A PINTURA E DO QUADRO.
+
+     Sao dois alfas somados, e precisam ser dois. A noite tem de cobrir a
+     cupula INTEIRA -- nos vinte primeiros segundos "tinta" e zero, e se o
+     preto valesse so dentro do quadro o resto do ceu seria um buraco para o
+     forro da sala, que e exatamente o defeito que este shader ja levou uma
+     vez. A pintura, ao contrario, vale so onde ela existe: dentro do
+     quadro e onde a propria imagem nao e transparente. */
+  float tin = clamp(tinta, 0.0, 1.0);
+  float aNoite = grad * (1.0 - tin) + grad * tin * CEU_FORA * (1.0 - dentro);
+  float aArte  = grad * tin * dentro * alfaArte;
+  float a = clamp(aNoite + aArte, 0.0, 1.0);
+  arte = a > 0.0001
+       ? (vec3(0.020, 0.019, 0.041) * aNoite + arte * aArte) / a
+       : arte;
 
   if(passthrough > 0.5){
     // No headset: onde a arte sumiu, não desenho nada — a câmera aparece
@@ -4593,6 +4641,12 @@ const texRaiz = novaTex([80,75,120]);
 /* Os tres ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
    shader mistura dois deles durante a travessia. */
 const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
+/* A PROPORCAO DE CADA PINTURA, entregue pelo montador -- ele a mede no
+   arquivo no momento de embutir. Escrita a mao ela derivaria no primeiro
+   dia em que alguem trocasse uma imagem, e uma proporcao errada aqui nao
+   da erro: so entrega a pintura deformada, que e o defeito que este
+   trabalho acabou de consertar. */
+const ASPECTO_CEU = [2.0, 2.0, 2.0];
 /* As peles dos planetas, recortadas da propria pintura e ja tratadas para
    repetir sem emenda nos dois eixos. Duas bastam: as cores as diferenciam. */
 /* AS PELES.
@@ -6365,7 +6419,7 @@ const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
              mistura:uS('mistura'), inverter:uS('inverter'), tinta:uS('tinta'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
               altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim'),
-              giroCeu:uS('giroCeu')};
+              giroCeu:uS('giroCeu'), aspecto:uS('aspectoCeu')};
 const aR = {pos:gl.getAttribLocation(progRaiz,'aPos'), nor:gl.getAttribLocation(progRaiz,'aNor'),
             uv:gl.getAttribLocation(progRaiz,'aUV'), alt:gl.getAttribLocation(progRaiz,'aAlt'),
             fase:gl.getAttribLocation(progRaiz,'aFase')};
@@ -6718,6 +6772,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.inverter, inverterCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
+    /* A proporcao e a do ceu que esta na frente. Na travessia os dois
+       convivem, mas as tres pinturas da obra tem a mesma forma -- se um dia
+       tiverem formas diferentes, e aqui que a travessia vai pedir dois. */
+    gl.uniform1f(locS.aspecto, ASPECTO_CEU[ceuA] || 1.7778);
     /* A CUPULA ACOMPANHA A CABECA e nao escreve profundidade. Andando pela
        sala, ela anda junto: nenhum paralaxe, e o olho le como distante. E
        como nao ocupa profundidade, tudo o mais passa na frente dela. */

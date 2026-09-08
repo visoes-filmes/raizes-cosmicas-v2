@@ -43,6 +43,30 @@ def embutir(nome, medidas, qualidade=90, com_alfa=False):
     return f"data:image/{tipo};base64," + base64.b64encode(b.getvalue()).decode("ascii")
 
 
+# ── OS CEUS: PROPORCAO PRESERVADA, E O ALFA SE HOUVER ────────────────
+#
+# ANTES: embutir(..., (2048, 1024), qualidade=88). Duas coisas erradas numa
+# linha. A medida forcava 2:1 -- e as pinturas sao 16:9, entao elas eram
+# ACHATADAS antes de qualquer outra coisa acontecer. E o JPEG nao guarda
+# canal alfa: nao havia transparencia no ceu, nem como haver.
+#
+# Agora a altura sai da propria imagem, e o formato sai de ela ter alfa ou
+# nao. PNG so quando ha o que preservar: PNG de uma pintura de 2048 pesa
+# muitos megabytes, e megabyte no ceu e megabyte que o Quest baixa antes de
+# a obra comecar.
+ASPECTOS = []
+
+
+def embutir_ceu(nome, largura=2048, qualidade=86):
+    caminho = nome if os.path.isabs(nome) else os.path.abspath(nome)
+    img = Image.open(caminho)
+    com_alfa = img.mode in ("RGBA", "LA") or "transparency" in img.info
+    lg, at = img.size
+    altura = max(1, int(round(largura * at / lg)))
+    ASPECTOS.append(round(largura / altura, 4))
+    return embutir(nome, (largura, altura), qualidade, com_alfa)
+
+
 # ── INTERRUPTOR DA TRILHA ────────────────────────────────────────────
 # True deixaria o audio de fora do arquivo inteiro. Fica False: a trilha
 # CONTINUA na cena — o que esta desligado e apenas o inicio automatico dela,
@@ -54,11 +78,9 @@ mapa = {
     "__TEX_RAIZ__":     embutir(bem("texturas", "tex-raiz.png"), (256, 512)),
     # o panorama inteiro: a sala vira superficie de projecao dele, entao a
     # obra envolve o espaco uma vez so, sem azulejo repetido
-    "__TEX_PANORAMA__": embutir(bem("ceus", "ceu-floresta-2048.png"), (2048, 1024), qualidade=88),
-    "__CEU_COSMICO__":  embutir(bem("ceus", "ceu-cosmico-2048.png"),
-                                (2048, 1024), qualidade=86),
-    "__CEU_ROSA__":     embutir(bem("ceus", "ceu-rosa-2048.png"),
-                                (2048, 1024), qualidade=86),
+    "__TEX_PANORAMA__": embutir_ceu(bem("ceus", "ceu-floresta-2048.png"), 2048, 88),
+    "__CEU_COSMICO__":  embutir_ceu(bem("ceus", "ceu-cosmico-2048.png")),
+    "__CEU_ROSA__":     embutir_ceu(bem("ceus", "ceu-rosa-2048.png")),
     # As peles dos planetas: recorte da propria pintura, ja tratado para
     # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
     "__TEX_MARMORE__":  embutir(bem("texturas", "tex-marmore.png"),
@@ -124,6 +146,12 @@ if os.path.exists(_nuvens):
 else:
     mapa["__NUVENS__"] = "const NUVENS = {};"
     print("  nuvens dos modelos: NAO ENCONTRADAS (rode modelos_em_pontos.py)")
+
+# as proporcoes reais das pinturas, medidas na hora de embutir: assim o
+# shader nunca discorda do arquivo, do mesmo jeito que a versao do cache
+# nunca discorda da montagem 
+mapa["__ASPECTOS_CEU__"] = "[" + ", ".join(str(a) for a in ASPECTOS) + "]"
+print(f"  proporcoes dos ceus: {ASPECTOS}")
 
 for k, v in mapa.items():
     html = html.replace(k, v)
