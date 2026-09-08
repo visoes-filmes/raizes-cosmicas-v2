@@ -3707,7 +3707,55 @@ function enviar(buf, arr){
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
 }
-function subirRaizes(s){
+/* A MATA DE FUNDO.
+
+   Dentro do quarto cabem doze plantas, e doze plantas em volta de quem olha
+   sao uma CLAREIRA, nao uma floresta. Em realidade mista ninguem pode dar
+   dois passos para tras para ver o conjunto: a distancia tem de ser
+   construida, ou ela nao existe.
+
+   Entao a mata continua alem das paredes -- tres aneis, de quatro a onze
+   metros, com as plantas ficando maiores e mais raras conforme se afastam.
+   Maiores porque, a nove metros, uma planta do tamanho das de perto e um
+   ponto; e mais raras porque floresta rala ao longe le como profundidade e
+   floresta densa ao longe le como muro.
+
+   ELAS ATRAVESSAM A PAREDE DE VERDADE, e isso e proposital: e o mesmo que a
+   cupula do ceu ja faz. O comodo deixa de ser o limite do mundo e passa a
+   ser um lugar dentro dele.
+
+   BUFFER PROPRIO, e nao a mesma malha: o indice e de 16 bits, e somar
+   quarenta plantas na malha de perto passaria dos 65 535 vertices sem
+   avisar -- os indices dao a volta e a mata vira macarrao. */
+let bLonge = null, nLongeIdx = 0;
+function semearFundo(semente){
+  const rnd = prng(semente);
+  const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
+  const guardadas = PONTAS.length;
+  const ANEIS = [[4.2, 14, 1.5], [7.0, 12, 2.3], [10.5, 9, 3.2]];
+  for(const [dist, quantas, tamanho] of ANEIS){
+    for(let i=0;i<quantas;i++){
+      const ang = (i/quantas)*Math.PI*2 + rnd()*0.5;
+      const d = dist * (0.82 + rnd()*0.36);
+      gerarPlanta(rnd, [Math.sin(ang)*d, 0, -Math.cos(ang)*d],
+                  tamanho * (0.75 + rnd()*0.5), rnd()*Math.PI*2, s);
+    }
+  }
+  /* AS PONTAS DELAS NAO ENTRAM NA FOLHAGEM. A folhagem tem teto de vertices,
+     e gasta-lo com arvores a dez metros deixaria as de perto peladas -- e sao
+     as de perto que a pessoa ve de fato. */
+  PONTAS.length = guardadas;
+  if(s.pos.length/3 > 65535)
+    console.warn('mata de fundo passou dos 65 535 vertices');
+  bLonge = bLonge || criarBufs(['pos','nor','uv','alt','fase','idx']);
+  enviar(bLonge.pos,s.pos); enviar(bLonge.nor,s.nor);
+  enviar(bLonge.alt,s.alt); enviar(bLonge.fase,s.fase);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bLonge.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
+  nLongeIdx = s.idx.length;
+}
+
+function subirRaizes(s, semente){
   enviar(bR.pos,s.pos); enviar(bR.nor,s.nor); enviar(bR.uv,s.uv);
   enviar(bR.alt,s.alt); enviar(bR.fase,s.fase);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
@@ -3744,6 +3792,7 @@ function subirRaizes(s){
   enviar(bM.pos, nuvem.pos); enviar(bM.uv, nuvem.uv);
   enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
   nMata = nuvem.pos.length/3;
+  semearFundo(semente + 907);   // depois de PONTAS existir, e antes da folhagem
   prepararSolo();       // depende de BASES, que so existe depois de semear
   prepararFolhagem();   // e de PONTAS, pelo mesmo motivo
   document.getElementById('vRaiz').textContent = totalRaizes;
@@ -3780,7 +3829,7 @@ function subirFiguras(s){
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
   nIdxF = s.idx.length;
 }
-subirRaizes(semearMata(11));
+subirRaizes(semearMata(11), 11);
 subirFiguras(semearFiguras(29));
 subirPoeira(semearPoeira(53));
 
@@ -5350,7 +5399,7 @@ document.getElementById('bSemente').onclick = ()=>{
   semente = (semente*2654435761 % 100000)|0;
   sementeFig = (sementeFig*40503 % 100000)|0;
   sementePo = (sementePo*22695477 % 100000)|0;
-  subirRaizes(semearMata(semente));
+  subirRaizes(semearMata(semente), semente);
   subirFiguras(semearFiguras(sementeFig));
   subirPoeira(semearPoeira(sementePo));
 };
@@ -6136,6 +6185,20 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locSo.casca, 2);
+    /* A MATA DE FUNDO vem PRIMEIRO: a de perto escreve profundidade depois
+       e a cobre onde as duas se sobrepoem. E ela entra com presenca menor --
+       a translucidez faz as vezes da bruma que o ar poe entre quem olha e o
+       que esta longe. */
+    if(nLongeIdx > 0){
+      gl.uniform1f(locSo.presenca, presencaMata * 0.72);
+      gl.uniform1f(locSo.crescimento, crescimento);
+      ligar(aSo.pos, bLonge.pos, 3); ligar(aSo.nor, bLonge.nor, 3);
+      ligar(aSo.alt, bLonge.alt, 1); ligar(aSo.fase, bLonge.fase, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bLonge.idx);
+      gl.drawElements(gl.TRIANGLES, nLongeIdx, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locSo.presenca, presencaMata);
+    }
+
     ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
     ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
