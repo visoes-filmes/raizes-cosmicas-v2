@@ -388,11 +388,19 @@ const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
    que sao as estrelas cadentes, ficam: elas sao acontecimento, e nao
    ambiente. O que sai e o po de fundo.
 
-   OBJETOS_NO_CHAO -- grama, folhas, trevo, soja, cogumelo e o ser. Tudo o
-   que e modelo 3D virado em pontos. Sao os modelos 3D, e sao
-   justamente o que mais enche o rasteiro. */
+   OBJETOS_NO_CHAO -- grama, folhas, trevo e soja. Tudo o que e modelo 3D
+   virado em pontos NO RASTEIRO, que e justamente o que mais o enche. */
 const POEIRA_NA_FLORESTA = true;
 const OBJETOS_NO_CHAO    = false;
+/* SER_NO_CEU -- vem separado, pelo mesmo motivo que as pedras vieram.
+
+   O ser estava atras do OBJETOS_NO_CHAO e por isso nunca foi visto por
+   ninguem. Mas ele nao e objeto de chao: esta a treze metros e meio, tres
+   de altura e sete vezes maior que uma pessoa. Foi varrido junto quando se
+   pediu para limpar o rasteiro da floresta -- um pedido sobre o chao
+   apagando uma coisa que esta no ceu. Agrupar por "e modelo 3D" foi o erro:
+   o interruptor tem que agrupar pelo que a coisa FAZ na obra. */
+const SER_NO_CEU         = true;
 /* PEDRAS_NA_FLORESTA -- vem separado dos outros de proposito. As pedras
    foram pedidas DEPOIS de o chao ser limpo, entao apaga-las junto com a
    grama seria desfazer o pedido novo com o interruptor do pedido velho. */
@@ -6986,7 +6994,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          e nao da casca: e o que faz dele parte da nuvem em vez de um
          objeto posto na frente dela. Respira devagar, e so isso o
          entrega. */
-      if(OBJETOS_NO_CHAO && bAlien && nAlien){
+      if(SER_NO_CEU && bAlien && nAlien){
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
         gl.uniform1f(locM.presenca, 0.085 + 0.035*Math.sin(relogio*0.21));
