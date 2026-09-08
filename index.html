@@ -1995,8 +1995,13 @@ void main(){
        coisas; turquesa escuro aceso por turquesa e uma so, e e essa unidade
        que faz o objeto parecer feito de luz em vez de pintado com ela. O
        que separa corpo de brilho aqui e o VALOR, e nao a cor. */
-    vec3 pe = mix(vec3(0.055, 0.150, 0.135), vec3(0.150, 0.360, 0.320), grao);
-    vec3 chapeu = mix(vec3(0.040, 0.190, 0.175), vec3(0.155, 0.470, 0.410), grao);
+    /* ACESO E ALTO. Um corpo escuro so vira luz se houver estouro, e nao
+       ha estouro aqui. Entao ele mora no alto da faixa, e quem da o
+       contraste e o CHAO em volta -- que a poca tinge de leve e o resto
+       deixa escuro. E o chapeu e mais aceso que o pe: a luz nasce em cima,
+       onde ficam as laminas, e desce pelo corpo. */
+    vec3 pe = mix(vec3(0.135, 0.430, 0.385), vec3(0.245, 0.700, 0.620), grao);
+    vec3 chapeu = mix(vec3(0.200, 0.660, 0.585), vec3(0.330, 0.900, 0.790), grao);
     c = mix(pe, chapeu, smoothstep(0.60, 0.72, vAlt));
 
     /* AS LAMINAS ACENDEM. Nao ha geometria de lamina nenhuma: o que ha e a
@@ -2069,7 +2074,12 @@ void main(){
   float piso = 0.44;
   if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
-  else if(materia > 5.5)                  piso = 1.00;   // luz nao se sombreia
+  else if(materia > 5.5)                  piso = 1.00;   // a luz derramada
+  /* O COGUMELO QUASE NAO SE SOMBREIA. Superficie que emite nao tem lado
+     escuro -- e sombra e exatamente o sinal que diz ao olho "isto e
+     iluminado por outra coisa". Sobra um fio de variacao (0,86 a 1,00) so
+     para a forma nao sumir: sem nenhuma, o corpo vira recorte chapado. */
+  else if(materia > 4.5)                  piso = 0.86;   // cogumelo: aceso
   else if(materia > 2.5)                  piso = 0.50;   // grama
   float ehPedra = step(0.5, materia) * step(materia, 1.5);
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
