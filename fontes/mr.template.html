@@ -575,35 +575,45 @@ function gerarArvoreMae(rnd, base, s){
     tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
   };
 
-  /* O GALHO DE ONDE O CASULO PENDE. Nao passa pelo "galho" comum: aquele
-     e uma reta com uma queda, e uma reta de um metro e setenta atravessando
-     o quadro le como cabo de vassoura. Este e feito a parte, e faz o que
-     galho faz -- sobe saindo do tronco, arqueia, e desce ate o casulo,
-     torcendo de lado no caminho. E afina de verdade: quatro centimetros na
-     saida, menos de um na ponta.
+  /* OS GALHOS DO CASULO: um maior, e um menor que nasce dele.
 
-     ELE TERMINA EXATAMENTE ONDE O CASULO COMECA. Nao ha dois numeros para
-     manter em dia: o ponto de chegada e a posicao do casulo. */
-  (() => {
-    const de = pontos[4], N = 12;
-    const alvo = [CASULO[0], FIO_ALTO, CASULO[2]];
-    const dx = alvo[0]-de[0], dz = alvo[2]-de[2];
-    const comp = Math.hypot(dx, dz);
-    const lx = -dz/comp, lz = dx/comp;      // o lado, na horizontal
-    const seg = [], rr = [];
-    for(let j=0;j<=N;j++){
-      const t = j/N;
-      /* O ARCO e a TORCAO somem nas duas pontas (sen(pi.t) e zero em t=0 e
-         t=1), entao a curva nao mexe nem em de onde sai nem em onde chega. */
-      const arco = Math.sin(t*Math.PI) * 0.26;
-      const lado = Math.sin(t*Math.PI) * 0.20;
-      seg.push([ de[0] + dx*t + lx*lado,
-                 de[1] + (alvo[1]-de[1])*t + arco,
-                 de[2] + dz*t + lz*lado ]);
-      rr.push(0.040 * Math.pow(1-t, 1.35) + 0.008);
+     Um galho sozinho atravessando o quadro le como cabo de vassoura, por
+     mais bem curvado que seja -- galho nao anda desacompanhado, ele se
+     divide. Aqui o maior sai do tronco e segue por cima; o menor nasce dele
+     no meio do caminho e desce ate o casulo, afinando ate quase nada.
+
+     O ARCO E A TORCAO usam sen(pi.t), que e zero nas duas pontas: a curva
+     nao mexe nem em de onde o galho sai nem em onde ele chega. E por isso o
+     encontro do menor com o pedunculo do casulo continua exato, sem haver
+     dois numeros para manter em dia. */
+  const arcoAte = (de, ate, arco, lado, N) => {
+    const dx = ate[0]-de[0], dz = ate[2]-de[2];
+    const comp = Math.hypot(dx, dz) || 1e-6;
+    const lx = -dz/comp, lz = dx/comp;
+    const seg = [];
+    for(let j2=0;j2<=N;j2++){
+      const t = j2/N, curva = Math.sin(t*Math.PI);
+      seg.push([ de[0] + dx*t + lx*lado*curva,
+                 de[1] + (ate[1]-de[1])*t + arco*curva,
+                 de[2] + dz*t + lz*lado*curva ]);
     }
-    tuboAoLongo(s, seg, rr, 1.9, 0.26, 0.60);
+    return seg;
+  };
+  (() => {
+    const N = 12;
+    const maior = arcoAte(pontos[3], [0.92, 1.66, -0.34], 0.30, 0.22, N);
+    tuboAoLongo(s, maior,
+                maior.map((_, k) => 0.052*Math.pow(1-k/N, 1.3) + 0.010),
+                1.9, 0.24, 0.58);
+    // o menor nasce a 55% do maior e desce ate o casulo
+    const nasce = maior[Math.round(N*0.55)];
+    const alvo = [CASULO[0], FIO_ALTO, CASULO[2]];
+    const menor = arcoAte(nasce, alvo, 0.09, -0.11, N);
+    tuboAoLongo(s, menor,
+                menor.map((_, k) => 0.017*Math.pow(1-k/N, 1.2) + 0.0055),
+                2.6, 0.30, 0.56);
   })();
+
   galho(0.55, 3.1,  0.42, 0.95, 0.065);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
   galho(0.78, 1.9,  0.52, 1.55, 0.060);   // ja acima do forro
@@ -702,7 +712,11 @@ let totalRaizes = 0;
    Isso nao e um arranjo de conveniencia: e a primeira imagem da animacao,
    um casulo pendurado num fio, sozinho no escuro. */
 const ARVORE_BASE = [-1.35, 0, -1.75];
-const CASULO = [0.42, 1.44, -0.78];
+/* UM METRO DO CHAO. A altura nao e estetica: e de quem vai tocar.
+   Crianca de seis anos alcanca confortavelmente ate cerca de 1,15 m com o
+   braco estendido, e o casulo e o objeto que mais convida ao toque na obra
+   inteira. Posto a 1,44 ele era um convite so para adultos. */
+const CASULO = [0.42, 1.00, -0.78];
 /* ONDE O GALHO TERMINA: exatamente no topo do pedunculo do casulo. Nao ha
    fio nenhum entre os dois -- o casulo se prende ao galho pelo proprio
    corpo, como pupa faz. CASULO marca a barriga; o pedunculo sobe dali. */
@@ -2017,6 +2031,7 @@ void main(){
     c = texture2D(casca, sx).rgb * w.x
       + texture2D(casca, sy).rgb * w.y
       + texture2D(casca, sz).rgb * w.z;
+    // o piso vem DEPOIS da luz, mais abaixo: aqui ele ainda apanharia dela
   } else if(materia < 1.5){
     c = aPedra(vMundo * escalaTinta);
   } else if(materia < 2.5){
@@ -2162,6 +2177,19 @@ void main(){
   float ehPedra = step(0.5, materia) * step(materia, 1.5);
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
+
+  /* PISO NO VALOR DA AQUARELA, e depois da luz.
+
+     A pintura tem regioes quase pretas. Num tronco VERTICAL a triplanar
+     percorre a altura inteira dela e isso vira variacao de casca; num galho
+     DEITADO o y quase nao varia, a leitura fica presa numa linha da
+     pintura, e se essa linha cai no escuro o galho ganha uma faixa preta de
+     ponta a ponta. E o mesmo defeito que apareceu na pedra pequena.
+
+     Antes da luz o piso nao adianta -- ela o multiplica de volta para o
+     preto. Aqui ele e o valor final, e garante que nenhum pedaco de planta
+     desapareca. */
+  if(materia < 0.5) c = max(c, vec3(0.165, 0.150, 0.195));
 
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
