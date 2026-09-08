@@ -6141,11 +6141,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
       gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
 
-      /* O ar aceso em volta nao e desenhado aqui: ver "O BRILHO DOS
-         COGUMELOS" no bloco dos astros. Casca inflada a partir desta malha
-         herdava as quinas dela, e sendo a coisa mais clara da cena era ela
-         quem as denunciava. */
+      /* O AR ACESO COLADO NO CORPO. Duas cascas infladas pela normal, cada
+         uma maior e mais fraca. Elas ja denunciaram as quinas da malha uma
+         vez -- e o conserto foi polir a malha, e nao abrir mao do brilho:
+         casca colada e o que da a forma do corpo ao brilho, e sem ela o
+         cogumelo vira uma bola de luz sem cogumelo dentro.
+
+         O descarte passa para a face DA FRENTE: numa casca que soma luz o
+         que interessa e a parede de tras, senao a metade da frente cobre a
+         de tras e a soma acontece pela metade. */
       gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      gl.cullFace(gl.FRONT);
+      gl.uniform1f(locSo.materia, 6.0);
+      for(const [grossura, forca] of [[0.040, 1.0], [0.095, 0.45]]){
+        gl.uniform1f(locSo.inflar, grossura);
+        gl.uniform1f(locSo.presenca, forca);
+        gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+      }
+      gl.cullFace(gl.BACK);
+      gl.uniform1f(locSo.inflar, 0.0);
+      gl.uniform1f(locSo.presenca, 1.0);
+      gl.depthMask(true);
       sobrepor();
     }
 
@@ -6710,7 +6728,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        esfera e a mesma maquina da coroa do Sol -- a forma do brilho passa a
        nao ter nada a ver com a forma do corpo, que e como luz se comporta.
 
-       Duas cascas por cogumelo: uma so tem borda, duas ja lem como queda. */
+       Estas sao o halo LARGO, por fora; o brilho colado no corpo e feito
+       de cascas infladas, junto com o cogumelo. Um da a forma do corpo ao
+       brilho, o outro espalha luz no ar -- e sao os dois que fazem o
+       conjunto ler como coisa acesa. */
     if(COGUMELOS_NO_CHAO && cogumeloCresce > 0.004 && nIdxE > 0){
       somarLuz();
       gl.depthMask(false);
@@ -6724,7 +6745,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         const bat = Math.pow(0.5 + 0.5*Math.sin(relogio*1.9 + cg.fase), 4.0);
         const alto = cg.alt * cogumeloCresce;
         gl.uniform3f(locAst.centro, cg.x, alto * 0.82, cg.z);
-        for(const [tamanho, forca] of [[2.1, 1.05], [3.9, 0.42]]){
+        for(const [tamanho, forca] of [[2.6, 0.42], [4.3, 0.18]]){
           gl.uniform1f(locAst.raio, cg.raio * tamanho);
           gl.uniform1f(locAst.brilho, forca * (0.35 + 0.85*bat) * cogumeloCresce);
           gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
