@@ -817,6 +817,8 @@ function plantarMalha(m, nome, base, escala, giro, fase){
     m.nor.push(nx*cos - nz*sin, ny, nx*sin + nz*cos);
     m.alt.push(y);                     // a altura no proprio corpo: emerge
     m.fase.push(fase);
+    // todo corpo plantado e miolo: quem tem beirada e so a mancha de terra
+    if(m.borda) m.borda.push(1);
   }
   for(let i=0;i<o.idx.length;i++) m.idx.push(o.idx[i] + desloque);
   return o.n;
@@ -1178,51 +1180,22 @@ function montarCrisalida(){
   nCrisalidaIdx = m.idx.length;
 }
 
-/* OS COGUMELOS, EM MALHA.
+/* OS COGUMELOS. O modelo veio de poly.pizza (Quaternius), CC0.
 
-   Eram um disco achatado com foto de marmore colada e um pe fino: liam
-   como moedas escuras no chao. Agora sao solido de revolucao, e o perfil
-   DOBRA PARA DENTRO no rebordo -- e essa dobra que cria a face de baixo do
-   chapeu, que e onde ficam as laminas e a luz. Sem a dobra, chapeu e so
-   uma cupula: por baixo nao ha nada, e cogumelo visto de baixo e metade do
-   que ele e.
+   A geometria feita a mao aqui -- perfil de revolucao com a dobra do
+   rebordo -- resolvia a silhueta e nao resolvia o resto: por mais que o
+   perfil estivesse certo, faltava a irregularidade que faz um cogumelo
+   parecer ter crescido em vez de ter sido torneado.
 
-   Os treze entram num buffer so, cada um com a sua fase. */
-const PERFIL_COGUMELO = [
-  // raio, altura -- ambos de 0 a 1
-  [0.115, 0.00], [0.085, 0.09], [0.070, 0.34], [0.068, 0.56],
-  [0.075, 0.62], [0.170, 0.655],                 // aqui a dobra comeca
-  [0.330, 0.685], [0.460, 0.725],                // a face de baixo
-  [0.470, 0.790], [0.415, 0.875],                // o rebordo e a cupula
-  [0.265, 0.950], [0.090, 0.992], [0.0, 1.0],
-];
+   O modelo tem 138 triangulos, e o conversor o arredonda para 552. Treze
+   deles somam sete mil -- um terco do que a floresta custa. */
 let bCogumelos = null, nCogumelosIdx = 0;
 function montarCogumelos(){
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const LADOS = 16, P = PERFIL_COGUMELO;
-  for(const cg of COGUMELOS){
-    const base = m.pos.length/3;
-    const escR = cg.raio / 0.47;          // o rebordo fica com o raio pedido
-    for(let a=0;a<P.length;a++){
-      const r = P[a][0] * escR, y = P[a][1] * cg.alt;
-      // a normal sai da inclinacao do perfil entre os vizinhos
-      const q0 = P[Math.max(0,a-1)], q1 = P[Math.min(P.length-1,a+1)];
-      const dr = (q1[0]-q0[0]) * escR, dy = (q1[1]-q0[1]) * cg.alt;
-      const cl = Math.hypot(dr, dy) || 1;
-      for(let j=0;j<=LADOS;j++){
-        const ang = j/LADOS * Math.PI*2, ca = Math.cos(ang), sa = Math.sin(ang);
-        m.pos.push(cg.x + ca*r, y, cg.z + sa*r);
-        m.nor.push(ca*dy/cl, -dr/cl, sa*dy/cl);
-        m.alt.push(P[a][1]); m.fase.push(cg.fase); m.borda.push(1);
-      }
-    }
-    const larg = LADOS+1;
-    for(let a=0;a<P.length-1;a++)
-      for(let j=0;j<LADOS;j++){
-        const i0 = base + a*larg + j, i1 = i0+1, i2 = i0+larg, i3 = i2+1;
-        m.idx.push(i0, i2, i1, i1, i2, i3);
-      }
-  }
+  for(const cg of COGUMELOS)
+    plantarMalha(m, 'cogumelo-0', [cg.x, 0, cg.z],
+                 cg.alt, cg.fase * 0.97, cg.fase);
+  if(!m.idx.length) return;
   bCogumelos = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bCogumelos.pos,m.pos); enviar(bCogumelos.nor,m.nor);
   enviar(bCogumelos.alt,m.alt); enviar(bCogumelos.fase,m.fase);
@@ -1234,7 +1207,7 @@ function montarCogumelos(){
 
 let bPedras = null, nPedrasIdx = 0;
 function prepararPedras(){
-  const m = {pos:[], nor:[], alt:[], fase:[], idx:[]};
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
   const rnd = prng(3307);
   const QUANTAS = 11;
   for(let i=0;i<QUANTAS;i++){
@@ -1257,9 +1230,10 @@ function prepararPedras(){
                  escala, rnd()*6.28, rnd()*6.28);
   }
   if(!m.idx.length) return;
-  bPedras = criarBufs(['pos','nor','alt','fase','idx']);
+  bPedras = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bPedras.pos,m.pos); enviar(bPedras.nor,m.nor);
   enviar(bPedras.alt,m.alt); enviar(bPedras.fase,m.fase);
+  enviar(bPedras.borda,m.borda);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bPedras.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
   nPedrasIdx = m.idx.length;
@@ -1974,8 +1948,8 @@ void main(){
     /* O COGUMELO. Pe palido e chapeu escuro, com o grao fino da pele de
        cogumelo por cima. A altura no proprio corpo decide qual dos dois. */
     float grao = rugas(vMundo * 34.0);
-    vec3 pe = mix(vec3(0.46, 0.42, 0.36), vec3(0.68, 0.63, 0.54), grao);
-    vec3 chapeu = mix(vec3(0.26, 0.14, 0.20), vec3(0.52, 0.26, 0.31), grao);
+    vec3 pe = mix(vec3(0.20, 0.26, 0.28), vec3(0.34, 0.44, 0.44), grao);
+    vec3 chapeu = mix(vec3(0.13, 0.09, 0.20), vec3(0.30, 0.17, 0.34), grao);
     c = mix(pe, chapeu, smoothstep(0.60, 0.72, vAlt));
 
     /* AS LAMINAS ACENDEM. Nao ha geometria de lamina nenhuma: o que ha e a
@@ -1986,7 +1960,18 @@ void main(){
        Natal. */
     float porBaixo = clamp(-n.y, 0.0, 1.0);
     float bat = pow(0.5 + 0.5*sin(tempo * 1.9 + vFase), 4.0);
-    c += vec3(0.34, 0.86, 0.62) * porBaixo * (0.18 + 0.55 * bat);
+    /* BIOLUMINESCENTE. O corpo inteiro acende de leve e as laminas muito
+       mais -- e a diferenca entre "aceso" e "iluminado". O corpo escuro
+       embaixo faz a luz existir: numa massa clara ela nao teria de onde
+       aparecer. E como e luz propria, ela nao depende do piso da sala:
+       contra o chao de verdade, visto pelas cameras, ela se destaca. */
+    vec3 corLuz = vec3(0.30, 0.92, 0.66);
+    /* A LUZ VEM DE BAIXO, e o resto quase nao acende. Com a copa inteira
+       acesa o cogumelo le como bolha palida, e nao como coisa que brilha:
+       brilho so existe contra escuro. O chapeu fica sendo a sombra, o
+       rebordo vaza um fio, e as laminas queimam. */
+    c += corLuz * porBaixo * (0.55 + 1.25 * bat);
+    c += corLuz * pow(raspaoC, 5.0) * (0.08 + 0.16 * bat);
   }
 
   /* A LUZ. Na planta ela e macia -- folha e translucida e nao tem lado
@@ -2049,7 +2034,11 @@ void main(){
      o pulso entra pela casca de frente (onde se ve o miolo) e nao pela
      borda. A batida e um seno elevado, que sobe rapido e desce devagar --
      um seno puro le como pisca-pisca, nao como coracao. */
-  if(materia > 3.5){
+  /* SO A CRISALIDA -- e nao "maior que 3,5". O cogumelo e a materia 5 e
+     caia aqui dentro: recebia o alfa translucido e o brilho de frente da
+     crisalida, o que o deixava transparente e palido ao mesmo tempo. Foi
+     esse o defeito que se via, e nao a geometria dele. */
+  if(materia > 3.5 && materia < 4.5){
     float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
     alfa *= mix(0.16, 0.95, pow(raspaoC, 1.4));
     c += vec3(0.55, 0.72, 0.30) * batida * (1.0 - raspaoC) * 0.85;
@@ -5994,6 +5983,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.depthMask(presencaMata > 0.985);
       ligar(aSo.pos, bPedras.pos, 3); ligar(aSo.nor, bPedras.nor, 3);
       ligar(aSo.alt, bPedras.alt, 1); ligar(aSo.fase, bPedras.fase, 1);
+      ligar(aSo.borda, bPedras.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bPedras.idx);
       gl.drawElements(gl.TRIANGLES, nPedrasIdx, gl.UNSIGNED_SHORT, 0);
       gl.uniform1f(locSo.planta, 1.0);
@@ -6055,9 +6045,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        ensinam, sem instrucao nenhuma, que da para tocar nas coisas. Os dois
        lados aparecem, porque o chapeu e visto por baixo. */
     if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && cogumeloCresce > 0.004){
-      gl.disable(gl.CULL_FACE);
+      /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
+         o pe POR DENTRO do chapeu -- e ver dentro de uma coisa opaca nao le
+         como transparencia, le como defeito. O perfil dobra e fecha, entao
+         descartar a face de tras basta: de cima ve-se o chapeu, de baixo as
+         laminas, e nunca o miolo. E sem mistura nenhuma, para nao haver
+         alfa que possa deixar isso voltar. */
+      gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
       gl.depthMask(true);
-      sobrepor();
+      gl.disable(gl.BLEND);
       gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       gl.uniform1f(locSo.materia, 5.0);
@@ -6070,7 +6066,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.borda, bCogumelos.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
       gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
-      gl.enable(gl.CULL_FACE);
+      gl.enable(gl.BLEND);
+      sobrepor();
     }
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que

@@ -72,7 +72,17 @@ PADRAO = 2000
 #
 # Nao e todo modelo: uma alga no fundo do mar continua melhor como nuvem,
 # porque la a nuvem E o assunto. Aqui entra o que e macico.
-COMO_MALHA = {"rocks-icon": "pedra"}
+COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo"}
+
+# QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
+# de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
+# a mesma mao pesada o transformava num ovo -- sumia o pe, sumia o rebordo.
+SUAVE = {"pedra": 0.62, "cogumelo": 0.20}
+
+# O cogumelo veio de poly.pizza (Quaternius), CC0 -- dominio publico, sem
+# exigencia de credito. Escolhido entre cinco por ser o unico numa PECA SO:
+# os outros traziam chapeus e pes como partes separadas, que nao dao para
+# plantar como um corpo.
 
 # QUANTAS PECAS APROVEITAR de cada modelo, da maior para a menor. Oito da
 # variedade de sobra para onze pedras no chao sem que se reconheca a
@@ -428,7 +438,8 @@ def main():
                 partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
                 for k, parte in enumerate(partes):
                     mp, _mn, mi = simplificar(parte, GRADE)
-                    mp, mi = arredondar(mp, mi)
+                    mp, mi = arredondar(mp, mi,
+                                        forca=SUAVE.get(COMO_MALHA[curto], 0.5))
                     mn = normais(mp, mi)
                     mp = normalizar(mp)
                     if len(mp) > 65535:
