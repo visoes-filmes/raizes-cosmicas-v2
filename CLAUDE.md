@@ -35,10 +35,22 @@ apontar algo, conserte antes de montar.
 ## Publicar
 
 ```bash
-python fontes/verificar.py
-python fontes/montar_mr.py
-git add -A && git commit -m "o que mudou" && git push
+python fontes/publicar.py "o que mudou"
 ```
+
+Um comando só, e ele faz na ordem: verifica, **marca o que está no ar**,
+monta, commita, empurra. Se o verificador reclamar, para antes de publicar
+qualquer coisa.
+
+**Toda publicação guarda a anterior.** Antes de empurrar, o commit que está
+no ar ganha uma marca com o nome da versão de cache dele —
+`publicado-2026-09-07ci`. Voltar é `git checkout publicado-2026-09-07ci`. O
+nome é a versão e não a data porque é a versão que o headset pede: quando
+alguém disser "no aparelho está a de ontem e quebrou", o nome está escrito na
+tela do relato.
+
+À mão eram três comandos decorados e o backup era o quarto — o que se
+esquece.
 
 **A versão do cache se troca sozinha.** O montador gira o `VERSAO` do
 `sw.js` a cada montagem (data + letra). Ela existe porque o service worker
