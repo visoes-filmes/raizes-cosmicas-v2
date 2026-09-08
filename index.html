@@ -1762,6 +1762,12 @@ uniform float crescimento;   // 0 = ainda nao brotou, 1 = inteira
 uniform float inverte;       // 1 = a floresta do teto, de cabeca para baixo
 uniform vec3 desloca;        // onde ela esta (o teto fica a ALTURA + 0.15)
 uniform float escalaObj;     // de que tamanho (a crisalida usa duas cascas)
+/* INFLAR PELA NORMAL, e nao escalar. As cascas de brilho precisam crescer
+   em volta de CADA corpo, e os cogumelos estao assados no lugar deles: uma
+   escala multiplicaria a posicao no mundo e jogaria as cascas para longe.
+   Empurrar cada vertice na direcao da propria normal cresce em volta do
+   corpo onde quer que ele esteja, e custa uma soma. */
+uniform float inflar;
 /* PLANTA OU PEDRA. Uma planta ungrown fica RECOLHIDA perto da origem e se
    abre para o lugar dela; e balanca no vento, mais na ponta que na base.
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
@@ -1774,7 +1780,7 @@ void main(){
   /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
      nao so a aparencia dela. */
-  vec3 p = aPos * escalaObj + desloca;
+  vec3 p = (aPos + aNor * inflar) * escalaObj + desloca;
   /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
 
      Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
@@ -1900,6 +1906,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
 
      0  aquarela da Odara, por triplanar -- as arvores
      1  pedra   2  terra   3  grama  -- geradas por ruido aqui mesmo
+     4  crisalida   5  cogumelo   6  a luz que o cogumelo derrama
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -1952,6 +1959,23 @@ void main(){
        pupa e jade puxando a ouro, mais clara na borda porque ali a luz
        atravessa mais parede. */
     c = mix(vec3(0.30, 0.46, 0.34), vec3(0.86, 0.82, 0.44), pow(raspaoC, 2.2));
+  } else if(materia > 5.5){
+    /* A LUZ QUE ELE DERRAMA.
+
+       Isto nao e o cogumelo: e uma casca maior, em volta dele, somando luz.
+
+       POR QUE PRECISA EXISTIR. O que o olho chama de "brilhando" e valor que
+       passa do que a tela mostra e VAZA para os pixels vizinhos. Aqui tudo e
+       cortado em 1,0, entao uma cor clara e so um objeto claro -- pintar um
+       sol nao acende um sol. A casca em volta e o vazamento feito a mao, e e
+       o mesmo recurso que o Sol da obra ja usa.
+
+       Mais forte no meio e sumindo na beirada: e assim que ar aceso em volta
+       de uma fonte se comporta. Como ela e MAIOR que o corpo, a parte da
+       frente dela passa por cima do chapeu, e o chapeu escuro tambem acende
+       -- sem isso o brilho seria um anel, e anel le como aura de figurinha. */
+    float bat = pow(0.5 + 0.5*sin(tempo * 1.9 + vFase), 4.0);
+    c = vec3(0.30, 0.92, 0.66) * pow(1.0 - raspaoC, 2.4) * (0.30 + 0.62 * bat);
   } else {
     /* O COGUMELO. Pe palido e chapeu escuro, com o grao fino da pele de
        cogumelo por cima. A altura no proprio corpo decide qual dos dois. */
@@ -2017,6 +2041,7 @@ void main(){
   float piso = 0.44;
   if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
+  else if(materia > 5.5)                  piso = 1.00;   // luz nao se sombreia
   else if(materia > 2.5)                  piso = 0.50;   // grama
   float ehPedra = step(0.5, materia) * step(materia, 1.5);
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
@@ -5561,7 +5586,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta'),
                planta:uSo('planta'), materia:uSo('materia'),
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
-               escalaObj:uSo('escalaObj'), tempo2:uSo('tempo')};
+               escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
+               inflar:uSo('inflar')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -5938,6 +5964,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.inverte, 0.0);
     gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.uniform1f(locSo.escalaObj, 1.0);
+    gl.uniform1f(locSo.inflar, 0.0);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
@@ -6076,7 +6103,27 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.borda, bCogumelos.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
       gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+
+      /* E O AR ACESO EM VOLTA. Duas cascas, cada uma maior e mais fraca --
+         uma so tem borda, duas ja lem como queda continua. Somam luz e nao
+         escrevem profundidade: acendem o que esta atras em vez de recortar.
+
+         O descarte passa para a face DA FRENTE: numa casca somando luz o
+         que interessa e a parede de tras, senao a metade da frente cobre a
+         de tras e a soma acontece uma vez so, pela metade. */
       gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      gl.cullFace(gl.FRONT);
+      gl.uniform1f(locSo.materia, 6.0);
+      for(const [grossura, forca] of [[0.045, 1.0], [0.105, 0.42]]){
+        gl.uniform1f(locSo.inflar, grossura);
+        gl.uniform1f(locSo.presenca, forca);
+        gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+      }
+      gl.cullFace(gl.BACK);
+      gl.uniform1f(locSo.inflar, 0.0);
+      gl.uniform1f(locSo.presenca, 1.0);
       sobrepor();
     }
 
