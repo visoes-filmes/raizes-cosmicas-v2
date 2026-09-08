@@ -688,13 +688,10 @@ let totalRaizes = 0;
    um casulo pendurado num fio, sozinho no escuro. */
 const ARVORE_BASE = [-1.35, 0, -1.75];
 const CASULO = [0.42, 1.44, -0.78];
-/* O FIO E UM PALMO, e nao uma linha ate o teto.
-
-   Ele ia do casulo aos 2,95 m -- um traco reto atravessando o quadro
-   inteiro, saindo de lugar nenhum. Casulo pende de GALHO, e o galho tem de
-   estar la: agora a arvore-mae estende um galho ate aqui em cima, e o fio e
-   so o vao entre a ponta dele e a crisalida. */
-const FIO_ALTO = CASULO[1] + 0.18;
+/* ONDE O GALHO TERMINA: exatamente no topo do pedunculo do casulo. Nao ha
+   fio nenhum entre os dois -- o casulo se prende ao galho pelo proprio
+   corpo, como pupa faz. CASULO marca a barriga; o pedunculo sobe dali. */
+const FIO_ALTO = CASULO[1] + 0.085 + 0.058;
 
 /* ONDE CADA PLANTA FICOU. O solo e a grama nascem AO PE DAS ARVORES, e
    para isso precisam saber onde as arvores estao. As posicoes sao sorteadas
@@ -1157,39 +1154,53 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
   }
 }
 
-/* A CRISALIDA DA BORBOLETA 88.
+/* A CRISALIDA DA BORBOLETA 88, COM O SEU PEDUNCULO.
 
-   Um solido de revolucao, e nao uma esfera achatada com a pintura colada
-   -- que era o que havia, e que a nota chamou pelo nome.
+   Pupa nao pende de fio: ela se prende pelo CREMASTER, um pedunculo de
+   ganchos que e parte do proprio corpo e agarra uma almofada de seda no
+   galho. Aqui era um fio a parte -- um fiapo solto entre duas coisas que
+   nao se tocavam. Agora o pedunculo e a mesma malha do corpo, e o casulo
+   sai do galho em vez de estar pendurado perto dele.
 
-   PENDURADA: o fio prende em cima pelo cremaster, a barriga e larga no
-   terco de cima e o corpo afina ate a ponta embaixo. O perfil sai de
-   sen(k^0,55 . pi), que fecha nas duas pontas e poe a maior largura em vinte
-   e dois por cento -- exatamente onde uma pupa a tem. Os aneis do abdome
-   entram como ondulacao no terco de baixo, e o corpo e achatado de lado,
-   porque pupa nao e um tubo redondo. */
+   O perfil e por METRO e nao por fracao, porque duas partes de comprimentos
+   diferentes se emendam melhor assim. De cima para baixo: pedunculo fino
+   engrossando, e o corpo -- sen(k^0,55 . pi), que fecha nas duas pontas e poe
+   a maior largura em 22%, onde uma pupa a tem. Os aneis do abdome entram
+   como ondulacao no terco de baixo, e o corpo e achatado de lado. */
+const CRIS_CORPO = 0.175, CRIS_PESCOCO = 0.058;
 let bCrisalida = null, nCrisalidaIdx = 0;
 function montarCrisalida(){
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const ANEIS = 30, LADOS = 20, COMP = 0.175, LARG = 0.050, CHATO = 0.78;
-  const perfil = k => {
-    const corpo = Math.sin(Math.pow(Math.min(Math.max(k,0),1), 0.55) * Math.PI);
+  const ANEIS = 36, LADOS = 20, LARG = 0.050, CHATO = 0.78;
+  const total = CRIS_CORPO + CRIS_PESCOCO;
+  const perfil = y => {
+    if(y < CRIS_PESCOCO){
+      const t = y / CRIS_PESCOCO;
+      return 0.0032 + Math.pow(t, 1.5) * 0.0165;
+    }
+    const k = Math.min(Math.max((y - CRIS_PESCOCO) / CRIS_CORPO, 0), 1);
+    const corpo = Math.sin(Math.pow(k, 0.55) * Math.PI);
     const aneis = k > 0.42 ? 1 + 0.055*Math.sin((k-0.42)*34) : 1;
-    return corpo * aneis;
+    /* No encontro o corpo nao pode nascer do zero, senao ha um degrau: nos
+       primeiros milimetros ele parte da grossura que o pedunculo entregou. */
+    return Math.max(corpo * aneis * LARG, 0.0197 * (1 - Math.min(k*7, 1)));
   };
   for(let a=0;a<=ANEIS;a++){
-    const k = a/ANEIS;
-    const r = perfil(k) * LARG;
-    // a normal segue a inclinacao do perfil, por diferenca finita
-    const h = 0.5/ANEIS;
-    const dr = (perfil(k+h) - perfil(k-h)) * LARG / (2*h*COMP);
+    const y = a/ANEIS * total;
+    const r = perfil(y);
+    const h = total/(ANEIS*2);
+    const dr = (perfil(Math.min(y+h, total)) - perfil(Math.max(y-h, 0))) / (2*h);
     for(let j=0;j<=LADOS;j++){
       const ang = j/LADOS * Math.PI*2, ca = Math.cos(ang), sa = Math.sin(ang);
-      m.pos.push(ca*r, -k*COMP, sa*r*CHATO);
+      m.pos.push(ca*r, -y, sa*r*CHATO);
       const nn = [ca, dr, sa/CHATO];
       const c = Math.hypot(nn[0], nn[1], nn[2]) || 1;
       m.nor.push(nn[0]/c, nn[1]/c, nn[2]/c);
-      m.alt.push(0); m.fase.push(0); m.borda.push(1);
+      /* A ALTURA NO PROPRIO CORPO manda no balanco: zero no galho e um na
+         ponta, entao ela oscila como pendulo -- presa em cima, solta
+         embaixo. Fio nenhum precisa existir para isso. */
+      m.alt.push(y / total);
+      m.fase.push(0); m.borda.push(1);
     }
   }
   const larg = LADOS+1;
@@ -1209,13 +1220,10 @@ function montarCrisalida(){
 
 /* OS COGUMELOS. O modelo veio de poly.pizza (Quaternius), CC0.
 
-   A geometria feita a mao aqui -- perfil de revolucao com a dobra do
-   rebordo -- resolvia a silhueta e nao resolvia o resto: por mais que o
-   perfil estivesse certo, faltava a irregularidade que faz um cogumelo
-   parecer ter crescido em vez de ter sido torneado.
-
-   O modelo tem 138 triangulos, e o conversor o arredonda para 552. Treze
-   deles somam sete mil -- um terco do que a floresta custa. */
+   Geometria feita a mao resolvia a silhueta e nao o resto: faltava a
+   irregularidade que faz um cogumelo parecer ter crescido em vez de ter
+   sido torneado. O modelo tem 138 triangulos, e o conversor o leva a 2 208
+   dividindo duas vezes e polindo tres. */
 let bCogumelos = null, nCogumelosIdx = 0;
 function montarCogumelos(){
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
@@ -6246,16 +6254,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        profundidade -- corpo transparente que escreve profundidade recorta
        o que esta atras dele. */
     if(nCrisalidaIdx > 0 && casuloPresenca > 0.004){
-      const osc = Math.sin(relogio * 0.7) * 0.022;
       gl.disable(gl.CULL_FACE);
       gl.depthMask(false);
       gl.uniform1f(locSo.planta, 0.0);
-      gl.uniform1f(locSo.balanca, 0.0);
+      // presa em cima e solta embaixo: o balanco do shader e o pendulo
+      gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.materia, 4.0);
       gl.uniform1f(locSo.crescimento, 9.0);
       gl.uniform1f(locSo.presenca, casuloPresenca);
-      gl.uniform3f(locSo.desloca, CASULO[0] + osc, CASULO[1] + 0.085,
-                                  CASULO[2] + osc*0.6);
+      gl.uniform3f(locSo.desloca, CASULO[0], FIO_ALTO, CASULO[2]);
       ligar(aSo.pos, bCrisalida.pos, 3); ligar(aSo.nor, bCrisalida.nor, 3);
       ligar(aSo.alt, bCrisalida.alt, 1); ligar(aSo.fase, bCrisalida.fase, 1);
       ligar(aSo.borda, bCrisalida.borda, 1);
@@ -6764,37 +6771,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
-    /* O CASULO E O FIO. O fio e a mesma esfera esticada ate virar linha:
-       raio minusculo e achatamento enorme. Nao vale a pena um programa so
-       para desenhar um fio. */
-    if(casuloPresenca > 0.004){
-      gl.depthMask(true);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locAst.pele, 5);
-      gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.3);
-      gl.uniform1f(locAst.brilho, 0.05);
-      gl.uniform1f(locAst.halo, 0.0);   // o casulo e corpo, nao fonte
-      gl.uniform1f(locAst.iris, 0.0);
-      /* A RESPIRACAO DO CASULO. Enquanto ele pode ser tocado e ainda nao
-         foi, respira devagar. Depois do toque para: ja disse o que tinha a
-         dizer, e continuar chamando seria pedir de novo o que ja foi
-         dado. */
-      const chamando = tocouCasulo ? 0 : 1;
-      gl.uniform1f(locAst.brilho,
-                   0.05 + chamando * 0.10 * (0.5 + 0.5*Math.sin(relogio*1.7)));
-      gl.uniform1f(locAst.presenca, casuloPresenca);
+    /* O CASULO nao tem fio: o pedunculo dele e parte da malha, e o galho
+       da arvore-mae termina exatamente no topo desse pedunculo. Quem
+       desenha e o programa solido, junto com o resto. */
 
-      const meio = (CASULO[1] + FIO_ALTO) * 0.5;
-      const metade = (FIO_ALTO - CASULO[1]) * 0.5;
-      gl.uniform3f(locAst.centro, CASULO[0], meio, CASULO[2]);
-      gl.uniform1f(locAst.raio, 0.0045);
-      gl.uniform1f(locAst.giro, 0);
-      gl.uniform1f(locAst.achatar, metade / 0.0045);
-      gl.uniform3f(locAst.cor, 0.90, 0.88, 0.78);   // seda, e nao arame
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-
-      // o corpo do casulo e a crisalida, desenhada com o programa solido
-    }
 
     /* O BRILHO DOS COGUMELOS.
 
