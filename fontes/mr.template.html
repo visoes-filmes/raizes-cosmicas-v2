@@ -1883,10 +1883,13 @@ vec3 aTerra(vec3 p){
    palha, para o conjunto nao virar um so verde de tinta. */
 vec3 aGrama(vec3 p, float alt){
   float v = rugas(p * 7.5);
-  vec3 c = mix(vec3(0.082, 0.145, 0.092), vec3(0.315, 0.455, 0.225),
-               clamp(alt * 1.2, 0.0, 1.0) * (0.52 + 0.48 * v));
-  c = mix(c, vec3(0.315, 0.330, 0.150), v * 0.28);
-  return c;
+  /* A LUZ NASCE NA PONTA E MORRE NA RAIZ. Acender a folha inteira acenderia
+     o chao junto, e ai o cogumelo perde o contraste que o faz ser fonte --
+     tudo aceso e o mesmo que nada aceso. A potencia 1,7 mantem a base
+     escura por quase toda a folha e so a ponta sobe. */
+  vec3 raiz  = mix(vec3(0.045, 0.098, 0.078), vec3(0.115, 0.225, 0.165), v);
+  vec3 ponta = mix(vec3(0.155, 0.560, 0.470), vec3(0.300, 0.880, 0.740), v);
+  return mix(raiz, ponta, pow(clamp(alt, 0.0, 1.0), 1.7));
 }
 
 uniform sampler2D casca;
@@ -2047,6 +2050,14 @@ void main(){
     c = mix(c, c * 0.45 + iris * 0.72, peso);
   }
 
+  /* A PONTA DA FOLHA ACENDE, cada uma na sua fase e no compasso dos
+     cogumelos -- o cenario inteiro batendo no mesmo ritmo, e nao junto. */
+  if(materia > 2.5 && materia < 3.5){
+    float bat = pow(0.5 + 0.5*sin(tempo * 1.9 + vFase), 4.0);
+    c += vec3(0.24, 0.90, 0.80) * pow(clamp(vAlt, 0.0, 1.0), 2.8)
+       * (0.12 + 0.34 * bat);
+  }
+
   /* A LUZ DERRAMADA. So no que esta perto do chao: acima de oitenta
      centimetros nao ha o que iluminar, e a copa das arvores ocupa tela
      demais para pagar treze contas por pixel a toa. */
@@ -2072,7 +2083,9 @@ void main(){
      iluminado por outra coisa". Sobra um fio de variacao (0,86 a 1,00) so
      para a forma nao sumir: sem nenhuma, o corpo vira recorte chapado. */
   else if(materia > 4.5)                  piso = 0.86;   // cogumelo: aceso
-  else if(materia > 2.5)                  piso = 0.50;   // grama
+  /* Na grama o piso SOBE COM A ALTURA: a raiz e materia iluminada, a ponta
+     e materia acesa, e a folha faz a passagem de uma para a outra. */
+  else if(materia > 2.5)   piso = mix(0.50, 0.94, clamp(vAlt, 0.0, 1.0));
   float ehPedra = step(0.5, materia) * step(materia, 1.5);
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
