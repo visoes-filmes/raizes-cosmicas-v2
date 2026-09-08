@@ -1404,6 +1404,8 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
    crianca alcancar, e a essa distancia dois centimetros nao sao um bicho,
    sao um detalhe que passa batido. */
 const CRIS_ALTURA = 0.233;
+// o meio do corpo dela: e daqui que se mede a mao chegando
+const CRIS_MEIO = 1.00 + 0.085 + 0.058 - CRIS_ALTURA * 0.5;
 
 /* A CRISALIDA E O BICHO, e nao o torno.
 
@@ -2340,6 +2342,35 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
    tem UV nem ladrilho: a textura existe DENTRO do corpo. A arvore continua
    com a aquarela, porque tem sete metros e a percorre inteira. */
 uniform float materia;
+/* QUAO PERTO A MAO ESTA do casulo: zero longe, um encostando. E o mesmo
+   valor que arma o toque, que ate agora era so limiar interno e nao
+   aparecia em lugar nenhum. */
+uniform float proximidade;
+
+/* O BATIMENTO QUE CHAMA A MAO.
+
+   A crisalida pulsava no compasso dos cogumelos e na cor deles, e por isso
+   nao chamava: ela se misturava ao cenario. Aqui ela sai do coro.
+
+   DOIS GOLPES E UMA PAUSA, e nao um seno. Seno puro le como pisca-pisca, e
+   pisca-pisca le como aviso -- coisa de maquina. Dois golpes proximos
+   seguidos de silencio e o que o corpo reconhece como CORACAO, e coracao
+   diz que ha algo vivo ali dentro sem precisar de uma palavra.
+
+   O expoente oito e o que faz o golpe ser golpe: com dois, a coisa
+   respiraria; com oito, ela bate. Dois segundos e meio por batida -- ritmo
+   de bicho grande dormindo, nao de susto.
+
+   E A MAO ACELERA O CORACAO. Chegando perto, ele bate mais forte e ganha um
+   piso que nao volta a zero: a crisalida percebeu. E a unica resposta que a
+   obra tinha e nao dava -- a pessoa estendia a mao e nada acusava recebido
+   ate o cenario inteiro saltar. */
+float coracao(){
+  float f = tempo * 2.6;
+  float b = pow(0.5 + 0.5*sin(f), 8.0)
+          + 0.55 * pow(0.5 + 0.5*sin(f - 1.15), 8.0);
+  return b * (1.0 + 2.4 * proximidade) + 0.30 * proximidade;
+}
 varying vec3 vMundo, vNor;
 varying float vAlt, vVivo, vBorda, vFase;
 void main(){
@@ -2431,15 +2462,36 @@ void main(){
        o desenho; o angulo continua clareando a borda, porque ali a luz
        atravessa mais parede. */
     c = aMarmore(vMundo * 9.0);
-    c = mix(c, c * 1.35 + vec3(0.16, 0.13, 0.04), pow(raspaoC, 2.0));
+    /* O CORPO E ROSA, e nao branco com lampejo rosa.
+
+       Medido: no pico da batida o corpo dava (217, 206, 178) -- creme. O
+       vermelho oito por cento acima do verde nao e rosa para olho nenhum, e
+       o azul sendo o MAIS BAIXO e o contrario de rosa: e areia.
+
+       Duas causas. O marmore e branco-acinzentado, e o realce de raspao
+       dele somava ambar -- (0,16, 0,13, 0,04), muito vermelho e quase nada
+       de azul --, que e a cor de uma casca seca e nao de uma coisa viva por
+       dentro. Agora o realce e rosa, e o marmore inteiro leva um banho de
+       rosa: mais vermelho, menos verde, azul no meio. Continua sendo o
+       marmore, com o desenho todo -- so nao e mais branco. */
+    /* MEDIDO em vez de escolhido. Rosa bebe de referencia (#FFD1DC) tem o
+       vermelho 46 acima do verde. Com o banho em 1,10/0,88/0,96 o corpo
+       chegou a 21 de diferenca -- o ambar tinha ido embora, mas ainda era
+       quase branco. Aqui o verde desce mais e o realce clareia menos: o
+       branco e que estava comendo o tom, e nao a falta de vermelho. */
+    c *= vec3(1.14, 0.80, 0.90);
+    c = mix(c, c * 1.26 + vec3(0.18, 0.045, 0.10), pow(raspaoC, 2.0));
   } else if(materia > 6.5){
     /* O QUE PULSA DENTRO DA CRISALIDA. Casca menor, somando luz, por dentro
        da casca de marmore. Ela nao pode levar o marmore: somado por cima do
        corpo, o desenho da pedra lava o desenho da pedra -- ficava tudo
        palido e uniforme, que foi o que apareceu. Aqui e so luz. */
-    float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
-    c = vec3(0.46, 0.82, 0.34) * pow(1.0 - raspaoC, 1.6)
-      * (0.22 + 0.85 * batida);
+    /* ROSA BEBE. O cenario inteiro e turquesa -- cogumelos, capim, veios
+       da pedra. Uma coisa turquesa no meio de tudo turquesa e ambiente; em
+       rosa, ela e a unica que pede a mao. Cor complementar nao e enfeite
+       aqui, e a instrucao que substitui a instrucao. */
+    c = vec3(1.00, 0.55, 0.70) * pow(1.0 - raspaoC, 1.6)
+      * (0.16 + 0.72 * coracao());
   } else if(materia > 5.5){
     /* A LUZ QUE ELE DERRAMA.
 
@@ -2620,12 +2672,21 @@ void main(){
      crisalida, o que o deixava transparente e palido ao mesmo tempo. Foi
      esse o defeito que se via, e nao a geometria dele. */
   if(materia > 3.5 && materia < 4.5){
-    float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
     /* MENOS TRANSLUCIDA. 0,16 de frente deixava ver quase tudo atras dela,
        e casca de pupa e casca: ela guarda o que esta dentro. 0,58 ainda
        insinua o miolo sem deixar a crisalida virar vidro. */
     alfa *= mix(0.58, 0.99, pow(raspaoC, 1.2));
-    c += vec3(0.55, 0.72, 0.30) * batida * (1.0 - raspaoC) * 0.85;
+    /* O ROSA ATRAVESSA A CASCA de frente e nao pela borda: o que bate esta
+       DENTRO, e luz de dentro sai por onde a parede e mais fina de se
+       atravessar -- que e onde se olha de frente. */
+    /* E O BRILHO NAO E MAIS SO DE FRENTE. O (1 - raspao) puro fazia a
+       batida aparecer apenas de quem olhava reto, e uma pupa de vinte
+       centimetros pendurada e vista de todos os angulos ao mesmo tempo:
+       metade da silhueta ficava fora da batida. Fica mais forte de frente,
+       porque e la que a luz de dentro atravessa menos parede, mas nao
+       desaparece de lado. */
+    c += vec3(1.00, 0.55, 0.70) * coracao()
+       * (0.38 + 0.62 * (1.0 - raspaoC)) * 0.72;
   }
 
   gl_FragColor = vec4(c, alfa);
@@ -6234,7 +6295,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                planta:uSo('planta'), materia:uSo('materia'),
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
-               inflar:uSo('inflar'), focos:uSo('focos[0]')};
+               inflar:uSo('inflar'), focos:uSo('focos[0]'),
+               proximidade:uSo('proximidade')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -6860,6 +6922,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.materia, 4.0);
       gl.uniform1f(locSo.crescimento, 9.0);
       gl.uniform1f(locSo.presenca, casuloPresenca);
+
+      /* A MAO CHEGANDO, medida por DISTANCIA e nao pelo "aceso" que arma o
+         toque.
+
+         O aceso so nasce DENTRO do alvo e depois de um quarto de segundo --
+         ele existe para nao disparar de raspao, e por isso e cego
+         justamente ao que interessa aqui: a mao ainda vindo. Sessenta
+         centimetros e onde o braco ja se decidiu, e e de la que o coracao
+         comeca a responder.
+
+         Assim ha duas coisas separadas, e e certo que sejam duas: o que se
+         VE e generoso e comeca longe, e o que DISPARA e exigente e pede
+         permanencia. Se fossem a mesma, ou a obra dispararia de raspao ou
+         nao acusaria recebido ate disparar. */
+      let chamado = 0;
+      for(const mo of MAOS){
+        if(!mo.tem) continue;
+        const dx = mo.x - CASULO[0], dy = mo.y - CRIS_MEIO, dz = mo.z - CASULO[2];
+        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        const q = 1 - Math.min(Math.max((d - 0.18) / 0.42, 0), 1);
+        if(q > chamado) chamado = q;
+      }
+      gl.uniform1f(locSo.proximidade, chamado);
       gl.uniform3f(locSo.desloca, CASULO[0], FIO_ALTO, CASULO[2]);
       ligar(aSo.pos, bCrisalida.pos, 3); ligar(aSo.nor, bCrisalida.nor, 3);
       ligar(aSo.alt, bCrisalida.alt, 1); ligar(aSo.fase, bCrisalida.fase, 1);
