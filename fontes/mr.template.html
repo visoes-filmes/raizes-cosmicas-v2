@@ -1865,6 +1865,26 @@ vec3 aPedra(vec3 p){
   return c;
 }
 
+/* O MARMORE. Veio, e nao mancha -- e essa a diferenca entre marmore e
+   pedra comum. A conta e a classica: um seno percorrendo uma direcao, com o
+   argumento DEFORMADO por ruido. O seno sozinho daria listras de papel de
+   parede; o ruido as entorta, dobra e as faz voltar sobre si mesmas, que e
+   o desenho que a pedra faz quando o sedimento e revolvido antes de
+   endurecer.
+
+   O expoente baixo no valor absoluto e o que afina o veio: sem ele a
+   passagem entre claro e escuro e larga e le como nuvem. */
+vec3 aMarmore(vec3 p){
+  /* A turbulencia entorta o seno; forte demais ela o dissolve e o marmore
+     vira nuvem. 1,5 e o ponto em que o veio ainda e veio. */
+  float turb = rugas(p * 2.2) * 1.5 + ruido(p * 9.0) * 0.45;
+  float veio = pow(abs(sin((p.y * 5.0 + turb) * 3.14159)), 0.30);
+  float fundo = rugas(p * 1.4);
+  vec3 claro  = mix(vec3(0.76, 0.82, 0.62), vec3(0.94, 0.93, 0.74), fundo);
+  vec3 escuro = mix(vec3(0.07, 0.15, 0.13), vec3(0.19, 0.26, 0.15), fundo);
+  return mix(escuro, claro, veio);
+}
+
 /* A TERRA. Manchas largas entre um marrom quase preto e um ocre seco, e
    um grao fino por cima. Nada de verde: verde e a grama, e misturar os dois
    na mesma superficie e o que faz chao de jogo parecer chao de jogo. */
@@ -1912,7 +1932,8 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
 
      0  aquarela da Odara, por triplanar -- as arvores
      1  pedra   2  terra   3  grama  -- geradas por ruido aqui mesmo
-     4  crisalida   5  cogumelo   6  a luz que o cogumelo derrama
+     4  crisalida   5  cogumelo
+     6  a luz que o cogumelo derrama   7  o que pulsa dentro da crisalida
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -1961,10 +1982,20 @@ void main(){
   } else if(materia < 3.5){
     c = aGrama(vMundo * escalaTinta, vAlt);
   } else if(materia < 4.5){
-    /* A CRISALIDA. Sem textura nenhuma: a cor vem do angulo. Quitina de
-       pupa e jade puxando a ouro, mais clara na borda porque ali a luz
+    /* A CRISALIDA, EM MARMORE. A cor vinha so do angulo e por isso o corpo
+       era liso demais para uma casca de quitina, que tem veio. O marmore da
+       o desenho; o angulo continua clareando a borda, porque ali a luz
        atravessa mais parede. */
-    c = mix(vec3(0.30, 0.46, 0.34), vec3(0.86, 0.82, 0.44), pow(raspaoC, 2.2));
+    c = aMarmore(vMundo * 9.0);
+    c = mix(c, c * 1.35 + vec3(0.16, 0.13, 0.04), pow(raspaoC, 2.0));
+  } else if(materia > 6.5){
+    /* O QUE PULSA DENTRO DA CRISALIDA. Casca menor, somando luz, por dentro
+       da casca de marmore. Ela nao pode levar o marmore: somado por cima do
+       corpo, o desenho da pedra lava o desenho da pedra -- ficava tudo
+       palido e uniforme, que foi o que apareceu. Aqui e so luz. */
+    float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
+    c = vec3(0.46, 0.82, 0.34) * pow(1.0 - raspaoC, 1.6)
+      * (0.22 + 0.85 * batida);
   } else if(materia > 5.5){
     /* A LUZ QUE ELE DERRAMA.
 
@@ -2077,7 +2108,7 @@ void main(){
   float piso = 0.44;
   if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
-  else if(materia > 5.5)                  piso = 1.00;   // a luz derramada
+  else if(materia > 5.5)                  piso = 1.00;   // luz: nao sombreia
   /* O COGUMELO QUASE NAO SE SOMBREIA. Superficie que emite nao tem lado
      escuro -- e sombra e exatamente o sinal que diz ao olho "isto e
      iluminado por outra coisa". Sobra um fio de variacao (0,86 a 1,00) so
@@ -2116,7 +2147,10 @@ void main(){
      esse o defeito que se via, e nao a geometria dele. */
   if(materia > 3.5 && materia < 4.5){
     float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
-    alfa *= mix(0.16, 0.95, pow(raspaoC, 1.4));
+    /* MENOS TRANSLUCIDA. 0,16 de frente deixava ver quase tudo atras dela,
+       e casca de pupa e casca: ela guarda o que esta dentro. 0,58 ainda
+       insinua o miolo sem deixar a crisalida virar vidro. */
+    alfa *= mix(0.58, 0.99, pow(raspaoC, 1.2));
     c += vec3(0.55, 0.72, 0.30) * batida * (1.0 - raspaoC) * 0.85;
   }
 
@@ -6201,10 +6235,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCrisalida.idx);
 
       somarLuz();
+      gl.uniform1f(locSo.materia, 7.0);   // a de dentro e luz, nao marmore
       gl.uniform1f(locSo.escalaObj, 0.62);
       gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
 
       sobrepor();
+      gl.uniform1f(locSo.materia, 4.0);
       gl.uniform1f(locSo.escalaObj, 1.0);
       gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
       gl.enable(gl.CULL_FACE);
