@@ -1558,9 +1558,13 @@ function semearMontanhas(){
   nMontanhasIdx = m.idx.length;
 }
 
-let bPedras = null, nPedrasIdx = 0;
-function prepararPedras(){
-  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+/* ONDE AS PEDRAS ESTAO -- uma lista, e nao um sorteio dentro da funcao.
+
+   Vira lista porque o SOLO precisa saber: sem uma mancha de terra embaixo,
+   a pedra encosta no piso da sala e le como adesivo no chao. Coisa pesada
+   afunda um pouco no que esta embaixo, e e o afundamento que diz o peso. */
+const PEDRAS_CHAO = [];
+(function(){
   const rnd = prng(3307);
   const QUANTAS = 11;
   for(let i=0;i<QUANTAS;i++){
@@ -1568,7 +1572,17 @@ function prepararPedras(){
     const ang = (i / QUANTAS) * Math.PI * 2 + rnd() * 0.5;
     const raio = 0.55 + rnd() * 1.5;
     const grande = i < 4;
-    const escala = grande ? 0.20 + rnd()*0.14 : 0.07 + rnd()*0.08;
+    PEDRAS_CHAO.push({
+      x: Math.sin(ang)*raio, z: -Math.cos(ang)*raio,
+      escala: grande ? 0.20 + rnd()*0.14 : 0.07 + rnd()*0.08,
+      giro: rnd()*6.28, fase: rnd()*6.28, peca: i % 8 });
+  }
+})();
+
+let bPedras = null, nPedrasIdx = 0;
+function prepararPedras(){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  PEDRAS_CHAO.forEach(pd => {
     /* ENTERRADA UM DEDO. A malha vem normalizada com o pe em y=0, e uma
        pedra pousada exatamente no piso mostra a aresta de baixo do modelo
        -- que e uma borda reta, e borda reta no chao denuncia o objeto. Sete
@@ -1578,10 +1592,9 @@ function prepararPedras(){
        uma pedras soltas num monte; o conversor separou as oito maiores, e
        aqui cada lugar recebe uma delas. Onze pedras de oito corpos, giradas
        ao acaso, e nao se reconhece a repeticao. */
-    plantarMalha(m, 'pedra-' + (i % 8),
-                 [Math.sin(ang)*raio, -0.07*escala, -Math.cos(ang)*raio],
-                 escala, rnd()*6.28, rnd()*6.28);
-  }
+    plantarMalha(m, 'pedra-' + pd.peca, [pd.x, -0.07*pd.escala, pd.z],
+                 pd.escala, pd.giro, pd.fase);
+  });
   if(!m.idx.length) return;
   bPedras = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bPedras.pos,m.pos); enviar(bPedras.nor,m.nor);
@@ -1599,11 +1612,22 @@ function prepararSolo(){
   /* Ao pe de cada arvore, e mais algumas SOLTAS entre elas: terra so em
      volta dos troncos vira coroa, e coroa e desenho. Espalhada, e chao. */
   const lugares = BASES.map(b => ({ centro: b, junto: true }));
-  for(let i=0;i<7;i++){
-    const ang = i/7 * Math.PI*2 + rnd()*0.7;
-    const r = 0.7 + rnd()*1.1;
+  /* O MEIO TAMBEM. As arvores fazem um anel, e a terra so ao pe delas
+     fazia anel tambem: de cima via-se uma rosca de chao com um buraco
+     escuro no centro -- justamente onde a pessoa fica em pe. O raio agora
+     comeca em 0,12 e vai a 1,7: passa pelo meio. */
+  for(let i=0;i<10;i++){
+    const ang = i/10 * Math.PI*2 + rnd()*0.6;
+    const r = 0.12 + rnd()*1.58;
     lugares.push({ centro: [Math.sin(ang)*r, 0, -Math.cos(ang)*r], junto: false });
   }
+  /* UM PE DE TERRA SOB CADA PEDRA. Baixa e larga: ela nao e um monte, e o
+     que a pedra deslocou ao pousar. Sem grama -- capim nascendo de debaixo
+     de uma pedra e o contrario do que a imagem quer dizer. */
+  PEDRAS_CHAO.forEach((pd, i) => {
+    mancha(t, [pd.x, 0, pd.z], pd.escala*1.5 + 0.07, 0.016 + pd.escala*0.05,
+           9400 + i);
+  });
   lugares.forEach((lugar, i) => {
     const b = lugar.centro;
     const raio = (lugar.junto ? 0.55 : 0.38) + rnd()*0.42;
@@ -4580,7 +4604,12 @@ const COGUMELOS = [];
 (function(){
   const r = prng(4242);
   for(let i=0;i<13;i++){
-    const ang = r() * Math.PI * 2;
+    /* O ANGULO E REPARTIDO, e nao sorteado puro. Treze sorteios livres
+       num circulo caem quase sempre tortos -- e caiam: os treze cogumelos
+       ficavam de um lado so da sala, e do outro lado nao havia nada aceso.
+       Repartir e somar um empurrao pequeno da a mesma desordem sem o
+       amontoado. E o mesmo remedio que as pedras ja usavam. */
+    const ang = (i / 13) * Math.PI * 2 + r() * 0.42;
     const d = 0.55 + r() * 0.62;          // dentro do alcance da mao
     COGUMELOS.push({
       x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
