@@ -704,10 +704,17 @@ function gerarArvoreMae(rnd, base, s){
 
   galho(0.55, 3.1,  0.42, 0.95, 0.065);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
-  galho(0.78, 1.9,  0.52, 1.55, 0.060);   // ja acima do forro
-  galho(0.86, 4.2,  0.60, 1.70, 0.052);
-  galho(0.93, 2.6,  0.70, 1.45, 0.045);
-  galho(0.97, 5.6,  0.66, 1.30, 0.040);
+  /* A COPA MORA LA EM CIMA, junto do ceu. Estes sete ja estao acima do
+     forro -- e e por isso que ela existe: o comodo tem tres metros e a
+     arvore tem sete, entao a copa acontece onde o teto de verdade nao
+     alcanca e o ceu virtual e o que se ve. */
+  galho(0.74, 1.9,  0.46, 1.70, 0.062);   // ja acima do forro
+  galho(0.80, 4.2,  0.54, 1.85, 0.055);
+  galho(0.85, 0.6,  0.50, 1.75, 0.050);
+  galho(0.90, 2.6,  0.64, 1.70, 0.046);
+  galho(0.94, 5.6,  0.60, 1.55, 0.042);
+  galho(0.97, 3.6,  0.72, 1.40, 0.038);
+  galho(0.99, 0.9,  0.78, 1.20, 0.034);
 }
 
 /* TRES FEITIOS DE ARVORE.
@@ -1491,7 +1498,10 @@ function prepararFolhagem(){
   let quantos = 0;
   for(const ponta of PONTAS){
     if(ponta.r > 0.055) continue;              // so as pontas finas
-    const nesta = 4 + Math.floor(rnd()*4);
+    /* MAIS FIOS EMBAIXO. Sendo miudos, poucos nao formam tufo -- e tufo e
+       o que faz a folhagem baixa parecer folhagem em vez de espinho solto. */
+    const baixo = ponta.p[1] < 1.6;
+    const nesta = (baixo ? 7 : 4) + Math.floor(rnd()*4);
     for(let k=0;k<nesta;k++){
       /* SAI QUASE NA HORIZONTAL e o peso e que a derruba. Se a folha ja
          nascesse apontando para baixo ela desceria reta, como franja de
@@ -1500,10 +1510,18 @@ function prepararFolhagem(){
       const d = norm([ponta.d[0]*0.5 + (rnd()-0.5)*1.6,
                       ponta.d[1]*0.3 - 0.12 + (rnd()-0.5)*0.4,
                       ponta.d[2]*0.5 + (rnd()-0.5)*1.6]);
-      const comp = 0.19 + rnd()*0.26;
+      /* O TAMANHO VEM DA ALTURA. A copa mora la em cima, junto do ceu, e e
+         la que a folhagem e grande; embaixo, onde a mao alcanca e onde o
+         casulo esta, ela e miuda. Uma folha de quarenta centimetros a um
+         metro do chao tapa o casulo e bate na cara de quem se aproxima.
+
+         Sessenta centimetros e o pe da conta e dois metros e oitenta o
+         topo: abaixo daquilo tudo e miudo, acima daquilo tudo e copa. */
+      const alto = Math.min(1, Math.max(0, (ponta.p[1] - 0.6) / 2.2));
+      const comp = 0.055 + alto*0.145 + rnd()*(0.055 + alto*0.210);
       fio(m, ponta.p, d,
-          comp,                     // comprimento: o dobro do que era
-          0.013 + rnd()*0.015,      // largura
+          comp,
+          0.006 + alto*0.008 + rnd()*(0.005 + alto*0.011),   // largura
           rnd()*6.28,               // fase do vento
           comp * (0.55 + rnd()*0.45));   // o peso, proporcional ao tamanho
       quantos++;
