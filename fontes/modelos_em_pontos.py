@@ -63,6 +63,40 @@ QUANTOS = {
 }
 PADRAO = 2000
 
+# QUAIS SAEM TAMBEM COMO MALHA, e nao so como nuvem.
+#
+# A obra passou a desenhar a mata como SUPERFICIE, com tinta triplanar. Ao
+# lado de um tronco solido, um objeto feito de pontos le como confete -- a
+# diferenca de materia grita. Entao o que divide o chao com as arvores
+# precisa ser da mesma materia que elas.
+#
+# Nao e todo modelo: uma alga no fundo do mar continua melhor como nuvem,
+# porque la a nuvem E o assunto. Aqui entra o que e macico.
+COMO_MALHA = {"rocks-icon": "pedra"}
+
+# QUANTAS PECAS APROVEITAR de cada modelo, da maior para a menor. Oito da
+# variedade de sobra para onze pedras no chao sem que se reconheca a
+# repeticao; as menores que sobram sao lascas de poucos triangulos, que na
+# escala da obra nao chegariam a ser nada.
+PECAS = 8
+
+# A GRADE DA SIMPLIFICACAO. O modelo vem com quase seis mil triangulos, que
+# e detalhe de icone de catalogo: numa pedra de quinze centimetros vista a um
+# metro e meio nada disso chega ao olho, e onze pedras assim estourariam o
+# limite de indice de 16 bits antes de melhorar coisa alguma.
+#
+# A conta e por AGRUPAMENTO EM GRADE: o espaco do modelo vira uma grade de N
+# por N por N, os vertices que caem numa mesma celula viram um so, e os
+# triangulos que perdem dois cantos na mesma celula somem. E grosseiro, e e
+# o que se quer -- a silhueta sobrevive, a microgeometria some, e nao ha
+# biblioteca nenhuma envolvida.
+# Medido: 22 dava 850 vertices e uma pedra FACETADA -- cara de cristal, e
+# nao de pedra. 70 devolve 1 792 vertices e 3 728 triangulos, dois tercos do
+# modelo original, e onze delas somam 19 712 vertices: folga confortavel
+# diante dos 65 535 do indice de 16 bits. Simplificar mais nao economizava
+# nada que fizesse falta, e custava a forma.
+GRADE = 70
+
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
 ITENS = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
@@ -166,6 +200,158 @@ def amostrar(tris, quantos, semente):
     return p, n
 
 
+def pecas(tris):
+    """Separa a malha nas PARTES QUE NAO SE TOCAM, da maior para a menor.
+
+    POR QUE ISTO EXISTE. O modelo chamado "rocks-icon" nao e uma pedra: sao
+    VINTE E UMA pedras soltas num monte, e a caixa dele e duas vezes mais
+    larga que alta. Plantado inteiro e escalado pela altura, cada "pedra" da
+    obra virava um amontoado de quarenta centimetros -- que de cima le como
+    entulho anguloso, e nao como pedra.
+
+    Separadas, cada peca e uma pedra de verdade, com forma organica e um
+    vigesimo da geometria. E de quebra vem variedade de graca: onze pedras
+    no chao, cada uma com o corpo de uma peca diferente."""
+    chave = {}
+    pai = []
+
+    def achar(a):
+        while pai[a] != a:
+            pai[a] = pai[pai[a]]
+            a = pai[a]
+        return a
+
+    ids = np.empty((len(tris), 3), dtype=int)
+    for i, t in enumerate(tris):
+        for j, ponto in enumerate(t):
+            k = (round(ponto[0], 5), round(ponto[1], 5), round(ponto[2], 5))
+            if k not in chave:
+                chave[k] = len(pai)
+                pai.append(len(pai))
+            ids[i, j] = chave[k]
+        for j in (1, 2):
+            ra, rb = achar(ids[i, 0]), achar(ids[i, j])
+            if ra != rb:
+                pai[rb] = ra
+
+    grupos = {}
+    for i in range(len(tris)):
+        grupos.setdefault(achar(ids[i, 0]), []).append(i)
+    saida = [tris[np.array(v)] for v in grupos.values()]
+    saida.sort(key=len, reverse=True)
+    return saida
+
+
+def simplificar(tris, grade):
+    """Malha reduzida por agrupamento em grade: devolve (pos, nor, idx)."""
+    v = tris.reshape(-1, 3)
+    lo, hi = v.min(axis=0), v.max(axis=0)
+    tam = np.maximum(hi - lo, 1e-9)
+    cel = np.clip(((v - lo) / tam * grade).astype(int), 0, grade - 1)
+    chave = cel[:, 0] * grade * grade + cel[:, 1] * grade + cel[:, 2]
+
+    unicos, inverso = np.unique(chave, return_inverse=True)
+    # O representante da celula e a MEDIA dos vertices dela, e nao o centro
+    # da celula: o centro faria a superficie pular para a grade e a pedra
+    # ficaria com cara de voxel.
+    soma = np.zeros((len(unicos), 3))
+    np.add.at(soma, inverso, v)
+    conta = np.bincount(inverso, minlength=len(unicos))[:, None]
+    pos = soma / conta
+
+    idx = inverso.reshape(-1, 3)
+    # fora os que colapsaram: dois cantos na mesma celula nao e triangulo
+    bom = ((idx[:, 0] != idx[:, 1]) & (idx[:, 1] != idx[:, 2])
+           & (idx[:, 0] != idx[:, 2]))
+    idx = idx[bom]
+
+    """A ORIENTACAO VEM DA FACE ORIGINAL.
+
+    Agrupar vertices muda a forma dos triangulos, e mudando a forma muda o
+    SENTIDO de alguns deles: o que era horario vira anti-horario. Com o
+    descarte de face traseira ligado, cada triangulo virado abre um buraco na
+    superficie -- e pelo buraco se ve o avesso da pedra, escuro. O resultado
+    parece pedra facetada, cara de cristal, e nao ha nada de facetado nela.
+
+    O conserto e comparar cada triangulo novo com a face de onde ele veio e
+    trocar dois cantos quando discordam."""
+    n_velho = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])[bom]
+    a, b, c = pos[idx[:, 0]], pos[idx[:, 1]], pos[idx[:, 2]]
+    virado = (n_velho * np.cross(b - a, c - a)).sum(axis=1) < 0
+    idx[virado] = idx[virado][:, [0, 2, 1]]
+
+    # NORMAIS POR ACUMULO das faces, ja ponderadas pela area (o produto
+    # vetorial tem modulo proporcional a ela). Sem normal a triplanar nao
+    # sabe de que plano ler, e a pedra sai chapada.
+    nor = np.zeros_like(pos)
+    a, b, c = pos[idx[:, 0]], pos[idx[:, 1]], pos[idx[:, 2]]
+    face = np.cross(b - a, c - a)
+    for k in range(3):
+        np.add.at(nor, idx[:, k], face)
+    comp = np.linalg.norm(nor, axis=1, keepdims=True)
+    nor = np.divide(nor, comp, out=np.zeros_like(nor), where=comp > 0)
+    return pos, nor, idx
+
+
+def normais(pos, idx):
+    """Normal por vertice, acumulando as faces ponderadas pela area."""
+    nor = np.zeros_like(pos)
+    a, b, c = pos[idx[:, 0]], pos[idx[:, 1]], pos[idx[:, 2]]
+    face = np.cross(b - a, c - a)
+    for k in range(3):
+        np.add.at(nor, idx[:, k], face)
+    comp = np.linalg.norm(nor, axis=1, keepdims=True)
+    return np.divide(nor, comp, out=np.zeros_like(nor), where=comp > 0)
+
+
+def arredondar(pos, idx, voltas=1, forca=0.62):
+    """Subdivide uma vez e suaviza: tira a cara de cristal.
+
+    POR QUE. As pedras deste modelo sao ESTILIZADAS -- trezentos triangulos
+    cada, em faces largas e chapadas. Sombreamento suave nao salva: a
+    silhueta continua sendo um poliedro, e um poliedro no chao le como
+    cristal, nao como pedra. Nenhuma quantidade de tinta conserta forma.
+
+    Entao a forma muda. Cada triangulo vira quatro pelos pontos medios das
+    arestas, e depois cada vertice caminha na direcao da media dos vizinhos.
+    A subdivisao sozinha nao arredonda nada -- os pontos novos caem em cima
+    das faces antigas; e a media dos vizinhos que puxa as quinas para dentro
+    e devolve o corpo rolado que uma pedra tem.
+
+    Uma volta basta: trezentos triangulos viram mil e duzentos, e onze
+    pedras somam treze mil -- metade do que a floresta inteira custa."""
+    pos = [list(map(float, q)) for q in pos]
+    meio = {}
+
+    def ponto_medio(a, b):
+        k = (min(a, b), max(a, b))
+        if k not in meio:
+            meio[k] = len(pos)
+            pos.append([(pos[a][i] + pos[b][i]) / 2 for i in range(3)])
+        return meio[k]
+
+    novos = []
+    for t in idx:
+        a, b, c = int(t[0]), int(t[1]), int(t[2])
+        ab, bc, ca = ponto_medio(a, b), ponto_medio(b, c), ponto_medio(c, a)
+        novos += [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]]
+
+    pos = np.array(pos)
+    idx = np.array(novos, dtype=int)
+
+    vizinhos = [set() for _ in range(len(pos))]
+    for a, b, c in idx:
+        vizinhos[a].update((b, c))
+        vizinhos[b].update((a, c))
+        vizinhos[c].update((a, b))
+
+    for _ in range(voltas):
+        media = np.array([pos[list(v)].mean(axis=0) if v else pos[i]
+                          for i, v in enumerate(vizinhos)])
+        pos = pos * (1 - forca) + media * forca
+    return pos, idx
+
+
 def normalizar(p):
     """Centro no chao, altura 1. Assim a obra escala em metros e nao precisa
     saber em que unidade cada autor modelou."""
@@ -209,7 +395,7 @@ def nome_curto(arquivo, ja_usados):
 def main():
     if not os.path.isdir(PASTA):
         raise SystemExit(f"nao achei a pasta de modelos: {PASTA}")
-    saida = {}
+    saida, malhas = {}, {}
     # O ser alienigena mora um nivel acima, solto na pasta da Visoes. Ele
     # entra pelo nome porque nao esta na colecao -- e a versao "rigged", que
     # e a unica com esqueleto, embora a obra use so a forma dele.
@@ -237,6 +423,25 @@ def main():
             b64p, b64n = empacotar(p, n)
             saida[curto] = {"n": len(p), "pos": b64p, "nor": b64n}
             print(f"  {curto:24} {len(tris):7d} tri  ->  {len(p):5d} pontos")
+
+            if curto in COMO_MALHA:
+                partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
+                for k, parte in enumerate(partes):
+                    mp, _mn, mi = simplificar(parte, GRADE)
+                    mp, mi = arredondar(mp, mi)
+                    mn = normais(mp, mi)
+                    mp = normalizar(mp)
+                    if len(mp) > 65535:
+                        raise ValueError("vertices demais para 16 bits")
+                    b64mp, b64mn = empacotar(mp, mn)
+                    nome = f"{COMO_MALHA[curto]}-{k}"
+                    malhas[nome] = {
+                        "n": len(mp), "t": len(mi),
+                        "pos": b64mp, "nor": b64mn,
+                        "idx": base64.b64encode(
+                            mi.astype("<u2").tobytes()).decode()}
+                    print(f"  {nome:24} {len(parte):7d} tri  ->  {len(mi):5d}"
+                          f" tri  ({len(mp):5d} vertices)   MALHA")
         except Exception as erro:
             print(f"  {curto:24} FALHOU: {erro}")
 
@@ -246,8 +451,12 @@ def main():
         f.write("   Modelos 3D reduzidos a nuvens de pontos: posicao em int16\n")
         f.write("   (milesimos de altura, pe em y=0) e normal em int8. */\n")
         f.write("const NUVENS = " + json.dumps(saida, separators=(",", ":")) + ";\n")
+        f.write("/* E as MALHAS: os mesmos modelos como SUPERFICIE,\n")
+        f.write("   para o programa triplanar. Posicao int16, normal\n")
+        f.write("   int8, indice uint16, ja simplificados. */\n")
+        f.write("const MALHAS = " + json.dumps(malhas, separators=(",", ":")) + ";\n")
     kb = os.path.getsize(destino) // 1024
-    print(f"\nGerado: {destino}  ({kb} KB, {len(saida)} modelos)")
+    print(f"\nGerado: {destino}  ({kb} KB, {len(saida)} modelos," f" {len(malhas)} malhas)")
 
 
 main()
