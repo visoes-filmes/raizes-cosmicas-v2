@@ -575,19 +575,34 @@ function gerarArvoreMae(rnd, base, s){
     tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
   };
 
-  /* O GALHO DE ONDE O CASULO PENDE nao e sorteado: e CALCULADO para
-     terminar em cima dele. Sorteado, ele terminava a dois metros e meio do
-     casulo e o fio tinha de cobrir a diferenca -- que era o traco reto no
-     meio do quadro. Aqui a geometria e que vai buscar o lugar. */
+  /* O GALHO DE ONDE O CASULO PENDE. Nao passa pelo "galho" comum: aquele
+     e uma reta com uma queda, e uma reta de um metro e setenta atravessando
+     o quadro le como cabo de vassoura. Este e feito a parte, e faz o que
+     galho faz -- sobe saindo do tronco, arqueia, e desce ate o casulo,
+     torcendo de lado no caminho. E afina de verdade: quatro centimetros na
+     saida, menos de um na ponta.
+
+     ELE TERMINA EXATAMENTE ONDE O CASULO COMECA. Nao ha dois numeros para
+     manter em dia: o ponto de chegada e a posicao do casulo. */
   (() => {
-    const iCas = 4, de = pontos[iCas];
+    const de = pontos[4], N = 12;
     const alvo = [CASULO[0], FIO_ALTO, CASULO[2]];
-    const comp = Math.hypot(alvo[0]-de[0], alvo[2]-de[2]);
-    const az = Math.atan2(alvo[0]-de[0], -(alvo[2]-de[2]));
-    // a queda em t2*t2*comp*0.10 do galho entra na conta da inclinacao
-    const incl = Math.asin(Math.max(-1, Math.min(1,
-                   (alvo[1]-de[1])/comp + 0.10)));
-    galho(iCas/9, az, incl, comp, 0.062);
+    const dx = alvo[0]-de[0], dz = alvo[2]-de[2];
+    const comp = Math.hypot(dx, dz);
+    const lx = -dz/comp, lz = dx/comp;      // o lado, na horizontal
+    const seg = [], rr = [];
+    for(let j=0;j<=N;j++){
+      const t = j/N;
+      /* O ARCO e a TORCAO somem nas duas pontas (sen(pi.t) e zero em t=0 e
+         t=1), entao a curva nao mexe nem em de onde sai nem em onde chega. */
+      const arco = Math.sin(t*Math.PI) * 0.26;
+      const lado = Math.sin(t*Math.PI) * 0.20;
+      seg.push([ de[0] + dx*t + lx*lado,
+                 de[1] + (alvo[1]-de[1])*t + arco,
+                 de[2] + dz*t + lz*lado ]);
+      rr.push(0.040 * Math.pow(1-t, 1.35) + 0.008);
+    }
+    tuboAoLongo(s, seg, rr, 1.9, 0.26, 0.60);
   })();
   galho(0.55, 3.1,  0.42, 0.95, 0.065);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
