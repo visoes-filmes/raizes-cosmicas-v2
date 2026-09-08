@@ -577,87 +577,109 @@ function galhoDoCasulo(de, s){
 
 /* ═══════════ A ARVORE-MAE, MODELO 2: A ARVORE DA VIDA ═══════════
 
-   O modelo 1 continua inteiro logo abaixo -- e o que esta em uso hoje. Este
-   e a alternativa: copa REDONDA, ramos que se dividem muitas vezes dentro
-   de uma esfera, e as raizes abrindo a vista no pe.
+   O modelo 1 continua inteiro logo abaixo -- e o que esta em uso. Este e a
+   alternativa: copa redonda, e a RAIZ COMO ESPELHO DA COPA.
 
-   O que a faz redonda nao e desenhar um circulo: e cada galho ser puxado
-   para FORA do centro da copa enquanto cabe, e parar de existir quando
-   chega na casca da esfera. A forma sai da regra, e nao do contorno.
+   E o argumento da obra dito em geometria. A copa e gerada uma vez; a raiz
+   nao e gerada de novo, ela e a MESMA arvore refletida -- cada ponto dela
+   sai de um ponto da copa. Nao ha duas formas parecidas: ha uma forma e a
+   sua imagem.
 
-   AS RAIZES A VISTA sao metade do desenho nessa imagem, e sao o argumento
-   da obra: o que segura em cima aparece embaixo. */
+   O ESPELHO E ACHATADO, e nao fiel. Refletida ao pe da letra, a raiz
+   mergulharia dois metros e meio -- e em realidade mista o chao e o chao da
+   sala de verdade: raiz enterrada nao existe para quem olha. Achatando a
+   vertical para um decimo, a mesma arvore de cabeca para baixo corre RENTE
+   ao piso, aflora junto do tronco e vai sumindo no chao nas pontas. E o que
+   se ve de um sistema de raizes de verdade, e e o que a imagem mostra.
+
+   MAIS DETALHE: seis niveis de divisao em vez de cinco, e a curva de cada
+   ramo em seis passos. Uma arvore que se divide poucas vezes le como
+   esquema; e a repeticao muitas vezes que faz o desenho de renda. */
 function gerarArvoreMae2(rnd, base, s){
-  const ALTURA = 6.2, RCOPA = 2.55, YCOPA = ALTURA * 0.60;
-  const centro = [base[0], base[1] + YCOPA, base[2]];
+  const ALTURA = 6.4, RCOPA = 2.75, PROF_MAX = 6;
+  const H = ALTURA * 0.32;
+  const centro = [base[0], base[1] + ALTURA * 0.60, base[2]];
 
-  // o tronco: curto e grosso, ate o primeiro forcado
-  const pontos = [], raios = [], H = ALTURA * 0.34;
+  // o tronco: curto, grosso, com pe de elefante
+  const pontos = [], raios = [];
   for(let i=0;i<=6;i++){
     const k = i/6;
-    pontos.push([ base[0] + Math.sin(k*1.6)*0.14, base[1] + k*H,
+    pontos.push([ base[0] + Math.sin(k*1.6)*0.13, base[1] + k*H,
                   base[2] + Math.sin(k*1.1+0.7)*0.10 ]);
-    raios.push(0.30 * Math.pow(1-k, 0.7) + 0.10);
+    raios.push(0.26 * Math.pow(1-k, 0.75) + 0.095 + 0.42*Math.pow(1-k, 6));
   }
-  tuboAoLongo(s, pontos, raios, 0.7, 0.0, 0.34);
+  tuboAoLongo(s, pontos, raios, 0.7, 0.0, 0.32);
   totalRaizes++;
+  const alto = pontos[pontos.length-1];
 
-  /* O RAMO DA COPA. Segue um pouco, e se divide em dois -- sempre dois,
-     porque e a divisao repetida em pares que faz o desenho de renda da
-     imagem. A direcao de cada filho e a media entre continuar em frente e
-     abrir para fora do centro: perto do tronco ele abre, perto da casca ele
-     ja esta indo para fora e a mistura o alinha com a superficie. */
+  /* A COPA E COLHIDA, e nao desenhada na hora. Cada ramo vira uma entrada
+     na lista; depois a lista e emitida duas vezes, direta e refletida. E o
+     unico jeito de a raiz ser mesmo o espelho: gerada de novo, ela seria
+     apenas parecida. */
+  const galhos = [];
   const ramo = (de, dir, comp, prof) => {
-    if(prof > 5 || comp < 0.18) return;
-    const seg = [de.slice()], rr = [0.062 * Math.pow(0.66, prof) + 0.010];
+    if(prof > PROF_MAX || comp < 0.13) return;
+    const seg = [de.slice()];
     let d = dir.slice(), q = de.slice();
-    for(let i=0;i<5;i++){
+    for(let i=0;i<6;i++){
       const paraFora = norm(sub(q, centro));
-      // a curvatura e o que faz o ramo ENROLAR em vez de ir reto
-      d = norm([ d[0] + paraFora[0]*0.22 + (rnd()-0.5)*0.16,
-                 d[1] - 0.06 + (rnd()-0.5)*0.10,
-                 d[2] + paraFora[2]*0.22 + (rnd()-0.5)*0.16 ]);
-      q = [q[0]+d[0]*comp/5, q[1]+d[1]*comp/5, q[2]+d[2]*comp/5];
+      // puxar para fora do centro e o que enche a esfera; o ruido e o que
+      // impede que todos os ramos facam a mesma curva
+      d = norm([ d[0] + paraFora[0]*0.20 + (rnd()-0.5)*0.20,
+                 d[1] - 0.05 + (rnd()-0.5)*0.10,
+                 d[2] + paraFora[2]*0.20 + (rnd()-0.5)*0.20 ]);
+      q = [q[0]+d[0]*comp/6, q[1]+d[1]*comp/6, q[2]+d[2]*comp/6];
       seg.push(q.slice());
-      rr.push(0.062 * Math.pow(0.66, prof) * (1 - i/6) + 0.009);
     }
-    tuboAoLongo(s, seg, rr, 0.7 + prof, 0.34 + prof*0.11, 0.45 + prof*0.11);
-    // chegou na casca da esfera: a copa termina aqui
+    galhos.push({seg, prof});
     if(Math.hypot(q[0]-centro[0], q[1]-centro[1], q[2]-centro[2]) > RCOPA) return;
     const lado = norm(cruz(d, [rnd()-0.5, 1, rnd()-0.5]));
-    for(const sinal of [-1, 1]){
-      const a = (26 + rnd()*22) * Math.PI/180;
-      const nd = norm([ d[0] + lado[0]*Math.sin(a)*sinal + (rnd()-0.5)*0.12,
-                        d[1] + Math.sin(a)*0.30,
-                        d[2] + lado[2]*Math.sin(a)*sinal + (rnd()-0.5)*0.12 ]);
+    // de vez em quando tres, para o desenho nao ficar binario demais
+    const n = (prof < 2 || rnd() < 0.22) ? 3 : 2;
+    for(let b=0;b<n;b++){
+      const a = (22 + rnd()*26) * Math.PI/180;
+      const giro = (b/Math.max(n-1,1) - 0.5) * 2;
+      const nd = norm([ d[0] + lado[0]*Math.sin(a)*giro + (rnd()-0.5)*0.14,
+                        d[1] + Math.sin(a)*0.34,
+                        d[2] + lado[2]*Math.sin(a)*giro + (rnd()-0.5)*0.14 ]);
       ramo(q, nd, comp*(0.70+rnd()*0.10), prof+1);
     }
   };
-
-  // do alto do tronco saem quatro ramos, abrindo para os quatro lados
-  const alto = pontos[pontos.length-1];
-  for(let i=0;i<4;i++){
-    const a = i/4*Math.PI*2 + 0.4;
-    ramo(alto, norm([Math.sin(a)*0.55, 1, -Math.cos(a)*0.55]), 1.25, 0);
+  for(let i=0;i<5;i++){
+    const a = i/5*Math.PI*2 + 0.4;
+    ramo(alto, norm([Math.sin(a)*0.60, 1, -Math.cos(a)*0.60]), 1.30, 0);
   }
 
-  /* AS RAIZES A VISTA. Saem do pe, abrem para fora, mergulham e voltam a
-     aflorar -- o serpenteio e o que as faz parecer raiz e nao estaca. Ficam
-     RENTES ao chao: em realidade mista o chao e o da sala de verdade, e
-     raiz enterrada nao existe para quem olha. */
-  for(let i=0;i<8;i++){
-    const a = i/8*Math.PI*2 + rnd()*0.30;
-    const comp = 0.85 + rnd()*0.75;
-    const seg = [], rr = [];
-    for(let j=0;j<=7;j++){
-      const t = j/7;
-      const d = comp * t;
-      seg.push([ base[0] + Math.sin(a)*d + Math.sin(t*4.2+i)*0.10,
-                 base[1] + 0.16*(1-t)*(1-t) + Math.sin(t*7.0+i)*0.022,
-                 base[2] - Math.cos(a)*d + Math.cos(t*3.7+i)*0.10 ]);
-      rr.push(0.085 * Math.pow(1-t, 1.3) + 0.010);
-    }
-    tuboAoLongo(s, seg, rr, 1.3 + i, 0.0, 0.16);
+  const grossura = prof => 0.058 * Math.pow(0.70, prof) + 0.0085;
+
+  // 1) a copa, como foi gerada
+  for(const g of galhos)
+    tuboAoLongo(s, g.seg,
+                g.seg.map((_, k) => grossura(g.prof) * (1 - k/9) + 0.008),
+                0.7 + g.prof, 0.32 + g.prof*0.10, 0.42 + g.prof*0.10);
+
+  /* 2) A RAIZ: a mesma lista, refletida. O ponto de giro e o forcado do
+     tronco, e o resultado sobe 12 cm para aflorar junto dele -- assim ela
+     nasce a vista e vai mergulhando conforme se afasta, que e como raiz
+     aparece de verdade num chao. E ela e um pouco mais grossa: raiz e mais
+     pesada que galho, e isso se ve. */
+  /* COLOSSAIS. Raiz de arvore grande e MAIS LARGA que a copa -- e o que
+     sustenta uma coisa de sete metros num vento. Aqui elas abrem quase o
+     dobro da copa e atravessam a sala inteira: quem entra fica em pe DENTRO
+     do sistema de raizes da arvore-mae, que e a imagem que a obra procura.
+
+     E mais grossas: raiz e mais pesada que galho, e isso se ve. O achatamento
+     desce para 0,075 porque, abrindo mais longe, o mesmo angulo levaria a
+     ponta fundo demais. */
+  const ESPALHA = 1.85, ACHATA = 0.075, AFLORA = 0.14;
+  for(const g of galhos){
+    const espelho = g.seg.map(q => [
+      base[0] + (q[0] - alto[0]) * ESPALHA,
+      base[1] + AFLORA - (q[1] - alto[1]) * ACHATA,
+      base[2] + (q[2] - alto[2]) * ESPALHA ]);
+    tuboAoLongo(s, espelho,
+                espelho.map((_, k) => grossura(g.prof) * 2.15 * (1 - k/9) + 0.011),
+                2.1 + g.prof, 0.0, 0.14);
   }
 
   galhoDoCasulo(pontos[3], s);
@@ -1396,6 +1418,80 @@ function montarCogumelos(){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
   nCogumelosIdx = m.idx.length;
+}
+
+/* AS MONTANHAS DO HORIZONTE.
+
+   A mata de fundo termina a onze metros e depois dela nao ha nada ate o
+   ceu. Falta o ultimo plano -- o que diz que o mundo continua para alem do
+   que se pode andar.
+
+   Sao as mesmas pedras, na escala do colossal: de seis a vinte e dois
+   metros de altura, entre vinte e cinco e cinquenta e cinco de distancia.
+   O modelo nao sabe que virou montanha -- forma de pedra e forma de
+   montanha sao a mesma coisa em escalas diferentes, e e por isso que
+   ampliar uma pedra funciona e ampliar uma arvore nao.
+
+   SO NA REGIAO INFINITA, e nao em volta. O roteiro divide o cenario em
+   dois: um lado onde a realidade aparece mais, e o lado INFINITO -- que e
+   aquele onde a arvore-mae esta, encostada na parede, e onde as deusas
+   aparecem. Montanha em toda a volta desfaz essa divisao: se o mundo
+   continua para todos os lados, nenhum lado e o infinito.
+
+   O setor sai da propria posicao da arvore, e nao de um numero escrito a
+   mao: se ela mudar de lugar, as montanhas a acompanham.
+
+   MAIS BAIXAS DE UM LADO. Uma fileira de montanhas todas da mesma altura
+   le como muralha; a variacao grande e o que faz o olho ler cordilheira. */
+let bMontanhas = null, nMontanhasIdx = 0;
+function semearMontanhas(){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const rnd = prng(7703);
+  const N = 11;
+  // para onde fica o infinito: a direcao da arvore-mae, vista do centro
+  const oInfinito = Math.atan2(ARVORE_BASE[0], -ARVORE_BASE[2]);
+  const ABERTURA = 1.15;   // uns 66 graus para cada lado
+  for(let i=0;i<N;i++){
+    const ang = oInfinito + (i/(N-1) - 0.5) * 2 * ABERTURA + (rnd()-0.5)*0.16;
+    /* LONGE O BASTANTE PARA SEREM MONTANHA. A vinte e cinco metros, um
+       vulto de vinte cobre quarenta e oito graus do campo e vira parede --
+       colossal nao e o que ocupa a tela toda, e o que fica ENORME mesmo
+       estando longe. A quarenta e cinco, o mesmo vulto abre vinte e cinco
+       graus, e ai o olho le distancia junto com tamanho. */
+    /* O MODELO E MAIS LARGO QUE ALTO -- ele nasceu pedra, e pedra e
+       achatada. Escalado pela altura, a largura vem duas a tres vezes
+       maior: uma "montanha" de vinte metros de alto cobre cinquenta de
+       frente, e a quarenta metros isso e meio campo de visao. Contando pela
+       largura e nao pela altura, catorze metros ja e serra. */
+    /* COLOSSAIS E LONGE. A cento e setenta metros, um vulto de oitenta
+       abre vinte e cinco graus de altura -- grande o bastante para dominar
+       o horizonte e distante o bastante para o olho ler "longe" junto com
+       "enorme". Colossal nao e o que enche a tela: e o que continua enorme
+       mesmo estando la. */
+    /* A CONTA E POR ANGULO, e nao por metro. O modelo e 2,1 vezes mais
+       largo que alto: uma montanha de 80 m tem 168 m de frente, e a 150 m
+       de distancia isso abre setenta graus -- treze delas viram uma parede
+       lisa, que foi o que apareceu duas vezes.
+
+       A 270 m, uma de 60 m abre 12 graus de altura e 26 de largura. Onze
+       delas num setor de 132 graus se sobrepoem duas vezes e meia: serra
+       continua, com silhueta variada. E 60 m e um predio de vinte andares
+       -- colossal e isso, e nao ocupar a tela. */
+    const d = 210 + rnd()*110;
+    const h = 42 + Math.pow(rnd(), 0.8) * 38;
+    plantarMalha(m, 'pedra-' + (i % 8),
+                 [Math.sin(ang)*d, -h*0.16, -Math.cos(ang)*d],
+                 h, rnd()*6.28, rnd()*6.28);
+    if(m.pos.length/3 > 60000) break;
+  }
+  if(!m.idx.length) return;
+  bMontanhas = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bMontanhas.pos,m.pos); enviar(bMontanhas.nor,m.nor);
+  enviar(bMontanhas.alt,m.alt); enviar(bMontanhas.fase,m.fase);
+  enviar(bMontanhas.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bMontanhas.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nMontanhasIdx = m.idx.length;
 }
 
 let bPedras = null, nPedrasIdx = 0;
@@ -3786,6 +3882,10 @@ const PALETA_PO = [
 ];
 // mais graos porque cada um e muito menor: a mesma quantidade de luz
 // espalhada em mais pontos e o que faz o ar parecer ter po dentro
+/* ATE ONDE A OBRA ENXERGA. Precisa caber a serra do horizonte, que esta a
+   duzentos metros; o ceu nao entra na conta porque a cupula acompanha a
+   cabeca e esta sempre a sessenta. */
+const LONGE = 420;
 const PO_MAX = 6000;
 function semearPoeira(semente){
   const rnd = prng(semente);
@@ -3979,6 +4079,7 @@ prepararHorizonte();
 prepararEstrelas();
 prepararPedras();
 montarCrisalida();
+semearMontanhas();
 prepararAlienigena();
 prepararFolhas();
 prepararFundoDoMar();
@@ -5819,7 +5920,12 @@ async function entrarXR(aoEntrar){
      entre borda macia e a serra que aparece em toda geometria fina. */
   relato('PASSO-2 webgl ligado, criando a camada');
   camadaXR = new XRWebGLLayer(sessao, gl, { antialias: true });
-  sessao.updateRenderState({ baseLayer: camadaXR });
+  /* O ALCANCE, DITO EM VOZ ALTA. Sem depthFar a obra herdava o padrao do
+     aparelho -- uns mil metros -- enquanto a versao de tela cortava em 60.
+     Duas distancias diferentes para a mesma obra: o que se via no
+     computador nao era o que o headset via, e montanha nenhuma podia ser
+     ajustada assim. Agora e o mesmo numero nos dois. */
+  sessao.updateRenderState({ baseLayer: camadaXR, depthNear: 0.05, depthFar: LONGE });
   relato('PASSO-3 camada criada');
 
   /* 72 E O ALVO, E AGORA E PEDIDO.
@@ -6350,6 +6456,31 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locSo.casca, 2);
+    /* AS MONTANHAS vem antes de tudo: sao o plano mais distante que ha.
+       Presenca baixa porque a cinquenta metros o ar ja comeu quase toda a
+       diferenca entre a pedra e o ceu -- e e essa perda que diz ao olho
+       QUAO longe elas estao. Sem ela, montanha longe parece pedra grande
+       perto, que e o erro classico. */
+    if(nMontanhasIdx > 0){
+      gl.uniform1f(locSo.materia, 1.0);
+      gl.uniform1f(locSo.escalaTinta, 0.055);  // o grao acompanha o tamanho
+      gl.uniform1f(locSo.presenca, presencaMata * 0.26);
+      gl.uniform1f(locSo.crescimento, 9.0);
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 0.0);
+      ligar(aSo.pos, bMontanhas.pos, 3); ligar(aSo.nor, bMontanhas.nor, 3);
+      ligar(aSo.alt, bMontanhas.alt, 1); ligar(aSo.fase, bMontanhas.fase, 1);
+      ligar(aSo.borda, bMontanhas.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bMontanhas.idx);
+      gl.drawElements(gl.TRIANGLES, nMontanhasIdx, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locSo.materia, 0.0);
+      gl.uniform1f(locSo.escalaTinta, 1.25);
+      gl.uniform1f(locSo.planta, 1.0);
+      gl.uniform1f(locSo.balanca, 1.0);
+      gl.uniform1f(locSo.crescimento, crescimento);
+      gl.uniform1f(locSo.presenca, presencaMata);
+    }
+
     /* A MATA DE FUNDO vem PRIMEIRO: a de perto escreve profundidade depois
        e a cobre onde as duas se sobrepoem. E ela entra com presenca menor --
        a translucidez faz as vezes da bruma que o ar poe entre quem olha e o
@@ -7504,7 +7635,7 @@ function quadro(){
   gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.03,0.025,0.055,1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  const proj = perspectiva(fov, cv.width/cv.height, 0.05, 60);
+  const proj = perspectiva(fov, cv.width/cv.height, 0.05, LONGE);
   const vis = visaoOrbita(yaw, pitch, OLHO);
   // escala do ponto: metade da altura em pixels vezes o termo vertical
   // da projeção. É o mesmo fator que a projeção aplica em y, então um
