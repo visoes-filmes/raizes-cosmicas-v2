@@ -2368,6 +2368,29 @@ void main(){
     c = texture2D(casca, sx).rgb * w.x
       + texture2D(casca, sy).rgb * w.y
       + texture2D(casca, sz).rgb * w.z;
+
+    /* A TINTA ABRE.
+
+       A queixa: "os troncos estao leitosos, o preto nao tem contraste."
+       Medido no quadro, ela estava certa e era grave -- a obra inteira vivia
+       entre 43 e 111 de 255. Sem preto e sem claro: cinquenta e cinco niveis
+       de faixa util num monitor de duzentos e cinquenta e seis.
+
+       A causa nao era neblina nem transparencia: era a MEDIA. Somar tres
+       leituras da mesma pintura, cada uma com seu peso, aproxima o resultado
+       do tom medio dela -- e media de aquarela e cinza-lilas. E exatamente
+       por isso que a triplanar resolve o esticamento e lava a cor: o mesmo
+       gesto que espalha a tinta por qualquer angulo tambem a mistura.
+
+       O conserto e desfazer so a mistura, e nao a triplanar: subtrai-se o
+       preto que a media introduziu e multiplica-se a distancia que sobrou.
+       Fica a mesma pintura, com a amplitude que ela tinha antes de ser
+       somada tres vezes.
+
+       E a saturacao volta um quarto acima de um: media tambem puxa para o
+       cinza, e cor puxada para o cinza nao volta so com contraste. */
+    c = clamp((c - 0.052) * 1.62, 0.0, 2.0);
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.26);
     // o piso vem DEPOIS da luz, mais abaixo: aqui ele ainda apanharia dela
   } else if(materia < 1.5){
     c = aPedra(vMundo * escalaTinta);
@@ -2521,7 +2544,17 @@ void main(){
   /* O PISO DA LUZ MUDA COM A MATERIA. Folha e translucida e nao tem lado
      escuro de verdade; pedra tem, e e por essa diferenca que o olho le
      volume. Terra fica no meio. */
-  float piso = 0.44;
+  /* O PISO DA ARVORE CAIU DE 0,44 PARA 0,26.
+
+     Com 0,44, a face do tronco que nao recebe luz ainda ficava em quarenta
+     e quatro por cento da tinta -- nenhum lado escuro, e sem lado escuro um
+     cilindro nao le como cilindro: le como recorte de papel pintado. Era a
+     segunda metade do "sem cor presente", e a que tirava o VOLUME.
+
+     Nao vai a zero porque a floresta e noturna e iluminada por um ceu
+     inteiro, e ceu inteiro nao deixa nada preto de verdade. 0,26 e o
+     escuro de quem tem o ceu por lampada. */
+  float piso = 0.26;
   if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
   else if(materia > 5.5)                  piso = 1.00;   // luz: nao sombreia
@@ -2548,7 +2581,14 @@ void main(){
      Antes da luz o piso nao adianta -- ela o multiplica de volta para o
      preto. Aqui ele e o valor final, e garante que nenhum pedaco de planta
      desapareca. */
-  if(materia < 0.5) c = max(c, vec3(0.165, 0.150, 0.195));
+  /* E ELE DESCEU PARA UM SUSSURRO -- de 0,165 para 0,058.
+
+     O piso existe para um galho deitado nao SUMIR, e para isso 0,058 basta:
+     contra o ceu escuro ainda ha o que ver. Em 0,165 ele fazia outra coisa
+     junto, que ninguem pediu -- fixava o preto da obra em 17 por cento.
+     Media no quadro: o primeiro percentil batia em 43, e 0,165 vezes 255 da
+     42. Era ele, e nao a atmosfera. */
+  if(materia < 0.5) c = max(c, vec3(0.058, 0.052, 0.068));
 
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
