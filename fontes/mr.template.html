@@ -5353,17 +5353,6 @@ function seguirPartitura(dt){
       esperando = true;
       t = DURACAO + 14;
     }
-    if(false){
-      t = 0;
-      /* O relogio das animacoes zera JUNTO com a volta da obra. Sem isto
-         ele cresce sem parar: num dia de exposicao chega as dezenas de
-         milhares, e o float do shader perde as casas decimais que fazem o
-         movimento ser suave — as animacoes comecam a tremer. Zerar aqui
-         faz a descontinuidade cair exatamente onde tudo se desmancha e
-         recomeca, que e o unico lugar onde ela nao aparece. */
-      relogio = 0;
-      crescimento = 0;   // a volta recomeca sem floresta: ela nasce de novo
-    }
   }
   const c = cenaEm(t);
   const a = CENAS[c];
