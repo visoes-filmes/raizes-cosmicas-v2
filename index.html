@@ -3129,11 +3129,24 @@ void main(){
 
 const VS_BORBO = `
 attribute vec2 aXY;
-attribute float aLado;          // -1 asa esquerda, +1 asa direita
+attribute float aLado;          // -1 asa esquerda, +1 asa direita, 0 CORPO
 uniform mat4 mvp;
 uniform vec3 centro, frente;
 uniform float bater, tamanho, inclina;
 varying vec2 vUV;
+varying vec3 vNor;              // para a asa pegar luz e deixar de ser papel
+varying float vCorpo;           // 1 no corpo, 0 na asa
+
+/* A GROSSURA DO CORPO ao longo dele. Gordo no torax e afinando para os dois
+   lados -- rapido para a cabeca, devagar para o abdome, que e como um corpo
+   de borboleta e feito. E ele que da MASSA: duas asas chatas sem nada no
+   meio sao duas folhas de papel, e nenhuma quantidade de batimento
+   conserta isso, porque o que falta nao e movimento e sim volume. */
+float raioCorpo(float y){
+  float k = y > 0.05 ? (y - 0.05) / 0.68 : (0.05 - y) / 1.10;
+  return 0.098 * (1.0 - pow(clamp(k, 0.0, 1.0), 1.7));
+}
+
 void main(){
   /* A asa e um quadrado que nasce no corpo e se abre para o lado. O
      batimento gira em torno do eixo do corpo (a frente do voo). */
@@ -3150,23 +3163,44 @@ void main(){
   vec3 lado2 = lado*ci + cima*si;
   vec3 cima2 = cima*ci - lado*si;
 
-  // aXY.x = ao longo da asa (0 no corpo, 1 na ponta); aXY.y = ao longo do corpo
-  float larg = aXY.x * aLado;
-  vec3 p = centro
-         + lado2 * (larg * c) * tamanho
-         + cima2 * (larg * s) * tamanho
-         + f * (aXY.y * tamanho * 0.75);
-
-  // a metade esquerda le a esquerda da imagem; a direita, espelhada
-  vUV = vec2(aLado < 0.0 ? 0.5 - aXY.x*0.5 : 0.5 + aXY.x*0.5,
-             0.5 - aXY.y*0.5);
+  vec3 p;
+  if(abs(aLado) < 0.5){
+    /* O CORPO. aXY.x e a volta em torno do eixo do voo, aXY.y e o
+       comprimento. Ele nao bate: so a asa gira. */
+    vCorpo = 1.0;
+    float a = aXY.x * 6.2831853;
+    vec3 radial = lado2 * cos(a) + cima2 * sin(a);
+    p = centro + radial * (raioCorpo(aXY.y) * tamanho)
+              + f * (aXY.y * tamanho * 0.75);
+    vNor = radial;
+    // o corpo le a COLUNA DO MEIO da pintura, que e onde o corpo dela esta
+    vUV = vec2(0.5, 0.5 - aXY.y*0.5);
+  } else {
+    vCorpo = 0.0;
+    // aXY.x = ao longo da asa (0 no corpo, 1 na ponta); aXY.y = ao longo do corpo
+    float larg = aXY.x * aLado;
+    vec3 asaDir = lado2 * c + cima2 * s;
+    p = centro + asaDir * (larg * tamanho)
+              + f * (aXY.y * tamanho * 0.75);
+    /* A NORMAL DA ASA gira junto com o batimento, e e isso que faz a asa
+       pegar luz diferente em cada instante do bater. Sem normal a asa e
+       textura chapada, e textura chapada e papel -- por mais que se dobre. */
+    vNor = normalize(cross(asaDir, f));
+    // a metade esquerda le a esquerda da imagem; a direita, espelhada
+    vUV = vec2(aLado < 0.0 ? 0.5 - aXY.x*0.5 : 0.5 + aXY.x*0.5,
+               0.5 - aXY.y*0.5);
+  }
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_BORBO = `
 precision highp float;
 uniform sampler2D asa;
 uniform float presenca;
+uniform float brilho;        // 1 = conta de rastro, e nao a borboleta
+uniform vec3 corBrilho;
 varying vec2 vUV;
+varying vec3 vNor;
+varying float vCorpo;
 void main(){
   vec4 c = texture2D(asa, vUV);
   float a = smoothstep(0.16, 0.60, c.a) * presenca;
@@ -3174,7 +3208,27 @@ void main(){
   vec2 d = min(vUV, 1.0 - vUV);
   a *= smoothstep(0.0, 0.03, min(d.x, d.y));
   if(a < 0.004) discard;
-  gl_FragColor = vec4(c.rgb, a);
+
+  /* A LUZ NA ASA, pelos DOIS LADOS.
+
+     O valor absoluto e o que importa: asa e fina e translucida, e a face
+     virada para longe da luz nao fica preta -- ela acende por tras. Sem o
+     abs, meio batimento tinha a asa apagada, e asa apagada em pleno voo
+     denuncia que aquilo e um plano e nao uma asa.
+
+     O corpo se sombreia MAIS que a asa, porque ele e opaco: e a diferenca
+     entre os dois -- um cedendo a luz, o outro barrando -- que faz o olho
+     ler duas materias em vez de um recorte so. */
+  float lz = abs(dot(normalize(vNor), normalize(vec3(0.3, 0.9, 0.35))));
+  vec3 cor = c.rgb * mix(0.62 + 0.38 * lz, 0.34 + 0.66 * lz, vCorpo);
+  // o corpo tambem escurece, porque corpo de bicho e escuro
+  cor *= mix(1.0, 0.72, vCorpo);
+
+  /* AS CONTAS DO RASTRO. Mesma malha, mesma silhueta, cor trocada por luz
+     fluorescente: nao e uma borboleta fantasma repetida -- e o que ela
+     deixou no ar. */
+  cor = mix(cor, corBrilho, brilho);
+  gl_FragColor = vec4(cor, a);
 }`;
 
 const VS_FIGU = `
@@ -4817,6 +4871,11 @@ function ondeBorboleta(t){
           1.42 + k * k * 4.6,
           -1.28 + Math.cos(k * 1.9) * 0.5 - k * 0.9];
 }
+/* Por qual dos dois voos perguntar. O rastro amostra o passado e precisa
+   saber se aquele instante era a subida do casulo ou a espiral do fim. */
+function ondeBorboleta_ou_fim(t, noFim){
+  return noFim ? ondeBorboletaNoFim(t) : ondeBorboleta(t);
+}
 function presencaBorboleta(t){
   /* DUAS VIDAS. A primeira e a do roteiro: sai do casulo aos 2:43 e sobe
      levando o mundo. A segunda e o fim -- ela volta no ultimo cenario,
@@ -6382,10 +6441,15 @@ function atualizarTempo(t){
 const uBb = n=>gl.getUniformLocation(progBorbo,n);
 const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
                bater:uBb('bater'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
-               asa:uBb('asa'), presenca:uBb('presenca')};
+               asa:uBb('asa'), presenca:uBb('presenca'),
+               brilho:uBb('brilho'), corBrilho:uBb('corBrilho')};
 const aBb = {xy: gl.getAttribLocation(progBorbo,'aXY'),
              lado: gl.getAttribLocation(progBorbo,'aLado')};
 const bBb = criarBufs(['xy','lado']);
+/* Doze vertices de asa, e depois o CORPO. O corpo vem no fim de proposito:
+   assim as asas continuam sendo os doze primeiros e o rastro pode desenhar
+   SO o corpo, a partir do deslocamento 12. Uma conta de luz nao tem asas. */
+let nAsas = 0, corpoDe = 0, nCorpo = 0;
 (function(){
   const xy = [], lado = [];
   for(const l of [-1, 1]){
@@ -6393,6 +6457,21 @@ const bBb = criarBufs(['xy','lado']);
     const q = [[0,-1],[1,-0.7],[1,0.9], [0,-1],[1,0.9],[0,1]];
     for(const [a,b] of q){ xy.push(a,b); lado.push(l); }
   }
+  nAsas = xy.length/2;
+  corpoDe = nAsas;
+
+  // o fuso: oito lados, quatro faixas, da cabeca ao fim do abdome
+  const LADOS = 8, ANEIS = [0.72, 0.42, 0.05, -0.42, -1.00];
+  for(let a=0;a<ANEIS.length-1;a++){
+    for(let j=0;j<LADOS;j++){
+      const u0 = j/LADOS, u1 = (j+1)/LADOS;
+      const y0 = ANEIS[a], y1 = ANEIS[a+1];
+      for(const [u,y] of [[u0,y0],[u1,y0],[u1,y1], [u0,y0],[u1,y1],[u0,y1]]){
+        xy.push(u, y); lado.push(0);
+      }
+    }
+  }
+  nCorpo = xy.length/2 - corpoDe;
   enviar(bBb.xy, xy); enviar(bBb.lado, lado);
 })();
 
@@ -7743,13 +7822,96 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
       gl.uniform3f(locBb.frente, fx, fy, fz);
       gl.uniform1f(locBb.bater, bater);
+      // os atributos entram antes do rastro, que desenha antes dela
+      ligar(aBb.xy, bBb.xy, 2); ligar(aBb.lado, bBb.lado, 1);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
+      gl.uniform1i(locBb.asa, 7);
       gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
-      gl.uniform1f(locBb.tamanho, 0.34);
+
+      /* ELA ABRE AS ASAS ao sair, e nao aparece do tamanho final.
+
+         Antes o tamanho era a constante 0,34 e a unica coisa que crescia
+         era o alfa: ela materializava inteira, do nada, ja adulta. E o
+         contrario do que a obra passou dez minutos construindo -- tudo aqui
+         NASCE, e ela era a unica coisa que simplesmente apareceu.
+
+         Comeca em um quarto do tamanho, que e a largura da barriga da
+         crisalida de onde ela acabou de sair, e abre em dez segundos. A
+         curva e rapida no comeco e vai freando, que e como asa de borboleta
+         recem-saida se enche de verdade: o bicho bombeia depressa e depois
+         so espera secar.
+
+         So na PRIMEIRA vida. No fim da obra ela volta adulta, e adulta nao
+         cresce -- por isso o corte em t < 200. */
+      const abrindo = t < 200 ? rampa(163, 173, t) : 1.0;
+      const tam = 0.34 * (0.25 + 0.75 * Math.pow(abrindo, 0.6));
+
+      /* O RASTRO FLUORESCENTE, e ele sai de graca.
+
+         A posicao dela e funcao pura do tempo: para saber onde ela estava
+         um segundo atras basta perguntar. Nao ha historico para guardar,
+         nao ha buffer que cresce, nada para limpar quando a obra reinicia.
+
+         SO O CORPO, e nao a borboleta inteira: uma fila de borboletas
+         fantasmas atras dela le como erro de desenho -- foi por isso que o
+         rastro antigo, que era copia do recorte chapado, teve de sair. Uma
+         fila de contas de luz le como o que ela DEIXOU no ar.
+
+         E a cor conta a historia: perto dela o rosa da crisalida de onde
+         acabou de sair, e mais atras o turquesa do cenario, para onde ela
+         vai. O rastro e a passagem de um para o outro -- e por isso ele nao
+         e enfeite, e o argumento. */
+      /* CATORZE CONTAS COBRINDO DOIS SEGUNDOS E MEIO, e nao um.
+
+         Medido: com dez contas a cada 0,085 s o rastro cobria 0,85 s. No
+         instante em que ela sai do casulo isso e DEZ CENTIMETROS de
+         caminho -- ela e lenta ali --, e dez centimetros cabem inteiros
+         dentro do corpo dela, que tem trinta e quatro. O rastro existia e
+         estava escondido atras dela.
+
+         Com 0,16 s por conta a janela vai a 2,24 s. E a subida acelera (o
+         y cresce com k ao quadrado), entao o rastro se ALONGA conforme ela
+         ganha velocidade: curto quando ela hesita ao sair, comprido quando
+         ela dispara para o alto. Isso nao foi projetado, e consequencia --
+         e e melhor do que se fosse projetado. */
+      const CONTAS = 14, PASSO = 0.16;
+      somarLuz();
+      gl.uniform1f(locBb.brilho, 1.0);
+      for(let i = CONTAS; i >= 1; i--){
+        const ta = t - i * PASSO;
+        const q = ondeBorboleta_ou_fim(ta, noFim);
+        const k = i / CONTAS;                    // 0 perto dela, 1 no fim
+        gl.uniform3f(locBb.centro, q[0], q[1], q[2]);
+        /* PEQUENAS E FRACAS, porque elas SOMAM.
+
+           Estavam em 1,05 do tamanho dela e 0,85 de presenca: a conta mais
+           proxima era maior que a propria borboleta, e catorze delas
+           somando luz uma sobre a outra estouravam para branco -- o rastro
+           virava um risco de giz, e o rosa e o turquesa que ele deveria
+           contar sumiam os dois no branco.
+
+           Luz que soma tem de entrar fraca. Cada conta agora vale um terco,
+           e o brilho aparece no ACUMULO, que e como brilho de verdade
+           funciona: nenhuma faisca e forte, o punhado e que ilumina. */
+        gl.uniform1f(locBb.tamanho, tam * (0.46 - 0.32 * k));
+        gl.uniform1f(locBb.presenca, pb * (1 - k) * 0.34);
+        gl.uniform3f(locBb.corBrilho,
+                     1.00 * (1-k) + 0.24 * k,
+                     0.55 * (1-k) + 0.90 * k,
+                     0.70 * (1-k) + 0.80 * k);
+        gl.drawArrays(gl.TRIANGLES, corpoDe, nCorpo);
+      }
+
+      // e ela, por cima do proprio rastro
+      sobrepor();
+      gl.uniform1f(locBb.brilho, 0.0);
+      gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
+      gl.uniform1f(locBb.tamanho, tam);
       gl.uniform1f(locBb.presenca, pb);
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
       gl.uniform1i(locBb.asa, 7);
       ligar(aBb.xy, bBb.xy, 2); ligar(aBb.lado, bBb.lado, 1);
-      gl.drawArrays(gl.TRIANGLES, 0, 12);
+      gl.drawArrays(gl.TRIANGLES, 0, nAsas + nCorpo);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
