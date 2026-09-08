@@ -575,7 +575,20 @@ function gerarArvoreMae(rnd, base, s){
     tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
   };
 
-  galho(0.42, 0.7,  0.30, 1.15, 0.075);   // e deste que o casulo pende
+  /* O GALHO DE ONDE O CASULO PENDE nao e sorteado: e CALCULADO para
+     terminar em cima dele. Sorteado, ele terminava a dois metros e meio do
+     casulo e o fio tinha de cobrir a diferenca -- que era o traco reto no
+     meio do quadro. Aqui a geometria e que vai buscar o lugar. */
+  (() => {
+    const iCas = 4, de = pontos[iCas];
+    const alvo = [CASULO[0], FIO_ALTO, CASULO[2]];
+    const comp = Math.hypot(alvo[0]-de[0], alvo[2]-de[2]);
+    const az = Math.atan2(alvo[0]-de[0], -(alvo[2]-de[2]));
+    // a queda em t2*t2*comp*0.10 do galho entra na conta da inclinacao
+    const incl = Math.asin(Math.max(-1, Math.min(1,
+                   (alvo[1]-de[1])/comp + 0.10)));
+    galho(iCas/9, az, incl, comp, 0.062);
+  })();
   galho(0.55, 3.1,  0.42, 0.95, 0.065);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
   galho(0.78, 1.9,  0.52, 1.55, 0.060);   // ja acima do forro
@@ -675,7 +688,13 @@ let totalRaizes = 0;
    um casulo pendurado num fio, sozinho no escuro. */
 const ARVORE_BASE = [-1.35, 0, -1.75];
 const CASULO = [0.42, 1.44, -0.78];
-const FIO_ALTO = 2.95;
+/* O FIO E UM PALMO, e nao uma linha ate o teto.
+
+   Ele ia do casulo aos 2,95 m -- um traco reto atravessando o quadro
+   inteiro, saindo de lugar nenhum. Casulo pende de GALHO, e o galho tem de
+   estar la: agora a arvore-mae estende um galho ate aqui em cima, e o fio e
+   so o vao entre a ponta dele e a crisalida. */
+const FIO_ALTO = CASULO[1] + 0.18;
 
 /* ONDE CADA PLANTA FICOU. O solo e a grama nascem AO PE DAS ARVORES, e
    para isso precisam saber onde as arvores estao. As posicoes sao sorteadas
@@ -6771,7 +6790,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.raio, 0.0045);
       gl.uniform1f(locAst.giro, 0);
       gl.uniform1f(locAst.achatar, metade / 0.0045);
-      gl.uniform3f(locAst.cor, 0.72, 0.70, 0.62);
+      gl.uniform3f(locAst.cor, 0.90, 0.88, 0.78);   // seda, e nao arame
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
 
       // o corpo do casulo e a crisalida, desenhada com o programa solido
