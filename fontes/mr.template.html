@@ -401,6 +401,9 @@ const PEDRAS_NO_CHAO     = true;
    false devolve a nuvem inteira, e nada mais muda: as duas crescem pela
    mesma conta, entao a troca e de materia e nao de coreografia. */
 const MATA_SOLIDA        = true;
+/* Os cogumelos sao esferas, e nao particulas -- por isso saem do
+   OBJETOS_NO_CHAO, que desliga o que e nuvem de pontos. */
+const COGUMELOS_NO_CHAO  = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -480,7 +483,18 @@ const LADOS = 7, SEG = 6, MAXP = 4;
 /* Um tronco: anel por anel, cada um com o seu raio e o seu desvio. E o
    tijolo de que a arvore-mae inteira e feita -- tronco e galho sao a mesma
    coisa, com numeros diferentes. */
+/* AS PONTAS DOS GALHOS. E delas que a folhagem nasce, e so o construtor
+   do tubo sabe onde elas ficaram. */
+let PONTAS = [];
 function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
+  if(pontos.length >= 2 && raios[raios.length-1] < 0.06){
+    for(const q of [0.6, 0.85, 1.0]){
+      const i = Math.max(1, Math.round(q*(pontos.length-1)));
+      PONTAS.push({p: pontos[i].slice(),
+                   d: norm(sub(pontos[i], pontos[i-1])),
+                   r: raios[i]});
+    }
+  }
   /* DOZE LADOS, E NAO SETE.
 
      Sete bastava enquanto a planta era nuvem de pontos: o ponto nao tem
@@ -634,6 +648,16 @@ function gerarPlanta(rnd, base, escala, fase, s){
         const a=base0+i*anel+k, b=a+1, c=a+anel, e=c+1;
         s.idx.push(a,c,b, b,c,e);
       }
+    /* ONDE A FOLHAGEM PODE NASCER: ao longo dos galhos FINOS, em tres
+       alturas. So no fim do galho a copa fica com cara de pompom. */
+    if(r1 < 0.045){
+      for(const q of [0.55, 0.8, 1.0]){
+        const i = Math.round(q*(no.pontos.length-1));
+        PONTAS.push({p: no.pontos[i].slice(),
+                     d: no.dirs[Math.min(i, no.dirs.length-1)].slice(),
+                     r: r0 + (r1-r0)*q});
+      }
+    }
     for(const f of no.filhos) emitir(f);
   }
   const tronco = esqueleto(base, norm([(rnd()-0.5)*0.3,1,(rnd()-0.5)*0.3]), 0.62*escala, 0);
@@ -662,7 +686,7 @@ const FIO_ALTO = 2.95;
 let BASES = [];
 function semearMata(semente){
   const rnd = prng(semente);
-  BASES = [];
+  BASES = []; PONTAS = [];
   const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
   const N = 11;
   totalRaizes = N;
@@ -1046,6 +1070,36 @@ function mancha(m, centro, raio, altura, semente){
   }
 }
 
+/* UM FIO, em direcao qualquer. E a folha de capim liberta da vertical:
+   nasce apontando para onde o galho apontava e vai tombando com o proprio
+   peso -- a curva cresce com o quadrado do percurso, que e como qualquer
+   coisa pendurada cai. */
+function fio(m, base, dir, comp, larg, fase, tomba){
+  const SEG = 4;
+  const inicio = m.pos.length/3;
+  // um eixo perpendicular estavel, para a fita ter largura
+  const cima = Math.abs(dir[1]) > 0.9 ? [1,0,0] : [0,1,0];
+  const lado = norm(cruz(dir, cima));
+  for(let i=0;i<=SEG;i++){
+    const k = i/SEG;
+    const queda = tomba * k * k;
+    const meia = larg * (1 - k*0.85) * 0.5;
+    const cx = base[0] + dir[0]*comp*k;
+    const cy = base[1] + dir[1]*comp*k - queda;
+    const cz = base[2] + dir[2]*comp*k;
+    m.pos.push(cx - lado[0]*meia, cy - lado[1]*meia, cz - lado[2]*meia);
+    m.pos.push(cx + lado[0]*meia, cy + lado[1]*meia, cz + lado[2]*meia);
+    for(let l=0;l<2;l++){
+      m.nor.push(cima[0]*0.3 + dir[0]*0.2, 0.92, cima[2]*0.3 + dir[2]*0.2);
+      m.alt.push(k); m.fase.push(fase); m.borda.push(1);
+    }
+  }
+  for(let i=0;i<SEG;i++){
+    const a = inicio + i*2;
+    m.idx.push(a, a+1, a+2, a+1, a+3, a+2);
+  }
+}
+
 /* UMA FOLHA DE CAPIM. Tres segmentos afinando ate a ponta, com uma
    inclinacao propria -- capim de pe reto le como cerca. Seis triangulos por
    folha: e barato o bastante para haver muitas, e havendo muitas o tufo
@@ -1072,6 +1126,56 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
     const a = inicio + i*2, b = a+1, c = a+2, d = a+3;
     m.idx.push(a, b, c, b, d, c);
   }
+}
+
+/* A CRISALIDA DA BORBOLETA 88.
+
+   Um solido de revolucao, e nao uma esfera achatada com a pintura colada
+   -- que era o que havia, e que a nota chamou pelo nome.
+
+   PENDURADA: o fio prende em cima pelo cremaster, a barriga e larga no
+   terco de cima e o corpo afina ate a ponta embaixo. O perfil sai de
+   sen(k^0,55 . pi), que fecha nas duas pontas e poe a maior largura em vinte
+   e dois por cento -- exatamente onde uma pupa a tem. Os aneis do abdome
+   entram como ondulacao no terco de baixo, e o corpo e achatado de lado,
+   porque pupa nao e um tubo redondo. */
+let bCrisalida = null, nCrisalidaIdx = 0;
+function montarCrisalida(){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const ANEIS = 30, LADOS = 20, COMP = 0.175, LARG = 0.050, CHATO = 0.78;
+  const perfil = k => {
+    const corpo = Math.sin(Math.pow(Math.min(Math.max(k,0),1), 0.55) * Math.PI);
+    const aneis = k > 0.42 ? 1 + 0.055*Math.sin((k-0.42)*34) : 1;
+    return corpo * aneis;
+  };
+  for(let a=0;a<=ANEIS;a++){
+    const k = a/ANEIS;
+    const r = perfil(k) * LARG;
+    // a normal segue a inclinacao do perfil, por diferenca finita
+    const h = 0.5/ANEIS;
+    const dr = (perfil(k+h) - perfil(k-h)) * LARG / (2*h*COMP);
+    for(let j=0;j<=LADOS;j++){
+      const ang = j/LADOS * Math.PI*2, ca = Math.cos(ang), sa = Math.sin(ang);
+      m.pos.push(ca*r, -k*COMP, sa*r*CHATO);
+      const nn = [ca, dr, sa/CHATO];
+      const c = Math.hypot(nn[0], nn[1], nn[2]) || 1;
+      m.nor.push(nn[0]/c, nn[1]/c, nn[2]/c);
+      m.alt.push(0); m.fase.push(0); m.borda.push(1);
+    }
+  }
+  const larg = LADOS+1;
+  for(let a=0;a<ANEIS;a++)
+    for(let j=0;j<LADOS;j++){
+      const i0 = a*larg + j, i1 = i0+1, i2 = i0+larg, i3 = i2+1;
+      m.idx.push(i0, i2, i1, i1, i2, i3);
+    }
+  bCrisalida = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bCrisalida.pos,m.pos); enviar(bCrisalida.nor,m.nor);
+  enviar(bCrisalida.alt,m.alt); enviar(bCrisalida.fase,m.fase);
+  enviar(bCrisalida.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCrisalida.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nCrisalidaIdx = m.idx.length;
 }
 
 let bPedras = null, nPedrasIdx = 0;
@@ -1160,6 +1264,42 @@ function prepararSolo(){
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(g.idx), gl.STATIC_DRAW);
     nGramaIdx = g.idx.length;
   }
+}
+
+/* A FOLHAGEM. Fios saindo das pontas finas, e so das finas: o tronco tem
+   ponta tambem, e folha brotando de tronco grosso le como erro. Nasce
+   DEPOIS da arvore pronta -- e o argumento da obra em miniatura, primeiro o
+   corpo, depois o que ele produz. */
+let bFolhagem = null, nFolhagemIdx = 0;
+function prepararFolhagem(){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const rnd = prng(5507);
+  let quantos = 0;
+  for(const ponta of PONTAS){
+    if(ponta.r > 0.055) continue;              // so as pontas finas
+    const nesta = 3 + Math.floor(rnd()*3);
+    for(let k=0;k<nesta;k++){
+      // espalha em volta da direcao do galho, sem se afastar dela
+      const d = norm([ponta.d[0] + (rnd()-0.5)*1.5,
+                      ponta.d[1] + (rnd()-0.5)*1.1,
+                      ponta.d[2] + (rnd()-0.5)*1.5]);
+      fio(m, ponta.p, d,
+          0.09 + rnd()*0.14,        // comprimento
+          0.010 + rnd()*0.012,      // largura
+          rnd()*6.28,               // fase do vento
+          0.03 + rnd()*0.07);       // quanto tomba
+      quantos++;
+      if(m.pos.length/3 > 60000) break;  // teto do indice de 16 bits
+    }
+  }
+  if(!m.idx.length) return;
+  bFolhagem = bFolhagem || criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bFolhagem.pos,m.pos); enviar(bFolhagem.nor,m.nor);
+  enviar(bFolhagem.alt,m.alt); enviar(bFolhagem.fase,m.fase);
+  enviar(bFolhagem.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhagem.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nFolhagemIdx = m.idx.length;
 }
 
 let bFolhas = null, nFolhas = 0;
@@ -1585,6 +1725,7 @@ uniform mat4 mvp; uniform float tempo;
 uniform float crescimento;   // 0 = ainda nao brotou, 1 = inteira
 uniform float inverte;       // 1 = a floresta do teto, de cabeca para baixo
 uniform vec3 desloca;        // onde ela esta (o teto fica a ALTURA + 0.15)
+uniform float escalaObj;     // de que tamanho (a crisalida usa duas cascas)
 /* PLANTA OU PEDRA. Uma planta ungrown fica RECOLHIDA perto da origem e se
    abre para o lugar dela; e balanca no vento, mais na ponta que na base.
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
@@ -1597,7 +1738,7 @@ void main(){
   /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
      nao so a aparencia dela. */
-  vec3 p = aPos + desloca;
+  vec3 p = aPos * escalaObj + desloca;
   /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
 
      Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
@@ -1715,6 +1856,8 @@ vec3 aGrama(vec3 p, float alt){
 }
 
 uniform sampler2D casca;
+uniform float tempo;
+uniform vec3 olhoPos;        // de onde se olha: a iridescencia depende disso
 uniform float presenca;
 uniform float escalaTinta;   // quantas voltas da pintura por metro
 /* MATERIA. De que a superficie e feita:
@@ -1750,6 +1893,9 @@ void main(){
   w = w * w * w;
   w /= (w.x + w.y + w.z);
 
+  // o angulo de raspao serve a iridescencia e a translucidez
+  float raspaoC = 1.0 - abs(dot(n, normalize(olhoPos - vMundo)));
+
   vec3 c;
   if(materia < 0.5){
     // A AQUARELA, por triplanar: a pele das arvores
@@ -1763,8 +1909,13 @@ void main(){
     c = aPedra(vMundo * escalaTinta);
   } else if(materia < 2.5){
     c = aTerra(vMundo * escalaTinta);
-  } else {
+  } else if(materia < 3.5){
     c = aGrama(vMundo * escalaTinta, vAlt);
+  } else {
+    /* A CRISALIDA. Sem textura nenhuma: a cor vem do angulo. Quitina de
+       pupa e jade puxando a ouro, mais clara na borda porque ali a luz
+       atravessa mais parede. */
+    c = mix(vec3(0.30, 0.46, 0.34), vec3(0.86, 0.82, 0.44), pow(raspaoC, 2.2));
   }
 
   /* A LUZ. Na planta ela e macia -- folha e translucida e nao tem lado
@@ -1772,6 +1923,30 @@ void main(){
      entre o lado que pega luz e o que nao pega que diz ao olho que aquilo
      tem VOLUME. Com o mesmo piso macio das arvores, a pedra saia chapada e
      lida como vidro fosco -- foi o que aconteceu. */
+  /* A IRIDESCENCIA DO SOLO.
+
+     A nota: floresta magica e alienigena. Iridescencia e o que uma
+     superficie faz quando a cor depende do ANGULO -- asa de besouro,
+     madreperola, oleo na agua. Nao e brilho colorido pintado por cima: e a
+     mesma terra devolvendo um comprimento de onda diferente conforme de
+     onde se olha, e por isso ela SE MEXE quando a pessoa anda. Numa obra
+     onde a pessoa caminha, e a diferenca entre um chao pintado e um chao
+     que reage a presenca dela.
+
+     A base e o angulo de raspao: quem olha de frente ve a terra, quem olha
+     de esguelha ve a cor. O cosseno em tres fases defasadas percorre o
+     espectro sem tabela nenhuma. E o ruido desloca a fase por lugar, senao
+     o chao inteiro mudaria de cor em bloco -- que le como plastico. */
+  if(materia > 1.5 && materia < 3.5){
+    float raspao = raspaoC;
+    float fase = rugas(vMundo * 2.3) * 1.4;
+    vec3 iris = 0.5 + 0.5 * cos(6.2831 *
+                (raspao * 1.9 + fase + vec3(0.0, 0.33, 0.67)));
+    // pesa no raspao ao cubo: de frente quase nada, de esguelha bastante
+    float peso = pow(raspao, 3.0) * (materia < 2.5 ? 0.62 : 0.34);
+    c = mix(c, c * 0.45 + iris * 0.72, peso);
+  }
+
   /* O PISO DA LUZ MUDA COM A MATERIA. Folha e translucida e nao tem lado
      escuro de verdade; pedra tem, e e por essa diferenca que o olho le
      volume. Terra fica no meio. */
@@ -1792,7 +1967,24 @@ void main(){
   // a ponta nova e mais clara, como broto de verdade
   c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
 
-  gl_FragColor = vec4(c, presenca * vVivo * vBorda);
+  float alfa = presenca * vVivo * vBorda;
+
+  /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
+     ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
+     casca fina se comporta, e e o que faz o olho ler VOLUME OCO em vez de
+     vidro chapado.
+
+     E ela PULSA. O que bate nao e a casca: e o que esta dentro, e por isso
+     o pulso entra pela casca de frente (onde se ve o miolo) e nao pela
+     borda. A batida e um seno elevado, que sobe rapido e desce devagar --
+     um seno puro le como pisca-pisca, nao como coracao. */
+  if(materia > 3.5){
+    float batida = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
+    alfa *= mix(0.16, 0.95, pow(raspaoC, 1.4));
+    c += vec3(0.55, 0.72, 0.30) * batida * (1.0 - raspaoC) * 0.85;
+  }
+
+  gl_FragColor = vec4(c, alfa);
 }`;
 
 const VS_SALA = `
@@ -3307,7 +3499,8 @@ function subirRaizes(s){
   enviar(bM.pos, nuvem.pos); enviar(bM.uv, nuvem.uv);
   enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
   nMata = nuvem.pos.length/3;
-  prepararSolo();   // depende de BASES, que so existe depois de semear
+  prepararSolo();       // depende de BASES, que so existe depois de semear
+  prepararFolhagem();   // e de PONTAS, pelo mesmo motivo
   document.getElementById('vRaiz').textContent = totalRaizes;
   document.getElementById('vTri').textContent =
     ((nIdxR+nIdxS)/3).toLocaleString('pt-BR');
@@ -3326,6 +3519,7 @@ prepararRaizesDosAstros();
 prepararHorizonte();
 prepararEstrelas();
 prepararPedras();
+montarCrisalida();
 prepararAlienigena();
 prepararFolhas();
 prepararFundoDoMar();
@@ -4134,7 +4328,7 @@ let t = 0, andando = false, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
    nascimento -- que e o primeiro acontecimento da partitura, aos 0:15 --
    nunca acontecia para quem entrava. Ninguem via, porque quem testa salta
    direto para o meio. */
-let crescimento = 0, sentidoPoeira = 1;
+let crescimento = 0, folhagem = 0, sentidoPoeira = 1;
 /* Quanto a agua ja subiu. Ela SOBE ate a cintura ao chegar no planeta
    rosa, em vez de ja estar la: subir e o que faz a pessoa perceber que
    entrou nela. */
@@ -4416,6 +4610,8 @@ function seguirPartitura(dt){
      hora, senao voltar para o comeco mostraria o fim. */
   const brotando = rampa(15, 69, t);
   crescimento = dt > 0 ? Math.max(crescimento, brotando) : brotando;
+  // a folhagem so comeca quando a arvore ja esta feita, e leva o seu tempo
+  folhagem = (c === 1) ? rampa(72, 138, t) : 1.0;
 
   /* OS PRIMEIROS VINTE SEGUNDOS NAO TEM TEXTURA DE CEU.
 
@@ -4854,8 +5050,9 @@ if(emTesteLocal){
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
     onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
-                     estrelas: nEstrelas, folhas: nFolhas, mar: nMar,
-                     concha: nConcha}; },
+                     estrelas: nEstrelas, mar: nMar, concha: nConcha,
+                     pontas: PONTAS.length, folhagem: nFolhagemIdx/24,
+                     capim: nGramaIdx/18, manchas: nSoloIdx/462}; },
     pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; },
     /* Ir direto para a espera. Sem isto so se chega la deixando os dez
        minutos correrem, e ninguem confere um fim assim. */
@@ -5291,7 +5488,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                inverte:uSo('inverte'), desloca:uSo('desloca'), casca:uSo('casca'),
                presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta'),
                planta:uSo('planta'), materia:uSo('materia'),
-               balanca:uSo('balanca')};
+               balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
+               escalaObj:uSo('escalaObj'), tempo2:uSo('tempo')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -5667,6 +5865,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.presenca, presencaMata);
     gl.uniform1f(locSo.inverte, 0.0);
     gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.escalaObj, 1.0);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
@@ -5676,6 +5875,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.materia, 0.0);
     // sem arranjo, o atributo le um valor constante: tudo miolo
     gl.vertexAttrib1f(aSo.borda, 1.0);
+    gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locSo.casca, 2);
     ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
@@ -5759,10 +5959,61 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawElements(gl.TRIANGLES, nGramaIdx, gl.UNSIGNED_SHORT, 0);
       gl.enable(gl.CULL_FACE);
     }
+    /* A FOLHAGEM. Fita nao tem avesso, entao os dois lados aparecem; e ela
+       balanca mais que o capim, porque esta na ponta de um galho. */
+    if(nFolhagemIdx > 0 && folhagem > 0.004 && presencaMata > 0.004){
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 1.0);
+      gl.uniform1f(locSo.materia, 3.0);
+      gl.uniform1f(locSo.escalaTinta, 6.0);
+      gl.uniform1f(locSo.crescimento, folhagem);
+      gl.uniform1f(locSo.presenca, presencaMata);
+      ligar(aSo.pos, bFolhagem.pos, 3); ligar(aSo.nor, bFolhagem.nor, 3);
+      ligar(aSo.alt, bFolhagem.alt, 1); ligar(aSo.fase, bFolhagem.fase, 1);
+      ligar(aSo.borda, bFolhagem.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhagem.idx);
+      gl.drawElements(gl.TRIANGLES, nFolhagemIdx, gl.UNSIGNED_SHORT, 0);
+      gl.enable(gl.CULL_FACE);
+    }
+
+    /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
+       pulsa; a de fora e translucida e cobre. Nenhuma escreve
+       profundidade -- corpo transparente que escreve profundidade recorta
+       o que esta atras dele. */
+    if(nCrisalidaIdx > 0 && casuloPresenca > 0.004){
+      const osc = Math.sin(relogio * 0.7) * 0.022;
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(false);
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 0.0);
+      gl.uniform1f(locSo.materia, 4.0);
+      gl.uniform1f(locSo.crescimento, 9.0);
+      gl.uniform1f(locSo.presenca, casuloPresenca);
+      gl.uniform3f(locSo.desloca, CASULO[0] + osc, CASULO[1] + 0.085,
+                                  CASULO[2] + osc*0.6);
+      ligar(aSo.pos, bCrisalida.pos, 3); ligar(aSo.nor, bCrisalida.nor, 3);
+      ligar(aSo.alt, bCrisalida.alt, 1); ligar(aSo.fase, bCrisalida.fase, 1);
+      ligar(aSo.borda, bCrisalida.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCrisalida.idx);
+
+      somarLuz();
+      gl.uniform1f(locSo.escalaObj, 0.62);
+      gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
+
+      sobrepor();
+      gl.uniform1f(locSo.escalaObj, 1.0);
+      gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
+      gl.enable(gl.CULL_FACE);
+      gl.uniform3f(locSo.desloca, 0, 0, 0);
+    }
+
     gl.uniform1f(locSo.planta, 1.0);
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
     gl.uniform1f(locSo.escalaTinta, 1.25);
+    gl.uniform1f(locSo.crescimento, crescimento);
 
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
@@ -6277,20 +6528,13 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locAst.cor, 0.72, 0.70, 0.62);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
 
-      // o casulo balanca de leve no fio, como coisa pendurada faz
-      const osc = Math.sin(relogio * 0.7) * 0.022;
-      gl.uniform3f(locAst.centro, CASULO[0] + osc, CASULO[1], CASULO[2] + osc*0.6);
-      gl.uniform1f(locAst.raio, 0.075);
-      gl.uniform1f(locAst.giro, relogio * 0.12);
-      gl.uniform1f(locAst.achatar, 2.15);
-      gl.uniform3f(locAst.cor, 0.86, 0.82, 0.70);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      // o corpo do casulo e a crisalida, desenhada com o programa solido
     }
 
     /* OS COGUMELOS. Duas esferas cada um: chapeu achatado e pe fino.
        Crescem junto com o resto, e ficam ao ALCANCE — sao eles que ensinam
        que da para tocar nas coisas, e ensinar de longe nao ensina. */
-    if(OBJETOS_NO_CHAO && cogumeloCresce > 0.004){
+    if(COGUMELOS_NO_CHAO && cogumeloCresce > 0.004){
       gl.depthMask(true);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
       gl.uniform1i(locAst.pele, 5);
