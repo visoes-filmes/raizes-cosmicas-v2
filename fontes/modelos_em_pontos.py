@@ -72,12 +72,13 @@ PADRAO = 2000
 #
 # Nao e todo modelo: uma alga no fundo do mar continua melhor como nuvem,
 # porque la a nuvem E o assunto. Aqui entra o que e macico.
-COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo"}
+COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
+              "crisalida_borboleta88_diaethria": "crisalida"}
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
 # a mesma mao pesada o transformava num ovo -- sumia o pe, sumia o rebordo.
-SUAVE = {"pedra": 0.62, "cogumelo": 0.28}
+SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -85,14 +86,14 @@ SUAVE = {"pedra": 0.62, "cogumelo": 0.28}
 # inteiro e o objeto vira ovo; numa malha fina ela so alisa a quina, que e
 # o que se quer. O cogumelo vem com 138 triangulos e a silhueta dele e um
 # poligono visivel; duas divisoes o levam a 2 208 e o contorno fecha.
-DIVISOES = {"pedra": 1, "cogumelo": 2}
+DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
 # malha ja esta fina. O cogumelo precisa disto porque, aceso e quase sem
 # sombreamento, a forma dele e lida so pela SILHUETA -- e quina em silhueta
 # nao tem onde se esconder.
-POLIR = {"cogumelo": 3}
+POLIR = {"cogumelo": 3, "crisalida": 3}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -130,6 +131,20 @@ PECAS = 8
 # diante dos 65 535 do indice de 16 bits. Simplificar mais nao economizava
 # nada que fizesse falta, e custava a forma.
 GRADE = 70
+
+# A GRADE POR MODELO, quando a global nao serve.
+#
+# 70 foi calibrada para a pedra: seis mil triangulos de entrada. A crisalida
+# entra com QUARENTA mil -- e um escaneamento, nao um icone -- e na mesma
+# grade sairia com uns dez mil, dez vezes o que um objeto de vinte
+# centimetros pendurado merece.
+#
+# 26 devolve por volta de mil e duzentos, que e da ordem do torno feito a
+# mao que ela substitui (1 440). Trocar a forma nao pode custar quadro.
+#
+# E ela nao se subdivide: subdividir quadruplicaria a conta para tirar uma
+# faceta que tres passadas de POLIMENTO tiram de graca.
+GRADES = {"crisalida": 26}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
@@ -478,7 +493,8 @@ def main():
             if curto in COMO_MALHA:
                 partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
                 for k, parte in enumerate(partes):
-                    mp, _mn, mi = simplificar(parte, GRADE)
+                    mp, _mn, mi = simplificar(
+                        parte, GRADES.get(COMO_MALHA[curto], GRADE))
                     mp, mi = arredondar(
                         mp, mi,
                         divisoes=DIVISOES.get(COMO_MALHA[curto], 1),

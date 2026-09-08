@@ -1399,48 +1399,53 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
    engrossando, e o corpo -- sen(k^0,55 . pi), que fecha nas duas pontas e poe
    a maior largura em 22%, onde uma pupa a tem. Os aneis do abdome entram
    como ondulacao no terco de baixo, e o corpo e achatado de lado. */
-const CRIS_CORPO = 0.175, CRIS_PESCOCO = 0.058;
+/* O TAMANHO DELA. Uma pupa de 88 de verdade tem dois centimetros; esta tem
+   vinte e tres, e e de proposito -- ela esta a um metro do chao para uma
+   crianca alcancar, e a essa distancia dois centimetros nao sao um bicho,
+   sao um detalhe que passa batido. */
+const CRIS_ALTURA = 0.233;
+
+/* A CRISALIDA E O BICHO, e nao o torno.
+
+   Havia aqui um perfil feito a mao: trinta e seis aneis girados em vinte
+   lados, com uma senoide para o corpo e uma ondinha para as estrias. Ela
+   ficou razoavel e nunca ficou certa -- disseram-no duas vezes -- porque
+   forma de bicho nao sai de formula. O que a substitui e o escaneamento da
+   propria Diaethria, que estava na pasta de modelos desde o inicio e nunca
+   foi usado.
+
+   ELA PENDURA, e o modelo vem de pe. O escaneamento sai normalizado com o
+   pe em y=0 e o cremaster -- o botao pelo qual a pupa se prende ao galho --
+   em y=1. Medido: o raio despenca para 0,0053 em y=0,85 e volta a engrossar
+   acima, que e o pescoco e o botao. Entao o eixo se inverte aqui: y=1 do
+   modelo vira o zero do mundo, onde o galho esta, e o corpo desce dali.
+
+   E A ALTURA VIRA AO CONTRARIO JUNTO. O balanco do shader le "alt" como
+   distancia ao ponto preso: zero no galho, um na ponta. Invertido, o corpo
+   inteiro oscila como pendulo -- preso em cima, solto embaixo. Fio nenhum
+   precisa existir para isso, e e por isso que nao ha fio.
+
+   A normal em y tambem inverte, e so ela: espelhar um eixo espelha a
+   normal naquele eixo. Sem isso a luz vem de baixo e o volume se desfaz.
+
+   Custa 4 252 triangulos contra os 1 440 do torno. A grade da simplificacao
+   nao pode passar de 26 porque o PESCOCO tem 0,0106 de diametro num corpo
+   de 0,200: numa grade mais grossa que isso a celula engole o pescoco, ele
+   colapsa, e sem pescoco a forma deixa de ser pupa e deixa de encontrar o
+   galho. O preco esta medido e e o minimo que preserva a forma. */
 let bCrisalida = null, nCrisalidaIdx = 0;
 function montarCrisalida(){
+  const o = decodificarMalha('crisalida-0');
+  if(!o){ console.warn('crisalida-0 nao esta no pacote de malhas'); return; }
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const ANEIS = 36, LADOS = 20, LARG = 0.050, CHATO = 0.78;
-  const total = CRIS_CORPO + CRIS_PESCOCO;
-  const perfil = y => {
-    if(y < CRIS_PESCOCO){
-      const t = y / CRIS_PESCOCO;
-      return 0.0032 + Math.pow(t, 1.5) * 0.0165;
-    }
-    const k = Math.min(Math.max((y - CRIS_PESCOCO) / CRIS_CORPO, 0), 1);
-    const corpo = Math.sin(Math.pow(k, 0.55) * Math.PI);
-    const aneis = k > 0.42 ? 1 + 0.055*Math.sin((k-0.42)*34) : 1;
-    /* No encontro o corpo nao pode nascer do zero, senao ha um degrau: nos
-       primeiros milimetros ele parte da grossura que o pedunculo entregou. */
-    return Math.max(corpo * aneis * LARG, 0.0197 * (1 - Math.min(k*7, 1)));
-  };
-  for(let a=0;a<=ANEIS;a++){
-    const y = a/ANEIS * total;
-    const r = perfil(y);
-    const h = total/(ANEIS*2);
-    const dr = (perfil(Math.min(y+h, total)) - perfil(Math.max(y-h, 0))) / (2*h);
-    for(let j=0;j<=LADOS;j++){
-      const ang = j/LADOS * Math.PI*2, ca = Math.cos(ang), sa = Math.sin(ang);
-      m.pos.push(ca*r, -y, sa*r*CHATO);
-      const nn = [ca, dr, sa/CHATO];
-      const c = Math.hypot(nn[0], nn[1], nn[2]) || 1;
-      m.nor.push(nn[0]/c, nn[1]/c, nn[2]/c);
-      /* A ALTURA NO PROPRIO CORPO manda no balanco: zero no galho e um na
-         ponta, entao ela oscila como pendulo -- presa em cima, solta
-         embaixo. Fio nenhum precisa existir para isso. */
-      m.alt.push(y / total);
-      m.fase.push(0); m.borda.push(1);
-    }
+  for(let i=0;i<o.n;i++){
+    const x = o.pos[i*3]/8000, y = o.pos[i*3+1]/8000, z = o.pos[i*3+2]/8000;
+    m.pos.push(x * CRIS_ALTURA, -(1 - y) * CRIS_ALTURA, z * CRIS_ALTURA);
+    m.nor.push(o.nor[i*3]/127, -o.nor[i*3+1]/127, o.nor[i*3+2]/127);
+    m.alt.push(1 - y);
+    m.fase.push(0); m.borda.push(1);
   }
-  const larg = LADOS+1;
-  for(let a=0;a<ANEIS;a++)
-    for(let j=0;j<LADOS;j++){
-      const i0 = a*larg + j, i1 = i0+1, i2 = i0+larg, i3 = i2+1;
-      m.idx.push(i0, i2, i1, i1, i2, i3);
-    }
+  for(let i=0;i<o.idx.length;i++) m.idx.push(o.idx[i]);
   bCrisalida = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bCrisalida.pos,m.pos); enviar(bCrisalida.nor,m.nor);
   enviar(bCrisalida.alt,m.alt); enviar(bCrisalida.fase,m.fase);
