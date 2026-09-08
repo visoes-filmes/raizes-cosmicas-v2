@@ -2347,6 +2347,28 @@ void main(){
     // o piso vem DEPOIS da luz, mais abaixo: aqui ele ainda apanharia dela
   } else if(materia < 1.5){
     c = aPedra(vMundo * escalaTinta);
+    /* OS VEIOS ACENDEM QUANDO ALGUEM CHEGA PERTO.
+
+       A sala reagindo a presenca de quem entra, e nao um efeito ligado o
+       tempo todo: de longe a pedra e pedra, e so quando a pessoa se abaixa
+       para olhar e que o veio responde. E o unico jeito de o gesto de
+       chegar perto ter consequencia sem haver botao nenhum.
+
+       O expoente alto no veio e o que o mantem FIO: sem ele a pedra inteira
+       acende e vira lampada. A luz e a mesma dos cogumelos, no mesmo
+       compasso -- o cenario tem um batimento so.
+
+       As montanhas sao desta mesma materia e nao acendem: estao a duzentos
+       metros, e "perto" ali e zero. Sai de graca. */
+    /* O VEIO E O MESMO da pedra, na mesma escala -- se fosse outro, a luz
+       nao correria por onde a pedra e desenhada e leria como mancha solta
+       por cima. Expoente 4 deixa um fio largo o bastante para se ver; com 7
+       ele ficava fino demais para caber num pixel. */
+    float veioAceso = 1.0 - abs(rugas(vMundo * escalaTinta * 1.05) * 2.0 - 1.0);
+    float perto = 1.0 - smoothstep(0.35, 2.20, length(olhoPos - vMundo));
+    float batP = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
+    c += vec3(0.24, 0.90, 0.80) * pow(veioAceso, 4.0) * perto
+       * (0.55 + 1.50 * batP);
   } else if(materia < 2.5){
     c = aTerra(vMundo * escalaTinta);
   } else if(materia < 3.5){
