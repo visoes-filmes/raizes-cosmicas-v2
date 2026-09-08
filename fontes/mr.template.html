@@ -490,9 +490,9 @@ const LADOS = 7, SEG = 6, MAXP = 4;
 /* AS PONTAS DOS GALHOS. E delas que a folhagem nasce, e so o construtor
    do tubo sabe onde elas ficaram. */
 let PONTAS = [];
-function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
+function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo, lados){
   if(pontos.length >= 2 && raios[raios.length-1] < 0.06){
-    for(const q of [0.6, 0.85, 1.0]){
+    for(const q of [0.72, 1.0]){
       const i = Math.max(1, Math.round(q*(pontos.length-1)));
       PONTAS.push({p: pontos[i].slice(),
                    d: norm(sub(pontos[i], pontos[i-1])),
@@ -508,8 +508,12 @@ function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
 
      O custo e um terco a mais de triangulos numa malha de catorze mil, que
      e nada; e a nuvem nao muda, porque ela e amostrada por metro quadrado
-     e nao por triangulo. */
-  const LADOS = 12;
+     e nao por triangulo.
+
+     MAS SO PERTO. Doze lados num tronco a onze metros e desperdicio puro:
+     ele ocupa poucos pixels e nenhuma faceta se ve. Quem esta longe pede
+     menos, e quem chama diz quantos. */
+  const LADOS = lados || 12;
   const base = s.pos.length/3;
   let lado = null;              // o eixo do anel, levado de um ponto ao outro
   for(let i=0;i<pontos.length;i++){
@@ -778,14 +782,14 @@ function gerarArvoreMae(rnd, base, s){
 
    O que muda em cada uma sao quatro numeros: quantos filhos por no, com que
    angulo abrem, quanto sobem, e se ha uma direcao preferida. */
-function gerarPlanta(rnd, base, escala, fase, s, feitio){
+function gerarPlanta(rnd, base, escala, fase, s, feitio, lados, fundo){
   const larga = feitio === 1, torta = feitio === 2;
   /* A INCLINADA precisa de um lado PROPRIO, escolhido uma vez: sorteado a
      cada galho, ela apenas ficaria bagunçada em vez de inclinada. */
   const pende = [Math.sin(fase), 0, -Math.cos(fase)];
   function esqueleto(origem, dir, comp, prof){
     const no = {origem, dir, comp, prof, filhos:[], raio:0};
-    if(prof>=MAXP || comp<0.10){ no.raio = 0.014*escala; no.ponta=true; return no; }
+    if(prof>=NIVEIS || comp<0.10){ no.raio = 0.014*escala; no.ponta=true; return no; }
     const grav = 0.26*(prof/MAXP);
     const pontos=[origem.slice()], dirs=[];
     let d=dir.slice(), p=origem.slice();
@@ -828,6 +832,13 @@ function gerarPlanta(rnd, base, escala, fase, s, feitio){
     no.raio = Math.max(Math.sqrt(soma), 0.014*escala);
     return no.raio;
   }
+  // quantos lados por tubo: doze de perto, menos ao longe
+  const L = lados || LADOS;
+  /* QUANTAS VEZES ELA SE DIVIDE. Quatro de perto, onde a pessoa ve galho
+     por galho; tres ao longe, onde a arvore e silhueta e o quarto nivel sao
+     galhinhos de um pixel. Um nivel a menos corta quase metade da malha,
+     porque cada nivel dobra o numero de galhos. */
+  const NIVEIS = fundo ? 3 : MAXP;
   function emitir(no){
     if(no.ponta) return;
     const r0=no.raio, r1 = no.filhos.length ? no.filhos[0].raio*1.1 : r0*0.4;
@@ -844,27 +855,31 @@ function gerarPlanta(rnd, base, escala, fase, s, feitio){
       const up = Math.abs(d[1])>0.9 ? [1,0,0] : [0,1,0];
       const bx = norm(cruz(d, up)), nz = norm(cruz(bx, d));
       if(i>0) corrido += Math.hypot(...sub(no.pontos[i], no.pontos[i-1]));
-      for(let k=0;k<=LADOS;k++){
-        const a = k/LADOS*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+      for(let k=0;k<=L;k++){
+        const a = k/L*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
         const nr = [bx[0]*ca+nz[0]*sa, bx[1]*ca+nz[1]*sa, bx[2]*ca+nz[2]*sa];
         s.pos.push(no.pontos[i][0]+nr[0]*raio, no.pontos[i][1]+nr[1]*raio,
                    no.pontos[i][2]+nr[2]*raio);
         s.nor.push(nr[0],nr[1],nr[2]);
-        s.uv.push(k/LADOS, corrido*1.1);
-        s.alt.push(Math.min(1,(no.prof+t)/MAXP));
+        s.uv.push(k/L, corrido*1.1);
+        s.alt.push(Math.min(1,(no.prof+t)/NIVEIS));
         s.fase.push(fase);
       }
     }
-    const anel = LADOS+1;
+    const anel = L+1;
     for(let i=0;i<no.pontos.length-1;i++)
-      for(let k=0;k<LADOS;k++){
+      for(let k=0;k<L;k++){
         const a=base0+i*anel+k, b=a+1, c=a+anel, e=c+1;
         s.idx.push(a,c,b, b,c,e);
       }
     /* ONDE A FOLHAGEM PODE NASCER: ao longo dos galhos FINOS, em tres
        alturas. So no fim do galho a copa fica com cara de pompom. */
+    /* DUAS ANCORAS POR GALHO, e nao tres. Tres davam a copa mais cheia e
+       custavam um terco de toda a folhagem -- e a folhagem e o maior item
+       da cena. Duas ainda espalham o tufo pelo galho em vez de o amontoar
+       na ponta, que era a razao de nao ser uma so. */
     if(r1 < 0.045){
-      for(const q of [0.55, 0.8, 1.0]){
+      for(const q of [0.68, 1.0]){
         const i = Math.round(q*(no.pontos.length-1));
         PONTAS.push({p: no.pontos[i].slice(),
                      d: no.dirs[Math.min(i, no.dirs.length-1)].slice(),
@@ -1302,9 +1317,15 @@ function mancha(m, centro, raio, altura, semente){
    nasce apontando para onde o galho apontava e vai tombando com o proprio
    peso -- a curva cresce com o quadrado do percurso, que e como qualquer
    coisa pendurada cai. */
-function fio(m, base, dir, comp, larg, fase, tomba){
-  // seis segmentos: com quatro, um fio longo que tomba vira uma quina
-  const SEG = 6;
+function fio(m, base, dir, comp, larg, fase, tomba, segs){
+  /* SEIS SEGMENTOS NO FIO LONGO, tres no curto.
+
+     Seis existe porque um fio longo que tomba precisa de curva: com quatro
+     ele vira uma quina. Mas um fio de seis centimetros ao pe da arvore mal
+     tomba, e ali seis segmentos sao doze triangulos gastos num tracinho de
+     poucos pixels. Metade da folhagem e curta -- e metade de setenta e oito
+     mil triangulos e o que se ganha. */
+  const SEG = segs || 6;
   const inicio = m.pos.length/3;
   // um eixo perpendicular estavel, para a fita ter largura
   const cima = Math.abs(dir[1]) > 0.9 ? [1,0,0] : [0,1,0];
@@ -1654,7 +1675,8 @@ function prepararFolhagem(){
           comp,
           0.006 + alto*0.008 + rnd()*(0.005 + alto*0.011),   // largura
           rnd()*6.28,               // fase do vento
-          comp * (0.55 + rnd()*0.45));   // o peso, proporcional ao tamanho
+          comp * (0.55 + rnd()*0.45),    // o peso, proporcional ao tamanho
+          comp > 0.20 ? 6 : (comp > 0.12 ? 4 : 3));
       quantos++;
       if(m.pos.length/3 > 60000) break;  // teto do indice de 16 bits
     }
@@ -4037,8 +4059,11 @@ function semearFundo(semente){
     for(let i=0;i<quantas;i++){
       const ang = (i/quantas)*Math.PI*2 + rnd()*0.5;
       const d = dist * (0.82 + rnd()*0.36);
+      /* CINCO LADOS. A onze metros o tronco tem poucos pixels de largura e
+         a faceta nao chega ao olho; doze lados ali sao triangulos pagos e
+         nao vistos. Corta mais da metade da mata de fundo. */
       gerarPlanta(rnd, [Math.sin(ang)*d, 0, -Math.cos(ang)*d],
-                  tamanho * (0.75 + rnd()*0.5), rnd()*Math.PI*2, s, i % 3);
+                  tamanho * (0.75 + rnd()*0.5), rnd()*Math.PI*2, s, i % 3, 5, true);
     }
   }
   /* AS PONTAS DELAS NAO ENTRAM NA FOLHAGEM. A folhagem tem teto de vertices,
