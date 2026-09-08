@@ -87,6 +87,13 @@ SUAVE = {"pedra": 0.62, "cogumelo": 0.28}
 # poligono visivel; duas divisoes o levam a 2 208 e o contorno fecha.
 DIVISOES = {"pedra": 1, "cogumelo": 2}
 
+# POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
+# triangulos; polir nao custa nada, e e o que tira a quina depois que a
+# malha ja esta fina. O cogumelo precisa disto porque, aceso e quase sem
+# sombreamento, a forma dele e lida so pela SILHUETA -- e quina em silhueta
+# nao tem onde se esconder.
+POLIR = {"cogumelo": 3}
+
 # O cogumelo veio de poly.pizza (Quaternius), CC0 -- dominio publico, sem
 # exigencia de credito. Escolhido entre cinco por ser o unico numa PECA SO:
 # os outros traziam chapeus e pes como partes separadas, que nao dao para
@@ -322,7 +329,7 @@ def normais(pos, idx):
     return np.divide(nor, comp, out=np.zeros_like(nor), where=comp > 0)
 
 
-def arredondar(pos, idx, divisoes=1, forca=0.62):
+def arredondar(pos, idx, divisoes=1, forca=0.62, polir=0):
     """Subdivide uma vez e suaviza: tira a cara de cristal.
 
     POR QUE. As pedras deste modelo sao ESTILIZADAS -- trezentos triangulos
@@ -340,6 +347,8 @@ def arredondar(pos, idx, divisoes=1, forca=0.62):
     pedras somam treze mil -- metade do que a floresta inteira custa."""
     for _ in range(divisoes):
         pos, idx = _dividir_e_alisar(pos, idx, forca)
+    for _ in range(polir):
+        pos, _lixo = _alisar(pos, idx, forca * 0.8)
     return pos, idx
 
 
@@ -370,6 +379,16 @@ def _dividir_e_alisar(pos, idx, forca):
         vizinhos[b].update((a, c))
         vizinhos[c].update((a, b))
 
+    return _alisar(pos, idx, forca)
+
+
+def _alisar(pos, idx, forca):
+    """Cada vertice caminha para a media dos vizinhos. Nao muda a malha."""
+    vizinhos = [set() for _ in range(len(pos))]
+    for a, b, c in idx:
+        vizinhos[a].update((b, c))
+        vizinhos[b].update((a, c))
+        vizinhos[c].update((a, b))
     media = np.array([pos[list(v)].mean(axis=0) if v else pos[i]
                       for i, v in enumerate(vizinhos)])
     return pos * (1 - forca) + media * forca, idx
@@ -454,7 +473,8 @@ def main():
                     mp, mi = arredondar(
                         mp, mi,
                         divisoes=DIVISOES.get(COMO_MALHA[curto], 1),
-                        forca=SUAVE.get(COMO_MALHA[curto], 0.5))
+                        forca=SUAVE.get(COMO_MALHA[curto], 0.5),
+                        polir=POLIR.get(COMO_MALHA[curto], 0))
                     mn = normais(mp, mi)
                     mp = normalizar(mp)
                     if len(mp) > 65535:
