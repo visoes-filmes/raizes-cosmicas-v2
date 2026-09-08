@@ -1130,7 +1130,8 @@ function mancha(m, centro, raio, altura, semente){
    peso -- a curva cresce com o quadrado do percurso, que e como qualquer
    coisa pendurada cai. */
 function fio(m, base, dir, comp, larg, fase, tomba){
-  const SEG = 4;
+  // seis segmentos: com quatro, um fio longo que tomba vira uma quina
+  const SEG = 6;
   const inicio = m.pos.length/3;
   // um eixo perpendicular estavel, para a fita ter largura
   const cima = Math.abs(dir[1]) > 0.9 ? [1,0,0] : [0,1,0];
@@ -1369,17 +1370,21 @@ function prepararFolhagem(){
   let quantos = 0;
   for(const ponta of PONTAS){
     if(ponta.r > 0.055) continue;              // so as pontas finas
-    const nesta = 3 + Math.floor(rnd()*3);
+    const nesta = 4 + Math.floor(rnd()*4);
     for(let k=0;k<nesta;k++){
-      // espalha em volta da direcao do galho, sem se afastar dela
-      const d = norm([ponta.d[0] + (rnd()-0.5)*1.5,
-                      ponta.d[1] + (rnd()-0.5)*1.1,
-                      ponta.d[2] + (rnd()-0.5)*1.5]);
+      /* SAI QUASE NA HORIZONTAL e o peso e que a derruba. Se a folha ja
+         nascesse apontando para baixo ela desceria reta, como franja de
+         cortina; saindo de lado e tombando, ela descreve o ARCO que faz uma
+         arvore parecer ter cabelo. */
+      const d = norm([ponta.d[0]*0.5 + (rnd()-0.5)*1.6,
+                      ponta.d[1]*0.3 - 0.12 + (rnd()-0.5)*0.4,
+                      ponta.d[2]*0.5 + (rnd()-0.5)*1.6]);
+      const comp = 0.19 + rnd()*0.26;
       fio(m, ponta.p, d,
-          0.09 + rnd()*0.14,        // comprimento
-          0.010 + rnd()*0.012,      // largura
+          comp,                     // comprimento: o dobro do que era
+          0.013 + rnd()*0.015,      // largura
           rnd()*6.28,               // fase do vento
-          0.03 + rnd()*0.07);       // quanto tomba
+          comp * (0.55 + rnd()*0.45));   // o peso, proporcional ao tamanho
       quantos++;
       if(m.pos.length/3 > 60000) break;  // teto do indice de 16 bits
     }
