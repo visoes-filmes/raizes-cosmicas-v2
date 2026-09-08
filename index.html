@@ -1186,6 +1186,60 @@ function montarCrisalida(){
   nCrisalidaIdx = m.idx.length;
 }
 
+/* OS COGUMELOS, EM MALHA.
+
+   Eram um disco achatado com foto de marmore colada e um pe fino: liam
+   como moedas escuras no chao. Agora sao solido de revolucao, e o perfil
+   DOBRA PARA DENTRO no rebordo -- e essa dobra que cria a face de baixo do
+   chapeu, que e onde ficam as laminas e a luz. Sem a dobra, chapeu e so
+   uma cupula: por baixo nao ha nada, e cogumelo visto de baixo e metade do
+   que ele e.
+
+   Os treze entram num buffer so, cada um com a sua fase. */
+const PERFIL_COGUMELO = [
+  // raio, altura -- ambos de 0 a 1
+  [0.115, 0.00], [0.085, 0.09], [0.070, 0.34], [0.068, 0.56],
+  [0.075, 0.62], [0.170, 0.655],                 // aqui a dobra comeca
+  [0.330, 0.685], [0.460, 0.725],                // a face de baixo
+  [0.470, 0.790], [0.415, 0.875],                // o rebordo e a cupula
+  [0.265, 0.950], [0.090, 0.992], [0.0, 1.0],
+];
+let bCogumelos = null, nCogumelosIdx = 0;
+function montarCogumelos(){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const LADOS = 16, P = PERFIL_COGUMELO;
+  for(const cg of COGUMELOS){
+    const base = m.pos.length/3;
+    const escR = cg.raio / 0.47;          // o rebordo fica com o raio pedido
+    for(let a=0;a<P.length;a++){
+      const r = P[a][0] * escR, y = P[a][1] * cg.alt;
+      // a normal sai da inclinacao do perfil entre os vizinhos
+      const q0 = P[Math.max(0,a-1)], q1 = P[Math.min(P.length-1,a+1)];
+      const dr = (q1[0]-q0[0]) * escR, dy = (q1[1]-q0[1]) * cg.alt;
+      const cl = Math.hypot(dr, dy) || 1;
+      for(let j=0;j<=LADOS;j++){
+        const ang = j/LADOS * Math.PI*2, ca = Math.cos(ang), sa = Math.sin(ang);
+        m.pos.push(cg.x + ca*r, y, cg.z + sa*r);
+        m.nor.push(ca*dy/cl, -dr/cl, sa*dy/cl);
+        m.alt.push(P[a][1]); m.fase.push(cg.fase); m.borda.push(1);
+      }
+    }
+    const larg = LADOS+1;
+    for(let a=0;a<P.length-1;a++)
+      for(let j=0;j<LADOS;j++){
+        const i0 = base + a*larg + j, i1 = i0+1, i2 = i0+larg, i3 = i2+1;
+        m.idx.push(i0, i2, i1, i1, i2, i3);
+      }
+  }
+  bCogumelos = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bCogumelos.pos,m.pos); enviar(bCogumelos.nor,m.nor);
+  enviar(bCogumelos.alt,m.alt); enviar(bCogumelos.fase,m.fase);
+  enviar(bCogumelos.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nCogumelosIdx = m.idx.length;
+}
+
 let bPedras = null, nPedrasIdx = 0;
 function prepararPedras(){
   const m = {pos:[], nor:[], alt:[], fase:[], idx:[]};
@@ -1741,7 +1795,7 @@ uniform float escalaObj;     // de que tamanho (a crisalida usa duas cascas)
 uniform float planta;        // 1 = recolhe-se para a origem ao nascer
 uniform float balanca;       // 1 = oscila no vento, mais na ponta
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo, vBorda;
+varying float vAlt, vVivo, vBorda, vFase;
 void main(){
   /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
@@ -1787,7 +1841,7 @@ void main(){
      de uma pintura parada. */
   vMundo = p;
   vNor = nn;
-  vAlt = aAlt; vVivo = vivo; vBorda = aBorda;
+  vAlt = aAlt; vVivo = vivo; vBorda = aBorda; vFase = aFase;
   gl_Position = mvp * vec4(p,1.0);
 }`;
 const FS_SOLIDA = `
@@ -1881,7 +1935,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
    com a aquarela, porque tem sete metros e a percorre inteira. */
 uniform float materia;
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo, vBorda;
+varying float vAlt, vVivo, vBorda, vFase;
 void main(){
   vec3 n = normalize(vNor);
 
@@ -1919,11 +1973,28 @@ void main(){
     c = aTerra(vMundo * escalaTinta);
   } else if(materia < 3.5){
     c = aGrama(vMundo * escalaTinta, vAlt);
-  } else {
+  } else if(materia < 4.5){
     /* A CRISALIDA. Sem textura nenhuma: a cor vem do angulo. Quitina de
        pupa e jade puxando a ouro, mais clara na borda porque ali a luz
        atravessa mais parede. */
     c = mix(vec3(0.30, 0.46, 0.34), vec3(0.86, 0.82, 0.44), pow(raspaoC, 2.2));
+  } else {
+    /* O COGUMELO. Pe palido e chapeu escuro, com o grao fino da pele de
+       cogumelo por cima. A altura no proprio corpo decide qual dos dois. */
+    float grao = rugas(vMundo * 34.0);
+    vec3 pe = mix(vec3(0.46, 0.42, 0.36), vec3(0.68, 0.63, 0.54), grao);
+    vec3 chapeu = mix(vec3(0.26, 0.14, 0.20), vec3(0.52, 0.26, 0.31), grao);
+    c = mix(pe, chapeu, smoothstep(0.60, 0.72, vAlt));
+
+    /* AS LAMINAS ACENDEM. Nao ha geometria de lamina nenhuma: o que ha e a
+       NORMAL apontando para baixo, e so a face de baixo do chapeu aponta
+       para baixo. Sai de graca, e e exatamente onde a luz deve estar.
+       Pulsam no mesmo compasso da crisalida, cada um na sua fase -- a
+       floresta inteira batendo junto leria como pisca-pisca de arvore de
+       Natal. */
+    float porBaixo = clamp(-n.y, 0.0, 1.0);
+    float bat = pow(0.5 + 0.5*sin(tempo * 1.9 + vFase), 4.0);
+    c += vec3(0.34, 0.86, 0.62) * porBaixo * (0.18 + 0.55 * bat);
   }
 
   /* A LUZ. Na planta ela e macia -- folha e translucida e nao tem lado
@@ -3949,6 +4020,8 @@ const COGUMELOS = [];
     });
   }
 })();
+
+montarCogumelos();   // depende da lista COGUMELOS, logo acima
 
 /* ═══════════ OS ASTEROIDES ═══════════
    Passam ao acaso pelo cenario 2. Um deles pode ser desviado pelo campo
@@ -5986,6 +6059,28 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.enable(gl.CULL_FACE);
     }
 
+    /* OS COGUMELOS. Crescem com o resto e ficam ao ALCANCE: sao eles que
+       ensinam, sem instrucao nenhuma, que da para tocar nas coisas. Os dois
+       lados aparecem, porque o chapeu e visto por baixo. */
+    if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && cogumeloCresce > 0.004){
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(true);
+      sobrepor();
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 0.0);
+      gl.uniform1f(locSo.materia, 5.0);
+      gl.uniform1f(locSo.escalaObj, 1.0);
+      gl.uniform1f(locSo.crescimento, cogumeloCresce);
+      gl.uniform1f(locSo.presenca, 1.0);
+      gl.uniform3f(locSo.desloca, 0, 0, 0);
+      ligar(aSo.pos, bCogumelos.pos, 3); ligar(aSo.nor, bCogumelos.nor, 3);
+      ligar(aSo.alt, bCogumelos.alt, 1); ligar(aSo.fase, bCogumelos.fase, 1);
+      ligar(aSo.borda, bCogumelos.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
+      gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+      gl.enable(gl.CULL_FACE);
+    }
+
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
        profundidade -- corpo transparente que escreve profundidade recorta
@@ -6537,36 +6632,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
 
       // o corpo do casulo e a crisalida, desenhada com o programa solido
-    }
-
-    /* OS COGUMELOS. Duas esferas cada um: chapeu achatado e pe fino.
-       Crescem junto com o resto, e ficam ao ALCANCE — sao eles que ensinam
-       que da para tocar nas coisas, e ensinar de longe nao ensina. */
-    if(COGUMELOS_NO_CHAO && cogumeloCresce > 0.004){
-      gl.depthMask(true);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
-      gl.uniform1i(locAst.pele, 5);
-      gl.uniform3f(locAst.luzDe, 0.1, 1.0, 0.2);
-      gl.uniform1f(locAst.giro, 0);
-      for(const cg of COGUMELOS){
-        const k = cogumeloCresce;
-        gl.uniform1f(locAst.presenca, k);
-        // o pe
-        gl.uniform3f(locAst.centro, cg.x, cg.alt * k * 0.5, cg.z);
-        gl.uniform1f(locAst.raio, cg.raio * 0.24);
-        gl.uniform1f(locAst.achatar, (cg.alt * k * 0.5) / (cg.raio * 0.24));
-        gl.uniform3f(locAst.cor, 0.80, 0.78, 0.72);
-        gl.uniform1f(locAst.brilho, 0.02);
-        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-        // o chapeu, que acende devagar por conta propria
-        const aceso = 0.10 + 0.10 * Math.sin(relogio * 0.9 + cg.fase);
-        gl.uniform3f(locAst.centro, cg.x, cg.alt * k, cg.z);
-        gl.uniform1f(locAst.raio, cg.raio * k);
-        gl.uniform1f(locAst.achatar, 0.52);
-        gl.uniform3f(locAst.cor, 0.62*cg.tom + 0.30, 0.52*cg.tom + 0.34, 0.86*cg.tom + 0.14);
-        gl.uniform1f(locAst.brilho, aceso);
-        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-      }
     }
 
     /* OS ASTEROIDES, atravessando o cenario 2. */
