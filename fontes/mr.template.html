@@ -3994,7 +3994,9 @@ const COGUMELOS = [];
     const d = 0.55 + r() * 0.62;          // dentro do alcance da mao
     COGUMELOS.push({
       x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
-      alt: 0.10 + r() * 0.13,
+      /* Mais altos que antes. Na escala anterior o chapeu cobria o pe por
+         inteiro, e de pe so se via um disco no chao. */
+      alt: 0.15 + r() * 0.17,
       raio: 0.055 + r() * 0.055,
       tom: 0.55 + r() * 0.45,
       fase: r() * 6.283,

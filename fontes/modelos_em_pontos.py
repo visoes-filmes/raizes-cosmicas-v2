@@ -77,7 +77,15 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo"}
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
 # a mesma mao pesada o transformava num ovo -- sumia o pe, sumia o rebordo.
-SUAVE = {"pedra": 0.62, "cogumelo": 0.20}
+SUAVE = {"pedra": 0.62, "cogumelo": 0.28}
+
+# QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
+# -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
+# suavizacao seguinte consegue fazer: numa malha grossa ela puxa o corpo
+# inteiro e o objeto vira ovo; numa malha fina ela so alisa a quina, que e
+# o que se quer. O cogumelo vem com 138 triangulos e a silhueta dele e um
+# poligono visivel; duas divisoes o levam a 2 208 e o contorno fecha.
+DIVISOES = {"pedra": 1, "cogumelo": 2}
 
 # O cogumelo veio de poly.pizza (Quaternius), CC0 -- dominio publico, sem
 # exigencia de credito. Escolhido entre cinco por ser o unico numa PECA SO:
@@ -314,7 +322,7 @@ def normais(pos, idx):
     return np.divide(nor, comp, out=np.zeros_like(nor), where=comp > 0)
 
 
-def arredondar(pos, idx, voltas=1, forca=0.62):
+def arredondar(pos, idx, divisoes=1, forca=0.62):
     """Subdivide uma vez e suaviza: tira a cara de cristal.
 
     POR QUE. As pedras deste modelo sao ESTILIZADAS -- trezentos triangulos
@@ -330,6 +338,13 @@ def arredondar(pos, idx, voltas=1, forca=0.62):
 
     Uma volta basta: trezentos triangulos viram mil e duzentos, e onze
     pedras somam treze mil -- metade do que a floresta inteira custa."""
+    for _ in range(divisoes):
+        pos, idx = _dividir_e_alisar(pos, idx, forca)
+    return pos, idx
+
+
+def _dividir_e_alisar(pos, idx, forca):
+    """Uma divisao seguida de uma passada de media dos vizinhos."""
     pos = [list(map(float, q)) for q in pos]
     meio = {}
 
@@ -355,11 +370,9 @@ def arredondar(pos, idx, voltas=1, forca=0.62):
         vizinhos[b].update((a, c))
         vizinhos[c].update((a, b))
 
-    for _ in range(voltas):
-        media = np.array([pos[list(v)].mean(axis=0) if v else pos[i]
-                          for i, v in enumerate(vizinhos)])
-        pos = pos * (1 - forca) + media * forca
-    return pos, idx
+    media = np.array([pos[list(v)].mean(axis=0) if v else pos[i]
+                      for i, v in enumerate(vizinhos)])
+    return pos * (1 - forca) + media * forca, idx
 
 
 def normalizar(p):
@@ -438,8 +451,10 @@ def main():
                 partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
                 for k, parte in enumerate(partes):
                     mp, _mn, mi = simplificar(parte, GRADE)
-                    mp, mi = arredondar(mp, mi,
-                                        forca=SUAVE.get(COMO_MALHA[curto], 0.5))
+                    mp, mi = arredondar(
+                        mp, mi,
+                        divisoes=DIVISOES.get(COMO_MALHA[curto], 1),
+                        forca=SUAVE.get(COMO_MALHA[curto], 0.5))
                     mn = normais(mp, mi)
                     mp = normalizar(mp)
                     if len(mp) > 65535:
