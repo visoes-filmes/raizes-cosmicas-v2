@@ -1253,7 +1253,23 @@ void main(){
 
   /* NASCE DE BAIXO PARA CIMA, igual a malha: a frente de crescimento sobe
      pela planta, e o que esta acima dela ainda nao existe. */
-  float frente = crescimento * 1.25;
+  /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
+
+     Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
+     No topo de qualquer corpo (aAlt = 1), com o crescimento cheio, a frente
+     estava em 1,25 e sobrava 0,25: menos que os 0,385 necessarios. Ou seja,
+     a ponta NUNCA ficava viva -- parava em 0,72 e ali ficava para sempre.
+
+     Enquanto tudo era nuvem de pontos isso passou despercebido: 0,72 de
+     presenca num ponto de tres pixels e so um ponto um pouco mais palido, e
+     ate parecia de proposito, "a ponta e a parte mais nova". Com a
+     superficie, 0,72 e TRANSPARENCIA: a pedra virou vidro e deu para ver o
+     tronco atras dela. O mesmo valia para o alto das arvores.
+
+     1,45 fecha a conta com folga: 1,45 - 1 = 0,45, acima de 0,385. A
+     floresta tambem passa a alcancar a altura inteira, que ela nunca
+     alcancou. */
+  float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
@@ -1378,7 +1394,23 @@ void main(){
      nao existe e fica recolhido na base. Uma planta que aumenta de tamanho
      uniformemente le como zoom; esta le como broto, porque e assim que
      planta faz — a ponta e sempre a parte mais nova. */
-  float frente = crescimento * 1.25;
+  /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
+
+     Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
+     No topo de qualquer corpo (aAlt = 1), com o crescimento cheio, a frente
+     estava em 1,25 e sobrava 0,25: menos que os 0,385 necessarios. Ou seja,
+     a ponta NUNCA ficava viva -- parava em 0,72 e ali ficava para sempre.
+
+     Enquanto tudo era nuvem de pontos isso passou despercebido: 0,72 de
+     presenca num ponto de tres pixels e so um ponto um pouco mais palido, e
+     ate parecia de proposito, "a ponta e a parte mais nova". Com a
+     superficie, 0,72 e TRANSPARENCIA: a pedra virou vidro e deu para ver o
+     tronco atras dela. O mesmo valia para o alto das arvores.
+
+     1,45 fecha a conta com folga: 1,45 - 1 = 0,45, acima de 0,385. A
+     floresta tambem passa a alcancar a altura inteira, que ela nunca
+     alcancou. */
+  float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
@@ -1446,7 +1478,23 @@ void main(){
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
      nao so a aparencia dela. */
   vec3 p = aPos + desloca;
-  float frente = crescimento * 1.25;
+  /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
+
+     Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
+     No topo de qualquer corpo (aAlt = 1), com o crescimento cheio, a frente
+     estava em 1,25 e sobrava 0,25: menos que os 0,385 necessarios. Ou seja,
+     a ponta NUNCA ficava viva -- parava em 0,72 e ali ficava para sempre.
+
+     Enquanto tudo era nuvem de pontos isso passou despercebido: 0,72 de
+     presenca num ponto de tres pixels e so um ponto um pouco mais palido, e
+     ate parecia de proposito, "a ponta e a parte mais nova". Com a
+     superficie, 0,72 e TRANSPARENCIA: a pedra virou vidro e deu para ver o
+     tronco atras dela. O mesmo valia para o alto das arvores.
+
+     1,45 fecha a conta com folga: 1,45 - 1 = 0,45, acima de 0,385. A
+     floresta tambem passa a alcancar a altura inteira, que ela nunca
+     alcancou. */
+  float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
@@ -1519,14 +1567,28 @@ void main(){
          + texture2D(casca, sy).rgb * w.y
          + texture2D(casca, sz).rgb * w.z;
 
-  // a mesma luz das raizes, para as duas coisas pertencerem ao mesmo dia
-  float luz = 0.44 + 0.56 * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
+  /* A LUZ. Na planta ela e macia -- folha e translucida e nao tem lado
+     escuro de verdade. Na pedra ela precisa ser mais dura: e a diferenca
+     entre o lado que pega luz e o que nao pega que diz ao olho que aquilo
+     tem VOLUME. Com o mesmo piso macio das arvores, a pedra saia chapada e
+     lida como vidro fosco -- foi o que aconteceu. */
+  float piso = mix(0.44, 0.24, mineral);
+  float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
 
   if(mineral > 0.001){
     float cinza = dot(c, vec3(0.299, 0.587, 0.114));
     vec3 rocha = mix(vec3(cinza), c, 0.34);            // um terco do croma
-    rocha = mix(vec3(0.455, 0.445, 0.495), rocha, 0.52);  // contraste curto
+    /* ESCURA, E NAO CINZA CLARA. O tom mineral estava em 0,45 -- mais claro
+       que o chao em volta --, e uma pedra mais clara que o chao nao pousa
+       nele: flutua. Pedra e coisa PESADA, e peso, no olho, e valor baixo.
+       E o contraste sobe de 0,52 para 0,66: menos lavado, sem voltar a
+       deixar uma mancha da pintura dominar o corpo inteiro. */
+    rocha = mix(vec3(0.235, 0.225, 0.265), rocha, 0.66);
+    /* E O PE E MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que toda
+       pedra tem, porque a fresta entre ela e o chao nao recebe ceu. Sem
+       isto ela nao encosta em lugar nenhum. */
+    rocha *= 0.66 + 0.34 * clamp(vAlt * 1.7, 0.0, 1.0);
     c = mix(c, rocha, mineral);
   }
 
