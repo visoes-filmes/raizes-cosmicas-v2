@@ -391,7 +391,7 @@ const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
    OBJETOS_NO_CHAO -- grama, folhas, trevo, soja, cogumelo e o ser. Tudo o
    que e modelo 3D virado em pontos. Sao os modelos 3D, e sao
    justamente o que mais enche o rasteiro. */
-const POEIRA_NA_FLORESTA = false;
+const POEIRA_NA_FLORESTA = true;
 const OBJETOS_NO_CHAO    = false;
 /* PEDRAS_NA_FLORESTA -- vem separado dos outros de proposito. As pedras
    foram pedidas DEPOIS de o chao ser limpo, entao apaga-las junto com a
@@ -2441,12 +2441,18 @@ void main(){
   // fixo. Sem isso o grão longe fica do mesmo tamanho do perto e a
   // profundidade some. O teto de 24 px protege o preenchimento: grão
   // grande demais deixa de ser poeira e vira bolha.
-  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 1.4) * escalaPonto
-                       / max(clip.w, 0.05), 1.0, 26.0);
+  /* TETO DE QUATRO PIXELS. Era 26, e 26 pixels de disco macio nao e poeira,
+     e bolha. Quem cai na chegada continua podendo crescer -- ali o grao E
+     uma estrela se aproximando, e essa e outra coisa. */
+  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 5.0) * escalaPonto
+                       / max(clip.w, 0.05), 1.0, 5.0 + chegando * 20.0);
 
   // Acende e apaga nas pontas da coluna, e cintila devagar.
   float pontas = smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe);
-  vBrilho = pontas * (0.55 + 0.45 * sin(w * 2.1 + fase * 19.0));
+  /* MAIS BRILHO, E NAO MAIS TAMANHO. Um grao de dois pixels apagado
+     desaparece; o mesmo grao aceso e um cintilo. Como a mistura e aditiva,
+     subir o brilho nao engorda nada -- so acende. */
+  vBrilho = pontas * (0.85 + 0.75 * sin(w * 2.1 + fase * 19.0));
   vCor = aCor;
 }`;
 const FS_PO = `
@@ -3631,7 +3637,9 @@ const PALETA_PO = [
   [0.180,0.235,0.510],   // índigo
   [0.870,0.545,0.275],   // brasa — pouca, é o quente que salva do monótono
 ];
-const PO_MAX = 3000;
+// mais graos porque cada um e muito menor: a mesma quantidade de luz
+// espalhada em mais pontos e o que faz o ar parecer ter po dentro
+const PO_MAX = 6000;
 function semearPoeira(semente){
   const rnd = prng(semente);
   const s = {pos:[], cor:[], dado:[]};
@@ -3641,11 +3649,21 @@ function semearPoeira(semente){
     const r = Math.sqrt(0.14 + rnd()*0.86) * 2.30 + 0.55;
     const a = rnd()*Math.PI*2;
     const alturaColuna = 1.9 + rnd()*1.4;
-    let c = PALETA_PO[Math.min(4, Math.floor(rnd()*rnd()*5))];
+    /* PUXADA PARA O CLARO. Poeira nao tem cor propria: ela devolve a luz
+       que a atravessa. A paleta continua dando o viés -- azul, violeta, uma
+       brasa de vez em quando -- mas lavada, senao vira confete outra vez. */
+    const base = PALETA_PO[Math.min(4, Math.floor(rnd()*rnd()*5))];
+    const lavar = 0.45 + rnd()*0.30;
+    const c = [base[0] + (1-base[0])*lavar,
+               base[1] + (1-base[1])*lavar,
+               base[2] + (1-base[2])*lavar];
     s.pos.push(Math.sin(a)*r, alturaColuna, -Math.cos(a)*r);
     s.cor.push(c[0], c[1], c[2]);
     // fase própria (espalha a subida) e tamanho em metros
-    s.dado.push(rnd(), 0.010 + rnd()*rnd()*0.030);
+    /* MILIMETROS, e nao centimetros. De 1 a 4 cm o grao ocupa dezenas de
+       pixels e le como bolha de sabao; entre 1,5 e 7 mm ele ocupa dois ou
+       tres, e dois ou tres pixels acesos e o que o olho chama de poeira. */
+    s.dado.push(rnd(), 0.0026 + rnd()*rnd()*0.0070);
   }
   return s;
 }
@@ -4144,7 +4162,7 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
    era o criterio. */
 const CENAS = {
   1: { ceu:1, ceuB:1, tinta:0.85, nuvem:0.20, marmore:0.95, leite:0.14,
-       poeira:900, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
+       poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
   2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.07, marmore:0.78, leite:0.08,
        poeira:2600, sopro:0.5, raizes:0, ini:0.12, fim:0.58, inverter:0 },
   3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.16, marmore:0.98, leite:0.20,
