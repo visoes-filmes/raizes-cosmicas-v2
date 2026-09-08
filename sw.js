@@ -24,8 +24,14 @@ const VERSAO = 'raizes-cosmicas-2026-09-08bk';
 /**
  * O que é baixado na instalação, sem esperar ninguém pedir.
  *
- * A obra inteira são 2,4 MB num arquivo só: as imagens e o som já vão
- * embutidos nele. Por isso a lista é curta — não há assets soltos a buscar.
+ * A obra inteira é UM arquivo — as imagens, os modelos e o som vão
+ * embutidos nele. Por isso a lista é curta: não há assets soltos a buscar,
+ * e guardar o index é guardar a obra.
+ *
+ * Ele tinha 2,4 MB quando isto foi escrito e hoje tem 8; com os céus em
+ * 4096 vai a onze. O número não muda nada aqui, e é justamente esse o
+ * ponto: numa rede local onze megabytes levam um segundo, e depois da
+ * primeira abertura levam zero — a obra passa a morar no aparelho.
  */
 const ESSENCIAL = [
   './',
