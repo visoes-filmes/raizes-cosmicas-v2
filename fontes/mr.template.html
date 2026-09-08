@@ -511,14 +511,37 @@ function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
      e nao por triangulo. */
   const LADOS = 12;
   const base = s.pos.length/3;
+  let lado = null;              // o eixo do anel, levado de um ponto ao outro
   for(let i=0;i<pontos.length;i++){
     const p = pontos[i], r = raios[i];
     // um eixo perpendicular qualquer, estavel ao longo do tubo
     const d = i < pontos.length-1
       ? norm(sub(pontos[i+1], p))
       : norm(sub(p, pontos[i-1]));
-    let up = Math.abs(d[1]) > 0.9 ? [1,0,0] : [0,1,0];
-    const lado = norm(cruz(d, up));
+    /* O EIXO DO ANEL E TRANSPORTADO, e nao recalculado.
+
+       Antes ele saia de um vetor fixo -- [0,1,0], trocado por [1,0,0]
+       quando a direcao passava de 0,9 na vertical. Essa TROCA gira o anel
+       de noventa graus de um ponto para o outro: o tubo torce sobre si
+       mesmo e, na torcao, o enrolamento dos triangulos inverte. Com o
+       descarte de face ligado, a superficie some ali e o que se ve e a
+       parede de dentro do tubo -- um vulto preto de quinas duras no meio de
+       um galho. Era isso.
+
+       Transportar significa levar o eixo do anel anterior e so tirar dele a
+       parte que aponta na nova direcao. Assim ele acompanha a curva sem
+       nunca saltar, e o tubo nao torce. */
+    if(!lado){
+      const up = Math.abs(d[1]) > 0.9 ? [1,0,0] : [0,1,0];
+      lado = norm(cruz(d, up));
+    } else {
+      const proj = lado[0]*d[0] + lado[1]*d[1] + lado[2]*d[2];
+      let t = [lado[0]-d[0]*proj, lado[1]-d[1]*proj, lado[2]-d[2]*proj];
+      const c = Math.hypot(t[0], t[1], t[2]);
+      // so no caso degenerado (curva de 180 graus num passo) se recomeca
+      lado = c > 1e-4 ? [t[0]/c, t[1]/c, t[2]/c]
+                      : norm(cruz(d, Math.abs(d[1]) > 0.9 ? [1,0,0] : [0,1,0]));
+    }
     const cima = cruz(lado, d);
     const k = i/(pontos.length-1);
     for(let j=0;j<=LADOS;j++){
@@ -1405,19 +1428,31 @@ function montarCrisalida(){
    sido torneado. O modelo tem 138 triangulos, e o conversor o leva a 2 208
    dividindo duas vezes e polindo tres. */
 let bCogumelos = null, nCogumelosIdx = 0;
+let bCogumeloLuz = null, nCogumeloLuzIdx = 0;
 function montarCogumelos(){
-  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  for(const cg of COGUMELOS)
-    plantarMalha(m, 'cogumelo-0', [cg.x, 0, cg.z],
-                 cg.alt, cg.fase * 0.97, cg.fase);
-  if(!m.idx.length) return;
-  bCogumelos = criarBufs(['pos','nor','alt','fase','borda','idx']);
-  enviar(bCogumelos.pos,m.pos); enviar(bCogumelos.nor,m.nor);
-  enviar(bCogumelos.alt,m.alt); enviar(bCogumelos.fase,m.fase);
-  enviar(bCogumelos.borda,m.borda);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
-  nCogumelosIdx = m.idx.length;
+  const monta = (modelo) => {
+    const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+    for(const cg of COGUMELOS)
+      plantarMalha(m, modelo, [cg.x, 0, cg.z], cg.alt, cg.fase*0.97, cg.fase);
+    if(!m.idx.length) return null;
+    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
+    enviar(b.fase,m.fase); enviar(b.borda,m.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+    return {b, n: m.idx.length};
+  };
+  const corpo = monta('cogumelo-0');
+  if(corpo){ bCogumelos = corpo.b; nCogumelosIdx = corpo.n; }
+  /* O BRILHO USA A MALHA CRUA -- 138 triangulos em vez de 2 208.
+
+     As cascas de luz sao desenhadas TRES vezes por cima do corpo. Feitas da
+     malha detalhada, treze cogumelos custavam 114 mil triangulos por olho,
+     quase metade da cena -- para desenhar um borrao que nao tem forma
+     nenhuma. Brilho e macio por definicao: a quina da malha crua nao
+     aparece nele. Assim o mesmo brilho custa cinco mil. */
+  const luz = monta('cogumelo-cru');
+  if(luz){ bCogumeloLuz = luz.b; nCogumeloLuzIdx = luz.n; }
 }
 
 /* AS MONTANHAS DO HORIZONTE.
@@ -6302,6 +6337,16 @@ function ligar(loc, buf, n){
   gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0);
   atributosLigados.add(loc);
 }
+/* A BORDA VOLTA A SER CONSTANTE. Chamada por todo desenho que nao traz o
+   atributo proprio, depois de qualquer um que traga. */
+function bordaCheia(){
+  if(aSo.borda >= 0){
+    gl.disableVertexAttribArray(aSo.borda);
+    atributosLigados.delete(aSo.borda);
+    gl.vertexAttrib1f(aSo.borda, 1.0);
+  }
+}
+
 function soltarAtributos(){
   for(const loc of atributosLigados) gl.disableVertexAttribArray(loc);
   atributosLigados.clear();
@@ -6451,8 +6496,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.planta, 1.0);
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
-    // sem arranjo, o atributo le um valor constante: tudo miolo
-    gl.vertexAttrib1f(aSo.borda, 1.0);
+    /* TUDO MIOLO, e com o arranjo DESLIGADO.
+
+       Atributo com arranjo desligado le um valor constante -- e essa e a
+       unica forma de a constante valer. Se um desenho anterior deixou o
+       arranjo ligado (as montanhas e o solo ligam), a constante e ignorada
+       e o atributo continua lendo o vetor do OUTRO objeto, que acaba antes.
+       Onde a leitura da zero, a borda e zero, o alfa e zero -- e o galho
+       some, deixando o ceu escuro aparecer atraves dele. Foi o vulto preto
+       que apareceu no meio da mata.
+
+       E a armadilha numero 4 da lista da casa, "atributo vaza entre
+       programas", agora dentro do mesmo programa. */
+    bordaCheia();
     gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locSo.casca, 2);
@@ -6479,6 +6535,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.crescimento, crescimento);
       gl.uniform1f(locSo.presenca, presencaMata);
+      bordaCheia();   // as montanhas ligaram o arranjo; a mata nao o usa
     }
 
     /* A MATA DE FUNDO vem PRIMEIRO: a de perto escreve profundidade depois
@@ -6599,7 +6656,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* OS COGUMELOS. Crescem com o resto e ficam ao ALCANCE: sao eles que
        ensinam, sem instrucao nenhuma, que da para tocar nas coisas. Os dois
        lados aparecem, porque o chapeu e visto por baixo. */
-    if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && cogumeloCresce > 0.004){
+    if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && nCogumeloLuzIdx > 0
+        && cogumeloCresce > 0.004){
       /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
          o pe POR DENTRO do chapeu -- e ver dentro de uma coisa opaca nao le
          como transparencia, le como defeito. O perfil dobra e fecha, entao
@@ -6639,10 +6697,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       /* TRES CASCAS. Duas davam a queda mas paravam cedo; a terceira,
          larga e fraca, e o que espalha luz no ar em volta -- que era o que
          a esfera fazia, sem o aro. */
+      ligar(aSo.pos, bCogumeloLuz.pos, 3); ligar(aSo.nor, bCogumeloLuz.nor, 3);
+      ligar(aSo.alt, bCogumeloLuz.alt, 1); ligar(aSo.fase, bCogumeloLuz.fase, 1);
+      ligar(aSo.borda, bCogumeloLuz.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumeloLuz.idx);
       for(const [grossura, forca] of [[0.038, 1.10], [0.090, 0.52], [0.185, 0.20]]){
         gl.uniform1f(locSo.inflar, grossura);
         gl.uniform1f(locSo.presenca, forca);
-        gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.TRIANGLES, nCogumeloLuzIdx, gl.UNSIGNED_SHORT, 0);
       }
       gl.cullFace(gl.BACK);
       gl.uniform1f(locSo.inflar, 0.0);

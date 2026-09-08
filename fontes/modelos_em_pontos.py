@@ -94,6 +94,15 @@ DIVISOES = {"pedra": 1, "cogumelo": 2}
 # nao tem onde se esconder.
 POLIR = {"cogumelo": 3}
 
+# QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
+#
+# As cascas de brilho do cogumelo sao desenhadas TRES vezes por cima do
+# corpo. Feitas da malha detalhada, treze cogumelos custavam 114 mil
+# triangulos por olho -- quase metade da cena, e para desenhar um borrao
+# que nao tem forma nenhuma. Brilho e macio por definicao: a quina da malha
+# crua nao aparece nele. Com a versao crua o mesmo brilho custa 5 mil.
+CRU = {"cogumelo"}
+
 # O cogumelo veio de poly.pizza (Quaternius), CC0 -- dominio publico, sem
 # exigencia de credito. Escolhido entre cinco por ser o unico numa PECA SO:
 # os outros traziam chapeus e pes como partes separadas, que nao dao para
@@ -488,6 +497,25 @@ def main():
                             mi.astype("<u2").tobytes()).decode()}
                     print(f"  {nome:24} {len(parte):7d} tri  ->  {len(mi):5d}"
                           f" tri  ({len(mp):5d} vertices)   MALHA")
+
+                if curto in CRU:
+                    cp, _c, ci = simplificar(tris, GRADE)
+                    # UMA divisao e dois polimentos: crua de verdade a
+                    # silhueta do brilho sai hexagonal, e brilho hexagonal
+                    # e pior que brilho caro. Com 552 triangulos o contorno
+                    # ja fecha, e ainda e um quarto do corpo.
+                    cp, ci = arredondar(cp, ci, divisoes=1, forca=0.34, polir=2)
+                    cn = normais(cp, ci)
+                    cp = normalizar(cp)
+                    b64cp, b64cn = empacotar(cp, cn)
+                    nome = f"{COMO_MALHA[curto]}-cru"
+                    malhas[nome] = {
+                        "n": len(cp), "t": len(ci),
+                        "pos": b64cp, "nor": b64cn,
+                        "idx": base64.b64encode(
+                            ci.astype("<u2").tobytes()).decode()}
+                    print(f"  {nome:24} {len(tris):7d} tri  ->  {len(ci):5d}"
+                          f" tri  ({len(cp):5d} vertices)   CRUA")
         except Exception as erro:
             print(f"  {curto:24} FALHOU: {erro}")
 
