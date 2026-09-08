@@ -161,9 +161,13 @@ for nome in list(blocos):
 
 # ── 7. uniformes declarados e nunca buscados ─────────────────────────
 # o codigo usa atalhos como "const uS = n=>gl.getUniformLocation(prog,n)"
-buscados = set(re.findall(r"getUniformLocation\(\w+,\s*'(\w+)'\)", codigo))
+# UNIFORME DE VETOR se busca por "nome[0]" -- e a forma que a especificacao
+# manda, e sem tirar o sufixo o verificador acusa como nunca buscado.
+_pega = lambda ns: {x.split('[')[0] for x in ns}
+buscados = _pega(re.findall(
+    r"getUniformLocation\(\w+,\s*'([\w\[\]]+)'\)", codigo))
 for at in re.findall(r"const\s+(\w+)\s*=\s*n\s*=>\s*gl\.getUniformLocation", codigo):
-    buscados |= set(re.findall(at + r"\('(\w+)'\)", codigo))
+    buscados |= _pega(re.findall(at + r"\('([\w\[\]]+)'\)", codigo))
 for nome, c in blocos.items():
     for decl in re.findall(r"uniform\s+(?:highp|mediump|lowp)?\s*\w+\s+([^;]+);", c):
         for u in decl.split(','):

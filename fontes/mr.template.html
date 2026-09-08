@@ -1891,6 +1891,17 @@ vec3 aGrama(vec3 p, float alt){
 
 uniform sampler2D casca;
 uniform float tempo;
+/* ONDE ESTAO OS COGUMELOS: x, z e a fase de cada um.
+
+   A tela nao emite luz, ela so mostra cor -- entao a luz tem que aparecer
+   ONDE ELA POUSA. Um corpo aceso com o chao apagado em volta o olho lê como
+   objeto claro; o mesmo corpo com o chao tingido embaixo dele o olho lê como
+   fonte. E a vizinhanca que prova a luz, e nao o corpo.
+
+   Treze e constante, entao o laco desenrola em tempo de compilacao. A conta
+   e em duas dimensoes porque cogumelo pousa no chao, e distancia ao quadrado
+   sem raiz, porque so o feitio da queda importa. */
+uniform vec3 focos[13];
 uniform vec3 olhoPos;        // de onde se olha: a iridescencia depende disso
 uniform float presenca;
 uniform float escalaTinta;   // quantas voltas da pintura por metro
@@ -2025,6 +2036,19 @@ void main(){
     // pesa no raspao ao cubo: de frente quase nada, de esguelha bastante
     float peso = pow(raspao, 3.0) * (materia < 2.5 ? 0.62 : 0.34);
     c = mix(c, c * 0.45 + iris * 0.72, peso);
+  }
+
+  /* A LUZ DERRAMADA. So no que esta perto do chao: acima de oitenta
+     centimetros nao ha o que iluminar, e a copa das arvores ocupa tela
+     demais para pagar treze contas por pixel a toa. */
+  if(materia < 3.5 && materia > 0.5 && vMundo.y < 0.8){
+    vec3 poca = vec3(0.0);
+    for(int i = 0; i < 13; i++){
+      vec2 d = vMundo.xz - focos[i].xy;
+      float bat = pow(0.5 + 0.5*sin(tempo * 1.9 + focos[i].z), 4.0);
+      poca += (0.22 + 0.58 * bat) / (1.0 + dot(d, d) * 42.0);
+    }
+    c += vec3(0.30, 0.92, 0.66) * poca * clamp(1.0 - vMundo.y * 1.25, 0.0, 1.0);
   }
 
   /* O PISO DA LUZ MUDA COM A MATERIA. Folha e translucida e nao tem lado
@@ -4031,6 +4055,12 @@ const COGUMELOS = [];
 
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 
+/* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
+const FOCOS = new Float32Array(13 * 3);
+COGUMELOS.forEach((cg, i) => {
+  FOCOS[i*3] = cg.x; FOCOS[i*3+1] = cg.z; FOCOS[i*3+2] = cg.fase;
+});
+
 /* ═══════════ OS ASTEROIDES ═══════════
    Passam ao acaso pelo cenario 2. Um deles pode ser desviado pelo campo
    gravitacional da pessoa, dar uma volta nela e seguir — e o que o roteiro
@@ -5579,7 +5609,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                planta:uSo('planta'), materia:uSo('materia'),
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
-               inflar:uSo('inflar')};
+               inflar:uSo('inflar'), focos:uSo('focos[0]')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -5957,6 +5987,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.uniform1f(locSo.escalaObj, 1.0);
     gl.uniform1f(locSo.inflar, 0.0);
+    gl.uniform3fv(locSo.focos, FOCOS);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
