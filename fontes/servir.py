@@ -15,8 +15,18 @@ Aqui cada pedido tem sua propria linha, e nada mais espera nada.
 
 E TUDO VAI SEM CACHE. Em teste, cache e so uma forma de olhar a versao de
 ontem achando que e a de agora.
+
+E ELE RECEBE FOTOS. Um POST em /_foto/<nome> grava o corpo em _fotos/<nome>.
+E o mesmo bilhete-pela-janela dos relatos, com imagem em vez de texto: a
+obra tira o quadro de dentro do WebGL e manda para ca, e o quadro vira
+arquivo. Serve para mostrar como algo ficou sem depender de captura de tela.
+
+  Isto e ANDAIME DE ATELIE, e so existe aqui. Producao e GitHub Pages, que
+  serve arquivo parado e nao recebe nada. O servidor de teste ja escuta so
+  na maquina de quem trabalha.
 """
 import os
+import re
 import ssl
 import sys
 from functools import partial
@@ -24,9 +34,26 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORTA = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+FOTOS = os.path.join(RAIZ, "_fotos")
 
 
 class Servidor(SimpleHTTPRequestHandler):
+    def do_POST(self):
+        if not self.path.startswith("/_foto/"):
+            self.send_error(404)
+            return
+        # o nome vem de fora: so letras, numeros, ponto e traco passam
+        nome = re.sub(r"[^A-Za-z0-9._-]", "", self.path[7:])[:60] or "foto.jpg"
+        corpo = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        os.makedirs(FOTOS, exist_ok=True)
+        with open(os.path.join(FOTOS, nome), "wb") as f:
+            f.write(corpo)
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+        print(f"  >> FOTO _fotos/{nome}  ({len(corpo)} bytes)", flush=True)
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
