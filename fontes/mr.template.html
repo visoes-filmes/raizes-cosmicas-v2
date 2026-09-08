@@ -5108,6 +5108,9 @@ function recomecarAViagem(){
   esperando = false;
   t = 0; relogio = 0;
   crescimento = 0; crescimentoTeto = 0;
+  /* Reiniciar reorienta: e o mesmo gesto de entregar o headset a outra
+     pessoa, e ela pode estar virada para outro lado. */
+  mundoOrientado = false;
   tocouCasulo = 0; tocouConcha = 0;
   agitacao = 0; nivelExtra = 0;
   cenaAtual = 1; misturaCeu = 0;
@@ -5824,6 +5827,8 @@ const bXR = document.getElementById('bXR');
 const vXR = document.getElementById('vXR');
 const vPlanos = document.getElementById('vPlanos');
 let sessao = null, espaco = null, camadaXR = null;
+/* AINDA NAO NOS ORIENTAMOS. Vira true no primeiro quadro com pose valida. */
+let mundoOrientado = false;
 
 if(navigator.xr){
   navigator.xr.isSessionSupported('immersive-ar').then(ok=>{
@@ -7735,6 +7740,45 @@ function quadro(){
 function quadroXR(t, frame){
   if(!sessao) return;
   sessao.requestAnimationFrame(quadroXR);
+  /* A OBRA SE ORIENTA POR QUEM ENTRA -- uma vez, no primeiro quadro.
+
+     O DEFEITO: em 'local-floor' quem decide para onde e o norte do mundo
+     nao e a sala, e o ultimo RECENTRAMENTO do Quest. A obra caia com a
+     arvore-mae ora a frente, ora atras, ora de lado -- e a "regiao
+     infinita", que o roteiro define como um lado especifico do estande,
+     caia num lugar diferente a cada visitante. Num festival isso e grave: a
+     montagem da sala pressupoe que o infinito fique de um lado so.
+
+     O CONSERTO e nativo do WebXR e nao custa nada por quadro: pede-se ao
+     espaco de referencia um DESLOCAMENTO, e a partir dai todas as
+     coordenadas ja chegam giradas. Nada no desenho precisa saber disto.
+
+     O deslocamento e a propria pose de quem entra, reduzida ao que importa:
+     a posicao no chao e o RUMO. A inclinacao da cabeca fica de fora -- de
+     propria ela nao deve girar o mundo, e quem entra olhando para baixo nao
+     deve deitar a floresta.
+
+     Depois disto, quem poe o capacete esta sempre na origem, olhando para
+     -Z: a arvore-mae fica sempre a frente e a esquerda, e o infinito
+     sempre do mesmo lado. Basta o operador entregar o headset com a pessoa
+     virada para o lado combinado da sala. */
+  if(!mundoOrientado && espaco && espaco.getOffsetReferenceSpace){
+    const p0 = frame.getViewerPose(espaco);
+    if(p0){
+      const o = p0.transform.orientation, q = p0.transform.position;
+      // o rumo sai do quaternio: a componente de giro em torno da vertical
+      const rumo = Math.atan2(2*(o.w*o.y + o.x*o.z),
+                              1 - 2*(o.y*o.y + o.x*o.x));
+      espaco = espaco.getOffsetReferenceSpace(new XRRigidTransform(
+        {x: q.x, y: 0, z: q.z},
+        {x: 0, y: Math.sin(rumo/2), z: 0, w: Math.cos(rumo/2)}));
+      mundoOrientado = true;
+      relato('MUNDO-ORIENTADO rumo=' + (rumo*57.3).toFixed(0) + 'graus'
+             + ' de=' + q.x.toFixed(2) + ',' + q.z.toFixed(2));
+      return;   // o proximo quadro ja chega no espaco novo
+    }
+  }
+
   const pose = frame.getViewerPose(espaco);
   if(!pose) return;
   lerMaos(frame);
