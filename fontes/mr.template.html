@@ -653,8 +653,16 @@ const ARVORE_BASE = [-1.35, 0, -1.75];
 const CASULO = [0.42, 1.44, -0.78];
 const FIO_ALTO = 2.95;
 
+/* ONDE CADA PLANTA FICOU. O solo e a grama nascem AO PE DAS ARVORES, e
+   para isso precisam saber onde as arvores estao. As posicoes sao sorteadas
+   dentro do semeador; recalcula-las fora seria repetir o sorteio e depender
+   de os dois nunca sairem de passo -- o tipo de acoplamento que quebra em
+   silencio na primeira vez que alguem mexe numa das duas contas. Entao o
+   semeador simplesmente ANOTA. */
+let BASES = [];
 function semearMata(semente){
   const rnd = prng(semente);
+  BASES = [];
   const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
   const N = 11;
   totalRaizes = N;
@@ -684,6 +692,7 @@ function semearMata(semente){
      comodo num lugar dentro de algo maior -- e e de um galho de dentro que
      o casulo pende. */
   gerarArvoreMae(rnd, ARVORE_BASE, s);
+  BASES.push(ARVORE_BASE.slice());
 
   for(let i=0;i<N;i++){
     // encostadas nas bordas da sala, deixando o centro livre pra pessoa andar
@@ -693,6 +702,7 @@ function semearMata(semente){
     const base = [Math.sin(t)*rx, 0, -Math.cos(t)*rz];
     // Escala contida: o galho inicial mede 0.62*escala e a planta inteira
     // dá umas 3 vezes isso. Acima de 1.5 ela fura o pé-direito de 3 m.
+    BASES.push(base);
     gerarPlanta(rnd, base, 0.85 + rnd()*0.65, rnd()*Math.PI*2, s);
   }
   return s;
@@ -914,19 +924,11 @@ function prepararAlienigena(){
 let bEstrelas = null, nEstrelas = 0;
 /* UM PONTO E UMA ESTRELA. Nao uma nuvem de pontos com forma de estrela.
 
-   A versao anterior plantava quarenta e seis copias do modelo "star", cada
-   uma com mil e seiscentos pontos coloridos amostrados da aquarela: setenta
-   e quatro mil pontos que, a catorze metros, o olho lia como confete. A
-   nota foi exata -- "nao sao aquelas particulas coloridas que voce fez".
-
-   Estrela e o contrario disso: UM ponto, longe, quase branco, com espigas.
-   A forma vem do desenho do sprite (o ramo pontiagudo do fragmento), nao da
-   geometria. Entao aqui so ha o que uma estrela tem: onde ela esta, de que
-   tamanho ela parece, e em que instante do proprio pulsar ela esta.
-
-   ESPACADAS de proposito. Oitenta e quatro numa meia esfera inteira e
-   pouco, e e para ser pouco: ceu cheio de estrela e planetario de plastico.
-   O que se quer e o outro -- o preto ganhando, e o brilho sendo excecao. */
+   A versao anterior plantava 46 copias do modelo "star" -- 74 336 pontos
+   coloridos que, a catorze metros, o olho lia como confete. Estrela e o
+   contrario: UM ponto, longe, quase branco, com as espigas desenhadas no
+   sprite e nao na geometria. Oitenta e quatro numa meia esfera e pouco, e
+   e para ser pouco: ceu cheio de estrela e planetario de plastico. */
 function prepararEstrelas(){
   const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
   const rnd = prng(8823);
@@ -964,14 +966,10 @@ function prepararEstrelas(){
    outono serve as duas coisas: no alto, presas; embaixo, caidas. */
 /* AS PEDRAS DO CHAO -- MALHA, e nao nuvem de pontos.
 
-   Nasceram como nuvem e duraram uma tarde nessa forma. Ao lado de um tronco
-   solido, onze aglomerados de pontos coloridos leem como confete: nao e que
-   a nuvem fosse feia, e que a DIFERENCA DE MATERIA entre uma coisa e a do
-   lado dela e a primeira coisa que o olho registra. Ou tudo e superficie,
-   ou a diferenca fica gritando.
-
-   Entram pelo mesmo programa triplanar das arvores -- mesma tinta, mesma
-   luz, mesma escala de pigmento --, e por isso pertencem ao mesmo chao.
+   Nasceram como nuvem e duraram uma tarde assim. Ao lado de um tronco
+   solido, onze aglomerados de pontos leem como confete: a DIFERENCA DE
+   MATERIA entre uma coisa e a do lado dela e a primeira que o olho
+   registra. Ou tudo e superficie, ou a diferenca fica gritando.
 
    Chao de floresta nao e so o que cresce: e tambem o que esta ali ha mais
    tempo que a floresta. A pedra e o unico elemento do cenario que nao
@@ -991,6 +989,82 @@ function prepararEstrelas(){
    POUCAS E DESIGUAIS. Onze, quatro grandes e sete miudas, entre 55 cm e
    dois metros do centro -- fora de onde a pessoa pisa, e perto o bastante
    para ela poder se abaixar e olhar. */
+/* O SOLO E AS GRAMINHAS.
+
+   ALGUMAS PARTES, e nao o chao inteiro: cobrir os nove metros quadrados
+   apagaria a sala real, e a sala real e metade da obra. Entram manchas ao
+   pe de cada arvore, como o humus que se junta onde uma arvore vive.
+
+   Irregulares por construcao -- raio e altura variam por ruido -- e com a
+   beirada perdendo opacidade: sem contorno nao ha objeto, ha chao virando
+   chao. */
+let bSolo = null, nSoloIdx = 0, bGrama = null, nGramaIdx = 0;
+
+function mancha(m, centro, raio, semente){
+  const rnd = prng(semente);
+  const LADOS = 20, ANEIS = 3;
+  const base = m.pos.length/3;
+  // a variacao de raio e sorteada UMA vez por direcao e reusada em todos os
+  // aneis: assim a mancha e irregular sem que os aneis se cruzem
+  const forma = [];
+  for(let j=0;j<LADOS;j++) forma.push(0.62 + rnd()*0.38);
+  m.pos.push(centro[0], 0.022 + rnd()*0.012, centro[2]);
+  m.nor.push(0, 1, 0); m.alt.push(0); m.fase.push(0); m.borda.push(1);
+  for(let a=1;a<=ANEIS;a++){
+    const k = a/ANEIS;
+    for(let j=0;j<LADOS;j++){
+      const ang = j/LADOS * Math.PI*2;
+      const r = raio * k * forma[j];
+      const alt = (1 - k*k) * (0.020 + rnd()*0.016);
+      m.pos.push(centro[0] + Math.sin(ang)*r, alt, centro[2] - Math.cos(ang)*r);
+      // a normal inclina um pouco com a ondulacao, para a luz pegar relevo
+      m.nor.push(Math.sin(ang)*0.22*k, 1, -Math.cos(ang)*0.22*k);
+      m.alt.push(0); m.fase.push(rnd()*6.28);
+      m.borda.push(a === ANEIS ? 0 : 1 - k*0.35);
+    }
+  }
+  for(let j=0;j<LADOS;j++){
+    const p1 = base + 1 + j, p2 = base + 1 + (j+1)%LADOS;
+    m.idx.push(base, p2, p1);                       // o leque do miolo
+  }
+  for(let a=1;a<ANEIS;a++){
+    for(let j=0;j<LADOS;j++){
+      const i0 = base + 1 + (a-1)*LADOS + j;
+      const i1 = base + 1 + (a-1)*LADOS + (j+1)%LADOS;
+      const i2 = i0 + LADOS, i3 = i1 + LADOS;
+      m.idx.push(i0, i3, i2, i0, i1, i3);
+    }
+  }
+}
+
+/* UMA FOLHA DE CAPIM. Tres segmentos afinando ate a ponta, com uma
+   inclinacao propria -- capim de pe reto le como cerca. Seis triangulos por
+   folha: e barato o bastante para haver muitas, e havendo muitas o tufo
+   existe. */
+function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
+  const SEG = 3;
+  const inicio = m.pos.length/3;
+  const cos = Math.cos(dir), sin = Math.sin(dir);
+  for(let i=0;i<=SEG;i++){
+    const k = i/SEG;
+    const y = altura * k;
+    const desvio = curva * k * k;
+    const meia = larg * (1 - k) * 0.5;
+    const cx = base[0] + cos*desvio, cz = base[2] + sin*desvio;
+    // a folha e uma fita: dois pontos por altura, um de cada lado
+    m.pos.push(cx - sin*meia, base[1] + y, cz + cos*meia);
+    m.pos.push(cx + sin*meia, base[1] + y, cz - cos*meia);
+    for(let l=0;l<2;l++){
+      m.nor.push(cos*0.35, 0.9, sin*0.35);
+      m.alt.push(k); m.fase.push(fase); m.borda.push(1);
+    }
+  }
+  for(let i=0;i<SEG;i++){
+    const a = inicio + i*2, b = a+1, c = a+2, d = a+3;
+    m.idx.push(a, b, c, b, d, c);
+  }
+}
+
 let bPedras = null, nPedrasIdx = 0;
 function prepararPedras(){
   const m = {pos:[], nor:[], alt:[], fase:[], idx:[]};
@@ -1022,6 +1096,47 @@ function prepararPedras(){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bPedras.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
   nPedrasIdx = m.idx.length;
+}
+
+function prepararSolo(){
+  const t = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const g = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const rnd = prng(9151);
+  BASES.forEach((b, i) => {
+    const raio = 0.34 + rnd()*0.26;
+    mancha(t, b, raio, 9100 + i);
+    /* AS GRAMINHAS NASCEM DENTRO DA MANCHA, e mais densas perto do tronco.
+       A raiz quadrada do sorteio adensa o centro: sorteio direto espalharia
+       por igual e o tufo nao teria pe. */
+    const quantas = 26 + Math.floor(rnd()*14);
+    for(let k=0;k<quantas;k++){
+      const ang = rnd()*Math.PI*2;
+      const r = raio * Math.sqrt(rnd()) * 0.88;
+      const pe = [b[0] + Math.sin(ang)*r, 0.004, b[2] - Math.cos(ang)*r];
+      folhaDeCapim(g, pe,
+                   0.055 + rnd()*0.085,      // altura
+                   0.007 + rnd()*0.006,      // largura na base
+                   rnd()*Math.PI*2,          // para onde tomba
+                   0.012 + rnd()*0.030,      // quanto curva
+                   rnd()*6.28);
+    }
+  });
+  if(t.idx.length){
+    bSolo = bSolo || criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(bSolo.pos,t.pos); enviar(bSolo.nor,t.nor); enviar(bSolo.alt,t.alt);
+    enviar(bSolo.fase,t.fase); enviar(bSolo.borda,t.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSolo.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(t.idx), gl.STATIC_DRAW);
+    nSoloIdx = t.idx.length;
+  }
+  if(g.idx.length){
+    bGrama = bGrama || criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(bGrama.pos,g.pos); enviar(bGrama.nor,g.nor); enviar(bGrama.alt,g.alt);
+    enviar(bGrama.fase,g.fase); enviar(bGrama.borda,g.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bGrama.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(g.idx), gl.STATIC_DRAW);
+    nGramaIdx = g.idx.length;
+  }
 }
 
 let bFolhas = null, nFolhas = 0;
@@ -1253,31 +1368,19 @@ void main(){
 
   /* NASCE DE BAIXO PARA CIMA, igual a malha: a frente de crescimento sobe
      pela planta, e o que esta acima dela ainda nao existe. */
-  /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA.
-
-     Um ponto so fica inteiro quando a frente passa dele por 1/2,6 = 0,385.
-     No topo de qualquer corpo (aAlt = 1), com o crescimento cheio, a frente
-     estava em 1,25 e sobrava 0,25: menos que os 0,385 necessarios. Ou seja,
-     a ponta NUNCA ficava viva -- parava em 0,72 e ali ficava para sempre.
-
-     Enquanto tudo era nuvem de pontos isso passou despercebido: 0,72 de
-     presenca num ponto de tres pixels e so um ponto um pouco mais palido, e
-     ate parecia de proposito, "a ponta e a parte mais nova". Com a
-     superficie, 0,72 e TRANSPARENCIA: a pedra virou vidro e deu para ver o
-     tronco atras dela. O mesmo valia para o alto das arvores.
-
-     1,45 fecha a conta com folga: 1,45 - 1 = 0,45, acima de 0,385. A
-     floresta tambem passa a alcancar a altura inteira, que ela nunca
-     alcancou. */
+  /* 1,45 E NAO 1,25 -- A CONTA NUNCA FECHAVA. Um ponto so fica inteiro
+     quando a frente passa dele por 1/2,6 = 0,385; no topo de qualquer
+     corpo, com o crescimento cheio, sobravam 0,25. A ponta NUNCA ficava
+     viva: parava em 0,72 para sempre. Como nuvem isso era so um ponto mais
+     palido; com superficie e transparencia. */
   float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
-  vec2 recolhido = mix(aPos.xz, aPos.xz * 0.12, planta);
-  p.xz = mix(recolhido, p.xz, vivo);
+  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
 
   // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
-  float b = aAlt*aAlt*planta;
+  float b = aAlt*aAlt;
   float w = tempo*0.55 + aFase;
   p.x += sin(w)*0.055*b;
   p.z += cos(w*0.83+1.3)*0.045*b;
@@ -1325,6 +1428,7 @@ const FS_MATA = `
    linkar nao aparece como erro: os pontos simplesmente nao sao desenhados.
    E a armadilha numero 5 da lista deste projeto, e ela pegou de novo. */
 precision highp float;
+
 uniform sampler2D casca;
 uniform float presenca;
 /* Declarado AQUI tambem, e nao so no vertice: em GLSL cada estagio tem as
@@ -1436,32 +1540,24 @@ void main(){
 
 /* ═══════════ A MATA SOLIDA ═══════════
 
-   Superficie de verdade, e nao nuvem de pontos. A nota foi direta: "tem que
-   ser solida mesmo".
+   Superficie de verdade. A malha das arvores JA EXISTIA em bR/nIdxR e
+   nunca era desenhada: servia so para ser amostrada em pontos. Sao catorze
+   mil triangulos contra duzentos e oitenta e cinco mil pontos -- o solido
+   custa MENOS que a nuvem.
 
-   A GEOMETRIA JA EXISTIA. A malha das arvores era construida, mandada para
-   a placa em bR/nIdxR -- e nunca desenhada: servia so para ser amostrada em
-   pontos. Sao catorze mil triangulos, contra duzentos e oitenta e cinco mil
-   pontos: o solido custa MENOS que a nuvem, e nao mais.
-
-   O QUE IMPEDIA NAO ERA A MALHA, ERA A TINTA. A UV do tubo estica: a mesma
-   imagem cobre um anel largo na base e um estreito na ponta, e o resultado
-   e a pintura escorrida que fez "os objetos parecerem cubas". A nuvem de
-   pontos resolveu aquilo abolindo a superficie -- ponto nao tem UV para
-   distorcer. Custou a solidez.
-
-   TRIPLANAR e a terceira saida: a superficie volta, e a UV nao. A tinta e
-   lida TRES vezes, cada uma por um par de coordenadas do MUNDO (zy, xz,
-   xy), e as tres se misturam pelo peso da normal -- a face que aponta para
-   cima usa a leitura de cima, a que aponta para o lado usa a do lado. Como
-   a coordenada e o lugar no mundo e nao o lugar na malha, nao ha o que
-   esticar: a pintura se comporta como pedra tingida, e nao como papel
-   colado. Um tronco que afina nao afina a tinta junto.
-
-   E ela permanece a MESMA aquarela da Odara, na mesma escala, seja num
-   tronco de trinta centimetros ou num galho de tres. */
+   O que impedia era a tinta: a UV do tubo estica, e era isso que fazia os
+   objetos parecerem cubas. A nuvem resolveu abolindo a superficie.
+   Triplanar e a terceira saida -- a tinta e lida tres vezes por
+   coordenadas do MUNDO (zy, xz, xy) e misturada pelo peso da normal. Como
+   a coordenada e o lugar no mundo, nao ha o que esticar: um tronco que
+   afina nao afina a tinta junto. */
 const VS_SOLIDA = `
 attribute vec3 aPos, aNor; attribute float aAlt, aFase;
+/* A BORDA. 1 no miolo, 0 na beirada: a mancha de terra se dissolve no
+   piso real em vez de ter contorno. Arvores e pedras nao trazem este
+   atributo -- atributo com arranjo desligado le um valor constante, entao
+   basta deixar 1 marcado nelas. */
+attribute float aBorda;
 uniform mat4 mvp; uniform float tempo;
 uniform float crescimento;   // 0 = ainda nao brotou, 1 = inteira
 uniform float inverte;       // 1 = a floresta do teto, de cabeca para baixo
@@ -1470,9 +1566,10 @@ uniform vec3 desloca;        // onde ela esta (o teto fica a ALTURA + 0.15)
    abre para o lugar dela; e balanca no vento, mais na ponta que na base.
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
    parada, porque pedra que balanca deixa de ser pedra na hora. */
-uniform float planta;        // 1 = arvore; 0 = pedra
+uniform float planta;        // 1 = recolhe-se para a origem ao nascer
+uniform float balanca;       // 1 = oscila no vento, mais na ponta
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo;
+varying float vAlt, vVivo, vBorda;
 void main(){
   /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
@@ -1498,10 +1595,11 @@ void main(){
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
-  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
+  vec2 recolhido = mix(aPos.xz, aPos.xz * 0.12, planta);
+  p.xz = mix(recolhido, p.xz, vivo);
 
   // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
-  float b = aAlt*aAlt;
+  float b = aAlt*aAlt*balanca;
   float w = tempo*0.55 + aFase;
   p.x += sin(w)*0.055*b;
   p.z += cos(w*0.83+1.3)*0.045*b;
@@ -1517,30 +1615,99 @@ void main(){
      de uma pintura parada. */
   vMundo = p;
   vNor = nn;
-  vAlt = aAlt; vVivo = vivo;
+  vAlt = aAlt; vVivo = vivo; vBorda = aBorda;
   gl_Position = mvp * vec4(p,1.0);
 }`;
 const FS_SOLIDA = `
 precision highp float;
+
+/* RUIDO TRIDIMENSIONAL.
+
+   BARALHAR SEM SENO. O costume da internet e "fract(sin(dot(p,k))*43758)",
+   e seno transcendental por fragmento pesa num aparelho movel. A conta
+   abaixo e so multiplicacao e parte fracionaria, e da o mesmo caos. */
+float baralhar(vec3 p){
+  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+/* Ruido de valor: sorteia nos oito cantos do cubo e interpola macio entre
+   eles. O amaciamento (3-2t) e o que impede a grade de aparecer --
+   interpolacao reta deixa quina em cada aresta, e quina se ve. */
+float ruido(vec3 p){
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(baralhar(i + vec3(0.0, 0.0, 0.0)),
+                     baralhar(i + vec3(1.0, 0.0, 0.0)), f.x),
+                 mix(baralhar(i + vec3(0.0, 1.0, 0.0)),
+                     baralhar(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(baralhar(i + vec3(0.0, 0.0, 1.0)),
+                     baralhar(i + vec3(1.0, 0.0, 1.0)), f.x),
+                 mix(baralhar(i + vec3(0.0, 1.0, 1.0)),
+                     baralhar(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}
+// duas oitavas: a segunda quase tres vezes mais miuda e com menos peso
+float rugas(vec3 p){ return ruido(p) * 0.63 + ruido(p * 2.9) * 0.37; }
+
+/* A PEDRA. Manchas largas dando o corpo, veios claros atravessando, e um
+   grao seco por cima.
+
+   OS VEIOS saem de dobrar o ruido sobre si mesmo -- um menos o modulo do
+   valor centrado --, que e o que produz FAIXAS em vez de manchas. Faixa e o
+   que uma rocha sedimentar tem, e e o que faz o olho ler "pedra" em vez de
+   "borrao cinza". */
+vec3 aPedra(vec3 p){
+  float corpo = rugas(p * 6.5);
+  float veio  = 1.0 - abs(rugas(p * 3.1) * 2.0 - 1.0);
+  float grao  = ruido(p * 52.0);
+  vec3 c = mix(vec3(0.098, 0.094, 0.112), vec3(0.395, 0.378, 0.372),
+               corpo * 0.78 + 0.11);
+  c = mix(c, vec3(0.455, 0.430, 0.398), pow(veio, 5.0) * 0.55);
+  c *= 0.85 + 0.30 * grao;
+  return c;
+}
+
+/* A TERRA. Manchas largas entre um marrom quase preto e um ocre seco, e
+   um grao fino por cima. Nada de verde: verde e a grama, e misturar os dois
+   na mesma superficie e o que faz chao de jogo parecer chao de jogo. */
+vec3 aTerra(vec3 p){
+  float corpo = rugas(p * 4.6);
+  float grao  = ruido(p * 58.0);
+  vec3 c = mix(vec3(0.098, 0.074, 0.056), vec3(0.268, 0.202, 0.146),
+               corpo * 0.9 + 0.05);
+  c *= 0.80 + 0.36 * grao;
+  return c;
+}
+
+/* A GRAMA. Escura na raiz e clara na ponta -- e assim que capim recebe luz,
+   e e o gradiente que faz um tufo parecer tufo em vez de mancha verde. O
+   ruido decide o tom de cada folha: um pouco mais azulada, um pouco mais
+   palha, para o conjunto nao virar um so verde de tinta. */
+vec3 aGrama(vec3 p, float alt){
+  float v = rugas(p * 7.5);
+  vec3 c = mix(vec3(0.082, 0.145, 0.092), vec3(0.315, 0.455, 0.225),
+               clamp(alt * 1.2, 0.0, 1.0) * (0.52 + 0.48 * v));
+  c = mix(c, vec3(0.315, 0.330, 0.150), v * 0.28);
+  return c;
+}
+
 uniform sampler2D casca;
 uniform float presenca;
 uniform float escalaTinta;   // quantas voltas da pintura por metro
-/* MINERAL. 0 e aquarela pura, como nas arvores; 1 e pedra.
+/* MATERIA. De que a superficie e feita:
 
-   A pintura da Odara e obra de alto contraste, e nao um material: usada
-   como pele inteira de um corpo pequeno ela so tem dois destinos. Em escala
-   grande, uma mancha escura dela cobre a pedra toda e o resultado e um
-   vulto preto de quina reta. Em escala pequena, a repeticao aparece e a
-   pedra vira estampa. Os dois foram vistos, um depois do outro.
+     0  aquarela da Odara, por triplanar -- as arvores
+     1  pedra   2  terra   3  grama  -- geradas por ruido aqui mesmo
 
-   A saida nao e escala nenhuma: e mudar o PAPEL da pintura. Na pedra ela
-   deixa de ser a cor e passa a ser a VARIACAO -- guarda-se um terco do
-   croma, comprime-se o contraste em torno de um tom mineral, e o que sobra
-   e uma pedra que tem a aquarela dentro em vez de vestida por cima. Com o
-   contraste comprimido, nem a mancha domina nem a repeticao se denuncia. */
-uniform float mineral;
+   Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
+   dois destinos, e os dois aconteceram -- em escala grande uma mancha
+   escura cobre a pedra inteira, em escala pequena a repeticao aparece. Nao
+   ha escala que resolva. Ruido tridimensional lido na posicao do mundo nao
+   tem UV nem ladrilho: a textura existe DENTRO do corpo. A arvore continua
+   com a aquarela, porque tem sete metros e a percorre inteira. */
+uniform float materia;
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo;
+varying float vAlt, vVivo, vBorda;
 void main(){
   vec3 n = normalize(vNor);
 
@@ -1560,42 +1727,49 @@ void main(){
   w = w * w * w;
   w /= (w.x + w.y + w.z);
 
-  vec2 sx = vMundo.zy * escalaTinta;
-  vec2 sy = vMundo.xz * escalaTinta;
-  vec2 sz = vMundo.xy * escalaTinta;
-  vec3 c = texture2D(casca, sx).rgb * w.x
-         + texture2D(casca, sy).rgb * w.y
-         + texture2D(casca, sz).rgb * w.z;
+  vec3 c;
+  if(materia < 0.5){
+    // A AQUARELA, por triplanar: a pele das arvores
+    vec2 sx = vMundo.zy * escalaTinta;
+    vec2 sy = vMundo.xz * escalaTinta;
+    vec2 sz = vMundo.xy * escalaTinta;
+    c = texture2D(casca, sx).rgb * w.x
+      + texture2D(casca, sy).rgb * w.y
+      + texture2D(casca, sz).rgb * w.z;
+  } else if(materia < 1.5){
+    c = aPedra(vMundo * escalaTinta);
+  } else if(materia < 2.5){
+    c = aTerra(vMundo * escalaTinta);
+  } else {
+    c = aGrama(vMundo * escalaTinta, vAlt);
+  }
 
   /* A LUZ. Na planta ela e macia -- folha e translucida e nao tem lado
      escuro de verdade. Na pedra ela precisa ser mais dura: e a diferenca
      entre o lado que pega luz e o que nao pega que diz ao olho que aquilo
      tem VOLUME. Com o mesmo piso macio das arvores, a pedra saia chapada e
      lida como vidro fosco -- foi o que aconteceu. */
-  float piso = mix(0.44, 0.24, mineral);
+  /* O PISO DA LUZ MUDA COM A MATERIA. Folha e translucida e nao tem lado
+     escuro de verdade; pedra tem, e e por essa diferenca que o olho le
+     volume. Terra fica no meio. */
+  float piso = 0.44;
+  if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
+  else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
+  else if(materia > 2.5)                  piso = 0.50;   // grama
+  float ehPedra = step(0.5, materia) * step(materia, 1.5);
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
 
-  if(mineral > 0.001){
-    float cinza = dot(c, vec3(0.299, 0.587, 0.114));
-    vec3 rocha = mix(vec3(cinza), c, 0.34);            // um terco do croma
-    /* ESCURA, E NAO CINZA CLARA. O tom mineral estava em 0,45 -- mais claro
-       que o chao em volta --, e uma pedra mais clara que o chao nao pousa
-       nele: flutua. Pedra e coisa PESADA, e peso, no olho, e valor baixo.
-       E o contraste sobe de 0,52 para 0,66: menos lavado, sem voltar a
-       deixar uma mancha da pintura dominar o corpo inteiro. */
-    rocha = mix(vec3(0.235, 0.225, 0.265), rocha, 0.66);
-    /* E O PE E MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que toda
-       pedra tem, porque a fresta entre ela e o chao nao recebe ceu. Sem
-       isto ela nao encosta em lugar nenhum. */
-    rocha *= 0.66 + 0.34 * clamp(vAlt * 1.7, 0.0, 1.0);
-    c = mix(c, rocha, mineral);
-  }
+  /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
+     corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
+     Sem isto a pedra nao encosta em lugar nenhum -- fica pairando. */
+  // o pe mais escuro que o topo: a fresta contra o chao nao recebe ceu
+  c *= mix(1.0, 0.64 + 0.36 * clamp(vAlt * 1.7, 0.0, 1.0), ehPedra);
 
   // a ponta nova e mais clara, como broto de verdade
   c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
 
-  gl_FragColor = vec4(c, presenca * vVivo);
+  gl_FragColor = vec4(c, presenca * vVivo * vBorda);
 }`;
 
 const VS_SALA = `
@@ -3110,6 +3284,7 @@ function subirRaizes(s){
   enviar(bM.pos, nuvem.pos); enviar(bM.uv, nuvem.uv);
   enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
   nMata = nuvem.pos.length/3;
+  prepararSolo();   // depende de BASES, que so existe depois de semear
   document.getElementById('vRaiz').textContent = totalRaizes;
   document.getElementById('vTri').textContent =
     ((nIdxR+nIdxS)/3).toLocaleString('pt-BR');
@@ -3785,25 +3960,15 @@ function rampa(a, b, x){
 
 /* O CEU GIRA NA PASSAGEM PARA A FLORESTA.
 
-   A nota: "elas girarem quando for mudar para a cena da floresta, tipo como
-   se fosse uma passagem de tempo". E o gesto mais antigo que existe para
-   dizer que o tempo andou -- o ceu roda, e quem esta embaixo percebe que
-   ficou ali mais do que pensava.
+   O gesto mais antigo que existe para dizer que o tempo andou. A volta
+   acontece entre 0:14 e 0:42, que e a janela do nascimento da floresta e
+   da chegada da pintura: 135 graus em 28 segundos, com rampa suave nas
+   duas pontas, entao ela parte do repouso e volta a ele.
 
-   A volta acontece entre 0:14 e 0:42, que e exatamente a janela do
-   nascimento (a floresta brota de 0:15 a 1:09) e da chegada da pintura
-   (0:20 a 0:36). Cento e trinta e cinco graus em vinte e oito segundos: uns
-   cinco graus por segundo, movimento que se ve sem sobressalto. Como a
-   rampa e suave nas duas pontas, ela parte do repouso e volta a ele -- nao
-   ha o instante em que "liga".
-
-   EM TORNO DA VERTICAL, e nao de um eixo inclinado. Assim as estrelas do
-   alto quase nao andam e as de perto do horizonte varrem, que e o desenho
-   de ceu rodando que o olho conhece; e, sobretudo, o degrade continua
-   preso ao horizonte em vez de rodar junto com ele.
-
-   Depois dos 42 s sobra uma deriva lentissima que nunca para. Nao se ve
-   olhando: ve-se tendo olhado duas vezes. */
+   EM TORNO DA VERTICAL: as estrelas do alto quase nao andam e as do
+   horizonte varrem, e o degrade continua preso ao horizonte em vez de
+   rodar junto. Depois dos 42 s sobra uma deriva lentissima que nunca
+   para. */
 const VOLTA_DO_CEU = 2.35;                 // ~135 graus
 function anguloDoCeu(x){
   return VOLTA_DO_CEU * rampa(14, 42, x) + x * 0.0021;
@@ -5102,11 +5267,13 @@ const uSo = n=>gl.getUniformLocation(progSolida,n);
 const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'),
                inverte:uSo('inverte'), desloca:uSo('desloca'), casca:uSo('casca'),
                presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta'),
-               planta:uSo('planta'), mineral:uSo('mineral')};
+               planta:uSo('planta'), materia:uSo('materia'),
+               balanca:uSo('balanca')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
-             fase:gl.getAttribLocation(progSolida,'aFase')};
+             fase:gl.getAttribLocation(progSolida,'aFase'),
+             borda:gl.getAttribLocation(progSolida,'aBorda')};
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
               crescimento:uR('crescimento')};
@@ -5457,11 +5624,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
-  /* A MATA SOLIDA. Vem ANTES da nuvem porque ela ESCREVE PROFUNDIDADE, e o
-     que vem depois -- as pedras, a poeira -- precisa ser testado contra
-     ela: na ordem inversa uma pedra atras de um tronco apareceria na frente
-     dele. Face de tras descartada, porque tubo fechado nao mostra o avesso
-     e desenhar o avesso e pagar duas vezes pelo mesmo pixel. */
+  /* A MATA SOLIDA. Vem ANTES da nuvem porque ESCREVE PROFUNDIDADE, e o
+     que vem depois precisa ser testado contra ela -- na ordem inversa uma
+     pedra atras de um tronco apareceria na frente dele. */
   if(MATA_SOLIDA && nIdxR > 0 && presencaMata > 0.004){
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
@@ -5484,7 +5649,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        que o olho pega na hora. */
     gl.uniform1f(locSo.escalaTinta, 1.25);
     gl.uniform1f(locSo.planta, 1.0);
-    gl.uniform1f(locSo.mineral, 0.0);
+    gl.uniform1f(locSo.balanca, 1.0);
+    gl.uniform1f(locSo.materia, 0.0);
+    // sem arranjo, o atributo le um valor constante: tudo miolo
+    gl.vertexAttrib1f(aSo.borda, 1.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1i(locSo.casca, 2);
     ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
@@ -5506,6 +5674,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        no vento. Pedra que balanca deixa de ser pedra na hora. */
     if(PEDRAS_NO_CHAO && nPedrasIdx > 0){
       gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 0.0);
       /* PIGMENTO MAIS MIUDO NA PEDRA, e nao o mesmo da arvore.
 
          A triplanar le a pintura pelas coordenadas do mundo, entao o quanto
@@ -5517,8 +5686,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
          Tres vezes mais fina resolve: a pedra passa a atravessar variacao de
          verdade em vez de estacionar numa mancha so. */
-      gl.uniform1f(locSo.escalaTinta, 2.2);
-      gl.uniform1f(locSo.mineral, 0.80);
+      /* A escala agora e a do RUIDO, e nao a da pintura: quantas manchas
+         cabem por metro. Seis deixa uma pedra de vinte centimetros com uma
+         mancha grande e alguns veios, que e a leitura certa. */
+      gl.uniform1f(locSo.escalaTinta, 6.0);
+      gl.uniform1f(locSo.materia, 1.0);
       gl.uniform1f(locSo.inverte, 0.0);
       gl.uniform1f(locSo.crescimento, crescimento);
       gl.uniform1f(locSo.presenca, presencaMata);
@@ -5530,8 +5702,44 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawElements(gl.TRIANGLES, nPedrasIdx, gl.UNSIGNED_SHORT, 0);
       gl.uniform1f(locSo.planta, 1.0);
       gl.uniform1f(locSo.escalaTinta, 1.25);
-      gl.uniform1f(locSo.mineral, 0.0);
+      gl.uniform1f(locSo.materia, 0.0);
     }
+
+    /* O SOLO E A GRAMA. Sem escrita de profundidade: a beirada da mancha e
+       translucida, e translucido que escreve profundidade recorta o que
+       vem depois pelo contorno inteiro -- a grama sumiria em volta de cada
+       folha. */
+    if(nSoloIdx > 0 && presencaMata > 0.004){
+      gl.depthMask(false);
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 0.0);
+      gl.uniform1f(locSo.materia, 2.0);
+      gl.uniform1f(locSo.escalaTinta, 5.0);
+      ligar(aSo.pos, bSolo.pos, 3); ligar(aSo.nor, bSolo.nor, 3);
+      ligar(aSo.alt, bSolo.alt, 1); ligar(aSo.fase, bSolo.fase, 1);
+      ligar(aSo.borda, bSolo.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSolo.idx);
+      gl.drawElements(gl.TRIANGLES, nSoloIdx, gl.UNSIGNED_SHORT, 0);
+    }
+
+    if(nGramaIdx > 0 && presencaMata > 0.004){
+      // a folha e uma fita: nao tem avesso, entao os dois lados aparecem
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.uniform1f(locSo.balanca, 1.0);   // balanca sem se recolher
+      gl.uniform1f(locSo.materia, 3.0);
+      gl.uniform1f(locSo.escalaTinta, 9.0);
+      ligar(aSo.pos, bGrama.pos, 3); ligar(aSo.nor, bGrama.nor, 3);
+      ligar(aSo.alt, bGrama.alt, 1); ligar(aSo.fase, bGrama.fase, 1);
+      ligar(aSo.borda, bGrama.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bGrama.idx);
+      gl.drawElements(gl.TRIANGLES, nGramaIdx, gl.UNSIGNED_SHORT, 0);
+      gl.enable(gl.CULL_FACE);
+    }
+    gl.uniform1f(locSo.planta, 1.0);
+    gl.uniform1f(locSo.balanca, 1.0);
+    gl.uniform1f(locSo.materia, 0.0);
+    gl.uniform1f(locSo.escalaTinta, 1.25);
 
     gl.disable(gl.CULL_FACE);
     gl.depthMask(true);
