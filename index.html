@@ -401,6 +401,10 @@ const PEDRAS_NO_CHAO     = true;
    false devolve a nuvem inteira, e nada mais muda: as duas crescem pela
    mesma conta, entao a troca e de materia e nao de coreografia. */
 const MATA_SOLIDA        = true;
+/* QUAL ARVORE-MAE. 1 e a de sempre -- tronco unico com galhos, que atravessa
+   o teto. 2 e a arvore da vida: copa redonda e raizes a vista. As duas
+   ficam no codigo; trocar o numero e montar de novo basta. */
+const ARVORE_MAE         = 1;
 /* Os cogumelos sao esferas, e nao particulas -- por isso saem do
    OBJETOS_NO_CHAO, que desliga o que e nuvem de pontos. */
 const COGUMELOS_NO_CHAO  = true;
@@ -538,6 +542,127 @@ function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo){
   }
 }
 
+/* OS GALHOS DE ONDE O CASULO PENDE. Fora da arvore porque os DOIS
+   modelos de arvore-mae precisam deles: o casulo nao muda quando a arvore
+   muda. Recebe o ponto do tronco de onde sair.
+
+   Um maior, e um menor que nasce dele. Galho sozinho atravessando o quadro
+   le como cabo de vassoura por mais bem curvado que seja -- galho nao anda
+   desacompanhado, ele se divide. O arco e a torcao usam sen(pi.t), que e
+   zero nas duas pontas: a curva nao mexe nem em de onde sai nem em onde
+   chega, e o encontro com o pedunculo do casulo continua exato. */
+function galhoDoCasulo(de, s){
+  const N = 12;
+  const arcoAte = (dd, ate, arco, lado) => {
+    const dx = ate[0]-dd[0], dz = ate[2]-dd[2];
+    const comp = Math.hypot(dx, dz) || 1e-6;
+    const lx = -dz/comp, lz = dx/comp;
+    const seg = [];
+    for(let j=0;j<=N;j++){
+      const t = j/N, curva = Math.sin(t*Math.PI);
+      seg.push([ dd[0] + dx*t + lx*lado*curva,
+                 dd[1] + (ate[1]-dd[1])*t + arco*curva,
+                 dd[2] + dz*t + lz*lado*curva ]);
+    }
+    return seg;
+  };
+  const maior = arcoAte(de, [0.92, 1.66, -0.34], 0.30, 0.22);
+  tuboAoLongo(s, maior, maior.map((_, k) => 0.052*Math.pow(1-k/N, 1.3) + 0.010),
+              1.9, 0.24, 0.58);
+  const menor = arcoAte(maior[Math.round(N*0.55)],
+                        [CASULO[0], FIO_ALTO, CASULO[2]], 0.09, -0.11);
+  tuboAoLongo(s, menor, menor.map((_, k) => 0.017*Math.pow(1-k/N, 1.2) + 0.0055),
+              2.6, 0.30, 0.56);
+}
+
+/* ═══════════ A ARVORE-MAE, MODELO 2: A ARVORE DA VIDA ═══════════
+
+   O modelo 1 continua inteiro logo abaixo -- e o que esta em uso hoje. Este
+   e a alternativa: copa REDONDA, ramos que se dividem muitas vezes dentro
+   de uma esfera, e as raizes abrindo a vista no pe.
+
+   O que a faz redonda nao e desenhar um circulo: e cada galho ser puxado
+   para FORA do centro da copa enquanto cabe, e parar de existir quando
+   chega na casca da esfera. A forma sai da regra, e nao do contorno.
+
+   AS RAIZES A VISTA sao metade do desenho nessa imagem, e sao o argumento
+   da obra: o que segura em cima aparece embaixo. */
+function gerarArvoreMae2(rnd, base, s){
+  const ALTURA = 6.2, RCOPA = 2.55, YCOPA = ALTURA * 0.60;
+  const centro = [base[0], base[1] + YCOPA, base[2]];
+
+  // o tronco: curto e grosso, ate o primeiro forcado
+  const pontos = [], raios = [], H = ALTURA * 0.34;
+  for(let i=0;i<=6;i++){
+    const k = i/6;
+    pontos.push([ base[0] + Math.sin(k*1.6)*0.14, base[1] + k*H,
+                  base[2] + Math.sin(k*1.1+0.7)*0.10 ]);
+    raios.push(0.30 * Math.pow(1-k, 0.7) + 0.10);
+  }
+  tuboAoLongo(s, pontos, raios, 0.7, 0.0, 0.34);
+  totalRaizes++;
+
+  /* O RAMO DA COPA. Segue um pouco, e se divide em dois -- sempre dois,
+     porque e a divisao repetida em pares que faz o desenho de renda da
+     imagem. A direcao de cada filho e a media entre continuar em frente e
+     abrir para fora do centro: perto do tronco ele abre, perto da casca ele
+     ja esta indo para fora e a mistura o alinha com a superficie. */
+  const ramo = (de, dir, comp, prof) => {
+    if(prof > 5 || comp < 0.18) return;
+    const seg = [de.slice()], rr = [0.062 * Math.pow(0.66, prof) + 0.010];
+    let d = dir.slice(), q = de.slice();
+    for(let i=0;i<5;i++){
+      const paraFora = norm(sub(q, centro));
+      // a curvatura e o que faz o ramo ENROLAR em vez de ir reto
+      d = norm([ d[0] + paraFora[0]*0.22 + (rnd()-0.5)*0.16,
+                 d[1] - 0.06 + (rnd()-0.5)*0.10,
+                 d[2] + paraFora[2]*0.22 + (rnd()-0.5)*0.16 ]);
+      q = [q[0]+d[0]*comp/5, q[1]+d[1]*comp/5, q[2]+d[2]*comp/5];
+      seg.push(q.slice());
+      rr.push(0.062 * Math.pow(0.66, prof) * (1 - i/6) + 0.009);
+    }
+    tuboAoLongo(s, seg, rr, 0.7 + prof, 0.34 + prof*0.11, 0.45 + prof*0.11);
+    // chegou na casca da esfera: a copa termina aqui
+    if(Math.hypot(q[0]-centro[0], q[1]-centro[1], q[2]-centro[2]) > RCOPA) return;
+    const lado = norm(cruz(d, [rnd()-0.5, 1, rnd()-0.5]));
+    for(const sinal of [-1, 1]){
+      const a = (26 + rnd()*22) * Math.PI/180;
+      const nd = norm([ d[0] + lado[0]*Math.sin(a)*sinal + (rnd()-0.5)*0.12,
+                        d[1] + Math.sin(a)*0.30,
+                        d[2] + lado[2]*Math.sin(a)*sinal + (rnd()-0.5)*0.12 ]);
+      ramo(q, nd, comp*(0.70+rnd()*0.10), prof+1);
+    }
+  };
+
+  // do alto do tronco saem quatro ramos, abrindo para os quatro lados
+  const alto = pontos[pontos.length-1];
+  for(let i=0;i<4;i++){
+    const a = i/4*Math.PI*2 + 0.4;
+    ramo(alto, norm([Math.sin(a)*0.55, 1, -Math.cos(a)*0.55]), 1.25, 0);
+  }
+
+  /* AS RAIZES A VISTA. Saem do pe, abrem para fora, mergulham e voltam a
+     aflorar -- o serpenteio e o que as faz parecer raiz e nao estaca. Ficam
+     RENTES ao chao: em realidade mista o chao e o da sala de verdade, e
+     raiz enterrada nao existe para quem olha. */
+  for(let i=0;i<8;i++){
+    const a = i/8*Math.PI*2 + rnd()*0.30;
+    const comp = 0.85 + rnd()*0.75;
+    const seg = [], rr = [];
+    for(let j=0;j<=7;j++){
+      const t = j/7;
+      const d = comp * t;
+      seg.push([ base[0] + Math.sin(a)*d + Math.sin(t*4.2+i)*0.10,
+                 base[1] + 0.16*(1-t)*(1-t) + Math.sin(t*7.0+i)*0.022,
+                 base[2] - Math.cos(a)*d + Math.cos(t*3.7+i)*0.10 ]);
+      rr.push(0.085 * Math.pow(1-t, 1.3) + 0.010);
+    }
+    tuboAoLongo(s, seg, rr, 1.3 + i, 0.0, 0.16);
+  }
+
+  galhoDoCasulo(pontos[3], s);
+}
+
 function gerarArvoreMae(rnd, base, s){
   const ALTURA = 7.0;
   const H = ALTURA * 0.62;          // ate onde vai o tronco
@@ -575,44 +700,7 @@ function gerarArvoreMae(rnd, base, s){
     tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
   };
 
-  /* OS GALHOS DO CASULO: um maior, e um menor que nasce dele.
-
-     Um galho sozinho atravessando o quadro le como cabo de vassoura, por
-     mais bem curvado que seja -- galho nao anda desacompanhado, ele se
-     divide. Aqui o maior sai do tronco e segue por cima; o menor nasce dele
-     no meio do caminho e desce ate o casulo, afinando ate quase nada.
-
-     O ARCO E A TORCAO usam sen(pi.t), que e zero nas duas pontas: a curva
-     nao mexe nem em de onde o galho sai nem em onde ele chega. E por isso o
-     encontro do menor com o pedunculo do casulo continua exato, sem haver
-     dois numeros para manter em dia. */
-  const arcoAte = (de, ate, arco, lado, N) => {
-    const dx = ate[0]-de[0], dz = ate[2]-de[2];
-    const comp = Math.hypot(dx, dz) || 1e-6;
-    const lx = -dz/comp, lz = dx/comp;
-    const seg = [];
-    for(let j2=0;j2<=N;j2++){
-      const t = j2/N, curva = Math.sin(t*Math.PI);
-      seg.push([ de[0] + dx*t + lx*lado*curva,
-                 de[1] + (ate[1]-de[1])*t + arco*curva,
-                 de[2] + dz*t + lz*lado*curva ]);
-    }
-    return seg;
-  };
-  (() => {
-    const N = 12;
-    const maior = arcoAte(pontos[3], [0.92, 1.66, -0.34], 0.30, 0.22, N);
-    tuboAoLongo(s, maior,
-                maior.map((_, k) => 0.052*Math.pow(1-k/N, 1.3) + 0.010),
-                1.9, 0.24, 0.58);
-    // o menor nasce a 55% do maior e desce ate o casulo
-    const nasce = maior[Math.round(N*0.55)];
-    const alvo = [CASULO[0], FIO_ALTO, CASULO[2]];
-    const menor = arcoAte(nasce, alvo, 0.09, -0.11, N);
-    tuboAoLongo(s, menor,
-                menor.map((_, k) => 0.017*Math.pow(1-k/N, 1.2) + 0.0055),
-                2.6, 0.30, 0.56);
-  })();
+  galhoDoCasulo(pontos[3], s);
 
   galho(0.55, 3.1,  0.42, 0.95, 0.065);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
@@ -622,7 +710,27 @@ function gerarArvoreMae(rnd, base, s){
   galho(0.97, 5.6,  0.66, 1.30, 0.040);
 }
 
-function gerarPlanta(rnd, base, escala, fase, s){
+/* TRES FEITIOS DE ARVORE.
+
+   Onze plantas do mesmo gerador com os mesmos numeros dao onze plantas
+   iguais -- o sorteio varia os detalhes e nao o CARATER, e o olho reconhece
+   caracter, nao detalhe. Entao o que varia agora e a regra de ramificacao:
+
+     0  a de sempre: sobe e se abre em leque
+     1  COPA LARGA: o tronco sobe pouco e se divide em tres, os galhos abrem
+        quase na horizontal e tornam a se dividir muitas vezes -- e a arvore
+        de copa cheia e galhada, sem folha
+     2  INCLINADA: o tronco pende para um lado e os galhos saem quase todos
+        na mesma direcao, poucos e longos; cresce como quem procurou luz de
+        um lado so
+
+   O que muda em cada uma sao quatro numeros: quantos filhos por no, com que
+   angulo abrem, quanto sobem, e se ha uma direcao preferida. */
+function gerarPlanta(rnd, base, escala, fase, s, feitio){
+  const larga = feitio === 1, torta = feitio === 2;
+  /* A INCLINADA precisa de um lado PROPRIO, escolhido uma vez: sorteado a
+     cada galho, ela apenas ficaria bagunçada em vez de inclinada. */
+  const pende = [Math.sin(fase), 0, -Math.cos(fase)];
   function esqueleto(origem, dir, comp, prof){
     const no = {origem, dir, comp, prof, filhos:[], raio:0};
     if(prof>=MAXP || comp<0.10){ no.raio = 0.014*escala; no.ponta=true; return no; }
@@ -637,16 +745,27 @@ function gerarPlanta(rnd, base, escala, fase, s){
       pontos.push(p.slice()); dirs.push(d.slice());
     }
     no.pontos=pontos; no.dirs=dirs;
-    const n = prof===0 ? 2 : (rnd()<0.72 ? 2 : (rnd()<0.5 ? 1 : 3));
+    const n = prof===0 ? (larga ? 3 : 2)
+            : larga ? (rnd()<0.60 ? 3 : 2)
+            : torta ? (rnd()<0.66 ? 1 : 2)
+            : (rnd()<0.72 ? 2 : (rnd()<0.5 ? 1 : 3));
     const dF = dirs[dirs.length-1];
     for(let b=0;b<n;b++){
-      const ang = (20+rnd()*25)*Math.PI/180;
+      // a copa larga abre muito; a inclinada abre pouco e vai longe
+      const ang = (larga ? 38+rnd()*32 : torta ? 14+rnd()*20 : 20+rnd()*25)
+                * Math.PI/180;
       const lado = norm(cruz(dF, [rnd()-0.5, rnd()-0.5, rnd()-0.5]));
       const giro = (b/Math.max(n-1,1)-0.5)*2;
-      const nd = norm([ dF[0]+lado[0]*Math.sin(ang)*giro*1.05,
-                        dF[1]+Math.sin(ang)*0.55,
-                        dF[2]+lado[2]*Math.sin(ang)*giro*1.05 ]);
-      no.filhos.push(esqueleto(p, nd, comp*(0.62+rnd()*0.14), prof+1));
+      /* QUANTO O GALHO SOBE ao se dividir. Na copa larga quase nada: e
+         isso que a faz abrir para os lados em vez de virar vassoura. */
+      const sobe = larga ? 0.16 : torta ? 0.66 : 0.55;
+      const nd = norm([ dF[0]+lado[0]*Math.sin(ang)*giro*1.05 + pende[0]*(torta?0.40:0),
+                        dF[1]+Math.sin(ang)*sobe,
+                        dF[2]+lado[2]*Math.sin(ang)*giro*1.05 + pende[2]*(torta?0.40:0) ]);
+      // a copa larga encurta menos: e o que lhe da os muitos galhinhos
+      const encolhe = larga ? 0.70+rnd()*0.12 : torta ? 0.68+rnd()*0.16
+                                              : 0.62+rnd()*0.14;
+      no.filhos.push(esqueleto(p, nd, comp*encolhe, prof+1));
     }
     return no;
   }
@@ -664,7 +783,11 @@ function gerarPlanta(rnd, base, escala, fase, s){
     let corrido = 0;
     for(let i=0;i<no.pontos.length;i++){
       const t = i/(no.pontos.length-1);
-      const raio = r0 + (r1-r0)*t;
+      /* PE DE ELEFANTE. Tronco que sai do chao com a mesma grossura que tem
+         no meio parece poste enfiado na terra; toda arvore alarga na base.
+         So no tronco (prof zero) e so nos primeiros centimetros. */
+      const raio = (r0 + (r1-r0)*t)
+                 * (no.prof === 0 ? 1 + 1.6*Math.pow(1-t, 5) : 1);
       const d = no.dirs[Math.min(i, no.dirs.length-1)];
       const up = Math.abs(d[1])>0.9 ? [1,0,0] : [0,1,0];
       const bx = norm(cruz(d, up)), nz = norm(cruz(bx, d));
@@ -760,7 +883,7 @@ function semearMata(semente){
      forro, onde o ceu e virtual e portanto visivel. E o que transforma o
      comodo num lugar dentro de algo maior -- e e de um galho de dentro que
      o casulo pende. */
-  gerarArvoreMae(rnd, ARVORE_BASE, s);
+  (ARVORE_MAE === 2 ? gerarArvoreMae2 : gerarArvoreMae)(rnd, ARVORE_BASE, s);
   BASES.push(ARVORE_BASE.slice());
 
   for(let i=0;i<N;i++){
@@ -772,7 +895,13 @@ function semearMata(semente){
     // Escala contida: o galho inicial mede 0.62*escala e a planta inteira
     // dá umas 3 vezes isso. Acima de 1.5 ela fura o pé-direito de 3 m.
     BASES.push(base);
-    gerarPlanta(rnd, base, 0.85 + rnd()*0.65, rnd()*Math.PI*2, s);
+    /* A REPETICAO ERA O DEFEITO: onze plantas do mesmo feitio. Agora sao
+       quatro de copa larga, tres inclinadas e quatro como antes -- e a
+       ordem e por indice, e nao sorteada, para que a distribuicao pela sala
+       seja sempre a mesma e nao dependa da sorte. */
+    const feitio = (i % 3 === 0) ? 1 : (i % 3 === 1) ? 2 : 0;
+    gerarPlanta(rnd, base, (feitio === 1 ? 0.95 : 0.85) + rnd()*0.65,
+                rnd()*Math.PI*2, s, feitio);
   }
   return s;
 }
@@ -3764,7 +3893,7 @@ function semearFundo(semente){
       const ang = (i/quantas)*Math.PI*2 + rnd()*0.5;
       const d = dist * (0.82 + rnd()*0.36);
       gerarPlanta(rnd, [Math.sin(ang)*d, 0, -Math.cos(ang)*d],
-                  tamanho * (0.75 + rnd()*0.5), rnd()*Math.PI*2, s);
+                  tamanho * (0.75 + rnd()*0.5), rnd()*Math.PI*2, s, i % 3);
     }
   }
   /* AS PONTAS DELAS NAO ENTRAM NA FOLHAGEM. A folhagem tem teto de vertices,
