@@ -6505,7 +6505,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.depthMask(false);
       gl.cullFace(gl.FRONT);
       gl.uniform1f(locSo.materia, 6.0);
-      for(const [grossura, forca] of [[0.040, 1.0], [0.095, 0.45]]){
+      /* TRES CASCAS. Duas davam a queda mas paravam cedo; a terceira,
+         larga e fraca, e o que espalha luz no ar em volta -- que era o que
+         a esfera fazia, sem o aro. */
+      for(const [grossura, forca] of [[0.038, 1.10], [0.090, 0.52], [0.185, 0.20]]){
         gl.uniform1f(locSo.inflar, grossura);
         gl.uniform1f(locSo.presenca, forca);
         gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
@@ -7044,41 +7047,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        desenha e o programa solido, junto com o resto. */
 
 
-    /* O BRILHO DOS COGUMELOS.
+    /* O BRILHO DOS COGUMELOS nao passa mais por aqui.
 
-       Esferas lisas, e nao cascas da malha do cogumelo: inflar aquela malha
-       pela normal herdava as quinas dela, e como o brilho e a coisa mais
-       clara da cena era ele quem denunciava a geometria. Aqui e a mesma
-       esfera e a mesma maquina da coroa do Sol -- a forma do brilho passa a
-       nao ter nada a ver com a forma do corpo, que e como luz se comporta.
+       O halo do programa dos astros e feito para ser ARO: ele acende onde a
+       normal e perpendicular ao olhar, isto e, na SILHUETA. Num Sol, com
+       cascas enormes e sobrepostas, isso vira coroa; num cogumelo de quinze
+       centimetros vira um anel de adesivo em volta dele -- foi a "aurea
+       estranha" que apareceu.
 
-       Estas sao o halo LARGO, por fora; o brilho colado no corpo e feito
-       de cascas infladas, junto com o cogumelo. Um da a forma do corpo ao
-       brilho, o outro espalha luz no ar -- e sao os dois que fazem o
-       conjunto ler como coisa acesa. */
-    if(COGUMELOS_NO_CHAO && cogumeloCresce > 0.004 && nIdxE > 0){
-      somarLuz();
-      gl.depthMask(false);
-      gl.uniform1f(locAst.halo, 1.0);
-      gl.uniform1f(locAst.giro, 0);
-      gl.uniform1f(locAst.achatar, 1.0);
-      gl.uniform1f(locAst.presenca, 1.0);
-      gl.uniform3f(locAst.cor, 0.24, 0.90, 0.80);
-      gl.uniform3f(locAst.luzDe, 0.0, 1.0, 0.0);
-      for(const cg of COGUMELOS){
-        const bat = Math.pow(0.5 + 0.5*Math.sin(relogio*1.9 + cg.fase), 4.0);
-        const alto = cg.alt * cogumeloCresce;
-        gl.uniform3f(locAst.centro, cg.x, alto * 0.82, cg.z);
-        for(const [tamanho, forca] of [[2.6, 0.42], [4.3, 0.18]]){
-          gl.uniform1f(locAst.raio, cg.raio * tamanho);
-          gl.uniform1f(locAst.brilho, forca * (0.35 + 0.85*bat) * cogumeloCresce);
-          gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-        }
-      }
-      gl.uniform1f(locAst.halo, 0.0);
-      gl.depthMask(true);
-      sobrepor();
-    }
+       O brilho deles e feito com as cascas infladas, junto do corpo: aquelas
+       acendem no MEIO e apagam na borda, que e o contrario disto e o certo
+       para um corpo pequeno. */
 
     /* OS ASTEROIDES, atravessando o cenario 2. */
     if(asteroidePres > 0.004){
