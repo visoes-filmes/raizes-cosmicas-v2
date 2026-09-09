@@ -261,7 +261,16 @@ GRADE = 70
 # 30 na agua-viva e no coral: bem mais fino que os 70 de fabrica, porque uma
 # divisao seguinte quadruplica o que sobrar -- decimar pouco e dividir
 # uma vez da mais curva por triangulo do que decimar muito e dividir duas.
-GRADES = {"crisalida": 26, "borboleta": 200, "agua-viva": 30, "coral": 30, "estrela-mar": 200}
+# A CRISALIDA SUBIU DE 26 PARA 70, e a diferenca se ve desenhando as duas.
+# Em 26 ela chegava com 4 252 triangulos e VIRAVA UM CASULO LISO: sumiam as
+# nervuras da asa, os aneis do abdome e o cremaster -- tudo o que faz aquilo
+# ser uma pupa e nao um grao. Em 70 sao 20 164 e o relevo volta quase
+# inteiro; em 110 seriam 30 030, e a diferenca para 70 ja nao se ve.
+#
+# Vinte mil triangulos e caro para um objeto qualquer, e barato para ESTE:
+# ha um so na obra, ele fica ao alcance do braco, e e o unico que a obra
+# inteira convida a tocar. O que se paga aqui se paga uma vez.
+GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estrela-mar": 200}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}

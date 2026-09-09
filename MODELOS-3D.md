@@ -9,9 +9,9 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 | modelo | tri | peças | no `nuvens.js` | como entra | onde |
 |---|---:|---:|---:|---|---|
 | `star` | 23651 | 1 | 316 KB | nuvem + malha (1) | — |
+| `crisalida_borboleta88_diaethria` | 39594 | 1 | 288 KB | nuvem + malha (1) | o casulo |
 | `rocks-icon` | 5856 | 21 | 169 KB | nuvem + malha (8) | as onze pedras do chao, as montanhas do horizonte, o fundo do mar |
 | `coral-icon` | 5888 | 50 | 108 KB | nuvem + malha (47) | o fundo do mar, e os seres que flutuam entre os planetas |
-| `crisalida_borboleta88_diaethria` | 39594 | 1 | 77 KB | nuvem + malha (1) | o casulo |
 | `cogumelo` | 138 | 1 | 61 KB | nuvem + malha (2) | os treze cogumelos, e a casca de luz que eles derramam |
 | `jellyfish-icon` | 5408 | 17 | 58 KB | nuvem + malha (8) | o fundo do mar, e os seres que flutuam entre os planetas |
 | `animated_butterfly` | 2144 | 5 | 52 KB | nuvem + malha (5) | a borboleta |
