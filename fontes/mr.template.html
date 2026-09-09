@@ -450,8 +450,16 @@ const MATA_SOLIDA        = true;
    procedural levou a pendencia embora junto com a malha. */
 const MATA_ESTRELAR      = true;
 /* QUANTO DA FLORESTA FICA nos cenarios 2, 3 e 4 -- so alfa, e nada mais.
-   0,10 era o limiar, e no limiar ela paga a malha e nao entrega presenca. */
-const MATA_QUE_FICA      = 0.30;
+
+   ZERO, E E DRAMATURGIA. A floresta encantada acaba no primeiro cenario:
+   ela nao acompanha a viagem, ela fica para tras. O que volta e ela mesma
+   no RETORNO INVERSO, de cabeca para baixo, e so no fim.
+
+   Ja esteve em 0,10 (um fantasma que ninguem via) e em 0,30 (visivel). A
+   0,30 apareceu o defeito que fechou a questao: com a mata do chao em
+   quadro ao mesmo tempo que a do teto, o fim nao le como retorno, le como
+   espelho -- duas florestas iguais, uma virada para a outra. */
+const MATA_QUE_FICA      = 0.0;
 /* QUAL ARVORE-MAE. 1 e a de sempre -- tronco unico com galhos, que atravessa
    o teto. 2 e a arvore da vida: copa redonda e raizes a vista. As duas
    ficam no codigo; trocar o numero e montar de novo basta. */
@@ -2116,7 +2124,8 @@ void main(){
      crescimento tambem inverte: ela desce pela planta em vez de subir, e a
      ponta nova fica embaixo. Invertendo antes, a planta cresceria para
      cima de cabeca para baixo, que e um absurdo que se ve na hora. */
-  if(inverte > 0.5) p.y = -p.y;
+  // espelha no forro, e nao na origem -- o porque esta no VS_SOLIDA
+  if(inverte > 0.5) p.y = desloca.y * (1.0 + vivo) - p.y;
 
   vec4 vista = mvp * vec4(p,1.0);
   gl_Position = vista;
@@ -2337,7 +2346,23 @@ void main(){
   /* VIRAR A NORMAL JUNTO COM A PLANTA. Sem isto a floresta do teto ficaria
      iluminada por baixo e tingida pelo lado errado da triplanar -- ela
      estaria de cabeca para baixo, mas a tinta nao. */
-  if(inverte > 0.5){ p.y = -p.y; nn.y = -nn.y; }
+  /* VIRAR NO TETO, E NAO NA ORIGEM.
+
+     Estava p.y = -p.y, e o p.y ja trazia o deslocamento somado: a floresta
+     invertida ia parar em -(altura da planta + 3,15) -- de tres a seis
+     metros ABAIXO do piso. Ela nunca esteve no teto. O retorno inverso
+     acontecia embaixo da sala, onde ninguem olha, e o que se via la de
+     cima era so o que passava de raspao pela borda do quadro.
+
+     Espelhar no plano do forro e desloca.y*(1+vivo) - p.y. Com a planta
+     inteira isso da desloca.y - aPos.y, que pendura do teto para baixo;
+     com ela por nascer da desloca.y, que a encolhe COLADA no forro. O
+     crescimento entao DESCE, que e o movimento que o nome pede.
+
+     Nao se move o desloca para depois da conta, que seria o conserto
+     obvio: ele nao e so daqui. A crisalida, a concha e os planetas
+     dependem de ele entrar antes, e mover mudaria como todos eles nascem. */
+  if(inverte > 0.5){ p.y = desloca.y * (1.0 + vivo) - p.y; nn.y = -nn.y; }
 
   /* A TINTA SEGUE O CORPO. vMundo e a posicao DEPOIS de crescer e balancar:
      assim o pigmento anda com o galho em vez de o galho deslizar por dentro
@@ -4644,6 +4669,7 @@ function semearFundo(semente){
   nLongeIdx = s.idx.length;
 }
 
+
 function subirRaizes(s, semente){
   enviar(bR.pos,s.pos); enviar(bR.nor,s.nor); enviar(bR.uv,s.uv);
   enviar(bR.alt,s.alt); enviar(bR.fase,s.fase);
@@ -5011,6 +5037,7 @@ const MOMENTOS = [
   [ 450, 3, 'JANELA — os seres, as pedras, a concha'],
   [ 505, 3, 'a mao gigante vem, e puxa'],
   [ 525, 4, 'o mundo de papel sobe, de baixo para cima'],
+  [ 528, 4, 'RETORNO INVERSO — as raizes descem do teto'],
   [ 560, 4, 'a deusa que integra tudo'],
   [ 585, 4, 'tudo se desmancha; sobra o quarto real'],
 ];
@@ -5558,7 +5585,7 @@ let presencaMata = 1;
    Entao a obra mede o movimento -- das maos, quando ha maos, e da cabeca
    sempre, porque quem nao levanta as maos ainda anda. O valor sobe rapido
    e desce devagar: agua nao para no instante em que a pessoa para. */
-let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, crescimentoTeto = 0;
+let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, retornoInverso = 0;
 
 /* ═══════════ O FIM, E A ESPERA ═══════════
 
@@ -5691,7 +5718,7 @@ function alvosAgora(){
 function recomecarAViagem(){
   esperando = false;
   t = 0; relogio = 0;
-  crescimento = 0; crescimentoTeto = 0;
+  crescimento = 0; retornoInverso = 0;
   /* Reiniciar reorienta: e o mesmo gesto de entregar o headset a outra
      pessoa, e ela pode estar virada para outro lado. */
   mundoOrientado = false;
@@ -5893,10 +5920,22 @@ function seguirPartitura(dt){
   esperaPresenca = aproximar(esperaPresenca, esperando ? 1 : 0,
                              dt > 0 ? 1 - Math.exp(-1.6*dt) : 1);
 
-  /* A FLORESTA DO TETO. Ela nasce quando o mundo de papel sobe, aos 8:45, e
-     cresce ao contrario ate o fim. E a floresta do primeiro cenario voltando
-     pelo outro lado -- por isso usa a MESMA nuvem, so virada. */
-  crescimentoTeto = (c === 4) ? rampa(528, 586, t) : 0;
+  /* O RETORNO INVERSO. Nasce quando o mundo de papel sobe, aos 8:48, e
+     cresce ao contrario ate o fim -- e o unico movimento da obra que vem
+     de cima para baixo, e e por isso que ele fecha.
+
+     O NOME E DELE, e nao do teto. Chamava-se retornoInverso, que diz onde
+     acontece e nao o que e; e o que e importa mais, porque e a unica coisa
+     que volta. Do 1 ao 4 a obra so se afasta: a floresta vira estrela,
+     estrela vira planeta, planeta vira agua. Aqui ela retorna, pelo lado
+     de cima e ao contrario -- e o que desce e raiz, que e o que estava
+     embaixo no comeco.
+
+     ELE NAO E MAIS A FLORESTA DO CHAO VIRADA. Era, e enquanto a mata dos
+     outros cenarios estava em dez por cento ninguem via as duas juntas.
+     Aos trinta por cento elas ficam em quadro ao mesmo tempo e o espelho
+     se le na hora. Agora sao raizes, em malha propria. */
+  retornoInverso = (c === 4) ? rampa(528, 586, t) : 0;
 
   nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
 
@@ -7182,7 +7221,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   /* A MATA SOLIDA. Vem ANTES da nuvem porque ESCREVE PROFUNDIDADE, e o
      que vem depois precisa ser testado contra ela -- na ordem inversa uma
      pedra atras de um tronco apareceria na frente dele. */
-  if(MATA_SOLIDA && nIdxR > 0 && presencaMata > 0.004){
+  /* OU A MATA DO CHAO, OU O RETORNO INVERSO. Com a do chao em zero nos
+     outros cenarios, testar so a presenca dela mataria o teto junto -- e o
+     teto e o fim da obra. Cada desenho aqui dentro pergunta pelo que e
+     dele. */
+  if(MATA_SOLIDA && nIdxR > 0 && (presencaMata > 0.004 || retornoInverso > 0.004)){
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.enable(gl.BLEND);
@@ -7230,7 +7273,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        diferenca entre a pedra e o ceu -- e e essa perda que diz ao olho
        QUAO longe elas estao. Sem ela, montanha longe parece pedra grande
        perto, que e o erro classico. */
-    if(nMontanhasIdx > 0){
+    if(nMontanhasIdx > 0 && presencaMata > 0.004){
       gl.uniform1f(locSo.materia, 1.0);
       gl.uniform1f(locSo.escalaTinta, 0.055);  // o grao acompanha o tamanho
       gl.uniform1f(locSo.presenca, presencaMata * 0.26);
@@ -7255,7 +7298,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        e a cobre onde as duas se sobrepoem. E ela entra com presenca menor --
        a translucidez faz as vezes da bruma que o ar poe entre quem olha e o
        que esta longe. */
-    if(nLongeIdx > 0){
+    if(nLongeIdx > 0 && presencaMata > 0.004){
       gl.uniform1f(locSo.presenca, presencaMata * 0.72);
       gl.uniform1f(locSo.crescimento, crescimento);
       // a mata de fundo nao tem mae nenhuma: e ceu inteira
@@ -7268,24 +7311,47 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.presenca, presencaMata);
     }
 
-    ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
-    ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
-    desenharAMata();
+    if(presencaMata > 0.004){
+      ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
+      ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+      desenharAMata();
+    }
 
-    // e a mesma floresta no teto, virada
-    if(crescimentoTeto > 0.004){
+    /* O RETORNO INVERSO. A MESMA floresta, de cabeca para baixo -- e a
+       mesma malha, com a virada ligada e deslocada para o pe-direito.
+
+       Que seja a mesma e o ponto, e nao economia: do primeiro cenario ao
+       quarto a obra so se afasta -- a floresta vira estrela, estrela vira
+       planeta, planeta vira agua. Aqui ela RETORNA, pelo lado de cima e ao
+       contrario. Outra floresta seria outra coisa acontecendo; esta e a do
+       comeco voltando, e e disso que o fim e feito.
+
+       E POR ISSO A MATA DO CHAO PRECISA TER SUMIDO. Com as duas em quadro
+       ao mesmo tempo nao se le retorno, le-se espelho. */
+    if(retornoInverso > 0.004){
       gl.uniform1f(locSo.inverte, 1.0);
-      gl.uniform1f(locSo.crescimento, crescimentoTeto);
-      gl.uniform1f(locSo.presenca, crescimentoTeto);
+      gl.uniform1f(locSo.crescimento, retornoInverso);
+      gl.uniform1f(locSo.presenca, retornoInverso);
       gl.uniform3f(locSo.desloca, 0, ALTURA + 0.15, 0);
       gl.depthMask(false);
+      ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
+      ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
       desenharAMata();
+      /* DEVOLVE TUDO. Quem vinha depois era o bloco das pedras, que por
+         acaso reassentava a virada e o deslocamento -- e por acaso nao e
+         garantia: com PEDRAS_NO_CHAO em false o estado vazava para o solo
+         e a grama, e eles apareciam de cabeca para baixo no teto. */
+      gl.uniform1f(locSo.inverte, 0.0);
+      gl.uniform3f(locSo.desloca, 0, 0, 0);
+      gl.uniform1f(locSo.crescimento, crescimento);
+      gl.uniform1f(locSo.presenca, presencaMata);
     }
     /* AS PEDRAS. Mesmo programa, mesma tinta -- so que "planta" em zero:
        elas emergem onde estao, sem se recolher para a origem e sem balancar
        no vento. Pedra que balanca deixa de ser pedra na hora. */
-    if(PEDRAS_NO_CHAO && nPedrasIdx > 0){
+    if(PEDRAS_NO_CHAO && nPedrasIdx > 0 && presencaMata > 0.004){
       gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       /* PIGMENTO MAIS MIUDO NA PEDRA, e nao o mesmo da arvore.
@@ -7536,10 +7602,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        para o pe-direito. Sai de graca em memoria e, mais importante, sai
        de graca em COERENCIA -- e literalmente a floresta do comeco, e nao
        uma parecida com ela. */
-    if(crescimentoTeto > 0.004){
+    if(retornoInverso > 0.004){
       gl.uniform1f(locM.inverte, 1.0);
-      gl.uniform1f(locM.crescimento, crescimentoTeto);
-      gl.uniform1f(locM.presenca, crescimentoTeto);
+      gl.uniform1f(locM.crescimento, retornoInverso);
+      gl.uniform1f(locM.presenca, retornoInverso);
       gl.uniform3f(locM.desloca, 0, ALTURA + 0.15, 0);
       if(!MATA_SOLIDA) gl.drawArrays(gl.POINTS, 0, nMata);
       gl.uniform1f(locM.inverte, 0.0);
