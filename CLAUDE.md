@@ -215,6 +215,29 @@ Fora do arquivo:
 
 ---
 
+## O vocabulário da casa, que não é o do código
+
+O código chama de **nuvem** o que é nuvem de pontos — `plantarNuvem`,
+`decodificarNuvem`, `CENAS[n].nuvem`. **A direção de arte chama de outra
+coisa**, e ler o pedido com o dicionário do código já produziu o mesmo
+defeito três vezes seguidas.
+
+| ela diz | quer dizer | como se faz |
+|---|---|---|
+| **nuvem** | fluido e macio, sem grão — como o céu cósmico | ruído no shader, volume |
+| **poeira** | grão, e é o único lugar onde partícula é o certo | `progPo` |
+| um bicho, um corpo, um planeta | **superfície**, o mais curva possível | `plantarMalha` + `progSolida` |
+
+**Partícula só quando ela pedir a palavra.** Nada é nuvem de pontos por
+padrão: a floresta já fez essa travessia com `MATA_SOLIDA`, e o que sobrou
+em pontos é dívida, não escolha.
+
+E **antes de apagar o que ela já pediu uma vez, pergunte.** "Retirar as
+partículas excessivas" foi corrigido no minuto seguinte para "não é pra
+apagar os seres, é pra não fazer como partículas".
+
+---
+
 ## O que morde sem dar erro
 
 Nada aqui aparece no console. Ou a página morre inteira, ou a coisa

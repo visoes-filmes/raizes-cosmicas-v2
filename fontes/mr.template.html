@@ -473,10 +473,11 @@ const MATA_QUE_FICA      = 0.0;
    bicho; naquela densidade e uma nevasca, e era ela que cobria os
    planetas.
 
-   Desligado ate eles existirem como SUPERFICIE. E o caminho que a floresta
-   ja fez com MATA_SOLIDA, e os modelos existem -- jellyfish, coral,
-   seaweed. O que falta e monta-los como malha em vez de nuvem. */
-const SERES_NO_ESPACO    = false;
+   AGORA SAO SUPERFICIE, e o interruptor fica ligado. Sete aguas-vivas e
+   cinco corais, montados como malha pelo mesmo caminho da floresta, com a
+   materia 9. As algas e as pedras nao subiram: no fundo do mar elas sao
+   cenario, e cenario de fundo do mar nao e ser que flutua no espaco. */
+const SERES_NO_ESPACO    = true;
 /* RAIZES_NOS_ASTROS -- coral em nuvem em volta de cada planeta, para ele
    deixar de ser bola no vazio. Mesmo motivo, e o pedido e o mesmo: planeta
    nao e feito de particula. Doze mil pontos por planeta que, medidos no
@@ -1636,6 +1637,49 @@ function montarCogumelos(){
   if(luz){ bCogumeloLuz = luz.b; nCogumeloLuzIdx = luz.n; }
 }
 
+/* OS SERES AQUATICOS, COMO SUPERFICIE E NAO COMO PARTICULA.
+
+   O que flutuava entre os planetas era o fundo do mar INTEIRO em nuvem de
+   pontos -- setenta mil pontos somando luz, a 1,70 m de altura. Bicho em
+   setenta mil pontos nao e bicho, e nevasca, e era ela que cobria os
+   planetas.
+
+   Agora sao malha: oito pecas de agua-viva e oito de coral, MONTADAS no
+   mesmo enquadramento pelo conversor. Sem isso o sino e as tentaculas
+   voltariam cada um centrado na origem com a escala dele -- um monte de
+   vermes empilhados, que e o erro que a borboleta ja ensinou.
+
+   E A CURVA VEM DA NORMAL, e nao da contagem. Quatro passadas de polimento
+   e normal suave, sem subdividir: dividir multiplica por quatro para ganhar
+   SILHUETA, e a essa distancia o sino tem poucos pixels de contorno. Mil e
+   novecentos triangulos por bicho em vez de nove mil e quinhentos. */
+let bSeres = null, nSeresIdx = 0;
+function montarSeres(){
+  const rnd = prng(6151);
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const por = (quantos, prefixo, escMin, escMax) => {
+    for(let i=0;i<quantos;i++){
+      /* EM VOLTA E NA ALTURA DOS PLANETAS, e nunca no centro: o centro e
+         por onde a pessoa anda, e bicho na cara de quem esta em pe e
+         obstaculo, nao imagem. */
+      const ang = rnd()*Math.PI*2, raio = 1.15 + rnd()*2.1;
+      const base = [Math.sin(ang)*raio, 1.30 + rnd()*0.85, -Math.cos(ang)*raio];
+      const esc = escMin + rnd()*(escMax - escMin);
+      const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
+      for(let k=0;k<8;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
+    }
+  };
+  por(7, 'agua-viva-', 0.20, 0.38);
+  por(5, 'coral-',     0.16, 0.30);
+  if(!m.idx.length) return;
+  bSeres = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bSeres.pos,m.pos); enviar(bSeres.nor,m.nor); enviar(bSeres.alt,m.alt);
+  enviar(bSeres.fase,m.fase); enviar(bSeres.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSeres.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nSeresIdx = m.idx.length;
+}
+
 /* AS MONTANHAS DO HORIZONTE.
 
    A mata de fundo termina a onze metros e depois dela nao ha nada ate o
@@ -2513,6 +2557,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
      4  crisalida   5  cogumelo
      6  a luz que o cogumelo derrama   7  o que pulsa dentro da crisalida
      8  ceu estrelado -- as arvores que nao sao a mae
+     9  os seres aquaticos -- agua com luz dentro
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -2636,7 +2681,27 @@ void main(){
      entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
      do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
   vec3 estrelas = vec3(0.0);
-  if(materia > 7.5){
+  if(materia > 8.5){
+    /* OS SERES. Corpo de agua com luz dentro.
+
+       O marmore da a nervura -- e a mesma pedra da crisalida, lida mais
+       miuda: nervura de agua-viva e nervura de pedra sao o mesmo desenho de
+       ramificacao, e ja estava escrito.
+
+       O RASPAO DECIDE QUANTO SE VE. De frente atravessa-se, de esguelha a
+       parede fecha. E o comportamento de qualquer casca fina, e e ele que
+       faz o olho ler VOLUME OCO em vez de vidro chapado -- o mesmo da
+       crisalida, pelo mesmo motivo.
+
+       E MENOS TRANSLUCIDO QUE ELA. "Nao podem ser transparente
+       transparente": bicho que se ve atraves inteiro deixa de ter corpo e
+       vira reflexo. Aqui a parede sempre guarda dois tercos. */
+    vec3 nervura = aMarmore(vMundo * 7.0);
+    float dentro = 0.34 + 0.66 * pow(0.5 + 0.5*sin(tempo*0.85 + vFase*2.3), 2.0);
+    c = mix(vec3(0.24, 0.70, 0.76), vec3(0.94, 0.54, 0.74), nervura.r);
+    c *= 0.46 + 0.74 * dentro;
+    c += vec3(0.30, 0.62, 0.68) * pow(raspaoC, 2.2) * 0.52;
+  } else if(materia > 7.5){
     /* AS OUTRAS ARVORES: a casca e ceu noturno.
 
        Duas oitavas. A larga da as estrelas de primeira grandeza, poucas e
@@ -2870,7 +2935,11 @@ void main(){
      e superficie acesa: se nao sombreasse, o tronco viraria recorte chapado
      e perderia o cilindro. O que nao sombreia sao as estrelas, e elas nao
      passam por aqui. */
-  if(materia > 7.5)                       piso = 0.38;   // ceu estrelado
+  /* O SER QUASE NAO SE SOMBREIA: o que ele tem por dentro e luz, e luz
+     por dentro nao faz lado escuro. Sobra um fio para a forma nao virar
+     recorte chapado -- a mesma conta do cogumelo. */
+  if(materia > 8.5)                       piso = 0.74;   // os seres
+  else if(materia > 7.5)                  piso = 0.38;   // ceu estrelado
   else if(materia > 0.5 && materia < 1.5) piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
   else if(materia > 5.5)                  piso = 1.00;   // luz: nao sombreia
@@ -2919,6 +2988,8 @@ void main(){
   c += estrelas;
 
   float alfa = presenca * vVivo * vBorda;
+  // a casca do ser fecha de esguelha e abre de frente, e nunca abre toda
+  if(materia > 8.5) alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
@@ -5190,6 +5261,7 @@ const COGUMELOS = [];
 })();
 
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
+montarSeres();       // depende so das malhas, que ja estao carregadas
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -7833,27 +7905,48 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        fauna de um lugar -- sao a mesma materia viva aparecendo onde quer
        que a obra esteja, que e o argumento dela. No espaco flutuam entre
        os planetas, sem chao a que pertencer. */
-    if(SERES_NO_ESPACO && bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
-      gl.useProgram(progMata);
+    if(SERES_NO_ESPACO && bSeres && nSeresIdx && cenaAtual === 2
+       && asteroidePres > 0.004){
+      /* SUPERFICIE, E NAO PONTOS. Eles saem do progMata e passam para o
+         progSolida -- e a mesma travessia que a floresta fez, pelo mesmo
+         motivo: bicho tem forma, e forma nao se faz com grao.
+
+         SEM ESCRITA DE PROFUNDIDADE. A casca e translucida de proposito, e
+         translucido que escreve profundidade recorta pelo contorno inteiro
+         tudo o que vier depois -- os planetas sumiriam em volta de cada
+         bicho. */
+      gl.useProgram(progSolida);
       soltarAtributos();
       gl.enable(gl.BLEND);
-      somarLuz();
+      sobrepor();
+      gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
       gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
-      gl.uniform1f(locM.tempo, relogio);
-      gl.uniform1f(locM.crescimento, 9.0);
-      gl.uniform1f(locM.escalaObj, 1.0);
-      gl.uniform1f(locM.escala, escalaPonto * 0.115);
-      gl.uniform1f(locM.presenca, asteroidePres * 0.45);
-      gl.uniform1f(locM.deriva, 0.9);        // no vazio eles vagueiam mais
-      gl.uniform3f(locM.desloca, 0, 1.7, 0); // na altura dos planetas
+      mandarMvp(locSo.mvp, mvp);
+      gl.uniform1f(locSo.tempo, relogio);
+      // crescido de uma vez: eles nao nascem em cena, eles ja estao la
+      gl.uniform1f(locSo.crescimento, 9.0);
+      gl.uniform1f(locSo.presenca, asteroidePres);
+      gl.uniform1f(locSo.inverte, 0.0);
+      gl.uniform3f(locSo.desloca, 0, 0, 0);
+      gl.uniform1f(locSo.escalaObj, 1.0);
+      gl.uniform1f(locSo.inflar, 0.0);
+      gl.uniform3fv(locSo.focos, FOCOS);
+      gl.uniform1f(locSo.escalaTinta, 1.0);
+      // planta em zero: eles nao se recolhem para a origem. balanca em um:
+      // bicho de agua nao fica parado, e a conta ja existe.
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 1.0);
+      gl.uniform1f(locSo.materia, 9.0);
+      gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
-      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
-      gl.drawArrays(gl.POINTS, 0, nMar);
-      gl.uniform3f(locM.desloca, 0, 0, 0);
-      gl.uniform1f(locM.deriva, 0.0);
+      gl.uniform1i(locSo.casca, 2);
+      ligar(aSo.pos, bSeres.pos, 3); ligar(aSo.nor, bSeres.nor, 3);
+      ligar(aSo.alt, bSeres.alt, 1); ligar(aSo.fase, bSeres.fase, 1);
+      ligar(aSo.borda, bSeres.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSeres.idx);
+      gl.drawElements(gl.TRIANGLES, nSeresIdx, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locSo.materia, 0.0);
+      gl.uniform1f(locSo.planta, 1.0);
       gl.depthMask(true);
       sobrepor();
       gl.useProgram(progAstro);

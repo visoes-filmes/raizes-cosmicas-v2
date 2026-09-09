@@ -72,9 +72,17 @@ PADRAO = 2000
 #
 # Nao e todo modelo: uma alga no fundo do mar continua melhor como nuvem,
 # porque la a nuvem E o assunto. Aqui entra o que e macico.
+#
+# ISSO MUDOU, E O PARAGRAFO ACIMA ERA O CONTRARIO. Dizia que a alga no
+# fundo do mar continua melhor como nuvem "porque la a nuvem E o assunto".
+# No fundo do mar continua verdade -- mas os seres tambem flutuam ENTRE OS
+# PLANETAS, e la eles nao sao assunto de nuvem: sao bichos, e bicho em
+# setenta mil pontos vira nevasca. A agua-viva e o coral saem tambem como
+# superficie, e cada uso escolhe a sua.
 COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               "crisalida_borboleta88_diaethria": "crisalida",
-              "animated_butterfly": "borboleta"}
+              "animated_butterfly": "borboleta",
+              "jellyfish-icon": "agua-viva", "coral-icon": "coral"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -93,7 +101,12 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
 # tres centimetros de espessura contra dois metros e meio de envergadura --,
 # e dividir pela altura a inflaria vinte vezes. O maior lado e a
 # envergadura, que e a medida que significa algo para quem olha.
-MONTADO = {"borboleta"}
+#
+# A AGUA-VIVA E O CORAL entram pelo mesmo motivo da borboleta, e o motivo e
+# literal: a agua-viva sai em dezessete pecas -- o sino e as tentaculas --,
+# e normalizadas uma a uma cada tentacula voltaria centrada na origem com a
+# escala dela. Viraria um monte de vermes empilhados.
+MONTADO = {"borboleta", "agua-viva", "coral"}
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
@@ -101,7 +114,11 @@ MONTADO = {"borboleta"}
 # A borboleta NAO se suaviza: as asas dela sao chapas de proposito, e o
 # contorno delas e o desenho do autor. Alisar uma asa arredonda a ponta e
 # apaga o loboo -- estraga justamente o que se foi buscar no modelo.
-SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0}
+# A agua-viva e o coral vao no 0,50: o pedido foi "o mais curva possivel", e
+# num bicho de agua nao ha uma quina que signifique alguma coisa -- ao
+# contrario da asa da borboleta, onde a quina E o desenho.
+SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
+         "agua-viva": 0.50, "coral": 0.50}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -109,14 +126,23 @@ SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0}
 # inteiro e o objeto vira ovo; numa malha fina ela so alisa a quina, que e
 # o que se quer. O cogumelo vem com 138 triangulos e a silhueta dele e um
 # poligono visivel; duas divisoes o levam a 2 208 e o contorno fecha.
-DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0}
+DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
+            # ZERO DIVISOES nestes dois, e nao uma. Dividir multiplica por
+            # quatro para ganhar SILHUETA, e silhueta e o unico lugar onde a
+            # faceta aparece -- a curva do corpo quem faz e a normal suave, e
+            # ela nao custa triangulo. A 1,70 m de altura, entre planetas, o
+            # sino ocupa poucos pixels de contorno: nove mil e quinhentos
+            # triangulos por bicho seriam pagos para nada.
+            "agua-viva": 0, "coral": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
 # malha ja esta fina. O cogumelo precisa disto porque, aceso e quase sem
 # sombreamento, a forma dele e lida so pela SILHUETA -- e quina em silhueta
 # nao tem onde se esconder.
-POLIR = {"cogumelo": 3, "crisalida": 3}
+# Tres passadas, pelo mesmo motivo do cogumelo: polir nao custa triangulo,
+# e a quina que sobra depois de dividir sai de graca aqui.
+POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -171,7 +197,10 @@ GRADE = 70
 # que qualquer aresta do modelo, e o agrupamento nao agrupa nada. Ela ja
 # chega com 2 144 triangulos -- decimar um bicho desse tamanho seria jogar
 # fora a forma que se foi buscar, para economizar o que nao pesa.
-GRADES = {"crisalida": 26, "borboleta": 200}
+# 30 na agua-viva e no coral: bem mais fino que os 70 de fabrica, porque uma
+# divisao seguinte quadruplica o que sobrar -- decimar pouco e dividir
+# uma vez da mais curva por triangulo do que decimar muito e dividir duas.
+GRADES = {"crisalida": 26, "borboleta": 200, "agua-viva": 30, "coral": 30}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
