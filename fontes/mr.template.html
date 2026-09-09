@@ -1186,7 +1186,19 @@ function decodificarMalha(nome){
    indices entram deslocados pelo tanto de vertice que ja havia. Assar em
    vez de instanciar poe as onze pedras numa unica chamada de desenho, e
    evita ter que carregar rotacao e escala por uniforme ate o shader. */
-function plantarMalha(m, nome, base, escala, giro, fase){
+/* O ULTIMO ARGUMENTO decide a BORDA de cada vertice, e por omissao ela e
+   1. Borda significa "quanto disto e miolo": ela ja multiplica o alfa no
+   fragmento, e e o caminho que existia para uma mancha de terra se
+   dissolver no piso em vez de ter contorno.
+
+   O alien usa isso para outra coisa e pelo mesmo sentido: nele o miolo e o
+   tronco, e as extremidades -- os bracos, e tudo abaixo da cintura -- vao a
+   quase zero. Nao houve mecanismo novo; houve o mesmo, lido ao pe da letra.
+
+   A funcao recebe a posicao no PROPRIO CORPO, antes de girar e escalar: y
+   de 0 no pe a 1 no alto, x e z medidos do eixo. E a unica coordenada em
+   que "cintura" e "braco" querem dizer alguma coisa. */
+function plantarMalha(m, nome, base, escala, giro, fase, bordaDe){
   const o = decodificarMalha(nome);
   if(!o) return 0;
   const cos = Math.cos(giro), sin = Math.sin(giro);
@@ -1204,8 +1216,8 @@ function plantarMalha(m, nome, base, escala, giro, fase){
     m.nor.push(nx*cos - nz*sin, ny, nx*sin + nz*cos);
     m.alt.push(y);                     // a altura no proprio corpo: emerge
     m.fase.push(fase);
-    // todo corpo plantado e miolo: quem tem beirada e so a mancha de terra
-    if(m.borda) m.borda.push(1);
+    // todo corpo plantado e miolo, a menos que alguem diga o contrario
+    if(m.borda) m.borda.push(bordaDe ? bordaDe(x, y, z) : 1);
   }
   for(let i=0;i<o.idx.length;i++) m.idx.push(o.idx[i] + desloque);
   return o.n;
@@ -1338,7 +1350,24 @@ function prepararAlienigena(){
      E PARA O LADO, e nao em frente: nao no caminho do olhar. Quem procura
      nao acha; quem se vira, sim. */
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  plantarMalha(m, 'alien-0', [-15.5, 4.5, -33.0], 26.0, 0.62, 0);
+  /* AS EXTREMIDADES SOMEM: os bracos, e tudo abaixo da cintura.
+
+     A cintura esta em 0,46 da altura do modelo, e a passagem leva um sexto
+     do corpo -- mais curta que isso viraria uma LINHA atravessada nele, que
+     e o contrario do que se quer. E o eixo: o tronco cabe em 0,06 do lado,
+     os bracos abertos chegam a 0,20. Entre um e outro, a mesma passagem
+     macia.
+
+     Fica um vigesimo em toda parte. Zero absoluto arrancaria a mao e o pe
+     do desenho, e o que se procura nao e um torso flutuando: e um corpo
+     inteiro cujas pontas nao se sabe onde acabam. */
+  plantarMalha(m, 'alien-0', [-15.5, 4.5, -33.0], 26.0, 0.62, 0,
+    (x, y, z) => {
+      const macio = (t) => { const u = Math.min(1, Math.max(0, t)); return u*u*(3 - 2*u); };
+      const acima = macio((y - 0.30) / 0.32);
+      const meio  = 1 - macio((Math.hypot(x, z) - 0.06) / 0.13);
+      return 0.05 + 0.95 * acima * meio;
+    });
   if(!m.idx.length) return;
   bAlien = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bAlien.pos,m.pos); enviar(bAlien.nor,m.nor); enviar(bAlien.alt,m.alt);
@@ -2594,6 +2623,17 @@ uniform float inflar;
    parada, porque pedra que balanca deixa de ser pedra na hora. */
 uniform float planta;        // 1 = recolhe-se para a origem ao nascer
 uniform float balanca;       // 1 = oscila no vento, mais na ponta
+/* A ONDULACAO LENTA, em metros, e so quem pede recebe.
+
+   O balanco das plantas tem amplitude fixa de cinco centimetros, que e o
+   certo para uma folha e e NADA num corpo de vinte e seis metros. Aqui a
+   amplitude vem de fora, e o que se move sao as EXTREMIDADES: o pe fica, e
+   quanto mais alto e mais afastado do eixo, mais anda.
+
+   E quem diz o que e extremidade e o mesmo aBorda que decide a
+   transparencia -- um menos borda E a extremidade, por definicao. Uma
+   grandeza, dois usos, e os dois saem do mesmo sentido da palavra. */
+uniform float ondula;
 varying vec3 vMundo, vNor;
 varying float vAlt, vVivo, vBorda, vFase;
 void main(){
@@ -2629,6 +2669,19 @@ void main(){
   float w = tempo*0.55 + aFase;
   p.x += sin(w)*0.055*b;
   p.z += cos(w*0.83+1.3)*0.045*b;
+
+  /* E A ONDULACAO, para quem a pedir. Devagar de proposito: 0,11 radiano
+     por segundo da um ciclo de quase um minuto, e o que se ve nao e o
+     movimento -- e a diferenca entre duas olhadas. Movimento que se ve
+     denuncia o bicho; movimento que so se percebe por comparacao e o que
+     faz duvidar de que ele estava parado. */
+  if(ondula > 0.0){
+    float ext = aAlt*aAlt + (1.0 - aBorda) * 0.9;
+    float wo = tempo*0.11;
+    p.x += sin(wo) * ondula * ext;
+    p.z += cos(wo*0.67 + 1.7) * ondula * ext * 0.75;
+    p.y += sin(wo*1.31 + 0.4) * ondula * ext * 0.35;
+  }
 
   vec3 nn = aNor;
   /* VIRAR A NORMAL JUNTO COM A PLANTA. Sem isto a floresta do teto ficaria
@@ -7205,7 +7258,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
                proximidade:uSo('proximidade'),
-               aspectoCeu:uSo('aspectoCeu')};
+               aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -8131,7 +8184,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.crescimento, 9.0);
         /* QUINZE POR CENTO, respirando entre dez e vinte. Acima de um quarto
            ele deixa de ser descoberta e passa a ser cenario. */
-        gl.uniform1f(locSo.presenca, 0.15 + 0.05*Math.sin(relogio*0.21));
+        /* VINTE E SEIS POR CENTO no tronco, e nao quinze. Com as
+           extremidades indo a um vigesimo, o corpo inteiro escureceu: o que
+           antes era quinze por cento em tudo agora e quinze por cento so no
+           meio, e o resto quase nada. O tronco sobe para compensar, e o
+           conjunto continua sendo um vulto. */
+        gl.uniform1f(locSo.presenca, 0.26 + 0.06*Math.sin(relogio*0.21));
         gl.uniform1f(locSo.inverte, 0.0);
         gl.uniform3f(locSo.desloca, 0, 0, 0);
         gl.uniform1f(locSo.escalaObj, 1.0);
@@ -8140,6 +8198,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.escalaTinta, 1.0);
         gl.uniform1f(locSo.planta, 0.0);
         gl.uniform1f(locSo.balanca, 0.0);
+        /* MEIO METRO DE ONDULACAO. Num corpo de vinte e seis metros e dois
+           por cento -- perto do que o proprio ar faz com uma arvore --, e a
+           quase quarenta metros de distancia sao poucos pixels por minuto. */
+        gl.uniform1f(locSo.ondula, 0.5);
         gl.uniform1f(locSo.materia, 13.0);
         gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
         gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
@@ -8154,6 +8216,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.materia, 0.0);
         gl.uniform1f(locSo.inflar, 0.0);
         gl.uniform1f(locSo.planta, 1.0);
+        /* E DEVOLVE A ONDULACAO A ZERO. Uniforme e estado: deixada ligada,
+           ela ondularia a floresta, o casulo e a agua-viva com meio metro de
+           amplitude -- e o defeito apareceria longe daqui. */
+        gl.uniform1f(locSo.ondula, 0.0);
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, texRaiz);
         gl.depthMask(true);
