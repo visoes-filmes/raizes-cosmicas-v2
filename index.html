@@ -435,6 +435,20 @@ const PEDRAS_NO_CHAO     = true;
    false devolve a nuvem inteira, e nada mais muda: as duas crescem pela
    mesma conta, entao a troca e de materia e nao de coreografia. */
 const MATA_SOLIDA        = true;
+/* MATA_ESTRELAR -- a casca das arvores e ceu noturno, menos a da mae.
+
+   A ARVORE-MAE FICA COM A PINTURA, e so ela: e a arvore do roteiro, a que
+   atravessa o teto, e e nela que a aquarela tem sete metros para se
+   mostrar inteira. Nas outras a mesma pintura so se repetia.
+
+   O CEU E GERADO AQUI, e nao e a imagem do ceu esticada na casca. Espalhar
+   a pintura do ceu por um tronco traria de volta os dois defeitos que a
+   triplanar sempre teve -- em escala grande uma mancha so cobre a arvore
+   inteira, em escala pequena a repeticao aparece -- e traria a licenca
+   junto. Ruido lido na posicao do mundo nao tem UV, nao tem ladrilho, e
+   nao tem dono. E a mesma licao da arvore-mae do v1, que ao virar
+   procedural levou a pendencia embora junto com a malha. */
+const MATA_ESTRELAR      = true;
 /* QUAL ARVORE-MAE. 1 e a de sempre -- tronco unico com galhos, que atravessa
    o teto. 2 e a arvore da vida: copa redonda e raizes a vista. As duas
    ficam no codigo; trocar o numero e montar de novo basta. */
@@ -985,6 +999,10 @@ function semearMata(semente){
      comodo num lugar dentro de algo maior -- e e de um galho de dentro que
      o casulo pende. */
   (ARVORE_MAE === 2 ? gerarArvoreMae2 : gerarArvoreMae)(rnd, ARVORE_BASE, s);
+  /* ATE AQUI E A MAE. Ela e gerada antes do laco, entao ocupa o primeiro
+     trecho dos indices -- e e so isso que permite dar a ela uma casca e as
+     outras onze uma diferente, sem atributo novo e sem segundo buffer. */
+  s.idxMae = s.idx.length;
   BASES.push(ARVORE_BASE.slice());
 
   for(let i=0;i<N;i++){
@@ -2392,6 +2410,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
      1  pedra   2  terra   3  grama  -- geradas por ruido aqui mesmo
      4  crisalida   5  cogumelo
      6  a luz que o cogumelo derrama   7  o que pulsa dentro da crisalida
+     8  ceu estrelado -- as arvores que nao sao a mae
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -2429,6 +2448,63 @@ float coracao(){
           + 0.55 * pow(0.5 + 0.5*sin(f - 1.15), 8.0);
   return b * (1.0 + 2.4 * proximidade) + 0.30 * proximidade;
 }
+
+/* A NOITE POR TRAS DAS ESTRELAS.
+
+   Nao e preto. Ceu noturno tem poeira, e poeira tem cor -- duas oitavas
+   largas bastam para dar a nuvem. E o valor nunca chega ao chao de
+   proposito: em passthrough o preto chapado nao le como noite, le como
+   buraco recortado na sala. Foi o que a barra preta do galho ensinou. */
+vec3 noiteDeDentro(vec3 p){
+  float neb = rugas(p * 0.55);
+  float veu = rugas(p * 1.7 + 11.3);
+  vec3 c = mix(vec3(0.030, 0.034, 0.085), vec3(0.120, 0.062, 0.165), neb);
+  return mix(c, vec3(0.055, 0.098, 0.140), veu * 0.42);
+}
+
+/* AS ESTRELAS, UMA POR CUBO.
+
+   Divide-se o espaco em cubos, sorteia-se um ponto dentro de cada um, e a
+   estrela e a distancia ate esse ponto.
+
+   UMA CONSULTA POR OITAVA, e nao as vinte e sete dos cubos vizinhos. Com a
+   estrela muito menor que o cubo, a que cai bem na divisa se perde -- e uma
+   estrela perdida entre centenas nao se ve, enquanto vinte e sete consultas
+   por fragmento se sentem num aparelho movel.
+
+   O ESPACO E O DO MUNDO, o mesmo da aquarela. Por isso as estrelas andam
+   com o galho quando ele balanca, em vez de o galho deslizar por dentro de
+   um ceu parado: ponto duro que desliza se ve, mancha de aquarela nao. */
+vec3 estrelasEm(vec3 p, vec3 n, float escala, float corte, float raio, float forca){
+  vec3 q = p * escala;
+  vec3 cel = floor(q), f = fract(q);
+  float sorte = baralhar(cel + 3.77);
+  if(sorte < corte) return vec3(0.0);
+  vec3 h = vec3(baralhar(cel), baralhar(cel + 19.19), baralhar(cel + 47.71));
+  /* SO O QUE CORRE NA SUPERFICIE CONTA.
+
+     Medindo a distancia em tres dimensoes, a casca so pega a estrela onde
+     passa pelo CENTRO do cubo -- em todo o resto ela raspa a borda da
+     esfera, e ali o brilho ja e quase nada. Foi o que aconteceu: as
+     arvores sairam cinzas, sem uma estrela.
+
+     Jogando fora a componente ao longo da normal, o cubo vira um TUBO
+     perpendicular a casca: a estrela aparece inteira onde quer que a
+     superficie atravesse o cubo. A densidade passa a ser so o corte, que e
+     um numero que se le. */
+  vec3 dv = f - h;
+  dv -= n * dot(dv, n);
+  float b = 1.0 - smoothstep(0.0, raio, length(dv));
+  b = b * b;   // nucleo, e nao disco
+  /* CADA UMA NO SEU COMPASSO. Um compasso so para todas le como pisca-pisca
+     de arvore de natal; compassos sorteados leem como ar entre nos e ela. */
+  float bat = 0.60 + 0.40 * sin(tempo * (0.9 + 2.6 * sorte) + sorte * 43.0);
+  /* A COR VEM DA TEMPERATURA, como em estrela de verdade -- azul para a
+     quente, ambar para a fria -- mas puxada para o branco: no ceu a olho nu
+     a cor e um sussurro, e estrela saturada le como confete. */
+  vec3 cor = mix(vec3(0.60, 0.74, 1.00), vec3(1.00, 0.83, 0.58), h.z);
+  return mix(vec3(1.0), cor, 0.70) * b * bat * forca;
+}
 varying vec3 vMundo, vNor;
 varying float vAlt, vVivo, vBorda, vFase;
 void main(){
@@ -2454,7 +2530,25 @@ void main(){
   float raspaoC = 1.0 - abs(dot(n, normalize(olhoPos - vMundo)));
 
   vec3 c;
-  if(materia < 0.5){
+  /* AS ESTRELAS SAO LUZ, e luz nao se sombreia: elas ficam guardadas aqui e
+     entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
+     do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
+  vec3 estrelas = vec3(0.0);
+  if(materia > 7.5){
+    /* AS OUTRAS ARVORES: a casca e ceu noturno.
+
+       Duas oitavas. A larga da as estrelas de primeira grandeza, poucas e
+       fortes; a miuda da o po que sobra atras delas. Uma so das duas nao
+       faz ceu: so a larga da bolinhas espalhadas, so a miuda da chuvisco. */
+    c = noiteDeDentro(vMundo);
+    /* O RAIO E PEQUENO E A GRADE E MIUDA, e as duas coisas andam juntas.
+       Raio grande na grade larga deu flocos de neve, com as fileiras da
+       grade a vista: estrela e PONTO, e ponto so le como ponto se for
+       muito menor que o passo entre um e outro. A um metro e meio, a
+       primeira grandeza mede um centimetro e a poeira meio. */
+    estrelas = estrelasEm(vMundo, n, 13.0, 0.55, 0.13, 1.70)
+             + estrelasEm(vMundo, n, 34.0, 0.45, 0.16, 0.70);
+  } else if(materia < 0.5){
     // A AQUARELA, por triplanar: a pele das arvores
     vec2 sx = vMundo.zy * escalaTinta;
     vec2 sy = vMundo.xz * escalaTinta;
@@ -2670,7 +2764,12 @@ void main(){
      inteiro, e ceu inteiro nao deixa nada preto de verdade. 0,26 e o
      escuro de quem tem o ceu por lampada. */
   float piso = 0.26;
-  if(materia > 0.5 && materia < 1.5)      piso = 0.24;   // pedra
+  /* O CEU ESTRELADO SOMBREIA, e um pouco mais alto que a aquarela. Ele nao
+     e superficie acesa: se nao sombreasse, o tronco viraria recorte chapado
+     e perderia o cilindro. O que nao sombreia sao as estrelas, e elas nao
+     passam por aqui. */
+  if(materia > 7.5)                       piso = 0.38;   // ceu estrelado
+  else if(materia > 0.5 && materia < 1.5) piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
   else if(materia > 5.5)                  piso = 1.00;   // luz: nao sombreia
   /* O COGUMELO QUASE NAO SE SOMBREIA. Superficie que emite nao tem lado
@@ -2713,6 +2812,9 @@ void main(){
 
   // a ponta nova e mais clara, como broto de verdade
   c = mix(c * 1.25, c, clamp(vAlt, 0.0, 1.0));
+
+  // e as estrelas por cima de tudo, sem luz e sem piso: elas sao a luz
+  c += estrelas;
 
   float alfa = presenca * vVivo * vBorda;
 
@@ -4411,6 +4513,8 @@ const bP = criarBufs(['pos','cor','dado']);
 const bE = criarBufs(['pos','idx']);
 const bQ = criarBufs(['xy']);
 let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0, nIdxE = 0;
+// quantos indices sao da arvore-mae: os primeiros nIdxMae de bR
+let nIdxMae = 0;
 // quantos pontos a mata tem — declarado aqui porque subirRaizes o preenche
 // muito antes de o programa de pontos existir
 let nMata = 0;
@@ -4491,6 +4595,7 @@ function subirRaizes(s, semente){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
   nIdxR = s.idx.length;
+  nIdxMae = s.idxMae || 0;
 
   /* A NUVEM SAI DA MESMA MALHA. 2 600 pontos por metro quadrado: abaixo
      disso a planta fica rala e se ve o vazio entre os pontos; muito acima
@@ -6558,6 +6663,24 @@ const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
              fase:gl.getAttribLocation(progSolida,'aFase'),
              borda:gl.getAttribLocation(progSolida,'aBorda')};
+/* A MATA EM DUAS DEMAOS: a mae com a pintura, as outras com o ceu.
+
+   As doze plantas moram num buffer so e a mae e a primeira, entao bastam
+   dois desenhos e um deslocamento. O DESLOCAMENTO VAI EM BYTES e o indice
+   ocupa dois, dai o vezes 2 -- errar isso nao da erro, desenha lixo.
+
+   E uma funcao, e nao um fecho dentro do laco: fecho criado por quadro e
+   lixo criado por quadro, e o coletor cobra isso em engasgo. */
+function desenharAMata(){
+  if(!MATA_ESTRELAR || nIdxMae <= 0 || nIdxMae >= nIdxR){
+    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+    return;
+  }
+  gl.drawElements(gl.TRIANGLES, nIdxMae, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(locSo.materia, 8.0);
+  gl.drawElements(gl.TRIANGLES, nIdxR - nIdxMae, gl.UNSIGNED_SHORT, nIdxMae * 2);
+  gl.uniform1f(locSo.materia, 0.0);
+}
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locR = {mvp:uR('mvp'), tempo:uR('tempo'), tex:uR('tex'),
               crescimento:uR('crescimento')};
@@ -7071,17 +7194,20 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(nLongeIdx > 0){
       gl.uniform1f(locSo.presenca, presencaMata * 0.72);
       gl.uniform1f(locSo.crescimento, crescimento);
+      // a mata de fundo nao tem mae nenhuma: e ceu inteira
+      if(MATA_ESTRELAR) gl.uniform1f(locSo.materia, 8.0);
       ligar(aSo.pos, bLonge.pos, 3); ligar(aSo.nor, bLonge.nor, 3);
       ligar(aSo.alt, bLonge.alt, 1); ligar(aSo.fase, bLonge.fase, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bLonge.idx);
       gl.drawElements(gl.TRIANGLES, nLongeIdx, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locSo.materia, 0.0);
       gl.uniform1f(locSo.presenca, presencaMata);
     }
 
     ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
     ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
-    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+    desenharAMata();
 
     // e a mesma floresta no teto, virada
     if(crescimentoTeto > 0.004){
@@ -7090,7 +7216,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.presenca, crescimentoTeto);
       gl.uniform3f(locSo.desloca, 0, ALTURA + 0.15, 0);
       gl.depthMask(false);
-      gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+      desenharAMata();
     }
     /* AS PEDRAS. Mesmo programa, mesma tinta -- so que "planta" em zero:
        elas emergem onde estao, sem se recolher para a origem e sem balancar
