@@ -529,11 +529,25 @@ def main():
     if not os.path.isdir(PASTA):
         raise SystemExit(f"nao achei a pasta de modelos: {PASTA}")
     saida, malhas = {}, {}
-    # O ser alienigena mora um nivel acima, solto na pasta da Visoes. Ele
-    # entra pelo nome porque nao esta na colecao -- e a versao "rigged", que
-    # e a unica com esqueleto, embora a obra use so a forma dele.
+    # ALGUNS MODELOS MORAM UM NIVEL ACIMA, soltos na pasta da Visoes, e nao
+    # dentro da colecao. Entram pelo nome, e a lista e o unico lugar que
+    # sabe deles.
+    #
+    # O COGUMELO ESTAVA FALTANDO AQUI, e o efeito era mudo: COMO_MALHA
+    # pedia "cogumelo", o conversor nunca via o arquivo, o nuvens.js saia
+    # sem a malha, o decodificarMalha devolvia nulo, o plantarMalha
+    # devolvia zero, o montarCogumelos desistia sem reclamar e o desenho
+    # nao acontecia. Treze cogumelos que o interruptor dizia estarem
+    # ligados, que a documentacao descrevia, e que nao existiam.
+    #
+    # Do ser alienigena entra UMA versao so -- a "rigged" e a unica com
+    # esqueleto, embora a obra use so a forma dele.
     extras = []
     acima = os.path.dirname(PASTA)
+    for nome in ("cogumelo.glb",):
+        c = os.path.join(acima, nome)
+        if os.path.exists(c):
+            extras.append(c)
     for nome in ("ser_alienigena_rigged.glb", "ser_alienigena.glb"):
         c = os.path.join(acima, nome)
         if os.path.exists(c):
@@ -621,4 +635,11 @@ def main():
     print(f"\nGerado: {destino}  ({kb} KB, {len(saida)} modelos," f" {len(malhas)} malhas)")
 
 
-main()
+# SO QUANDO CHAMADO PELO NOME, e nao ao ser importado.
+#
+# Sem esta guarda, "import modelos_em_pontos" para medir um modelo REGERAVA
+# o nuvens.js inteiro como efeito colateral -- e ja aconteceu duas vezes,
+# uma delas apagando uma configuracao que ainda nao estava commitada. Medir
+# nao pode escrever.
+if __name__ == "__main__":
+    main()
