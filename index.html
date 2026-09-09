@@ -6079,6 +6079,14 @@ if(emTesteLocal){
 if(emTesteLocal){
   window.raizes = {
     ir(segundos){
+      /* SAIR DA ESPERA, se a obra ja acabou uma vez.
+
+         Sem isto o titulo do fim fica pintado por cima de qualquer cenario
+         para onde se salte, e a cena fica congelada: quem confere um
+         cenario ve o fim da obra e conclui que quebrou. So o fim liga estes
+         dois, entao so aqui eles se desligam -- e nao se mexe na marcha
+         de quem apertou pausar de proposito. */
+      if(esperando){ esperando = false; andando = true; }
       t = Math.max(0, Math.min(DURACAO, Number(segundos) || 0));
       const c = cenaEm(t);
       cenaAtual = c; ceuA = CENAS[c].ceu; ceuB = CENAS[c].ceu; misturaCeu = 1;
