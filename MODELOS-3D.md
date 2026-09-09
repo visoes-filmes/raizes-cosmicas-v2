@@ -15,7 +15,10 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 | `rocks-icon` | 5856 | 21 | 169 KB | nuvem + malha (8) | as onze pedras do chao, as montanhas do horizonte, o fundo do mar |
 | `coral-icon` | 5888 | 50 | 108 KB | nuvem + malha (47) | o fundo do mar, e os seres que flutuam entre os planetas |
 | `tree-icon` | 5064 | 1 | 79 KB | nuvem + malha (1) | — |
+| `seaweed-icon` | 10056 | 70 | 71 KB | nuvem + malha (22) | o fundo do mar |
+| `seaweed-icon-17190` | 7752 | 42 | 70 KB | nuvem + malha (16) | o fundo do mar |
 | `seashells-icon` | 3409 | 6 | 69 KB | nuvem + malha (6) | — |
+| `seaweed-icon-13702` | 3360 | 9 | 68 KB | nuvem + malha (8) | o fundo do mar |
 | `cogumelo` | 138 | 1 | 61 KB | nuvem + malha (2) | os treze cogumelos, e a casca de luz que eles derramam |
 | `jellyfish-icon` | 5408 | 17 | 58 KB | nuvem + malha (8) | o fundo do mar, e os seres que flutuam entre os planetas |
 | `animated_butterfly` | 2144 | 5 | 52 KB | nuvem + malha (5) | a borboleta |
@@ -23,9 +26,6 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 | `grass-icon` | 4288 | 21 | 30 KB | nuvem | a grama |
 | `autumn-leaves-icon` | 101501 | — | 28 KB | nuvem | folhas — atras de OBJETOS_NO_CHAO, hoje desligado |
 | `autumn-leaves-icon-22705` | 4800 | 3 | 28 KB | nuvem | folhas — atras de OBJETOS_NO_CHAO, hoje desligado |
-| `seaweed-icon` | 10056 | 70 | 25 KB | nuvem | o fundo do mar |
-| `seaweed-icon-13702` | 3360 | 9 | 25 KB | nuvem | o fundo do mar |
-| `seaweed-icon-17190` | 7752 | 42 | 25 KB | nuvem | o fundo do mar |
 | `scallop-icon` | 1500 | 3 | 21 KB | nuvem | a concha |
 | `soya-icon` | 2640 | 10 | 18 KB | nuvem | soja — atras de OBJETOS_NO_CHAO, hoje desligado |
 | `clover-icon` | 9792 | 5 | 18 KB | nuvem | trevo — atras de OBJETOS_NO_CHAO, hoje desligado |

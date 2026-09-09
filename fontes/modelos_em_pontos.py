@@ -88,7 +88,11 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               # para receber o neon: em nuvem de pontos nao ha silhueta, e
               # neon sem silhueta e so um borrao aceso.
               "mao_cosmica_teia": "mao-cosmica", "tree-icon": "arvore-icone",
-              "seashells-icon": "conchas", "berry-pick": "frutos"}
+              "seashells-icon": "conchas", "berry-pick": "frutos",
+              # AS TRES ALGAS. O fundo do mar deixa de ser nuvem: no cenario
+              # 3 os objetos ficam no CHAO, com forma, e so os bichos sobem.
+              "seaweed-icon": "alga-a", "seaweed-icon-13702": "alga-b",
+              "seaweed-icon-17190": "alga-c"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -114,7 +118,19 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
 # e cada ramo voltaria centrado na origem com a escala dele: um monte de
 # vermes empilhados. Ja aconteceu duas vezes neste arquivo, e a segunda foi
 # hoje -- o coral saiu daqui por um minuto e voltou como um seixo.
-MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos"}
+MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos",
+           "alga-a", "alga-b", "alga-c", "estrela-mar"}
+#
+# A ESTRELA-DO-MAR ENTRA AQUI POR UM MOTIVO DIFERENTE dos outros: ela e uma
+# peca SO, entao nao ha o que montar. O que ela precisa e da ESCALA, que no
+# montado vem do maior lado e no normalizar comum vem da altura.
+#
+# E ela e uma chapa: 0,007 de espessura contra 0,080 de vao, 8,7%.
+# Normalizada pela altura, virava onze vezes mais larga do que alta -- a
+# 0,25 de escala, dois metros e setenta e cinco de vao dentro de uma sala de
+# quatro metros. Foi exatamente o que apareceu no cenario 3, e e o mesmo
+# defeito que a borboleta ja tinha ensinado: "dividir pela altura a inflaria
+# vinte vezes".
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
@@ -148,7 +164,8 @@ MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos"}
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
          "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0,
          "mao-cosmica": 0.0, "arvore-icone": 0.30,
-         "conchas": 0.30, "frutos": 0.35}
+         "conchas": 0.30, "frutos": 0.35,
+         "alga-a": 0.45, "alga-b": 0.45, "alga-c": 0.45}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -165,7 +182,8 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
             # triangulos por bicho seriam pagos para nada.
             "agua-viva": 0, "coral": 0, "estrela-mar": 0,
             "mao-cosmica": 0, "arvore-icone": 0,
-            "conchas": 0, "frutos": 0}
+            "conchas": 0, "frutos": 0,
+            "alga-a": 0, "alga-b": 0, "alga-c": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
@@ -175,7 +193,8 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # Tres passadas, pelo mesmo motivo do cogumelo: polir nao custa triangulo,
 # e a quina que sobra depois de dividir sai de graca aqui.
 POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0,
-         "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2}
+         "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2,
+         "alga-a": 3, "alga-b": 3, "alga-c": 3}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -200,7 +219,14 @@ PECAS = 8
 # de um modelo que so precisa das maiores. No coral e o contrario: as peças
 # SAO os ramos, e um coral com oito ramos de cinquenta nao e um coral com
 # menos detalhe -- e um punhado de varetas.
-PECAS_POR = {"coral": 60, "frutos": 48, "conchas": 8}
+PECAS_POR = {"coral": 60, "frutos": 48, "conchas": 8,
+             # CADA FOLHA DE ALGA E UMA PECA, e aqui o teto e ao contrario
+             # do coral. No coral, oito ramos de cinquenta nao era um coral
+             # com menos detalhe -- era um punhado de varetas. Numa alga,
+             # menos folhas e so uma alga mais rala, e continua alga. Com
+             # todas as pecas ela custava dez mil triangulos, e o fundo do
+             # mar tem dezenove: nao caberia.
+             "alga-a": 22, "alga-b": 8, "alga-c": 16}
 
 # O PEDESTAL FICA DE FORA, TAMBEM NA MALHA.
 #
@@ -215,7 +241,7 @@ PECAS_POR = {"coral": 60, "frutos": 48, "conchas": 8}
 # -- medido no coral, o disco sobe ate 24% e um ramo comeca em 0,2%. O que
 # separa e a PEGADA: os quarenta e oito ramos ocupam menos de 10% da area do
 # modelo vista de cima, e as duas pecas do pedestal ocupam 31% e 40%.
-SEM_PEDESTAL = {"coral"}
+SEM_PEDESTAL = {"coral", "alga-a", "alga-b", "alga-c"}
 
 
 def sem_pedestal(partes, tris):
@@ -285,7 +311,8 @@ GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estr
           # de um triangulo de largura, e qualquer agrupamento por grade os
           # come primeiro -- e a teia e o nome da peca.
           "mao-cosmica": 200, "arvore-icone": 60,
-          "conchas": 60, "frutos": 40}
+          "conchas": 60, "frutos": 40,
+          "alga-a": 26, "alga-b": 34, "alga-c": 30}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}

@@ -1732,6 +1732,90 @@ function montarNeon(){
   nNeonIdx = m.idx.length;
 }
 
+/* O FUNDO DO MAR COM FORMA, E OS BICHOS NO CEU.
+
+   O cenario 3 tinha o fundo do mar inteiro em NUVEM DE PONTOS -- dezenove
+   algas, cinco corais, sete pedras e nove aguas-vivas, setenta mil pontos.
+   Agora e o contrario, e o arranjo e o pedido:
+
+     no CHAO, com forma      as algas, os corais, as conchas e a
+                             estrela-do-mar. Objeto e objeto: fica no chao
+     no CEU, voando          so os BICHOS, e so a agua-viva nada -- com pele
+                             de noite estrelada, e translucida
+     no fundo, entre eles    algas de neon rosa, que nao existiam
+
+   O CHAO E ABAIXO DA LAMINA. A agua sobe ate NIVEL_AGUA; o que esta no
+   fundo tem o pe em zero, e o que voa comeca acima dela. Sem isso, "no
+   chao" e "no ceu" seriam a mesma altura com nomes diferentes.
+
+   AS ALGAS PERDERAM FOLHAS DE PROPOSITO. Com todas as pecas cada uma
+   custava dez mil triangulos, e o fundo tem doze: nao caberia. Alga rala
+   continua alga -- ao contrario do coral, onde tirar ramos deu um punhado
+   de varetas soltas. */
+let bFundo = null, nFundoIdx = 0;
+let bAlgaNeon = null, nAlgaNeonIdx = 0;
+let bSeresCeu = null, nSeresCeuIdx = 0;
+function montarFundoDoMar(){
+  const rnd = prng(9277);
+  /* EM ANEL, E NUNCA NO MEIO. O centro e a area caminhavel: objeto ali e
+     tropeco, e a pessoa atravessa a agua a pe. */
+  const emAnel = (m, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
+    for(let i=0;i<quantos;i++){
+      const ang = (i/quantos)*Math.PI*2 + (rnd()-0.5)*0.9;
+      const raio = 1.05 + rnd()*1.75;
+      const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0), -Math.cos(ang)*raio];
+      const esc = escMin + rnd()*(escMax-escMin);
+      const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
+      for(let k=0;k<pecas;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
+    }
+  };
+  const subir = (m) => {
+    if(!m.idx.length) return null;
+    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
+    enviar(b.fase,m.fase); enviar(b.borda,m.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+    return {b, n: m.idx.length};
+  };
+  const vazio = () => ({pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]});
+
+  // 1) O CHAO: alga, coral, concha e a estrela-do-mar
+  const f = vazio();
+  emAnel(f, 3, 'alga-a-', 22, 0.30, 0.52, 0, 0);
+  emAnel(f, 3, 'alga-b-',  8, 0.26, 0.44, 0, 0);
+  emAnel(f, 3, 'alga-c-', 16, 0.28, 0.48, 0, 0);
+  emAnel(f, 3, 'coral-',  47, 0.22, 0.38, 0, 0);
+  emAnel(f, 2, 'conchas-', 6, 0.16, 0.26, 0, 0);
+  /* A ESTRELA-DO-MAR NO CHAO, e uma so: ela entra inteira, sem simplificar
+     -- e uma chapa fina e a grade a rasga --, e inteira custa vinte e dois
+     mil triangulos, dez vezes o que custa uma agua-viva. */
+  emAnel(f, 1, 'estrela-mar-', 1, 0.20, 0.28, 0, 0);
+  const r1 = subir(f);
+  if(r1){ bFundo = r1.b; nFundoIdx = r1.n; }
+
+  /* 2) AS ALGAS DE NEON ROSA, no meio delas.
+
+     MAIS DA alga-c, E POUCA DA alga-b, e isso se decidiu desenhando as
+     tres: a alga-c e um tufo de folhas ERETAS -- em neon ela le como alga
+     acesa no fundo, que e o pedido. A alga-b e uma folha enrolada, que
+     acesa le como anemona; entra pouca, para variar a forma sem mudar o
+     assunto. A alga-a nao entra em neon: ela e ramificada e fina, e em neon
+     virava fio de lampada. */
+  const a = vazio();
+  emAnel(a, 5, 'alga-c-', 16, 0.24, 0.42, 0, 0);
+  emAnel(a, 2, 'alga-b-',  8, 0.20, 0.32, 0, 0);
+  const r2 = subir(a);
+  if(r2){ bAlgaNeon = r2.b; nAlgaNeonIdx = r2.n; }
+
+  // 3) OS BICHOS, acima da lamina
+  const c = vazio();
+  emAnel(c, 7, 'agua-viva-', 8, 0.20, 0.36,
+         NIVEL_AGUA + 0.35, NIVEL_AGUA + 1.45);
+  const r3 = subir(c);
+  if(r3){ bSeresCeu = r3.b; nSeresCeuIdx = r3.n; }
+}
+
 /* AS MONTANHAS DO HORIZONTE.
 
    A mata de fundo termina a onze metros e depois dela nao ha nada ate o
@@ -2611,6 +2695,8 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
      8  ceu estrelado -- as arvores que nao sao a mae
      9  os seres aquaticos -- agua com luz dentro
     10  neon -- os modelos que nunca tinham entrado
+    11  o ser do ceu -- pele de noite estrelada, meio translucido
+    12  alga de neon rosa, no fundo da agua
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -2734,7 +2820,44 @@ void main(){
      entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
      do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
   vec3 estrelas = vec3(0.0);
-  if(materia > 9.5){
+  if(materia > 11.5){
+    /* A ALGA DE NEON ROSA, no fundo da agua.
+
+       O mesmo tubo da materia 10 -- estoura na borda e vai ao branco --, com
+       a cor PRESA no rosa em vez de sorteada pela fase. A variacao que sobra
+       e de tom e nao de matiz: de rosa quente a rosa arroxeado, o bastante
+       para nao virarem uma coisa so, pouco o bastante para continuarem sendo
+       a mesma alga. */
+    vec3 rosa = mix(vec3(1.00, 0.20, 0.56), vec3(0.84, 0.30, 0.94),
+                    fract(vFase * 0.37));
+    c = rosa * (0.60 + 0.95 * pow(raspaoC, 1.5))
+      + vec3(1.0) * pow(raspaoC, 5.0) * 0.60;
+    /* E ELA ONDULA. O que faz uma alga parecer SUBMERSA nao e a cor: e o
+       compasso, lento, e diferente em cada folha. A altura entra na conta
+       para a ponta acender depois do pe -- e assim que a onda sobe por
+       dentro dela. */
+    c *= 0.76 + 0.36 * pow(0.5 + 0.5*sin(tempo*0.85 + vFase*2.1 + vAlt*3.2), 2.0);
+  } else if(materia > 10.5){
+    /* O SER DO CEU: pele de noite estrelada, e meio translucido.
+
+       Ele voa pelo ceu do planeta rosa, e o ceu tem de se ver atraves dele.
+       E A MESMA NOITE DAS ARVORES, de proposito -- e o argumento da obra
+       aparecendo noutro lugar: o que e vivo e feito de ceu.
+
+       As estrelas dele sao MAIS MIUDAS que as das arvores, porque o corpo e
+       menor: a mesma grade num bicho de trinta centimetros daria tres
+       estrelas contadas. */
+    /* A NOITE DELE E MAIS CLARA QUE A DAS ARVORES, e tem de ser. A arvore
+       esta contra o ceu pintado do primeiro cenario, que e escuro; ele esta
+       contra o ceu do planeta rosa, que e claro. A mesma noite que na
+       arvore le como casca escura aqui le como VULTO PRETO -- foi o que
+       apareceu na primeira tentativa. */
+    c = noiteDeDentro(vMundo * 1.7) * 2.4 + vec3(0.055, 0.062, 0.105);
+    estrelas = estrelasEm(vMundo, n, 15.0, 0.34, 0.16, 1.70)
+             + estrelasEm(vMundo, n, 38.0, 0.30, 0.19, 0.85);
+    // um gume de agua na beirada, que e o que diz "isto tem parede"
+    c += vec3(0.16, 0.34, 0.50) * pow(raspaoC, 1.8);
+  } else if(materia > 9.5){
     /* NEON.
 
        O TUBO ESTOURA NA BORDA, e nao no meio. Um tubo de neon visto de
@@ -3015,7 +3138,11 @@ void main(){
   /* NEON NAO SE SOMBREIA DE JEITO NENHUM: nao ha nada dentro dele alem
      de luz, e luz nao tem lado escuro. O relevo dele e o raspao, e o
      raspao nao passa por aqui. */
-  if(materia > 9.5)                       piso = 1.00;   // neon
+  if(materia > 11.5)                      piso = 1.00;   // alga de neon
+  /* O SER DO CEU SOMBREIA, e mais que a arvore. Ele e um corpo pequeno
+     e proximo: sem lado escuro ele viraria adesivo colado no ceu. */
+  else if(materia > 10.5)                 piso = 0.62;   // o ser do ceu
+  else if(materia > 9.5)                  piso = 1.00;   // neon
   else if(materia > 8.5)                  piso = 0.74;   // os seres
   else if(materia > 7.5)                  piso = 0.38;   // ceu estrelado
   else if(materia > 0.5 && materia < 1.5) piso = 0.24;   // pedra
@@ -3066,8 +3193,17 @@ void main(){
   c += estrelas;
 
   float alfa = presenca * vVivo * vBorda;
-  // a casca do ser fecha de esguelha e abre de frente, e nunca abre toda
-  if(materia > 8.5) alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
+  /* A CASCA FECHA DE ESGUELHA E ABRE DE FRENTE, e nunca abre toda.
+
+     E O TESTE E LIMITADO NOS DOIS LADOS. Estava so em "maior que 8,5", e
+     com isso o neon caiu dentro dele: um tubo aceso ficava translucido, o
+     que e o contrario do que ele e. */
+  if(materia > 8.5 && materia < 9.5)
+    alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
+  /* O SER DO CEU ABRE MAIS que o de agua: ele tem o ceu inteiro atras, e um
+     bicho de noite estrelada opaco seria um recorte preto no ceu. */
+  else if(materia > 10.5 && materia < 11.5)
+    alfa *= mix(0.40, 0.90, pow(raspaoC, 1.0));
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
@@ -5341,6 +5477,7 @@ const COGUMELOS = [];
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarNeon();        // idem
+montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -8047,11 +8184,59 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
-    if(bMar && nMar && fundoDoMar > 0.004){
-      gl.useProgram(progMata);
+    if(fundoDoMar > 0.004){
+      /* O FUNDO DO MAR, AGORA COM FORMA. A nuvem do bMar sai daqui: ela era
+         o fundo inteiro em setenta mil pontos, e o pedido e objeto no chao.
+         Ela continua no codigo, atras do SERES_NO_ESPACO, para quem quiser
+         voltar. */
+      gl.useProgram(progSolida);
       soltarAtributos();
       gl.enable(gl.BLEND);
       sobrepor();
+      gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+      gl.depthMask(false);
+      mandarMvp(locSo.mvp, mvp);
+      gl.uniform1f(locSo.tempo, relogio);
+      gl.uniform1f(locSo.crescimento, 9.0);
+      gl.uniform1f(locSo.presenca, fundoDoMar);
+      gl.uniform1f(locSo.inverte, 0.0);
+      gl.uniform3f(locSo.desloca, 0, 0, 0);
+      gl.uniform1f(locSo.escalaObj, 1.0);
+      gl.uniform1f(locSo.inflar, 0.0);
+      gl.uniform3fv(locSo.focos, FOCOS);
+      gl.uniform1f(locSo.escalaTinta, 1.0);
+      /* PLANTA EM ZERO: alga nao se recolhe para a origem ao nascer, ela ja
+         esta la. BALANCA EM UM: e o que da a corrente de agua, e a conta
+         usa o quadrado da altura -- a ponta ondula e o pe nao. */
+      gl.uniform1f(locSo.planta, 0.0);
+      gl.uniform1f(locSo.balanca, 1.0);
+      gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+      gl.uniform1i(locSo.casca, 2);
+      const porMalha = (b, n, materia) => {
+        if(!b || !n) return;
+        gl.uniform1f(locSo.materia, materia);
+        ligar(aSo.pos, b.pos, 3); ligar(aSo.nor, b.nor, 3);
+        ligar(aSo.alt, b.alt, 1); ligar(aSo.fase, b.fase, 1);
+        ligar(aSo.borda, b.borda, 1);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+        gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_SHORT, 0);
+      };
+      porMalha(bFundo, nFundoIdx, 9.0);      // no chao: agua com luz dentro
+      porMalha(bSeresCeu, nSeresCeuIdx, 11.0);  // no ceu: noite estrelada
+      if(bAlgaNeon && nAlgaNeonIdx){
+        somarLuz();                          // neon e luz que chega, e soma
+        porMalha(bAlgaNeon, nAlgaNeonIdx, 12.0);
+        sobrepor();
+      }
+      gl.uniform1f(locSo.materia, 0.0);
+      gl.uniform1f(locSo.planta, 1.0);
+
+      /* O HORIZONTE E A CONCHA SEGUEM EM NUVEM, e de proposito: o horizonte
+         esta a dezenas de metros, onde forma nao se le, e a concha nao foi
+         apontada. */
+      gl.useProgram(progMata);
+      soltarAtributos();
       gl.depthMask(false);
       mandarMvp(locM.mvp, mvp);
       gl.uniform1f(locM.tempo, relogio);
@@ -8063,9 +8248,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locM.deriva, 0.0);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
-      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
-      gl.drawArrays(gl.POINTS, 0, nMar);
 
       /* O HORIZONTE: montanhas, terra e as raizes no ceu. Vem com o mesmo
          fundo, porque e a mesma paisagem — o que muda e a distancia. */
