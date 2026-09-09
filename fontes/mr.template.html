@@ -1816,6 +1816,78 @@ function montarFundoDoMar(){
   if(r3){ bSeresCeu = r3.b; nSeresCeuIdx = r3.n; }
 }
 
+/* O HORIZONTE DO PLANETA ROSA, COM FORMA -- e nao mais em pontos.
+
+   Ele era a ultima nuvem grande do cenario 3: trinta e tres mil pontos, e
+   era ela que fazia a faixa pontilhada no meio do quadro. E o que ela
+   plantava eram tres coisas que a obra JA TEM EM MALHA -- as pedras, e as
+   duas algas. Nao houve modelo novo: houve a mesma paisagem, com superficie.
+
+   AS PEDRAS MENORES PARA O QUE ESTA LONGE. A pedra-0 tem 2 112 triangulos e
+   a pedra-7 tem 1 200; a nove metros a diferenca entre as duas nao chega ao
+   olho. Quem esta longe leva as baratas, que e o mesmo raciocinio dos cinco
+   lados da mata de fundo.
+
+   E SEIS RAIZES NO CEU, e nao dez. Cada uma custa tres mil e duzentos
+   triangulos contra os poucos pontos de antes -- e a dez metros de altura,
+   contra o ceu, o que se le delas e a silhueta. Seis silhuetas dizem o
+   mesmo que dez e cabem no orcamento. */
+let bHorizPedra = null, nHorizPedraIdx = 0;
+let bHorizRaiz = null, nHorizRaizIdx = 0;
+let bConchaMalha = null, nConchaMalhaIdx = 0;
+function montarHorizonteSolido(){
+  const rnd = prng(1919);
+  /* DOIS BUFFERS, E NAO UM, porque sao DUAS MATERIAS. Montanha e pedra e
+     raiz e materia viva -- juntas num buffer so, as montanhas saiam com a
+     matéria da agua e liam como lajes palidas atravessadas de luz. */
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const r = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  for(let i=0;i<9;i++){                    // as montanhas
+    const ang = rnd()*Math.PI*2, d = 9 + rnd()*7;
+    plantarMalha(m, 'pedra-' + (4 + i%4), [Math.sin(ang)*d, -0.4, -Math.cos(ang)*d],
+                 2.2 + rnd()*3.4, rnd()*6.28, 0);
+  }
+  for(let i=0;i<6;i++){                    // as porcoes de terra, mais perto
+    const ang = rnd()*Math.PI*2, d = 3.2 + rnd()*2.4;
+    plantarMalha(m, 'pedra-' + (4 + i%4), [Math.sin(ang)*d, -0.12, -Math.cos(ang)*d],
+                 0.5 + rnd()*0.7, rnd()*6.28, 0);
+  }
+  for(let i=0;i<6;i++){                    // as raizes no ceu
+    const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
+    const base = [Math.sin(ang)*d, 2.6 + rnd()*2.4, -Math.cos(ang)*d];
+    const esc = 0.6 + rnd()*0.9, giro = rnd()*6.28, fase = rnd()*6.283;
+    const alga = i%2 ? ['alga-a-', 22] : ['alga-c-', 16];
+    for(let k=0;k<alga[1];k++) plantarMalha(r, alga[0] + k, base, esc, giro, fase);
+  }
+  const subirH = (o) => {
+    if(!o.idx.length) return null;
+    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(b.pos,o.pos); enviar(b.nor,o.nor); enviar(b.alt,o.alt);
+    enviar(b.fase,o.fase); enviar(b.borda,o.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(o.idx), gl.STATIC_DRAW);
+    return {b, n: o.idx.length};
+  };
+  const hp = subirH(m); if(hp){ bHorizPedra = hp.b; nHorizPedraIdx = hp.n; }
+  const hr = subirH(r); if(hr){ bHorizRaiz = hr.b; nHorizRaizIdx = hr.n; }
+  /* A CONCHA COM FORMA. Ela e o objeto que a pessoa TOCA no cenario 3, e
+     era o unico interativo da obra ainda feito de pontos -- em ponto nao ha
+     onde encostar a mao, so uma mancha que acende. Ela e plantada na
+     origem: o deslocamento continua vindo por uniforme na hora do desenho,
+     porque a concha se mexe. */
+  const cc = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  for(let k=0;k<3;k++) plantarMalha(cc, 'concha-' + k, [0,0,0], 0.30, 0.7, 0);
+  if(cc.idx.length){
+    bConchaMalha = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(bConchaMalha.pos,cc.pos); enviar(bConchaMalha.nor,cc.nor);
+    enviar(bConchaMalha.alt,cc.alt); enviar(bConchaMalha.fase,cc.fase);
+    enviar(bConchaMalha.borda,cc.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bConchaMalha.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cc.idx), gl.STATIC_DRAW);
+    nConchaMalhaIdx = cc.idx.length;
+  }
+}
+
 /* AS MONTANHAS DO HORIZONTE.
 
    A mata de fundo termina a onze metros e depois dela nao ha nada ate o
@@ -5478,6 +5550,7 @@ montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarNeon();        // idem
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
+montarHorizonteSolido();   // idem
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -8222,8 +8295,36 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
         gl.drawElements(gl.TRIANGLES, n, gl.UNSIGNED_SHORT, 0);
       };
+      /* O HORIZONTE PRIMEIRO, que e o plano mais distante que ha aqui.
+         Presenca menor: a dez metros o ar ja comeu parte da diferenca entre
+         a pedra e o ceu, e e essa perda que diz QUAO longe ela esta. */
+      if(bHorizPedra && nHorizPedraIdx){
+        gl.uniform1f(locSo.presenca, fundoDoMar * 0.62);
+        /* MATERIA 1, QUE E PEDRA, e com o grao da escala dela: a triplanar
+           le a tinta pela posicao no mundo, e uma montanha de dez metros
+           atravessaria a pintura inteira. E o mesmo 0,055 que as montanhas
+           do primeiro cenario usam. */
+        gl.uniform1f(locSo.escalaTinta, 0.055);
+        porMalha(bHorizPedra, nHorizPedraIdx, 1.0);
+        gl.uniform1f(locSo.escalaTinta, 1.0);
+        // e as raizes do ceu sao materia viva, nao pedra
+        if(bHorizRaiz && nHorizRaizIdx) porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
+        gl.uniform1f(locSo.presenca, fundoDoMar);
+      }
       porMalha(bFundo, nFundoIdx, 9.0);      // no chao: agua com luz dentro
       porMalha(bSeresCeu, nSeresCeuIdx, 11.0);  // no ceu: noite estrelada
+      /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
+         uniforme porque ela nao esta plantada onde nasceu -- e o unico
+         objeto do cenario que a pessoa alcanca. */
+      if(bConchaMalha && nConchaMalhaIdx && conchaPresenca > 0.004){
+        gl.uniform3f(locSo.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
+        gl.uniform1f(locSo.presenca,
+                     conchaPresenca * (tocouConcha ? 1.0
+                       : 0.72 + 0.28*Math.sin(relogio*1.9)));
+        porMalha(bConchaMalha, nConchaMalhaIdx, 9.0);
+        gl.uniform3f(locSo.desloca, 0, 0, 0);
+        gl.uniform1f(locSo.presenca, fundoDoMar);
+      }
       if(bAlgaNeon && nAlgaNeonIdx){
         somarLuz();                          // neon e luz que chega, e soma
         porMalha(bAlgaNeon, nAlgaNeonIdx, 12.0);
@@ -8249,27 +8350,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locM.casca, 2);
 
-      /* O HORIZONTE: montanhas, terra e as raizes no ceu. Vem com o mesmo
-         fundo, porque e a mesma paisagem — o que muda e a distancia. */
-      if(bHorizonte && nHorizonte){
-        ligar(aM.pos,bHorizonte.pos,3); ligar(aM.uv,bHorizonte.uv,2);
-        ligar(aM.alt,bHorizonte.alt,1); ligar(aM.fase,bHorizonte.fase,1);
-        ligar(aM.tam,bHorizonte.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nHorizonte);
-      }
-
-      /* A CONCHA, que agora tem forma e acende quando pode ser tocada. */
-      if(bConcha && nConcha && conchaPresenca > 0.004){
-        gl.uniform3f(locM.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
-        gl.uniform1f(locM.presenca,
-                     conchaPresenca * (tocouConcha ? 1.0
-                       : 0.65 + 0.35*Math.sin(relogio*1.9)));
-        ligar(aM.pos,bConcha.pos,3); ligar(aM.uv,bConcha.uv,2);
-        ligar(aM.alt,bConcha.alt,1); ligar(aM.fase,bConcha.fase,1);
-        ligar(aM.tam,bConcha.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nConcha);
-        gl.uniform3f(locM.desloca, 0, 0, 0);
-      }
+      /* AS DUAS NUVENS SAIRAM DAQUI. O horizonte eram trinta e tres mil
+         pontos -- a faixa pontilhada no meio do quadro -- e a concha mil e
+         seiscentos. Os dois agora sao superficie, no passe de cima, e o que
+         plantavam a obra ja tinha em malha: as pedras e as duas algas. */
       gl.depthMask(true);
       gl.useProgram(progAstro);
       soltarAtributos();
