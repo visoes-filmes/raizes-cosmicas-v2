@@ -114,7 +114,30 @@ na tela com o motivo escrito no portão.
 
 ---
 
-## Testar no aparelho
+## No aparelho — e no estande
+
+**Pelo cabo, sem rede nenhuma:**
+
+```bash
+python fontes/estande.py
+```
+
+`adb reverse` abre um túnel ao contrário: dentro do headset o endereço é
+`http://localhost:8765`. E é o **localhost** que resolve o problema difícil
+— WebXR só existe em contexto seguro, https pede certificado, mas localhost
+já é seguro por definição. O botão de entrar em RM aparece direto, sem
+certificado, sem aviso, sem ninguém aceitar nada dentro do capacete. Pela
+Wi-Fi o endereço passa a ser um IP, IP não é contexto seguro, e sem
+certificado o botão **não existe**.
+
+O `adb` não vem com nada: baixe o `platform-tools` e largue a pasta em
+`fontes/`. O script diz o caminho exato se não achar. E no headset, uma vez:
+modo de desenvolvedor ligado.
+
+Nesse modo o cache fica **ligado** — oito megabytes num arquivo só, e sem
+cache cada pessoa da fila espera o download outra vez.
+
+**Só para testar:**
 
 ```bash
 python fontes/servir.py 8766        # CERT=<pasta> para HTTPS na rede

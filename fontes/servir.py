@@ -36,6 +36,17 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORTA = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
 FOTOS = os.path.join(RAIZ, "_fotos")
 
+# MODO ESTANDE: o mesmo servidor, com cache LIGADO.
+#
+# Em teste o cache e inimigo -- serve a versao de ontem e faz perder a tarde.
+# Num estande e o contrario: a obra tem oito megabytes num arquivo so, e sem
+# cache cada visitante da fila espera o download inteiro de novo. Com cache,
+# o primeiro espera e os outros abrem na hora.
+#
+# Nao e uma decisao que o servidor possa adivinhar, entao ela e explicita:
+# quem chama diz. O estande.py chama assim; o servir.py a seco, nao.
+ESTANDE = os.environ.get("ESTANDE") == "1"
+
 
 class Servidor(SimpleHTTPRequestHandler):
     def do_POST(self):
@@ -55,8 +66,11 @@ class Servidor(SimpleHTTPRequestHandler):
         print(f"  >> FOTO _fotos/{nome}  ({len(corpo)} bytes)", flush=True)
 
     def end_headers(self):
-        self.send_header("Cache-Control", "no-store, must-revalidate")
-        self.send_header("Pragma", "no-cache")
+        if ESTANDE:
+            self.send_header("Cache-Control", "public, max-age=3600")
+        else:
+            self.send_header("Cache-Control", "no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
         super().end_headers()
 
     def log_message(self, formato, *args):
@@ -89,5 +103,7 @@ if CERT and os.path.exists(os.path.join(CERT, "cert.pem")):
     print(f"a obra em https://<ip-do-pc>:{PORTA}/   (certificado proprio: o Quest avisa uma vez)")
 
 print(f"a obra em http://localhost:{PORTA}/  (pasta: {RAIZ})")
+if ESTANDE:
+    print("MODO ESTANDE: cache ligado -- o segundo visitante nao espera download")
 print("os relatos do headset aparecem aqui com >>\n", flush=True)
 servidor.serve_forever()
