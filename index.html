@@ -460,6 +460,28 @@ const MATA_ESTRELAR      = true;
    quadro ao mesmo tempo que a do teto, o fim nao le como retorno, le como
    espelho -- duas florestas iguais, uma virada para a outra. */
 const MATA_QUE_FICA      = 0.0;
+/* SERES_NO_ESPACO -- os seres aquaticos flutuando entre os planetas.
+
+   Interruptor SEPARADO porque eles foram PEDIDOS: "voce esqueceu os seres
+   aquaticos estranhos". Apaga-los junto com qualquer outra coisa seria
+   desfazer o pedido em silencio, que e o erro que este arquivo ja cometeu
+   uma vez com as pedras do chao.
+
+   O QUE ESTAVA LA NAO ERAM SERES. Era o fundo do mar INTEIRO -- dezenove
+   algas, cinco corais, sete pedras e nove aguas-vivas -- redesenhado a
+   1,70 m de altura, em setenta mil pontos somando luz. De perto e um
+   bicho; naquela densidade e uma nevasca, e era ela que cobria os
+   planetas.
+
+   Desligado ate eles existirem como SUPERFICIE. E o caminho que a floresta
+   ja fez com MATA_SOLIDA, e os modelos existem -- jellyfish, coral,
+   seaweed. O que falta e monta-los como malha em vez de nuvem. */
+const SERES_NO_ESPACO    = false;
+/* RAIZES_NOS_ASTROS -- coral em nuvem em volta de cada planeta, para ele
+   deixar de ser bola no vazio. Mesmo motivo, e o pedido e o mesmo: planeta
+   nao e feito de particula. Doze mil pontos por planeta que, medidos no
+   quadro, nao mudavam nada do que se via. */
+const RAIZES_NOS_ASTROS  = false;
 /* QUAL ARVORE-MAE. 1 e a de sempre -- tronco unico com galhos, que atravessa
    o teto. 2 e a arvore da vida: copa redonda e raizes a vista. As duas
    ficam no codigo; trocar o numero e montar de novo basta. */
@@ -7819,7 +7841,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        fauna de um lugar -- sao a mesma materia viva aparecendo onde quer
        que a obra esteja, que e o argumento dela. No espaco flutuam entre
        os planetas, sem chao a que pertencer. */
-    if(bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
+    if(SERES_NO_ESPACO && bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
       gl.useProgram(progMata);
       soltarAtributos();
       gl.enable(gl.BLEND);
@@ -7915,92 +7937,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        podem ser tocados. E melhor assim, aliais: a obra convida em vez de
        a pessoa procurar. */
 
-    /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
-       subiu sobre um fundo que ja estava la, e nao eles que nasceram. */
-    /* OS SERES AQUATICOS NO ESPACO. A nota os pede no cenario 2, e nao so
-       na agua: "voce esqueceu os seres aquaticos estranhos". Eles nao sao
-       fauna de um lugar -- sao a mesma materia viva aparecendo onde quer
-       que a obra esteja, que e o argumento dela. No espaco flutuam entre
-       os planetas, sem chao a que pertencer. */
-    if(bMar && nMar && cenaAtual === 2 && asteroidePres > 0.004){
-      gl.useProgram(progMata);
-      soltarAtributos();
-      gl.enable(gl.BLEND);
-      somarLuz();
-      gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
-      gl.uniform1f(locM.tempo, relogio);
-      gl.uniform1f(locM.crescimento, 9.0);
-      gl.uniform1f(locM.escalaObj, 1.0);
-      gl.uniform1f(locM.escala, escalaPonto * 0.115);
-      gl.uniform1f(locM.presenca, asteroidePres * 0.45);
-      gl.uniform1f(locM.deriva, 0.9);        // no vazio eles vagueiam mais
-      gl.uniform3f(locM.desloca, 0, 1.7, 0); // na altura dos planetas
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
-      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
-      gl.drawArrays(gl.POINTS, 0, nMar);
-      gl.uniform3f(locM.desloca, 0, 0, 0);
-      gl.uniform1f(locM.deriva, 0.0);
-      gl.depthMask(true);
-      sobrepor();
-      gl.useProgram(progAstro);
-      soltarAtributos();
-      mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
-    }
-
-    if(bMar && nMar && fundoDoMar > 0.004){
-      gl.useProgram(progMata);
-      soltarAtributos();
-      gl.enable(gl.BLEND);
-      sobrepor();
-      gl.depthMask(false);
-      mandarMvp(locM.mvp, mvp);
-      gl.uniform1f(locM.tempo, relogio);
-      gl.uniform1f(locM.crescimento, 9.0);
-      gl.uniform1f(locM.escalaObj, 1.0);
-      gl.uniform3f(locM.desloca, 0, 0, 0);
-      gl.uniform1f(locM.escala, escalaPonto * 0.115);
-      gl.uniform1f(locM.presenca, fundoDoMar);
-      gl.uniform1f(locM.deriva, 0.0);
-      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
-      gl.uniform1i(locM.casca, 2);
-      ligar(aM.pos,bMar.pos,3); ligar(aM.uv,bMar.uv,2);
-      ligar(aM.alt,bMar.alt,1); ligar(aM.fase,bMar.fase,1); ligar(aM.tam,bMar.tam,1);
-      gl.drawArrays(gl.POINTS, 0, nMar);
-
-      /* O HORIZONTE: montanhas, terra e as raizes no ceu. Vem com o mesmo
-         fundo, porque e a mesma paisagem — o que muda e a distancia. */
-      if(bHorizonte && nHorizonte){
-        ligar(aM.pos,bHorizonte.pos,3); ligar(aM.uv,bHorizonte.uv,2);
-        ligar(aM.alt,bHorizonte.alt,1); ligar(aM.fase,bHorizonte.fase,1);
-        ligar(aM.tam,bHorizonte.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nHorizonte);
-      }
-
-      /* A CONCHA, que agora tem forma e acende quando pode ser tocada. */
-      if(bConcha && nConcha && conchaPresenca > 0.004){
-        gl.uniform3f(locM.desloca, CONCHA[0], CONCHA[1], CONCHA[2]);
-        gl.uniform1f(locM.presenca,
-                     conchaPresenca * (tocouConcha ? 1.0
-                       : 0.65 + 0.35*Math.sin(relogio*1.9)));
-        ligar(aM.pos,bConcha.pos,3); ligar(aM.uv,bConcha.uv,2);
-        ligar(aM.alt,bConcha.alt,1); ligar(aM.fase,bConcha.fase,1);
-        ligar(aM.tam,bConcha.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nConcha);
-        gl.uniform3f(locM.desloca, 0, 0, 0);
-      }
-      gl.depthMask(true);
-      gl.useProgram(progAstro);
-      soltarAtributos();
-      mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
-    }
-
     /* AS MAOS, EM LUVA DE PIGMENTO.
 
        Eram duas bolinhas de luz. Funcionavam como sinal e nao como
@@ -8014,7 +7950,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     /* AS RAIZES DOS PLANETAS. Uma nuvem so, desenhada em volta de cada
        um: o planeta deixa de ser bola no vazio e vira no. */
-    if(bRaizAstro && nRaizAstro && cenaAtual === 2){
+    if(RAIZES_NOS_ASTROS && bRaizAstro && nRaizAstro && cenaAtual === 2){
       gl.useProgram(progMata);
       soltarAtributos();
       gl.enable(gl.BLEND);
