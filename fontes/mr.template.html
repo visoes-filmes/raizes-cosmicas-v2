@@ -1321,17 +1321,31 @@ function prepararConcha(){
    nuvens -- que e exatamente como se ve um bicho parado no mato.
 
    Ele respira devagar, e e a unica coisa que o entrega. */
-let bAlien = null, nAlien = 0;
+let bAlien = null, nAlienIdx = 0;
 function prepararAlienigena(){
-  const n = {pos:[], uv:[], alt:[], fase:[], tam:[]};
-  // um so, grande, alto e para o lado: nao no caminho do olhar
-  plantarNuvem(n, 'ser_alienigena_rigged',
-               [-6.5, 3.2, -13.5], 7.5, 0.6, 4242, 1.0);
-  if(!n.pos.length) return;
-  bAlien = criarBufs(['pos','uv','alt','fase','tam']);
-  enviar(bAlien.pos,n.pos); enviar(bAlien.uv,n.uv); enviar(bAlien.alt,n.alt);
-  enviar(bAlien.fase,n.fase); enviar(bAlien.tam,n.tam);
-  nAlien = n.pos.length/3;
+  /* SUPERFICIE, E MUITO GRANDE -- e as duas coisas sao a mesma decisao.
+
+     Ele era uma nuvem de 3 873 pontos com sete metros e meio. Para ser MUITO
+     grande a nuvem nao serve: espalhados por vinte e seis metros, aqueles
+     pontos ficam a trinta centimetros um do outro e deixam de ler como
+     corpo -- viram chuvisco com contorno de gente.
+
+     VINTE E SEIS METROS, a trinta e cinco de distancia. Ele nao cabe no
+     campo de visao de uma olhada: para ver o bicho inteiro a pessoa tem de
+     percorre-lo com a cabeca, e e nesse percurso que ele se revela. Um
+     colosso que cabe no quadro nao e um colosso, e uma estatua.
+
+     E PARA O LADO, e nao em frente: nao no caminho do olhar. Quem procura
+     nao acha; quem se vira, sim. */
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  plantarMalha(m, 'alien-0', [-15.5, 4.5, -33.0], 26.0, 0.62, 0);
+  if(!m.idx.length) return;
+  bAlien = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bAlien.pos,m.pos); enviar(bAlien.nor,m.nor); enviar(bAlien.alt,m.alt);
+  enviar(bAlien.fase,m.fase); enviar(bAlien.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bAlien.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nAlienIdx = m.idx.length;
 }
 
 let bEstrelas = null, nEstrelas = 0;
@@ -2769,6 +2783,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
     10  neon -- os modelos que nunca tinham entrado
     11  o ser do ceu -- pele de noite estrelada, meio translucido
     12  alga de neon rosa, no fundo da agua
+    13  camuflagem -- a pele mostra o ceu que estaria atras
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -2781,6 +2796,11 @@ uniform float materia;
    valor que arma o toque, que ate agora era so limiar interno e nao
    aparecia em lugar nenhum. */
 uniform float proximidade;
+/* A PROPORCAO DA PINTURA DO CEU, para a materia 13 poder amostra-la
+   com a MESMA estereografica da cupula. Sem o aspecto certo, o ceu
+   amostrado aqui sai esticado em relacao ao ceu de verdade -- e a
+   camuflagem depende de os dois coincidirem exatamente. */
+uniform float aspectoCeu;
 
 /* O BATIMENTO QUE CHAMA A MAO.
 
@@ -2892,7 +2912,43 @@ void main(){
      entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
      do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
   vec3 estrelas = vec3(0.0);
-  if(materia > 11.5){
+  if(materia > 12.5){
+    /* A CAMUFLAGEM.
+
+       A pele dele NAO TEM COR: ela mostra o ceu que estaria atras,
+       amostrado na direcao de cada pixel, com a mesma estereografica da
+       cupula. E isso que camuflagem quer dizer -- nao transparencia, mas
+       ter a mesma cor do fundo. Onde as duas amostragens coincidem, o corpo
+       desaparece.
+
+       E A CAMUFLAGEM E AS DUAS COISAS JUNTAS, nao uma. Tentei so a cor, com
+       presenca alta, e deu o oposto do pedido: um colosso rosa chapado, a
+       coisa mais visivel do quadro.
+
+       O motivo e que a textura crua NAO E o ceu que se ve. A cupula ainda
+       poe degrade por angulo, tinta do cenario, grao e a mistura entre dois
+       ceus por cima dela -- seis uniformes de conta. Repetir tudo isso aqui
+       seria possivel e seria fragil: qualquer deriva entre as duas contas
+       reaparece como uma mancha com forma de gente.
+
+       Entao a cor vem do ceu -- que acerta a FAMILIA do tom -- e a presenca
+       fica baixa, que perdoa o que sobrar de diferenca. Uma nao serve sem a
+       outra: so a presenca baixa apagaria um vulto cinza, e so a cor daria
+       um colosso pintado.
+
+       E O QUE O ENTREGA E A BORDA. De esguelha, a direcao ate a pele e a
+       direcao ate o ceu deixam de coincidir, e sobra um fio de contorno. E
+       exatamente assim que se ve um bicho parado no mato: pela silhueta,
+       quando a cabeca se move e o paralaxe o separa do fundo. */
+    vec3 dv = normalize(vMundo - olhoPos);
+    vec2 plano = vec2(dv.x, -dv.z) * (2.0 / (1.0 + max(dv.y, -0.94)));
+    vec2 meia = vec2(2.0 * aspectoCeu, 2.0);
+    c = texture2D(casca, clamp(plano / (2.0 * meia) + 0.5, 0.0, 1.0)).rgb;
+    /* UM FIO DE CONTORNO, e nada mais. Sem ele o corpo desaparece de todo e
+       nao ha o que descobrir; com mais que um fio, ele deixa de estar
+       camuflado e passa a estar exposto. */
+    c += vec3(0.17, 0.21, 0.30) * pow(raspaoC, 2.4);
+  } else if(materia > 11.5){
     /* A ALGA DE NEON ROSA, no fundo da agua.
 
        O mesmo tubo da materia 10 -- estoura na borda e vai ao branco --, com
@@ -3210,7 +3266,12 @@ void main(){
   /* NEON NAO SE SOMBREIA DE JEITO NENHUM: nao ha nada dentro dele alem
      de luz, e luz nao tem lado escuro. O relevo dele e o raspao, e o
      raspao nao passa por aqui. */
-  if(materia > 11.5)                      piso = 1.00;   // alga de neon
+  /* A CAMUFLAGEM NAO SE SOMBREIA. O que a pele mostra e o ceu, e ceu
+     amostrado ja vem com a luz que tem -- sombrear por cima poria uma
+     segunda iluminacao sobre a primeira, e a mancha escura no meio do
+     corpo seria justamente o que denuncia o bicho. */
+  if(materia > 12.5)                      piso = 1.00;   // camuflagem
+  else if(materia > 11.5)                 piso = 1.00;   // alga de neon
   /* O SER DO CEU SOMBREIA, e mais que a arvore. Ele e um corpo pequeno
      e proximo: sem lado escuro ele viraria adesivo colado no ceu. */
   else if(materia > 10.5)                 piso = 0.62;   // o ser do ceu
@@ -7143,7 +7204,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
-               proximidade:uSo('proximidade')};
+               proximidade:uSo('proximidade'),
+               aspectoCeu:uSo('aspectoCeu')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -8049,21 +8111,64 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          aparece quando os objetos forem religados. */
       mandarMvp(locM.mvp, mvp);
 
-      /* O ALIENIGENA. Presenca de um decimo, e a cor sai da textura do ceu
-         e nao da casca: e o que faz dele parte da nuvem em vez de um
-         objeto posto na frente dela. Respira devagar, e so isso o
-         entrega. */
-      if(SER_NO_CEU && bAlien && nAlien){
+      /* O ALIENIGENA. Superficie, e com o CEU DO CENARIO EM QUE ELE ESTA
+         ligado na unidade da casca -- e a materia 13 que o amostra na
+         direcao de cada pixel. Ele desenha nos quatro cenarios e camufla no
+         ceu de cada um, que e o que "camuflado no ceu" quer dizer.
+
+         RESPIRA PELA NORMAL. O inflar empurra cada vertice na direcao da
+         propria normal, e oito centimetros num corpo de vinte e seis metros
+         e um sopro -- a unica coisa que o entrega alem da borda. */
+      if(SER_NO_CEU && bAlien && nAlienIdx){
+        gl.useProgram(progSolida);
+        soltarAtributos();
+        gl.enable(gl.BLEND);
+        sobrepor();
+        gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+        gl.depthMask(false);
+        mandarMvp(locSo.mvp, mvp);
+        gl.uniform1f(locSo.tempo, relogio);
+        gl.uniform1f(locSo.crescimento, 9.0);
+        /* QUINZE POR CENTO, respirando entre dez e vinte. Acima de um quarto
+           ele deixa de ser descoberta e passa a ser cenario. */
+        gl.uniform1f(locSo.presenca, 0.15 + 0.05*Math.sin(relogio*0.21));
+        gl.uniform1f(locSo.inverte, 0.0);
+        gl.uniform3f(locSo.desloca, 0, 0, 0);
+        gl.uniform1f(locSo.escalaObj, 1.0);
+        gl.uniform1f(locSo.inflar, 0.08 * Math.sin(relogio*0.21));
+        gl.uniform3fv(locSo.focos, FOCOS);
+        gl.uniform1f(locSo.escalaTinta, 1.0);
+        gl.uniform1f(locSo.planta, 0.0);
+        gl.uniform1f(locSo.balanca, 0.0);
+        gl.uniform1f(locSo.materia, 13.0);
+        gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
+        gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
-        gl.uniform1f(locM.presenca, 0.085 + 0.035*Math.sin(relogio*0.21));
-        gl.uniform1f(locM.deriva, 0.16);
-        ligar(aM.pos,bAlien.pos,3); ligar(aM.uv,bAlien.uv,2);
-        ligar(aM.alt,bAlien.alt,1); ligar(aM.fase,bAlien.fase,1);
-        ligar(aM.tam,bAlien.tam,1);
-        gl.drawArrays(gl.POINTS, 0, nAlien);
+        gl.uniform1i(locSo.casca, 2);
+        ligar(aSo.pos, bAlien.pos, 3); ligar(aSo.nor, bAlien.nor, 3);
+        ligar(aSo.alt, bAlien.alt, 1); ligar(aSo.fase, bAlien.fase, 1);
+        ligar(aSo.borda, bAlien.borda, 1);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bAlien.idx);
+        gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
+        gl.uniform1f(locSo.materia, 0.0);
+        gl.uniform1f(locSo.inflar, 0.0);
+        gl.uniform1f(locSo.planta, 1.0);
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+        gl.depthMask(true);
+        /* E DEVOLVE O PROGRAMA DE PONTOS, porque o bloco continua nele: o
+           que vem depois -- as folhas -- e nuvem. */
+        gl.useProgram(progMata);
+        soltarAtributos();
+        gl.depthMask(false);
+        mandarMvp(locM.mvp, mvp);
+        gl.uniform1f(locM.tempo, relogio);
+        gl.uniform1f(locM.escala, escalaPonto);
+        gl.uniform1f(locM.deriva, 0.0);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+        gl.uniform1i(locM.casca, 2);
       }
 
       /* AS FOLHAS acompanham a floresta: mesma presenca da mata, porque

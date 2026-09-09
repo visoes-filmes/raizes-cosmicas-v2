@@ -10,6 +10,7 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 |---|---:|---:|---:|---|---|
 | `mao_cosmica_teia` | 38070 | 1 | 512 KB | nuvem + malha (1) | — |
 | `star` | 23651 | 1 | 316 KB | nuvem + malha (1) | — |
+| `ser_alienigena_rigged` | 39680 | 1 | 304 KB | nuvem + malha (1) | o ser camuflado no ceu |
 | `crisalida_borboleta88_diaethria` | 39594 | 1 | 288 KB | nuvem + malha (1) | o casulo |
 | `berry-pick` | 19250 | 38 | 216 KB | nuvem + malha (38) | — |
 | `rocks-icon` | 5856 | 21 | 169 KB | nuvem + malha (8) | as onze pedras do chao, as montanhas do horizonte, o fundo do mar |
@@ -23,7 +24,6 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 | `cogumelo` | 138 | 1 | 61 KB | nuvem + malha (2) | os treze cogumelos, e a casca de luz que eles derramam |
 | `jellyfish-icon` | 5408 | 17 | 58 KB | nuvem + malha (8) | o fundo do mar, e os seres que flutuam entre os planetas |
 | `animated_butterfly` | 2144 | 5 | 52 KB | nuvem + malha (5) | a borboleta |
-| `ser_alienigena_rigged` | 39680 | 1 | 49 KB | nuvem | o ser camuflado no ceu |
 | `grass-icon` | 4288 | 21 | 30 KB | nuvem | a grama |
 | `autumn-leaves-icon` | 101501 | — | 28 KB | nuvem | folhas — atras de OBJETOS_NO_CHAO, hoje desligado |
 | `autumn-leaves-icon-22705` | 4800 | 3 | 28 KB | nuvem | folhas — atras de OBJETOS_NO_CHAO, hoje desligado |

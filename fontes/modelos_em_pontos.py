@@ -95,7 +95,10 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               "seaweed-icon-17190": "alga-c",
               # A concha e o objeto que a pessoa TOCA no cenario 3, e era
               # o unico interativo da obra ainda feito de pontos.
-              "scallop-icon": "concha"}
+              "scallop-icon": "concha",
+              # O ser alienigena. Ele vai ser MUITO grande, e uma nuvem de
+              # pontos espalhada por vinte metros deixa de ler como corpo.
+              "ser_alienigena_rigged": "alien"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -164,7 +167,11 @@ MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos",
 # textura inteira do bicho.
 #
 # Pelo mesmo motivo ela nao se suaviza nem se pole: o relevo E o modelo.
+# O ALIEN NAO SE SUAVIZA, pelo mesmo motivo da borboleta: o corpo dele e
+# feito de PLACAS encaixadas, e a quina entre elas e o desenho do autor.
+# Alisar transforma o bicho num boneco de sabao.
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
+         "alien": 0.0,
          "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0,
          "mao-cosmica": 0.0, "arvore-icone": 0.30,
          "conchas": 0.30, "frutos": 0.35,
@@ -185,7 +192,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
             # triangulos por bicho seriam pagos para nada.
             "agua-viva": 0, "coral": 0, "estrela-mar": 0,
             "mao-cosmica": 0, "arvore-icone": 0,
-            "conchas": 0, "frutos": 0,
+            "conchas": 0, "frutos": 0, "alien": 0,
             "alga-a": 0, "alga-b": 0, "alga-c": 0, "concha": 1}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
@@ -197,7 +204,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # e a quina que sobra depois de dividir sai de graca aqui.
 POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0,
          "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2,
-         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3}
+         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3, "alien": 0}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -315,7 +322,9 @@ GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estr
           # come primeiro -- e a teia e o nome da peca.
           "mao-cosmica": 200, "arvore-icone": 60,
           "conchas": 60, "frutos": 40,
-          "alga-a": 26, "alga-b": 34, "alga-c": 30, "concha": 70}
+          "alga-a": 26, "alga-b": 34, "alga-c": 30, "concha": 70,
+          # 60 guarda as placas e corta pela metade; ele vai ser um so
+          "alien": 60}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
