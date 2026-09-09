@@ -538,7 +538,50 @@ const LADOS = 7, SEG = 6, MAXP = 4;
 /* AS PONTAS DOS GALHOS. E delas que a folhagem nasce, e so o construtor
    do tubo sabe onde elas ficaram. */
 let PONTAS = [];
-function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo, lados){
+/* O BICO QUE FECHA A PONTA DO GALHO.
+
+   O tubo acabava no ultimo anel, ABERTO. Nem tuboAoLongo nem o emissor da
+   planta fechavam nada: os dois emitem aneis e as faixas entre eles, e
+   depois do ultimo anel nao vem mais nada. Com o descarte de face ligado
+   isso e um furo -- ve-se atraves do galho, com o que estiver atras dele
+   passando por dentro.
+
+   De longe some. A um metro e meio, que e onde a pessoa fica, sao dois
+   centimetros e meio de boca em cada ponta de galho, e dezessete no alto
+   do tronco da arvore-mae.
+
+   E BICO, E NAO TAMPA. Tampa e um disco virado para o lado do galho: ela
+   fecha o furo e acende diferente de tudo em volta, porque a normal dela
+   aponta para onde nenhuma outra aponta -- o que era buraco vira moeda. O
+   bico so continua a conicidade que o galho ja vinha fazendo.
+
+   DUAS VEZES O RAIO de comprimento. Menos que isso ainda le como corte
+   reto; mais vira espinho, e galho nao termina em agulha.
+
+   E ELE CUSTA UM VERTICE. A normal do apice e a direcao do galho e a do
+   anel continua radial: a interpolacao entre as duas arredonda a ponta
+   sozinha, sem um triangulo a mais do que o leque. */
+function bicoDaPonta(s, centro, dir, raio, alt, fase, lados){
+  const apice = s.pos.length/3;
+  const anel = apice - (lados+1);   // o anel que acabou de ser emitido
+  s.pos.push(centro[0] + dir[0]*raio*2.0,
+             centro[1] + dir[1]*raio*2.0,
+             centro[2] + dir[2]*raio*2.0);
+  s.nor.push(dir[0], dir[1], dir[2]);
+  s.uv.push(0.5, 0.0);
+  /* A MESMA ALTURA DO ULTIMO ANEL, e nao 1. E a altura que comanda o
+     crescimento: com o apice adiante do anel, o bico nasceria depois do
+     galho e a ponta ficaria aberta durante toda a abertura da floresta --
+     que sao os dois primeiros minutos, justamente quando se olha. */
+  s.alt.push(alt);
+  s.fase.push(fase);
+  for(let k=0;k<lados;k++) s.idx.push(anel+k, apice, anel+k+1);
+}
+
+/* O ultimo argumento, semBico, e para o galho que NAO termina no ar: o do
+   casulo morre exatamente no topo do pedunculo, e um bico ali atravessaria
+   a pupa por fora. */
+function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo, lados, semBico){
   if(pontos.length >= 2 && raios[raios.length-1] < 0.06){
     for(const q of [0.72, 1.0]){
       const i = Math.max(1, Math.round(q*(pontos.length-1)));
@@ -615,6 +658,11 @@ function tuboAoLongo(s, pontos, raios, fase, altBase, altTopo, lados){
       s.idx.push(a, a+larg, a+larg+1,  a, a+larg+1, a+1);
     }
   }
+  if(!semBico && pontos.length >= 2){
+    const u = pontos.length-1;
+    bicoDaPonta(s, pontos[u], norm(sub(pontos[u], pontos[u-1])),
+                raios[u], altTopo, fase, LADOS);
+  }
 }
 
 /* OS GALHOS DE ONDE O CASULO PENDE. Fora da arvore porque os DOIS
@@ -642,12 +690,15 @@ function galhoDoCasulo(de, s){
     return seg;
   };
   const maior = arcoAte(de, [0.92, 1.66, -0.34], 0.30, 0.22);
+  /* SEM BICO NOS DOIS: eles nao acabam no ar, acabam no casulo. Um bico
+     ali seria um espeto saindo da pupa por fora, e a pupa e o objeto que a
+     obra inteira convida a olhar de perto. */
   tuboAoLongo(s, maior, maior.map((_, k) => 0.052*Math.pow(1-k/N, 1.3) + 0.010),
-              1.9, 0.24, 0.58);
+              1.9, 0.24, 0.58, 12, true);
   const menor = arcoAte(maior[Math.round(N*0.55)],
                         [CASULO[0], FIO_ALTO, CASULO[2]], 0.09, -0.11);
   tuboAoLongo(s, menor, menor.map((_, k) => 0.017*Math.pow(1-k/N, 1.2) + 0.0055),
-              2.6, 0.30, 0.56);
+              2.6, 0.30, 0.56, 12, true);
 }
 
 /* ═══════════ A ARVORE-MAE, MODELO 2: A ARVORE DA VIDA ═══════════
@@ -920,6 +971,15 @@ function gerarPlanta(rnd, base, escala, fase, s, feitio, lados, fundo){
         const a=base0+i*anel+k, b=a+1, c=a+anel, e=c+1;
         s.idx.push(a,c,b, b,c,e);
       }
+    /* FECHA SO O QUE ACABA NO AR. Onde ha filho que emite, o tubo dele ja
+       cobre a boca -- e um bico ali ficaria enfiado dentro do galho
+       seguinte, pago e invisivel. Os filhos ponta nao emitem nada, e sao
+       justamente esses os galhos que terminavam abertos. */
+    if(!no.filhos.length || no.filhos.every(f => f.ponta)){
+      const u = no.pontos.length-1;
+      bicoDaPonta(s, no.pontos[u], no.dirs[Math.min(u, no.dirs.length-1)],
+                  r1, Math.min(1,(no.prof+1)/NIVEIS), fase, L);
+    }
     /* ONDE A FOLHAGEM PODE NASCER: ao longo dos galhos FINOS, em tres
        alturas. So no fim do galho a copa fica com cara de pompom. */
     /* DUAS ANCORAS POR GALHO, e nao tres. Tres davam a copa mais cheia e
