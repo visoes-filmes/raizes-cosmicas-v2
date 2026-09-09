@@ -83,7 +83,12 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               "crisalida_borboleta88_diaethria": "crisalida",
               "animated_butterfly": "borboleta",
               "jellyfish-icon": "agua-viva", "coral-icon": "coral",
-              "star": "estrela-mar"}
+              "star": "estrela-mar",
+              # OS QUE ESTAVAM BAIXADOS E NUNCA ENTRARAM. Viram superficie
+              # para receber o neon: em nuvem de pontos nao ha silhueta, e
+              # neon sem silhueta e so um borrao aceso.
+              "mao_cosmica_teia": "mao-cosmica", "tree-icon": "arvore-icone",
+              "seashells-icon": "conchas", "berry-pick": "frutos"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -109,7 +114,7 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
 # e cada ramo voltaria centrado na origem com a escala dele: um monte de
 # vermes empilhados. Ja aconteceu duas vezes neste arquivo, e a segunda foi
 # hoje -- o coral saiu daqui por um minuto e voltou como um seixo.
-MONTADO = {"borboleta", "agua-viva", "coral"}
+MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos"}
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
@@ -141,7 +146,9 @@ MONTADO = {"borboleta", "agua-viva", "coral"}
 #
 # Pelo mesmo motivo ela nao se suaviza nem se pole: o relevo E o modelo.
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
-         "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0}
+         "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0,
+         "mao-cosmica": 0.0, "arvore-icone": 0.30,
+         "conchas": 0.30, "frutos": 0.35}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -156,7 +163,9 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
             # ela nao custa triangulo. A 1,70 m de altura, entre planetas, o
             # sino ocupa poucos pixels de contorno: nove mil e quinhentos
             # triangulos por bicho seriam pagos para nada.
-            "agua-viva": 0, "coral": 0, "estrela-mar": 0}
+            "agua-viva": 0, "coral": 0, "estrela-mar": 0,
+            "mao-cosmica": 0, "arvore-icone": 0,
+            "conchas": 0, "frutos": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
@@ -165,7 +174,8 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # nao tem onde se esconder.
 # Tres passadas, pelo mesmo motivo do cogumelo: polir nao custa triangulo,
 # e a quina que sobra depois de dividir sai de graca aqui.
-POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0}
+POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0,
+         "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -190,7 +200,7 @@ PECAS = 8
 # de um modelo que so precisa das maiores. No coral e o contrario: as peças
 # SAO os ramos, e um coral com oito ramos de cinquenta nao e um coral com
 # menos detalhe -- e um punhado de varetas.
-PECAS_POR = {"coral": 60}
+PECAS_POR = {"coral": 60, "frutos": 48, "conchas": 8}
 
 # O PEDESTAL FICA DE FORA, TAMBEM NA MALHA.
 #
@@ -270,7 +280,12 @@ GRADE = 70
 # Vinte mil triangulos e caro para um objeto qualquer, e barato para ESTE:
 # ha um so na obra, ele fica ao alcance do braco, e e o unico que a obra
 # inteira convida a tocar. O que se paga aqui se paga uma vez.
-GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estrela-mar": 200}
+GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estrela-mar": 200,
+          # A MAO NAO SE SIMPLIFICA: a teia entre os dedos e feita de fios
+          # de um triangulo de largura, e qualquer agrupamento por grade os
+          # come primeiro -- e a teia e o nome da peca.
+          "mao-cosmica": 200, "arvore-icone": 60,
+          "conchas": 60, "frutos": 40}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}

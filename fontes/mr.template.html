@@ -1690,6 +1690,48 @@ function montarSeres(){
   nSeresIdx = m.idx.length;
 }
 
+/* OS QUATRO QUE NUNCA TINHAM ENTRADO, EM NEON.
+
+   Estavam baixados e embarcados no nuvens.js desde sempre, custando o
+   download do aparelho sem nada aparecer na tela: a mao cosmica, a arvore
+   de icone, as conchas e o galho de frutos.
+
+   VIRAM MALHA, e nao nuvem, porque neon precisa de SILHUETA -- a cor dele
+   mora na beirada, e nuvem de pontos nao tem beirada. Este e o mesmo
+   motivo pelo qual a materia 10 le o raspao e ignora a luz.
+
+   QUANTOS E POR QUE. A mao sozinha custa trinta e seis mil triangulos: ela
+   nao se simplifica, porque a teia entre os dedos e feita de fios de um
+   triangulo de largura e o agrupamento por grade os come primeiro -- e a
+   teia e o nome da peca. Uma so, entao. O galho de frutos custa catorze mil
+   (trinta e oito pecas, quase todas esferas), e tambem vai um. A arvore e as
+   conchas sao baratas e vao duas e tres. */
+let bNeon = null, nNeonIdx = 0;
+function montarNeon(){
+  const rnd = prng(8419);
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const por = (quantos, prefixo, pecas, escMin, escMax) => {
+    for(let i=0;i<quantos;i++){
+      const ang = rnd()*Math.PI*2, raio = 1.25 + rnd()*2.0;
+      const base = [Math.sin(ang)*raio, 1.15 + rnd()*1.05, -Math.cos(ang)*raio];
+      const esc = escMin + rnd()*(escMax - escMin);
+      const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
+      for(let k=0;k<pecas;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
+    }
+  };
+  por(1, 'mao-cosmica-',   1, 0.52, 0.52);
+  por(2, 'arvore-icone-',  1, 0.30, 0.44);
+  por(3, 'conchas-',       6, 0.16, 0.26);
+  por(1, 'frutos-',       38, 0.26, 0.34);
+  if(!m.idx.length) return;
+  bNeon = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bNeon.pos,m.pos); enviar(bNeon.nor,m.nor); enviar(bNeon.alt,m.alt);
+  enviar(bNeon.fase,m.fase); enviar(bNeon.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bNeon.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nNeonIdx = m.idx.length;
+}
+
 /* AS MONTANHAS DO HORIZONTE.
 
    A mata de fundo termina a onze metros e depois dela nao ha nada ate o
@@ -2568,6 +2610,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
      6  a luz que o cogumelo derrama   7  o que pulsa dentro da crisalida
      8  ceu estrelado -- as arvores que nao sao a mae
      9  os seres aquaticos -- agua com luz dentro
+    10  neon -- os modelos que nunca tinham entrado
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -2691,7 +2734,28 @@ void main(){
      entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
      do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
   vec3 estrelas = vec3(0.0);
-  if(materia > 8.5){
+  if(materia > 9.5){
+    /* NEON.
+
+       O TUBO ESTOURA NA BORDA, e nao no meio. Um tubo de neon visto de
+       frente mostra pouco gas; visto de esguelha, o olhar atravessa o
+       comprimento dele e a mesma luz soma muitas vezes. Por isso a beirada
+       e mais clara que o miolo, e por isso ela vai ao branco: a cor satura
+       primeiro e depois nao tem para onde subir. Invertido -- claro no
+       meio, cor na borda -- le como plastico iluminado por dentro.
+
+       A COR VEM DA FASE, que ja e sorteada quando o corpo e plantado: cada
+       um ganha a sua e nao ha dois iguais lado a lado. O cosseno deslocado
+       em tercos e a volta inteira do circulo de cores em tres linhas, sem
+       tabela e sem condicional. */
+    float h = fract(vFase * 0.159);
+    vec3 neon = 0.5 + 0.5*cos(6.2831853*(h + vec3(0.00, 0.33, 0.67)));
+    neon = mix(neon, neon*neon, 0.45);
+    c = neon * (0.55 + 0.95 * pow(raspaoC, 1.6))
+      + vec3(1.0) * pow(raspaoC, 5.0) * 0.55;
+    // e ele respira, no compasso lento de quem esta ligado na tomada
+    c *= 0.82 + 0.30 * pow(0.5 + 0.5*sin(tempo*1.15 + vFase*1.7), 2.0);
+  } else if(materia > 8.5){
     /* OS SERES. Corpo de agua com luz dentro.
 
        O marmore da a nervura -- e a mesma pedra da crisalida, lida mais
@@ -2948,7 +3012,11 @@ void main(){
   /* O SER QUASE NAO SE SOMBREIA: o que ele tem por dentro e luz, e luz
      por dentro nao faz lado escuro. Sobra um fio para a forma nao virar
      recorte chapado -- a mesma conta do cogumelo. */
-  if(materia > 8.5)                       piso = 0.74;   // os seres
+  /* NEON NAO SE SOMBREIA DE JEITO NENHUM: nao ha nada dentro dele alem
+     de luz, e luz nao tem lado escuro. O relevo dele e o raspao, e o
+     raspao nao passa por aqui. */
+  if(materia > 9.5)                       piso = 1.00;   // neon
+  else if(materia > 8.5)                  piso = 0.74;   // os seres
   else if(materia > 7.5)                  piso = 0.38;   // ceu estrelado
   else if(materia > 0.5 && materia < 1.5) piso = 0.24;   // pedra
   else if(materia > 1.5 && materia < 2.5) piso = 0.36;   // terra
@@ -5272,6 +5340,7 @@ const COGUMELOS = [];
 
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
+montarNeon();        // idem
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -7955,6 +8024,18 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.borda, bSeres.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSeres.idx);
       gl.drawElements(gl.TRIANGLES, nSeresIdx, gl.UNSIGNED_SHORT, 0);
+      /* E O NEON, no mesmo passe: mesmo programa, mesmos atributos, so a
+         materia e o buffer mudam. Somando luz, e nao sobrepondo -- neon e
+         luz que chega, e luz que chega soma com o que ja estava la. */
+      if(bNeon && nNeonIdx){
+        somarLuz();
+        gl.uniform1f(locSo.materia, 10.0);
+        ligar(aSo.pos, bNeon.pos, 3); ligar(aSo.nor, bNeon.nor, 3);
+        ligar(aSo.alt, bNeon.alt, 1); ligar(aSo.fase, bNeon.fase, 1);
+        ligar(aSo.borda, bNeon.borda, 1);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bNeon.idx);
+        gl.drawElements(gl.TRIANGLES, nNeonIdx, gl.UNSIGNED_SHORT, 0);
+      }
       gl.uniform1f(locSo.materia, 0.0);
       gl.uniform1f(locSo.planta, 1.0);
       gl.depthMask(true);

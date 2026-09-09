@@ -8,10 +8,14 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 
 | modelo | tri | peças | no `nuvens.js` | como entra | onde |
 |---|---:|---:|---:|---|---|
+| `mao_cosmica_teia` | 38070 | 1 | 512 KB | nuvem + malha (1) | — |
 | `star` | 23651 | 1 | 316 KB | nuvem + malha (1) | — |
 | `crisalida_borboleta88_diaethria` | 39594 | 1 | 288 KB | nuvem + malha (1) | o casulo |
+| `berry-pick` | 19250 | 38 | 216 KB | nuvem + malha (38) | — |
 | `rocks-icon` | 5856 | 21 | 169 KB | nuvem + malha (8) | as onze pedras do chao, as montanhas do horizonte, o fundo do mar |
 | `coral-icon` | 5888 | 50 | 108 KB | nuvem + malha (47) | o fundo do mar, e os seres que flutuam entre os planetas |
+| `tree-icon` | 5064 | 1 | 79 KB | nuvem + malha (1) | — |
+| `seashells-icon` | 3409 | 6 | 69 KB | nuvem + malha (6) | — |
 | `cogumelo` | 138 | 1 | 61 KB | nuvem + malha (2) | os treze cogumelos, e a casca de luz que eles derramam |
 | `jellyfish-icon` | 5408 | 17 | 58 KB | nuvem + malha (8) | o fundo do mar, e os seres que flutuam entre os planetas |
 | `animated_butterfly` | 2144 | 5 | 52 KB | nuvem + malha (5) | a borboleta |
@@ -28,16 +32,12 @@ Os arquivos vivem em `Downloads/Visões filmes/Modelos 3D/`, e alguns soltos um 
 
 ## Baixados e nunca usados
 
-Somam **162 KB dentro do `nuvens.js`** — peso que o Quest baixa e decodifica a cada abertura sem nada aparecer na tela.
+Somam **60 KB dentro do `nuvens.js`** — peso que o Quest baixa e decodifica a cada abertura sem nada aparecer na tela.
 
 | modelo | tri | no `nuvens.js` | o que é |
 |---|---:|---:|---|
 | `hand-icon` | 1344 | 37 KB | mao; em RM as maos sao as da pessoa, vistas pelas cameras. |
-| `tree-icon` | 5064 | 35 KB | outra arvore; a arvore-mae hoje e procedural, sem modelo. |
 | `crisalida_borboleta88_rigged` | 39594 | 23 KB | a mesma crisalida com esqueleto; a obra usa a lisa. |
-| `seashells-icon` | 3409 | 23 KB | conchas; a obra usa a scallop-icon. |
-| `mao_cosmica_teia` | 38070 | 23 KB | **a mao gigante que puxa, aos 8:25.** Esta no roteiro e nunca foi ligada. |
-| `berry-pick` | 19250 | 21 KB | frutos; nunca entraram no roteiro. |
 | `ser_alienigena` | 39801 | não embarcado | o mesmo ser sem esqueleto; a obra usa a rigged. |
 | `ser_alienigena_apose` | 39680 | não embarcado | o mesmo ser em outra pose; a obra usa a rigged. |
 
