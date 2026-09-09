@@ -167,11 +167,21 @@ MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos",
 # textura inteira do bicho.
 #
 # Pelo mesmo motivo ela nao se suaviza nem se pole: o relevo E o modelo.
-# O ALIEN NAO SE SUAVIZA, pelo mesmo motivo da borboleta: o corpo dele e
-# feito de PLACAS encaixadas, e a quina entre elas e o desenho do autor.
-# Alisar transforma o bicho num boneco de sabao.
+# O ALIEN SE SUAVIZA, e isto e uma correcao: eu tinha posto zero aqui pelo
+# argumento da borboleta -- "a quina e o desenho do autor". Na asa e verdade,
+# porque o contorno dela E a forma. No corpo dele, nao: o que se le a trinta
+# e cinco metros, atraves de vinte e seis por cento de presenca, e a
+# SILHUETA. As placas nunca chegaram ao olho, e as quinas chegavam -- as
+# pernas liam como cascalho.
+#
+# 0,45 com quatro passadas foi escolhido comparando cinco graus lado a lado:
+# o corpo fica liso, a crista e as placas do tronco sobrevivem, e em 0,60
+# com sete ele comeca a virar manequim.
+#
+# E NAO CUSTA UM TRIANGULO. Polir e passada de media sem dividir de novo:
+# vinte mil e trezentos em todos os graus, medido.
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
-         "alien": 0.0,
+         "alien": 0.45,
          "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0,
          "mao-cosmica": 0.0, "arvore-icone": 0.30,
          "conchas": 0.30, "frutos": 0.35,
@@ -204,7 +214,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # e a quina que sobra depois de dividir sai de graca aqui.
 POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0,
          "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2,
-         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3, "alien": 0}
+         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3, "alien": 4}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
