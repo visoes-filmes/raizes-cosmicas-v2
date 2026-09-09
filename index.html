@@ -280,8 +280,32 @@
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
     <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
+    <p class="portao-dica" id="portaoVersao"></p>
   </div>
 </div>
+
+<script>
+  /* QUE VERSAO ESTE APARELHO ESTA SERVINDO.
+     O nome do cache E a versao, e por isso ele pode ser lido de volta: o
+     que aparece aqui nao e a versao que foi MONTADA -- e a que o aparelho
+     tem na mao. A diferenca entre as duas e exatamente o que nao havia como
+     saber, e e a pergunta de todo relato: "no headset esta a de ontem".
+     Antes disso o nome so existia nos relatos, que sao de endereco de teste
+     -- na obra publicada, dentro do capacete, nao havia onde ler. */
+  (function () {
+    var onde = document.getElementById('portaoVersao');
+    if (!onde || !self.caches || !caches.keys) return;
+    caches.keys().then(function (nomes) {
+      var meus = nomes.filter(function (n) { return n.indexOf('raizes-cosmicas-') === 0; });
+      if (!meus.length) { onde.textContent = 'primeira abertura — ainda guardando'; return; }
+      /* DUAS QUER DIZER "A NOVA ESTA CHEGANDO". O guardiao serve a antiga
+         ate acabar de guardar a nova; quem abrir de novo pega a nova. */
+      onde.textContent = meus.length > 1
+        ? meus.join('  →  ') + '   (abra de novo para a nova valer)'
+        : meus[0].replace('raizes-cosmicas-', 'versão ');
+    }).catch(function () {});
+  })();
+</script>
 
 <div class="card oculto" id="hud">
   <span>giro</span><b id="vYaw">0°</b>
