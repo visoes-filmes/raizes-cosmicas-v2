@@ -3190,42 +3190,27 @@ void main(){
 }`;
 
 const VS_BORBO = `
-attribute vec2 aXY;
-attribute float aLado;          // -1 asa esquerda, +1 asa direita, 0 CORPO
+attribute vec3 aPos, aNor;
+attribute float aLado;          // 0 corpo ou conta de rastro, -1/+1 asa
 uniform mat4 mvp;
 uniform vec3 centro, frente;
 uniform float fase, tamanho, inclina;
+varying vec2 vUV;
+varying vec3 vNor;
+varying float vCorpo;
 
-/* A CURVA DA BATIDA, agora dentro do shader.
-
-   Ela morava no JavaScript e chegava aqui como UM angulo para a asa
-   inteira. Um angulo so para a asa inteira e uma CHAPA girando: nao ha como
-   a asa se curvar, porque nao existe nada que varie de um ponto dela para o
-   outro. Era essa a cara geometrica -- nao a silhueta, que vem do alfa da
-   pintura, mas a superficie, e a luz uniforme que uma superficie plana da.
-
-   Trazida para ca, cada vertice pergunta a curva a SUA propria hora. E o
-   que faz a batida VIAJAR pela asa em vez de acontecer nela toda de uma vez.
+/* A CURVA DA BATIDA.
 
    Sobe rapido e desce devagar, que e como asa bate: o golpe e curto e
-   forte, a volta e longa. Seno puro le como metronomo. */
+   forte, a volta e longa. Seno puro le como metronomo.
+
+   Ela vive aqui, e nao no JavaScript, porque cada ponto da asa precisa
+   consulta-la na SUA propria hora -- e de fora so daria para mandar uma
+   resposta para a asa toda, que e uma chapa girando. */
 float baterEm(float f){
   f = mod(f, 6.2831853);
   return 0.95 * (f < 2.1991 ? sin(f / 0.7)
                             : -0.55 * sin((f - 2.1991) / 1.3));
-}
-varying vec2 vUV;
-varying vec3 vNor;              // para a asa pegar luz e deixar de ser papel
-varying float vCorpo;           // 1 no corpo, 0 na asa
-
-/* A GROSSURA DO CORPO ao longo dele. Gordo no torax e afinando para os dois
-   lados -- rapido para a cabeca, devagar para o abdome, que e como um corpo
-   de borboleta e feito. E ele que da MASSA: duas asas chatas sem nada no
-   meio sao duas folhas de papel, e nenhuma quantidade de batimento
-   conserta isso, porque o que falta nao e movimento e sim volume. */
-float raioCorpo(float y){
-  float k = y > 0.05 ? (y - 0.05) / 0.68 : (0.05 - y) / 1.10;
-  return 0.098 * (1.0 - pow(clamp(k, 0.0, 1.0), 1.7));
 }
 
 void main(){
@@ -3239,56 +3224,56 @@ void main(){
   vec3 lado2 = lado*ci + cima*si;
   vec3 cima2 = cima*ci - lado*si;
 
-  vec3 p;
-  if(abs(aLado) < 0.5){
-    /* O CORPO. aXY.x e a volta em torno do eixo do voo, aXY.y e o
-       comprimento. Ele nao bate: so a asa gira. */
-    vCorpo = 1.0;
-    float a = aXY.x * 6.2831853;
-    vec3 radial = lado2 * cos(a) + cima2 * sin(a);
-    p = centro + radial * (raioCorpo(aXY.y) * tamanho)
-              + f * (aXY.y * tamanho * 0.75);
-    vNor = radial;
-    // o corpo le a COLUNA DO MEIO da pintura, que e onde o corpo dela esta
-    vUV = vec2(0.5, 0.5 - aXY.y*0.5);
-  } else {
-    vCorpo = 0.0;
-    /* A ASA E MEMBRANA, e nao chapa.
+  /* A FORMA E DO BICHO, e o movimento e nosso.
 
-       Cada ponto dela le a batida com um ATRASO proprio: a raiz manda e a
-       ponta obedece depois. O angulo passa a variar ao longo da asa, e um
-       angulo que varia E a curvatura -- nao ha nada a mais para calcular.
-       Cada estacao da envergadura aponta para um lado ligeiramente
-       diferente, e sai uma asa arqueada que ondula, com a onda correndo da
-       raiz para a ponta.
+     O modelo entra em cinco pecas montadas: o corpo, as duas asas
+     dianteiras e as duas traseiras, todas no mesmo enquadramento. No espaco
+     dele, x e a envergadura, y a espessura e z o comprimento -- e +z e a
+     cabeca, o que se sabe porque as dianteiras estao em z positivo e as
+     traseiras em negativo.
 
-       O atraso tem duas partes. A envergadura da a maior -- 0,95 de radiano
-       do corpo ate a ponta, quase um sexto de batida. A corda da a menor,
-       0,22: a beirada de tras chega depois da da frente, e essa defasagem e
-       a TORCAO que toda asa de insecto tem. E ela que impede a asa de
-       parecer uma folha de papel dobrando ao meio.
+     A ASA GIRA EM TORNO DO EIXO DO CORPO, que aqui e o z. A dobradica nao
+     precisa ser dada: ela E o eixo, e a asa esta toda de um lado dele.
 
-       E AS NORMAIS VEM DE GRACA. Elas ja saem do angulo local, que agora e
-       diferente em cada ponto: a luz passou a variar ao longo da asa sem
-       uma conta a mais. Era a luz uniforme -- a asa inteira no mesmo tom --
-       a outra metade do problema.
+     E o sinal do lado resolve o espelho de graca. Girar (x, y) em torno de
+     z sobe a ponta da asa direita e desceria a da esquerda; multiplicar o
+     angulo pelo lado inverte a esquerda, e as duas sobem juntas. */
+  vec3 q = aPos;
+  vec3 n = aNor;
+  vCorpo = abs(aLado) < 0.5 ? 1.0 : 0.0;
 
-       aXY.x = ao longo da asa (0 no corpo, 1 na ponta)
-       aXY.y = ao longo do corpo (-1 atras, +1 na frente) */
-    float atraso = aXY.x * 0.95 + (aXY.y * 0.5 + 0.5) * 0.22;
-    float angA = baterEm(fase - atraso) * aLado;
-    float larg = aXY.x * aLado;
-    vec3 asaDir = lado2 * cos(angA) + cima2 * sin(angA);
-    p = centro + asaDir * (larg * tamanho)
-              + f * (aXY.y * tamanho * 0.75);
-    /* A NORMAL DA ASA gira junto com o batimento, e e isso que faz a asa
-       pegar luz diferente em cada instante do bater. Sem normal a asa e
-       textura chapada, e textura chapada e papel -- por mais que se dobre. */
-    vNor = normalize(cross(asaDir, f));
-    // a metade esquerda le a esquerda da imagem; a direita, espelhada
-    vUV = vec2(aLado < 0.0 ? 0.5 - aXY.x*0.5 : 0.5 + aXY.x*0.5,
-               0.5 - aXY.y*0.5);
+  if(abs(aLado) > 0.5){
+    /* O ATRASO. A raiz manda e a ponta obedece depois -- 0,95 de radiano do
+       corpo a ponta, quase um sexto de batida. E a beirada de tras chega
+       depois da da frente, 0,22, que e a TORCAO que toda asa de insecto tem.
+
+       Um angulo que varia de ponto a ponto E a curvatura: nao ha nada a
+       mais para calcular, e as normais saem giradas junto. Era a luz
+       uniforme -- a asa inteira no mesmo tom -- metade do que fazia a asa
+       parecer papel. */
+    float vao   = clamp((abs(q.x) - 0.03) / 0.47, 0.0, 1.0);
+    float corda = clamp(q.z * 1.6 + 0.5, 0.0, 1.0);
+    float a = baterEm(fase - vao*0.95 - corda*0.22) * aLado;
+    float c = cos(a), sn = sin(a);
+    q = vec3(q.x*c - q.y*sn, q.x*sn + q.y*c, q.z);
+    n = vec3(n.x*c - n.y*sn, n.x*sn + n.y*c, n.z);
   }
+
+  vec3 p = centro + lado2 * (q.x * tamanho)
+                  + cima2 * (q.y * tamanho)
+                  + f     * (q.z * tamanho);
+  vNor = normalize(lado2*n.x + cima2*n.y + f*n.z);
+
+  /* A TINTA VEM DA AQUARELA, e a do modelo fica de fora.
+
+     O modelo traz textura propria -- uma borboleta laranja pintada a mao --
+     e ela nao pertence a esta obra: aqui tudo, da pedra ao cogumelo, e
+     pintado com a aquarela da Odara. O que se foi buscar no modelo e a
+     FORMA.
+
+     E o UV sai da posicao ANTES do giro, senao a tinta escorrega pela asa a
+     cada batida -- a asa se moveria por dentro da propria pintura. */
+  vUV = vec2(aPos.x + 0.5, 0.5 - aPos.z * 1.15);
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_BORBO = `
@@ -3301,33 +3286,30 @@ varying vec2 vUV;
 varying vec3 vNor;
 varying float vCorpo;
 void main(){
-  vec4 c = texture2D(asa, vUV);
-  float a = smoothstep(0.16, 0.60, c.a) * presenca;
-  // a beirada do recorte nunca aparece
-  vec2 d = min(vUV, 1.0 - vUV);
-  a *= smoothstep(0.0, 0.03, min(d.x, d.y));
-  if(a < 0.004) discard;
+  /* O ALFA DA PINTURA NAO ENTRA MAIS.
 
-  /* A LUZ NA ASA, pelos DOIS LADOS.
+     Ele existia para recortar a borboleta de dentro de um retangulo, quando
+     a geometria era um retangulo. Agora a silhueta e a do modelo -- asa
+     dianteira, traseira, lobo, ponta --, e continuar recortando pelo alfa
+     de um desenho que tem outro contorno so comeria pedaco de asa.
 
-     O valor absoluto e o que importa: asa e fina e translucida, e a face
-     virada para longe da luz nao fica preta -- ela acende por tras. Sem o
-     abs, meio batimento tinha a asa apagada, e asa apagada em pleno voo
-     denuncia que aquilo e um plano e nao uma asa.
+     Da pintura vem a COR. Do modelo vem a forma. */
+  vec3 cor = texture2D(asa, clamp(vUV, 0.001, 0.999)).rgb;
 
-     O corpo se sombreia MAIS que a asa, porque ele e opaco: e a diferenca
-     entre os dois -- um cedendo a luz, o outro barrando -- que faz o olho
-     ler duas materias em vez de um recorte so. */
+  /* A LUZ NA ASA, pelos DOIS LADOS. O valor absoluto e o que importa: asa e
+     fina e translucida, e a face virada para longe da luz nao fica preta --
+     ela acende por tras. Sem o abs, meio batimento tinha a asa apagada, e
+     asa apagada em pleno voo denuncia que aquilo e um plano.
+
+     O corpo se sombreia MAIS, porque e opaco. E a diferenca entre os dois
+     -- um cedendo a luz, o outro barrando -- que faz o olho ler duas
+     materias em vez de um recorte so. */
   float lz = abs(dot(normalize(vNor), normalize(vec3(0.3, 0.9, 0.35))));
-  vec3 cor = c.rgb * mix(0.62 + 0.38 * lz, 0.34 + 0.66 * lz, vCorpo);
-  // o corpo tambem escurece, porque corpo de bicho e escuro
-  cor *= mix(1.0, 0.72, vCorpo);
+  cor *= mix(0.62 + 0.38 * lz, 0.34 + 0.66 * lz, vCorpo);
+  cor *= mix(1.0, 0.74, vCorpo);
 
-  /* AS CONTAS DO RASTRO. Mesma malha, mesma silhueta, cor trocada por luz
-     fluorescente: nao e uma borboleta fantasma repetida -- e o que ela
-     deixou no ar. */
   cor = mix(cor, corBrilho, brilho);
-  gl_FragColor = vec4(cor, a);
+  gl_FragColor = vec4(cor, presenca);
 }`;
 
 const VS_FIGU = `
@@ -6548,60 +6530,86 @@ const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
                fase:uBb('fase'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
                asa:uBb('asa'), presenca:uBb('presenca'),
                brilho:uBb('brilho'), corBrilho:uBb('corBrilho')};
-const aBb = {xy: gl.getAttribLocation(progBorbo,'aXY'),
+const aBb = {pos: gl.getAttribLocation(progBorbo,'aPos'),
+             nor: gl.getAttribLocation(progBorbo,'aNor'),
              lado: gl.getAttribLocation(progBorbo,'aLado')};
-const bBb = criarBufs(['xy','lado']);
-/* Doze vertices de asa, e depois o CORPO. O corpo vem no fim de proposito:
-   assim as asas continuam sendo os doze primeiros e o rastro pode desenhar
-   SO o corpo, a partir do deslocamento 12. Uma conta de luz nao tem asas. */
-let nAsas = 0, corpoDe = 0, nCorpo = 0;
+const bBb = criarBufs(['pos','nor','lado','idx']);
+/* A BORBOLETA MONTADA DO MODELO, e a conta de luz no fim.
+
+   Cinco pecas vem do arquivo: o corpo e as quatro asas, todas no mesmo
+   enquadramento -- o conversor as normalizou juntas, e e so por isso que
+   elas voltam a ser um bicho em vez de cinco pedacos na origem.
+
+   QUAL PECA E QUAL SE DESCOBRE MEDINDO, e nao pela ordem. O conversor
+   entrega as pecas da maior para a menor, e as duas asas dianteiras tem o
+   MESMO tamanho: qual delas vem primeiro e sorteio. Medir o x medio nao
+   tem como errar -- a asa direita esta a direita.
+
+   O corpo entra com lado 0 e nao bate. As asas entram com o sinal do lado
+   delas, e e esse sinal que o shader usa para espelhar a batida.
+
+   E A CONTA DO RASTRO VEM NO FIM, gerada por codigo.
+
+   Ela poderia ser o corpo do modelo, e nao e: sao mil duzentos e vinte e
+   oito triangulos, e catorze contas custariam dezessete mil -- dez por
+   cento do quadro para desenhar catorze borroes que nao tem forma. Uma
+   conta de luz nao precisa de forma nenhuma; precisa de silhueta redonda.
+   Um fuso de oito lados custa sessenta e quatro. */
+let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
 (function(){
-  const xy = [], lado = [];
-  /* A ASA E UMA GRADE, e nao um quadrilatero.
-
-     Eram dois triangulos por asa. Dois triangulos nao curvam: nao ha
-     vertice no meio para sair do plano, e sem vertice no meio o shader pode
-     mandar o que quiser -- a asa continua chapada. A curvatura precisa de
-     lugar onde acontecer.
-
-     Cinco por quatro da quarenta triangulos por asa. E muito para uma asa e
-     e nada para um quadro: oitenta triangulos nas duas, contra os 166 mil
-     da cena. A conta que importa aqui nao e o custo, e a legibilidade da
-     ondulacao -- abaixo de cinco estacoes a onda anda em degraus visiveis.
-
-     E a grade e um RETANGULO inteiro, e nao o trapezio de antes. O
-     trapezio afinava a asa perto da ponta, e como o UV sai direto de aXY, a
-     pintura afinava junto: a asa ficava com a forma certa e a TINTA
-     esticada. Quem recorta a asa e o alfa da pintura, que e onde o desenho
-     dela realmente esta. */
-  const VAOS = 5, CORDAS = 4;
-  for(const l of [-1, 1]){
-    for(let i=0;i<VAOS;i++){
-      for(let j=0;j<CORDAS;j++){
-        const x0 = i/VAOS,  x1 = (i+1)/VAOS;
-        const y0 = -1 + 2*j/CORDAS, y1 = -1 + 2*(j+1)/CORDAS;
-        for(const [a,b] of [[x0,y0],[x1,y0],[x1,y1], [x0,y0],[x1,y1],[x0,y1]]){
-          xy.push(a,b); lado.push(l);
-        }
-      }
+  const pos = [], nor = [], lado = [], idx = [];
+  const juntar = (nome, quemE) => {
+    const o = decodificarMalha(nome);
+    if(!o) return null;
+    const base = pos.length/3;
+    let somaX = 0;
+    for(let i=0;i<o.n;i++) somaX += o.pos[i*3]/8000;
+    const meioX = somaX / o.n;
+    const lad = quemE === 'corpo' ? 0 : (meioX > 0 ? 1 : -1);
+    for(let i=0;i<o.n;i++){
+      pos.push(o.pos[i*3]/8000, o.pos[i*3+1]/8000, o.pos[i*3+2]/8000);
+      nor.push(o.nor[i*3]/127, o.nor[i*3+1]/127, o.nor[i*3+2]/127);
+      lado.push(lad);
     }
-  }
-  nAsas = xy.length/2;
-  corpoDe = nAsas;
+    for(let i=0;i<o.idx.length;i++) idx.push(o.idx[i] + base);
+    return {n: o.n, meioX};
+  };
 
-  // o fuso: oito lados, quatro faixas, da cabeca ao fim do abdome
-  const LADOS = 8, ANEIS = [0.72, 0.42, 0.05, -0.42, -1.00];
+  /* As quatro asas primeiro, o corpo depois: assim asas-mais-corpo sao
+     contiguos e a borboleta inteira sai numa chamada de desenho so. */
+  asasDe = idx.length;
+  for(const k of [1, 2, 3, 4]) juntar('borboleta-' + k, 'asa');
+  nAsas = idx.length - asasDe;
+  corpoDe = idx.length;
+  juntar('borboleta-0', 'corpo');
+  nCorpo = idx.length - corpoDe;
+
+  // a conta de luz: um fuso, gordo no meio e fino nas pontas
+  contaDe = idx.length;
+  const base = pos.length/3;
+  const LADOS = 8, ANEIS = [0.30, 0.16, 0.0, -0.16, -0.34];
+  const raio = y => 0.085 * (1 - Math.pow(Math.min(Math.abs(y)/0.34, 1), 1.7));
+  let v = 0;
   for(let a=0;a<ANEIS.length-1;a++){
     for(let j=0;j<LADOS;j++){
-      const u0 = j/LADOS, u1 = (j+1)/LADOS;
+      const u0 = j/LADOS*6.2832, u1 = (j+1)/LADOS*6.2832;
       const y0 = ANEIS[a], y1 = ANEIS[a+1];
       for(const [u,y] of [[u0,y0],[u1,y0],[u1,y1], [u0,y0],[u1,y1],[u0,y1]]){
-        xy.push(u, y); lado.push(0);
+        const r = raio(y);
+        pos.push(Math.cos(u)*r, Math.sin(u)*r, y);
+        nor.push(Math.cos(u), Math.sin(u), 0);
+        lado.push(0);
+        idx.push(base + v); v++;
       }
     }
   }
-  nCorpo = xy.length/2 - corpoDe;
-  enviar(bBb.xy, xy); enviar(bBb.lado, lado);
+  nConta = idx.length - contaDe;
+
+  enviar(bBb.pos, pos); enviar(bBb.nor, nor); enviar(bBb.lado, lado);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bBb.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  console.log('borboleta: ' + (nAsas/3) + ' tri de asa, ' + (nCorpo/3)
+            + ' de corpo, ' + (nConta/3) + ' na conta do rastro');
 })();
 
 const uBo = n=>gl.getUniformLocation(progBolha,n);
@@ -7956,7 +7964,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locBb.frente, fx, fy, fz);
       gl.uniform1f(locBb.fase, faseAsa);
       // os atributos entram antes do rastro, que desenha antes dela
-      ligar(aBb.xy, bBb.xy, 2); ligar(aBb.lado, bBb.lado, 1);
+      ligar(aBb.pos, bBb.pos, 3); ligar(aBb.nor, bBb.nor, 3);
+      ligar(aBb.lado, bBb.lado, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bBb.idx);
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
       gl.uniform1i(locBb.asa, 7);
       gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
@@ -8032,7 +8042,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
                      1.00 * (1-k) + 0.24 * k,
                      0.55 * (1-k) + 0.90 * k,
                      0.70 * (1-k) + 0.80 * k);
-        gl.drawArrays(gl.TRIANGLES, corpoDe, nCorpo);
+        gl.drawElements(gl.TRIANGLES, nConta, gl.UNSIGNED_SHORT, contaDe * 2);
       }
 
       // e ela, por cima do proprio rastro
@@ -8041,10 +8051,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
       gl.uniform1f(locBb.tamanho, tam);
       gl.uniform1f(locBb.presenca, pb);
-      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
-      gl.uniform1i(locBb.asa, 7);
-      ligar(aBb.xy, bBb.xy, 2); ligar(aBb.lado, bBb.lado, 1);
-      gl.drawArrays(gl.TRIANGLES, 0, nAsas + nCorpo);
+      /* ELA INTEIRA NUMA CHAMADA. As quatro asas e o corpo sao contiguos
+         no indice de proposito -- foi por isso que a montagem poe as asas
+         primeiro. */
+      gl.drawElements(gl.TRIANGLES, nAsas + nCorpo, gl.UNSIGNED_SHORT,
+                      asasDe * 2);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }

@@ -73,12 +73,35 @@ PADRAO = 2000
 # Nao e todo modelo: uma alga no fundo do mar continua melhor como nuvem,
 # porque la a nuvem E o assunto. Aqui entra o que e macico.
 COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
-              "crisalida_borboleta88_diaethria": "crisalida"}
+              "crisalida_borboleta88_diaethria": "crisalida",
+              "animated_butterfly": "borboleta"}
+
+# QUEM SAI MONTADO, e nao peca por peca.
+#
+# O normalizar comum centra CADA peca no proprio centro e poe o pe dela em
+# y = 0. Para pedra e o certo: cada uma e plantada sozinha, num lugar
+# diferente do chao, e ter o proprio pe no zero e o que torna isso simples.
+#
+# Para um bicho e fatal. A borboleta sai em cinco pecas -- corpo, duas asas
+# dianteiras, duas traseiras -- e normalizadas uma por uma elas voltariam
+# empilhadas na origem, cada uma com a sua escala. Deixariam de ser um bicho.
+#
+# Montado, o enquadramento e UM: medido no modelo inteiro e aplicado igual a
+# todas as pecas. Cada uma guarda o lugar que tem no corpo.
+#
+# E a escala vem do MAIOR lado, e nao da altura. A borboleta e achatada --
+# tres centimetros de espessura contra dois metros e meio de envergadura --,
+# e dividir pela altura a inflaria vinte vezes. O maior lado e a
+# envergadura, que e a medida que significa algo para quem olha.
+MONTADO = {"borboleta"}
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
 # de mao pesada; o cogumelo ja chega com a forma certa em 138 triangulos, e
 # a mesma mao pesada o transformava num ovo -- sumia o pe, sumia o rebordo.
-SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42}
+# A borboleta NAO se suaviza: as asas dela sao chapas de proposito, e o
+# contorno delas e o desenho do autor. Alisar uma asa arredonda a ponta e
+# apaga o loboo -- estraga justamente o que se foi buscar no modelo.
+SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -86,7 +109,7 @@ SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42}
 # inteiro e o objeto vira ovo; numa malha fina ela so alisa a quina, que e
 # o que se quer. O cogumelo vem com 138 triangulos e a silhueta dele e um
 # poligono visivel; duas divisoes o levam a 2 208 e o contorno fecha.
-DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0}
+DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
@@ -144,7 +167,11 @@ GRADE = 70
 #
 # E ela nao se subdivide: subdividir quadruplicaria a conta para tirar uma
 # faceta que tres passadas de POLIMENTO tiram de graca.
-GRADES = {"crisalida": 26}
+# 200 na borboleta e um jeito de dizer NAO SIMPLIFIQUE: a celula fica menor
+# que qualquer aresta do modelo, e o agrupamento nao agrupa nada. Ela ja
+# chega com 2 144 triangulos -- decimar um bicho desse tamanho seria jogar
+# fora a forma que se foi buscar, para economizar o que nao pesa.
+GRADES = {"crisalida": 26, "borboleta": 200}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
@@ -418,6 +445,17 @@ def _alisar(pos, idx, forca):
     return pos * (1 - forca) + media * forca, idx
 
 
+def normalizar_junto(p, lo, hi):
+    """O MESMO enquadramento para todas as pecas de um corpo.
+
+    Centro no centro -- e nao o pe no chao: bicho voando nao tem pe -- e o
+    maior lado valendo 1. Recebe o lo/hi do modelo INTEIRO, e nao da peca,
+    e e so isso que faz as cinco pecas voltarem a ser uma borboleta."""
+    centro = (lo + hi) / 2.0
+    escala = max((hi - lo).max(), 1e-6)
+    return (p - centro) / escala
+
+
 def normalizar(p):
     """Centro no chao, altura 1. Assim a obra escala em metros e nao precisa
     saber em que unidade cada autor modelou."""
@@ -492,6 +530,10 @@ def main():
 
             if curto in COMO_MALHA:
                 partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
+                montado = COMO_MALHA[curto] in MONTADO
+                if montado:
+                    todos = np.array(tris).reshape(-1, 3)
+                    caixaLo, caixaHi = todos.min(axis=0), todos.max(axis=0)
                 for k, parte in enumerate(partes):
                     mp, _mn, mi = simplificar(
                         parte, GRADES.get(COMO_MALHA[curto], GRADE))
@@ -501,7 +543,8 @@ def main():
                         forca=SUAVE.get(COMO_MALHA[curto], 0.5),
                         polir=POLIR.get(COMO_MALHA[curto], 0))
                     mn = normais(mp, mi)
-                    mp = normalizar(mp)
+                    mp = (normalizar_junto(np.array(mp), caixaLo, caixaHi)
+                          if montado else normalizar(mp))
                     if len(mp) > 65535:
                         raise ValueError("vertices demais para 16 bits")
                     b64mp, b64mn = empacotar(mp, mn)
