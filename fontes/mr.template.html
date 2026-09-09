@@ -1247,8 +1247,16 @@ function prepararEstrelas(){
     n.pos.push(Math.cos(lat)*Math.sin(lon)*raio,
                Math.sin(lat)*raio,
                -Math.cos(lat)*Math.cos(lon)*raio);
-    // a tinta ainda vem da pintura, so que o fragmento a puxa para o branco
-    n.uv.push(0.46 + rnd()*0.08, 0.10 + rnd()*0.10);
+    /* CADA ESTRELA LE UM LUGAR DIFERENTE DA PINTURA.
+
+       Elas liam uma faixa de oito por cento da largura, e o fragmento ainda
+       puxava oitenta e seis por cento para o branco: eram oitenta e quatro
+       pontos da MESMA cor. Ceu de verdade nao e assim -- estrela tem
+       temperatura, e temperatura e cor: azul, branca, palha, ambar.
+
+       Lendo a pintura inteira, cada uma pega um pigmento diferente da
+       aquarela, e a variacao vem da mesma tinta que pinta todo o resto. */
+    n.uv.push(rnd(), rnd());
     n.alt.push(1.0);                    // ja nascida: estrela nao brota
     n.fase.push(rnd()*6.283);
     /* TAMANHOS MUITO DESIGUAIS. A potencia 2,2 deixa a maioria miuda e
@@ -2097,7 +2105,23 @@ void main(){
      azul, outra para o palha -- mas o corpo da cor e luz, nao pigmento.
      Sem isto elas saiam coloridas como o resto da mata, que e exatamente o
      confete que a nota mandou tirar. */
-  if(pontiaguda > 0.5) c = mix(c, vec3(1.0, 0.985, 0.955), 0.86);
+  if(pontiaguda > 0.5){
+    /* A COR DA ESTRELA: acesa primeiro, embranquecida depois.
+
+       Puxar 86% para o branco apagava a pintura inteira. Mas simplesmente
+       baixar esse numero traria outro defeito: a aquarela tem regioes
+       escuras, e estrela escura nao existe -- seria um furo no ceu.
+
+       Entao a cor e NORMALIZADA antes: dividida pelo proprio canal mais
+       alto, ela vira a versao ACESA daquele matiz, seja qual for. Um azul
+       escuro vira azul brilhante; um ambar apagado vira ambar aceso. So
+       depois entra o branco, e agora pouco -- meio a meio.
+
+       O resultado e que a estrela continua sendo luz, e cada uma tem a sua
+       temperatura. Estrela nao e branca; e quase branca de uma cor. */
+    c = c / max(max(c.r, max(c.g, c.b)), 0.22);
+    c = mix(c, vec3(1.0, 0.985, 0.955), 0.5);
+  }
 
   gl_FragColor = vec4(c, borda * presenca * vVivo);
 }`;
@@ -2974,15 +2998,50 @@ void main(){
   /* TETO DE QUATRO PIXELS. Era 26, e 26 pixels de disco macio nao e poeira,
      e bolha. Quem cai na chegada continua podendo crescer -- ali o grao E
      uma estrela se aproximando, e essa e outra coisa. */
-  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 5.0) * escalaPonto
-                       / max(clip.w, 0.05), 1.0, 5.0 + chegando * 20.0);
+  /* O CINTILO, QUE ERA UMA MARE.
 
-  // Acende e apaga nas pontas da coluna, e cintila devagar.
+     Estava em sin(w * 2.1), e w anda a 0,09 por segundo: um ciclo a cada
+     TRINTA E TRES SEGUNDOS. Isso nao e cintilo -- e a poeira inteira
+     clareando e escurecendo junto, tao devagar que ninguem repara. Era por
+     isso que ela lia como po parado no ar, e nao como poeira cosmica.
+
+     Agora cada grao tem o SEU compasso, entre 2,4 e 5,6 hertz, sorteado de
+     um numero estavel tirado da propria fase -- estavel importa: se
+     mudasse por quadro, o grao trocaria de ritmo o tempo todo e a
+     cintilacao viraria chuvisco.
+
+     E a curva e CUBICA, e nao seno. Um seno passa metade do tempo aceso, e
+     metade do tempo aceso e uma luz constante com ondulacao. Elevando ao
+     cubo, o grao fica quase apagado quase sempre e acende num golpe -- e e
+     essa desproporcao entre o escuro e o lampejo que o olho chama de
+     brilhar. */
+  float sorte  = fract(fase * 91.7);
+  float ritmo  = 2.4 + sorte * 3.2;
+  float onda   = sin(tempo * ritmo + fase * 19.0) * 0.5 + 0.5;
+  float cintilo = 0.26 + 1.55 * onda * onda * onda;
+
+  /* AS FAISCAS: sete por cento dos graos.
+
+     Poeira toda igual e po; o que faz um punhado de po parecer MAGIA e
+     haver, no meio dele, uns poucos pontos que acendem muito mais forte e
+     muito mais raro. E a diferenca entre farinha e purpurina.
+
+     O expoente vinte e dois deixa o lampejo curtissimo: o grao passa quase
+     todo o tempo como os outros e, de vez em quando, da um estalo. */
+  float faisca  = step(0.93, fract(fase * 37.31));
+  float lampejo = pow(max(0.0, sin(tempo * 1.7 + fase * 44.0)), 22.0);
+  cintilo += faisca * lampejo * 5.5;
+
+  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 5.0 + faisca * 1.5)
+                       * escalaPonto / max(clip.w, 0.05),
+                       1.0, 5.0 + chegando * 20.0 + faisca * 3.0);
+
+  // Acende e apaga nas pontas da coluna: a emenda do laco nao aparece.
   float pontas = smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe);
   /* MAIS BRILHO, E NAO MAIS TAMANHO. Um grao de dois pixels apagado
      desaparece; o mesmo grao aceso e um cintilo. Como a mistura e aditiva,
      subir o brilho nao engorda nada -- so acende. */
-  vBrilho = pontas * (0.85 + 0.75 * sin(w * 2.1 + fase * 19.0));
+  vBrilho = pontas * cintilo;
   vCor = aCor;
 }`;
 const FS_PO = `
@@ -3295,6 +3354,32 @@ void main(){
 
      Da pintura vem a COR. Do modelo vem a forma. */
   vec3 cor = texture2D(asa, clamp(vUV, 0.001, 0.999)).rgb;
+
+  /* AS DUAS FACES DO BICHO, e sao mesmo duas.
+
+     A Diaethria -- a borboleta 88 -- e AZUL-ESCURA POR CIMA, com uma faixa
+     que atravessa a asa, e so por baixo ela mostra o 88. E o desenho da
+     face de baixo que da o nome a ela, e e a de cima que ela mostra
+     voando: quem olha uma 88 em voo ve azul, e o 88 aparece nos instantes
+     em que a asa vira.
+
+     Pintar as duas iguais era mostrar o 88 o tempo todo, que e o contrario
+     do que o bicho faz -- e tira dele justamente o acontecimento: o
+     lampejo do numero quando a asa passa.
+
+     Nao custa textura nova. gl_FrontFacing diz qual lado do triangulo o
+     pixel esta vendo, e a asa e desenhada com as duas faces (o corte esta
+     desligado para ela). A de baixo fica com a pintura como esta; a de
+     cima recebe o azul da 88 -- o proprio pigmento, escurecido e puxado
+     para o indigo, com o brilho da tinta virando a faixa clara.
+
+     O corpo fica de fora: ele nao tem lado de cima e de baixo diferentes. */
+  if(gl_FrontFacing && vCorpo < 0.5){
+    float luzTinta = dot(cor, vec3(0.299, 0.587, 0.114));
+    cor = mix(vec3(0.055, 0.075, 0.230),      // o azul escuro do dorso
+              vec3(0.240, 0.430, 0.880),      // a faixa que o atravessa
+              smoothstep(0.32, 0.78, luzTinta));
+  }
 
   /* A LUZ NA ASA, pelos DOIS LADOS. O valor absoluto e o que importa: asa e
      fina e translucida, e a face virada para longe da luz nao fica preta --
@@ -4239,6 +4324,11 @@ const PALETA_PO = [
   [0.463,0.333,0.678],   // violeta
   [0.180,0.235,0.510],   // índigo
   [0.870,0.545,0.275],   // brasa — pouca, é o quente que salva do monótono
+  /* O TURQUESA DO CENARIO. A poeira e a unica coisa da floresta que nao
+     conversava com o resto: cogumelos, capim e veios sao turquesa, e ela
+     era so azul e violeta. Um grao em cada cinco puxando para o turquesa
+     costura o ar ao chao. */
+  [0.240,0.780,0.720],
 ];
 // mais graos porque cada um e muito menor: a mesma quantidade de luz
 // espalhada em mais pontos e o que faz o ar parecer ter po dentro
@@ -4259,8 +4349,12 @@ function semearPoeira(semente){
     /* PUXADA PARA O CLARO. Poeira nao tem cor propria: ela devolve a luz
        que a atravessa. A paleta continua dando o viés -- azul, violeta, uma
        brasa de vez em quando -- mas lavada, senao vira confete outra vez. */
-    const base = PALETA_PO[Math.min(4, Math.floor(rnd()*rnd()*5))];
-    const lavar = 0.45 + rnd()*0.30;
+    const base = PALETA_PO[Math.min(5, Math.floor(rnd()*rnd()*6))];
+    /* MENOS LAVADA. Estava entre 0,45 e 0,75 de branco por cima, o que
+       apagava a paleta quase por inteiro -- a poeira saia cinza-clara e a
+       escolha das cores nao chegava a acontecer. Entre 0,26 e 0,58 ela
+       continua sendo poeira, sem virar confete. */
+    const lavar = 0.26 + rnd()*0.32;
     const c = [base[0] + (1-base[0])*lavar,
                base[1] + (1-base[1])*lavar,
                base[2] + (1-base[2])*lavar];
