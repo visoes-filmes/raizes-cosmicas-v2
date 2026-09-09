@@ -266,7 +266,9 @@ const CENAS = {
 
 - `ceu` — qual dos três céus (0 floresta, 1 cósmico, 2 rosa)
 - `tinta` — quanto o céu aparece no total
-- `ini` / `fim` — **o degradê vertical**, em fração do pé-direito. O céu é
+- `ini` / `fim` — **o degradê vertical**, em fração do quarto de volta:
+  0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o céu
+  era uma caixa. O céu é
   cheio no teto e some ao descer. No cenário 3 ele só começa a 0,84 m,
   porque a água tapa o resto.
 - `inverter` — o cenário 4 lê o céu **de cabeça para baixo**. É o que faz a
@@ -303,13 +305,20 @@ nenhum:
 | 6 | o papel |
 | 7 | a figura sendo desenhada |
 
-### Os dez programas de shader
+### Os catorze programas de shader
 
-`progRaiz` (raízes e árvore) · `progSala` (a cúpula) · `progFig` (a nuvem
-marmorizada) · `progPo` (a poeira) · `progAssa` (assa o atlas de tinta) ·
-`progAstro` (sol, planetas, asteroides) · `progPapel` (as sete camadas) ·
-`progAgua` (a lâmina) · `progFigu` (as figuras recortadas) · `progBolha`
-(buracos negros e seres do mar).
+`progRaiz` (raízes e árvore) · `progSolida` (a floresta como superfície:
+troncos, pedras, terra, grama, crisálida, cogumelos) · `progSala` (a cúpula)
+· `progMata` (as nuvens de pontos e as estrelas) · `progFig` (a nuvem
+marmorizada) · `progPo` (a poeira) · `progBorbo` (a borboleta) · `progAssa`
+(assa o atlas de tinta) · `progAstro` (sol, planetas, asteroides) ·
+`progPapel` (as sete camadas) · `progAgua` (a lâmina) · `progFigu` (as
+figuras recortadas) · `progBolha` (buracos negros e seres do mar) ·
+`progTexto` (a frase, o título e o botão, pintados num quadro fora da tela).
+
+> Eram dez quando isto foi escrito. `progSolida` nasceu quando a floresta
+> deixou de ser nuvem e virou superfície; `progBorbo` quando a borboleta
+> deixou de ser recorte plano.
 
 ---
 

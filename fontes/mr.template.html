@@ -5355,7 +5355,10 @@ function passo(){
   return Math.min(dt, 0.1);
 }
 let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
-let degradeIni=0.10, degradeFim=0.80;   // fração do pé-direito
+let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
+// 0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o
+// céu era uma caixa; numa cúpula que acompanha a cabeça a altura do
+// ponto não diz nada sobre o cômodo de ninguém.
 let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
 let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
 let emXR = false, janelaContada = false;

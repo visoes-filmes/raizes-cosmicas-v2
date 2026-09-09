@@ -114,9 +114,35 @@ na tela com o motivo escrito no portão.
 
 ---
 
-## No aparelho — e no estande
+## No estande — e no aparelho
 
-**Pelo cabo, sem rede nenhuma:**
+**No estande a obra não depende de rede.** Ela é carregada **uma vez** do
+endereço publicado, e a partir daí mora no aparelho:
+
+1. no Quest, com rede, abrir `visoes-filmes.github.io/raizes-cosmicas-v2/`
+2. deixar carregar até o portão aparecer — é aí que o guardião termina de
+   guardar
+3. vale instalar como app: o manifesto já está pronto, e origem instalada
+   tem prioridade maior contra despejo
+4. desligar a rede. Reiniciar quantas vezes quiser
+
+**Carregue o headset por último**, depois de tudo publicado: o nome do cache
+*é* a versão, e um headset carregado antes continua servindo a de antes —
+ótimo durante o evento, e um problema se você quiser a nova.
+
+Duas coisas fazem isso ser verdade, e as duas foram consertadas em 08/09:
+
+- **a obra pede armazenamento durável** (`navigator.storage.persist`). Sem o
+  pedido, o navegador pode apagar o cache por conta própria quando o espaço
+  aperta — e esse modo de falhar só aparece no dia, no estande, com fila;
+- **o cache guarda UMA cópia.** Havia `./` e `./index.html`: mesmo corpo de
+  oito megabytes, duas entradas. Quem cobre o `./` agora é o desvio de
+  navegação no `sw.js` — qualquer navegação no escopo é respondida pela
+  única cópia. É isso que faz a obra abrir com o aparelho sem rede: a
+  navegação nunca chega a consultar a rede, então não importa que o DNS não
+  resolva.
+
+**Testar no aparelho é pelo cabo:**
 
 ```bash
 python fontes/estande.py
@@ -134,18 +160,25 @@ O `adb` não vem com nada: baixe o `platform-tools` e largue a pasta em
 `fontes/`. O script diz o caminho exato se não achar. E no headset, uma vez:
 modo de desenvolvedor ligado.
 
-Nesse modo o cache fica **ligado** — oito megabytes num arquivo só, e sem
-cache cada pessoa da fila espera o download outra vez.
+Nesse modo o cache fica **ligado**: oito megabytes num arquivo só, e sem
+cache cada abertura espera o download outra vez.
 
-**Só para testar:**
+**Só para testar na tela:**
 
 ```bash
 python fontes/servir.py 8766        # CERT=<pasta> para HTTPS na rede
 ```
 
 Um servidor por pedido, sem cache. O de prateleira (`http.server`) atende uma
-conexão por vez, e com 7 MB num arquivo só o Quest desiste no meio — aparece
+conexão por vez, e com 8 MB num arquivo só o Quest desiste no meio — aparece
 como "carrega as imagens e nada acontece".
+
+**Ele também recebe fotos.** Um `POST /_foto/<nome>` grava o corpo em
+`_fotos/`. A obra tira o quadro de dentro do WebGL e manda para cá, e o
+quadro vira arquivo — serve para mostrar como algo ficou sem depender de
+captura de tela. É o mesmo bilhete-pela-janela dos relatos, com imagem em
+vez de texto. Andaime de ateliê: produção é GitHub Pages, que serve arquivo
+parado e não recebe nada.
 
 **A obra relata o que acontece dentro do headset** pedindo `/_relato/…` ao
 servidor: cada passo sai no log com `>>`. Dentro do capacete não há console,
@@ -160,10 +193,24 @@ janela, e funciona quando o resto não.
 
 ## Os interruptores
 
+Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
+
+| interruptor | hoje | o quê |
+|---|---|---|
+| `ANDAIME` | `false` | `true` devolve régua, medidores e a tecla H |
+| `MATA_SOLIDA` | `true` | a floresta como superfície; `false` volta à nuvem de pontos |
+| `POEIRA_NA_FLORESTA` | `true` | a poeira cósmica no cenário 1 |
+| `PEDRAS_NO_CHAO` | `true` | as onze pedras — **separado de propósito**: foram pedidas depois de o chão ser limpo, e apagá-las junto com a grama seria desfazer o pedido novo com o interruptor do velho |
+| `COGUMELOS_NO_CHAO` | `true` | os treze cogumelos |
+| `SER_NO_CEU` | `true` | o ser camuflado no céu — **separado pelo mesmo motivo**: estava atrás do interruptor do chão, e por isso ninguém nunca o viu |
+| `OBJETOS_NO_CHAO` | `false` | grama, folhas, trevo e soja como nuvem de pontos |
+| `ARVORE_MAE` | `1` | 1 é a de sempre; 2 é a árvore da vida, com a raiz como espelho da copa |
+
+Fora do arquivo:
+
 | onde | o quê |
 |---|---|
-| `ANDAIME` em `mr.template.html` | `false` é a obra; `true` devolve régua, medidores e a tecla H |
-| `window.raizes.ir(seg)` / `.cena(n)` | salta cenários — **só quando servida de localhost**, não existe na obra publicada |
+| `window.raizes.ir(seg)` / `.cena(n)` | salta no tempo — existe em **qualquer endereço que não seja o publicado**, e não na obra publicada |
 | `node fontes/luz-segue-cena.mjs` | a lâmpada da sala segue o cenário, pelo estúdio do v1 |
 
 ---
@@ -178,6 +225,18 @@ simplesmente não aparece.
 - **`${` dentro de shader** — o JavaScript tenta interpolar.
 - **Precisão de uniforme diferente entre vértice e fragmento**: o programa
   não linka, e não linkar não gera erro — o desenho só não acontece.
+
+  > **Como pegar isso em um minuto.** O `verificar.py` não consegue: ele é
+  > estático e não compila GLSL. O que pega é um banco de provas — extrair
+  > os dois shaders do template para arquivos, servi-los, e compilá-los num
+  > contexto WebGL separado lendo o log:
+  >
+  >     const sh = gl.createShader(gl.FRAGMENT_SHADER);
+  >     gl.shaderSource(sh, FS); gl.compileShader(sh);
+  >     gl.getShaderInfoLog(sh)     // diz a linha e o identificador
+  >
+  > Em 08/09 ele respondeu em uma linha o que três hipóteses erradas não
+  > tinham achado.
 - **Atributo vaza entre programas.** Chame `soltarAtributos()` depois de
   todo `useProgram`.
 - **Alocar memória por quadro** vira engasgo periódico do coletor de lixo.
@@ -185,8 +244,20 @@ simplesmente não aparece.
 - **Contar tempo em quadros** supõe 60 fps. Use `passo()`.
 - **Mipmap em imagem com alfa** deixa halo escuro. As figuras carregam sem
   mipmap de propósito.
-- **Repetição vertical em céu**: zênite e nadir não são vizinhos. Céus usam
-  `CLAMP_TO_EDGE` no vertical.
+- **Repetição em céu**: os céus usam `CLAMP_TO_EDGE` nos dois eixos. Desde
+  08/09 a pintura não é mais espalhada em volta da cúpula — é projetada
+  inteira por **estereográfica**, que cobre o céu sem distorcer forma (só
+  escala) e não tem emenda, porque não há volta. Repetir ali agora seria
+  erro, e não escolha.
+- **Função de shader declarada antes dos uniformes que ela usa.** Custou uma
+  rodada em 08/09: o `coracao()` foi posto antes do bloco de uniformes, o
+  fragmento não compilou, e a floresta inteira sumiu sem erro nenhum. Em
+  GLSL a ordem do arquivo é a ordem de visibilidade — e uniforme não é
+  içado como função de JavaScript.
+- **Apagar um trecho por fatia entre duas âncoras** leva junto o que estava
+  no meio. Já aconteceu duas vezes: com o `montarCogumelos` e com o
+  `let bCrisalida = null`. `node --check` passa — não é sintaxe, é
+  referência que sumiu — e a obra morre inteira ao carregar.
 - **Trocar uma unidade de textura** troca a imagem de um objeto pela de
   outro, silenciosamente. Tabela no `LEIA-ME-ACER.md`, seção 8.
 
@@ -200,6 +271,19 @@ Nada visto no computador prova coisa alguma sobre o headset.
 Alvo de quadros: **72**, pedido explicitamente ao aparelho. Cair de quadros
 não causa enjoo aqui (o timewarp cobre, e a câmera nunca se move sozinha) —
 o risco real é o rastreamento perder a sala no escuro.
+
+---
+
+## Licenças
+
+`CREDITOS.md` tem a lista. Dois resolvidos: a **borboleta** (CC BY 4.0, de
+Artistic_side no Sketchfab — crédito obrigatório) e o **cogumelo** (CC0). O
+resto é pendência declarada — os dezoito `magnific_*`, a crisálida, o ser e
+a mão cósmica, todos de origem desconhecida, e **três deles estão na obra**.
+
+A lição do v1 vale para todos: a árvore-mãe também era modelo baixado com
+licença por resolver, e ao virar procedural *"a pendência desapareceu junto
+com o megabyte e meio de malha"*.
 
 ---
 
