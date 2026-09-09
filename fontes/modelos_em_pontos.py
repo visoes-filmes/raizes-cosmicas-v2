@@ -82,7 +82,8 @@ PADRAO = 2000
 COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               "crisalida_borboleta88_diaethria": "crisalida",
               "animated_butterfly": "borboleta",
-              "jellyfish-icon": "agua-viva", "coral-icon": "coral"}
+              "jellyfish-icon": "agua-viva", "coral-icon": "coral",
+              "star": "estrela-mar"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -103,9 +104,11 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
 # envergadura, que e a medida que significa algo para quem olha.
 #
 # A AGUA-VIVA E O CORAL entram pelo mesmo motivo da borboleta, e o motivo e
-# literal: a agua-viva sai em dezessete pecas -- o sino e as tentaculas --,
-# e normalizadas uma a uma cada tentacula voltaria centrada na origem com a
-# escala dela. Viraria um monte de vermes empilhados.
+# literal: a agua-viva sai em dezessete pecas -- o sino e as tentaculas --, e
+# o coral em cinquenta, uma por ramo. Normalizadas uma a uma, cada tentacula
+# e cada ramo voltaria centrado na origem com a escala dele: um monte de
+# vermes empilhados. Ja aconteceu duas vezes neste arquivo, e a segunda foi
+# hoje -- o coral saiu daqui por um minuto e voltou como um seixo.
 MONTADO = {"borboleta", "agua-viva", "coral"}
 
 # QUANTO SUAVIZAR cada um. A pedra vinha facetada como cristal e precisava
@@ -114,11 +117,31 @@ MONTADO = {"borboleta", "agua-viva", "coral"}
 # A borboleta NAO se suaviza: as asas dela sao chapas de proposito, e o
 # contorno delas e o desenho do autor. Alisar uma asa arredonda a ponta e
 # apaga o loboo -- estraga justamente o que se foi buscar no modelo.
-# A agua-viva e o coral vao no 0,50: o pedido foi "o mais curva possivel", e
-# num bicho de agua nao ha uma quina que signifique alguma coisa -- ao
-# contrario da asa da borboleta, onde a quina E o desenho.
+# A agua-viva e a estrela-do-mar vao no 0,50: o pedido foi "o mais curva
+# possivel", e num bicho de agua nao ha uma quina que signifique alguma coisa
+# -- ao contrario da asa da borboleta, onde a quina E o desenho.
+#
+# O CORAL PRECISA DE TODAS AS PECAS, e por isso existe o PECAS_POR abaixo.
+# O modelo tem cinquenta -- cada ramo e uma --, e com o teto de oito
+# chegavam a obra oito varetas soltas e dois seixos, que nao leem como coral
+# nenhum. Isso so apareceu DESENHANDO as pecas geradas: no numero, oito
+# malhas de duzentos triangulos pareciam certas.
+#
+# A ESTRELA-DO-MAR NAO SE SIMPLIFICA, e o 200 e o mesmo "nao mexa" da
+# borboleta. Ela e uma CHAPA de 8,7% de espessura, e a decimacao por grade
+# junta a face de cima com a de baixo antes de tirar qualquer detalhe:
+# medido, na grade 18 a celula mede 5,6% da caixa -- quase a espessura
+# inteira -- e ela sai rasgada, com buraco no meio dos bracos.
+#
+# E decimar essa peca nao compensa nem quando funciona: na grade 70 ela
+# sobrevive, mas perde a granulacao dos bracos, que e o que a faz ler como
+# estrela-do-mar e nao como estrela desenhada -- e ainda assim sao dezenove
+# mil dos vinte e tres mil triangulos. Vinte por cento de economia pela
+# textura inteira do bicho.
+#
+# Pelo mesmo motivo ela nao se suaviza nem se pole: o relevo E o modelo.
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
-         "agua-viva": 0.50, "coral": 0.50}
+         "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0}
 
 # QUANTAS DIVISOES antes de suavizar. Subdividir sozinho nao arredonda nada
 # -- os pontos novos caem em cima das faces velhas --, mas MUDA o que a
@@ -133,7 +156,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
             # ela nao custa triangulo. A 1,70 m de altura, entre planetas, o
             # sino ocupa poucos pixels de contorno: nove mil e quinhentos
             # triangulos por bicho seriam pagos para nada.
-            "agua-viva": 0, "coral": 0}
+            "agua-viva": 0, "coral": 0, "estrela-mar": 0}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
 # triangulos; polir nao custa nada, e e o que tira a quina depois que a
@@ -142,7 +165,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # nao tem onde se esconder.
 # Tres passadas, pelo mesmo motivo do cogumelo: polir nao custa triangulo,
 # e a quina que sobra depois de dividir sai de graca aqui.
-POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4}
+POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -163,6 +186,44 @@ CRU = {"cogumelo"}
 # repeticao; as menores que sobram sao lascas de poucos triangulos, que na
 # escala da obra nao chegariam a ser nada.
 PECAS = 8
+# E QUANDO OITO NAO BASTA. O teto existe para nao carregar cinquenta malhas
+# de um modelo que so precisa das maiores. No coral e o contrario: as peças
+# SAO os ramos, e um coral com oito ramos de cinquenta nao e um coral com
+# menos detalhe -- e um punhado de varetas.
+PECAS_POR = {"coral": 60}
+
+# O PEDESTAL FICA DE FORA, TAMBEM NA MALHA.
+#
+# A nuvem ja o descartava, pelos pontos abaixo de 12% da altura: estes
+# modelos vem com um disco de terra ou uma pedra embaixo, que existe para o
+# icone pousar numa pagina de catalogo. A MALHA nunca teve esse filtro, e o
+# efeito so apareceu quando o coral passou a levar as cinquenta pecas: a
+# maior delas e o disco, e o que chegava a obra era um seixo com os ramos
+# escondidos dentro dele.
+#
+# LARGO E BAIXO E PEDESTAL; ESTREITO E ALTO E RAMO. So a altura nao separa
+# -- medido no coral, o disco sobe ate 24% e um ramo comeca em 0,2%. O que
+# separa e a PEGADA: os quarenta e oito ramos ocupam menos de 10% da area do
+# modelo vista de cima, e as duas pecas do pedestal ocupam 31% e 40%.
+SEM_PEDESTAL = {"coral"}
+
+
+def sem_pedestal(partes, tris):
+    todos = np.array(tris).reshape(-1, 3)
+    y0, y1 = float(todos[:, 1].min()), float(todos[:, 1].max())
+    alt = (y1 - y0) or 1.0
+    area = ((todos[:, 0].max() - todos[:, 0].min())
+            * (todos[:, 2].max() - todos[:, 2].min())) or 1.0
+    ficam = []
+    for q in partes:
+        p = np.array(q).reshape(-1, 3)
+        pegada = ((p[:, 0].max() - p[:, 0].min())
+                  * (p[:, 2].max() - p[:, 2].min())) / area
+        topo = (float(p[:, 1].max()) - y0) / alt
+        if pegada >= 0.18 and topo <= 0.35:
+            continue
+        ficam.append(q)
+    return ficam
 
 # A GRADE DA SIMPLIFICACAO. O modelo vem com quase seis mil triangulos, que
 # e detalhe de icone de catalogo: numa pedra de quinze centimetros vista a um
@@ -200,7 +261,7 @@ GRADE = 70
 # 30 na agua-viva e no coral: bem mais fino que os 70 de fabrica, porque uma
 # divisao seguinte quadruplica o que sobrar -- decimar pouco e dividir
 # uma vez da mais curva por triangulo do que decimar muito e dividir duas.
-GRADES = {"crisalida": 26, "borboleta": 200, "agua-viva": 30, "coral": 30}
+GRADES = {"crisalida": 26, "borboleta": 200, "agua-viva": 30, "coral": 30, "estrela-mar": 200}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
@@ -572,7 +633,11 @@ def main():
             print(f"  {curto:24} {len(tris):7d} tri  ->  {len(p):5d} pontos")
 
             if curto in COMO_MALHA:
-                partes = [q for q in pecas(tris) if len(q) >= 60][:PECAS]
+                teto = PECAS_POR.get(COMO_MALHA[curto], PECAS)
+                partes = [q for q in pecas(tris) if len(q) >= 60]
+                if COMO_MALHA[curto] in SEM_PEDESTAL:
+                    partes = sem_pedestal(partes, tris)
+                partes = partes[:teto]
                 montado = COMO_MALHA[curto] in MONTADO
                 if montado:
                     todos = np.array(tris).reshape(-1, 3)

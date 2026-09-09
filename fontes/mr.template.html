@@ -474,9 +474,9 @@ const MATA_QUE_FICA      = 0.0;
    planetas.
 
    AGORA SAO SUPERFICIE, e o interruptor fica ligado. Sete aguas-vivas e
-   cinco corais, montados como malha pelo mesmo caminho da floresta, com a
-   materia 9. As algas e as pedras nao subiram: no fundo do mar elas sao
-   cenario, e cenario de fundo do mar nao e ser que flutua no espaco. */
+   quatro corais, montados como malha pelo mesmo caminho da floresta, com a
+   materia 9. As algas e as pedras nao subiram: no fundo do mar sao cenario,
+   e cenario de fundo do mar nao e ser que flutua no espaco. */
 const SERES_NO_ESPACO    = true;
 /* RAIZES_NOS_ASTROS -- coral em nuvem em volta de cada planeta, para ele
    deixar de ser bola no vazio. Mesmo motivo, e o pedido e o mesmo: planeta
@@ -1657,7 +1657,7 @@ let bSeres = null, nSeresIdx = 0;
 function montarSeres(){
   const rnd = prng(6151);
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const por = (quantos, prefixo, escMin, escMax) => {
+  const por = (quantos, prefixo, pecas, escMin, escMax) => {
     for(let i=0;i<quantos;i++){
       /* EM VOLTA E NA ALTURA DOS PLANETAS, e nunca no centro: o centro e
          por onde a pessoa anda, e bicho na cara de quem esta em pe e
@@ -1666,11 +1666,21 @@ function montarSeres(){
       const base = [Math.sin(ang)*raio, 1.30 + rnd()*0.85, -Math.cos(ang)*raio];
       const esc = escMin + rnd()*(escMax - escMin);
       const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
-      for(let k=0;k<8;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
+      for(let k=0;k<pecas;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
     }
   };
-  por(7, 'agua-viva-', 0.20, 0.38);
-  por(5, 'coral-',     0.16, 0.30);
+  por(7, 'agua-viva-',   8, 0.20, 0.38);
+  /* O CORAL VAI COM AS CINQUENTA PECAS, e nao com oito. Cada peca dele e um
+     ramo: com o teto de oito chegavam aqui oito varetas soltas e dois
+     seixos, que nao leem como coral nenhum. So se viu desenhando as pecas
+     -- no numero, oito malhas de duzentos triangulos pareciam certas. */
+  por(4, 'coral-', 50, 0.16, 0.28);
+  /* DUAS ESTRELAS-DO-MAR, E SO DUAS. Ela entra inteira, sem simplificar --
+     e uma chapa fina e a decimacao por grade a rasga --, e inteira custa
+     vinte e dois mil triangulos, dez vezes o que custa uma agua-viva. Duas
+     cabem; cinco seriam metade do orcamento do cenario para dois bichos que
+     medem quinze centimetros. */
+  por(2, 'estrela-mar-', 1, 0.13, 0.20);
   if(!m.idx.length) return;
   bSeres = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bSeres.pos,m.pos); enviar(bSeres.nor,m.nor); enviar(bSeres.alt,m.alt);
