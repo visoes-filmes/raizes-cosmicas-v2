@@ -34,6 +34,26 @@ import sys
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+# O CONSOLE DO WINDOWS NAO MORRE MAIS NO ACENTO.
+#
+# O montador imprime o caminho do arquivo, e o caminho tem "Cósmicas". O
+# rodar() abaixo le a saida com errors="replace", o que troca o byte
+# indecifravel pelo caractere U+FFFD -- e imprimir U+FFFD num console em
+# cp1252 estoura com UnicodeEncodeError.
+#
+# O efeito era o pior possivel: a publicacao parava DEPOIS de marcar o que
+# estava no ar e ANTES de empurrar. O backup existia, a obra nova nao subia,
+# e o motivo era um acento.
+#
+# Trocar a codificacao do console daria mojibake; pedir que ele substitua o
+# que nao sabe escrever resolve sem mexer em mais nada.
+for _fluxo in (sys.stdout, sys.stderr):
+    try:
+        _fluxo.reconfigure(errors="replace")
+    except Exception:
+        pass
+
+
 def rodar(*args, **kw):
     """Executa e devolve a saida; estoura se der errado (salvo se calar=True)."""
     calar = kw.pop("calar", False)
