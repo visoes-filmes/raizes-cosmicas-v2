@@ -19,7 +19,7 @@
  * momento em que metade da obra é de uma versão e metade de outra.
  */
 
-const VERSAO = 'raizes-cosmicas-2026-09-08bk';
+const VERSAO = 'raizes-cosmicas-2026-09-08bl';
 
 /**
  * O que é baixado na instalação, sem esperar ninguém pedir.
@@ -33,8 +33,19 @@ const VERSAO = 'raizes-cosmicas-2026-09-08bk';
  * ponto: numa rede local onze megabytes levam um segundo, e depois da
  * primeira abertura levam zero — a obra passa a morar no aparelho.
  */
+/* UMA COPIA SO, e nao duas.
+ *
+ * Aqui havia './' E './index.html'. Sao endereços diferentes com o MESMO
+ * corpo de oito megabytes, e o cache guardava os dois: dezesseis megabytes
+ * para servir uma obra de oito.
+ *
+ * Isso não é só desperdício de espaço. Quanto maior a pegada da origem,
+ * maior a chance de o navegador decidir despejá-la quando o aparelho
+ * aperta — e despejar o cache é a única coisa que faz a obra parar de abrir
+ * sem rede. Metade da pegada é metade do risco.
+ *
+ * Quem cobre o './' agora é o desvio de navegação no fetch, logo abaixo. */
 const ESSENCIAL = [
-  './',
   './index.html',
   './manifest.webmanifest',
   './icone-512.png',
@@ -61,6 +72,23 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
+
+  /* QUALQUER NAVEGACAO NO ESCOPO E A OBRA.
+   *
+   * Abrir './', './index.html', './?v=2' ou o endereço com qualquer coisa
+   * atrás dele é sempre pedir a mesma coisa — a obra é um arquivo só. Então
+   * todas essas navegações são respondidas pela ÚNICA cópia guardada.
+   *
+   * É isto que permite guardar uma cópia em vez de uma por endereço, e é
+   * isto que faz a obra abrir com o aparelho sem rede nenhuma: a navegação
+   * nunca chega a consultar a rede, e por isso não importa que o DNS não
+   * resolva. */
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      caches.match('./index.html').then((guardado) => guardado || fetch(req)),
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(req).then((guardado) => {

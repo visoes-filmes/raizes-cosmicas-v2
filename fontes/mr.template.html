@@ -47,6 +47,32 @@
       addEventListener("load", function () {
         navigator.serviceWorker.register("./sw.js").catch(function () {});
       });
+
+      /* E PEDE QUE O ARMAZENAMENTO SEJA DURAVEL.
+   
+         Sem este pedido, o que o service worker guarda e "melhor esforco":
+         o navegador pode apagar tudo por conta propria quando o espaco do
+         aparelho aperta, sem avisar e sem hora marcada. Numa obra que
+         precisa abrir na feira SEM REDE, isso e a diferenca entre funcionar
+         e ter funcionado ontem -- e o modo de falhar e o pior possivel,
+         porque so aparece no dia, no estande, com fila.
+   
+         Concedido, o navegador passa a tratar a origem como coisa que a
+         pessoa quis guardar, e so apaga se ela mandar apagar.
+   
+         SEM AWAIT, como tudo aqui: a promessa e disparada e esquecida. A
+         regra da casa e nunca esperar por nada de que a obra nao precise
+         para existir -- tres promessas ja penduraram no Quest num unico dia.
+         Se este pedido nunca voltar, a obra abre do mesmo jeito. */
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist()
+          .then(function (ok) {
+            console.log(ok
+              ? "armazenamento DURAVEL: a obra fica no aparelho"
+              : "armazenamento descartavel: o cache pode ser apagado pelo navegador");
+          })
+          .catch(function () {});
+      }
     }
   }
 </script>
