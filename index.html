@@ -3790,6 +3790,19 @@ void main(){
      os cogumelos. Sao corpos que EMITEM, e luz somada em cima de luz nao e
      rebatimento, e estouro -- que e justamente o defeito que esta rodada
      veio corrigir. */
+  /* PERSPECTIVA AEREA: montanha longe CLAREIA.
+
+     So a pedra, e so a que esta longe: as onze pedras do chao vivem a tres
+     metros e nao entram nesta conta. O que entra sao as montanhas do
+     horizonte, entre dezoito e noventa metros -- e quanto mais longe, mais
+     do ar iluminado entre o olho e elas, ate a rocha quase sumir dentro do
+     tom do ceu. E o que separa "montanha longe" de "pedra grande perto",
+     que e o erro classico e era o que estava aqui. */
+  if(materia > 0.5 && materia < 1.5){
+    float arNoMeio = smoothstep(18.0, 90.0, length(vMundo.xz));
+    c = mix(c, vec3(0.165, 0.190, 0.305), arNoMeio * 0.80);
+  }
+
   if(luzCasulo.w > 0.004 &&
      (materia < 3.5 || (materia > 7.5 && materia < 13.5) || materia > 14.5)){
     vec3 dc = vMundo - luzCasulo.xyz;
@@ -8392,7 +8405,18 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(nMontanhasIdx > 0 && presencaMata > 0.004){
       gl.uniform1f(locSo.materia, 1.0);
       gl.uniform1f(locSo.escalaTinta, 0.055);  // o grao acompanha o tamanho
-      gl.uniform1f(locSo.presenca, presencaMata * 0.26);
+      /* 0,72 E NAO 0,26 -- e o motivo esta na conta errada, nao no gosto.
+
+         MEDIDO: com 0,26 elas saem com brilho 22 de 255, e o ceu atras
+         delas fica entre 8 e 30. Isso nao e "longe": e a mesma cor do
+         fundo, ou seja, invisivel. Foi por isso que ninguem nunca as viu.
+
+         O erro era confundir duas coisas. Perspectiva aerea nao APAGA a
+         montanha: ela a CLAREIA na direcao do ceu, porque o que se ve a
+         cinquenta metros e o ar iluminado entre voce e ela. Ceder alfa
+         sobre um ceu escuro faz o contrario -- some. Entao o alfa sobe e o
+         clareamento vai para o shader, onde devia estar desde o comeco. */
+      gl.uniform1f(locSo.presenca, presencaMata * 0.72);
       gl.uniform1f(locSo.crescimento, 9.0);
       gl.uniform1f(locSo.balanca, 0.0);
       ligar(aSo.pos, bMontanhas.pos, 3); ligar(aSo.nor, bMontanhas.nor, 3);
@@ -9659,10 +9683,25 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     porTexto(texBotao, RIZOMAR, 0.34, 0.085,
              esperaPresenca * (0.72 + 0.28*Math.sin(relogio*1.6)));
 
-    /* O tempo, la embaixo. Fora da espera ele aparece so para quem procura:
-       um quinto de opacidade, na altura da cintura. */
-    porTexto(texTempo, [0, 0.92, -1.9], 0.13, 0.049,
-             esperando ? esperaPresenca * 0.5 : 0.22);
+    /* O CRONOMETRO E ANDAIME, e estava dentro da obra -- corrigido em 10/09.
+
+       Ele era desenhado em TODOS os cenarios, a 22 % de opacidade, na
+       altura da cintura e a 1,9 m a frente: um cronometro flutuando no meio
+       da floresta encantada. Ninguem tinha reparado porque e discreto, e
+       discreto nao e o mesmo que ausente -- a direcao de arte reparou
+       olhando as fotos, e a pergunta foi exatamente esta: "esse e o cenario
+       da floresta, nao tem texto".
+
+       A regra da casa e clara e ele a furava: regua, medidores e
+       interruptores NAO EXISTEM para quem visita, nem escondidos. Isto e um
+       ambiente, e nao um editor. Um medidor discreto continua sendo um
+       medidor.
+
+       Na espera ele tambem sai: quem esta esperando a obra recomecar nao
+       precisa saber em que segundo ela esta. */
+    if(ANDAIME)
+      porTexto(texTempo, [0, 0.92, -1.9], 0.13, 0.049,
+               esperando ? esperaPresenca * 0.5 : 0.22);
 
     gl.depthMask(true);
     gl.disable(gl.BLEND);
