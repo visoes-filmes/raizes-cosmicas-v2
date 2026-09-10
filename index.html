@@ -320,7 +320,7 @@
   <button id="bXR" disabled>Entrar em RM</button>
   <button id="bSala">Sala visível</button>
   <button id="bRaizes">Raízes ligadas</button>
-  <button id="bFiguras">Nuvem ligada</button>
+  <button id="bFiguras">Neblina ligada</button>
   <button id="bPoeira">Poeira ligada</button>
   <button id="bSom">Som ligado</button>
   <button id="bSemente">semear</button>
@@ -2539,6 +2539,24 @@ uniform float inflar;
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
    parada, porque pedra que balanca deixa de ser pedra na hora. */
 uniform float balanca;       // 1 = oscila no vento, mais na ponta
+/* BROTA: 1 = o corpo SOBE DO CHAO conforme cresce; 0 = ele nao se move, e o
+   crescimento aparece so no alfa.
+
+   Quem tem o pe no chao brota -- arvore, pedra, cogumelo, grama. Quem esta
+   PENDURADO NO AR, nao: e a folhagem.
+
+   Nela, multiplicar o y por vivo manda o vertice ainda nao vivo para o
+   CHAO. Um tufo de folhas mora a dois metros de altura, e a metade dele que
+   ainda nao vive ia ao piso: o tufo esticava da copa ate o chao, e o que se
+   via eram riscos verticais compridos, como chuva de arame.
+
+   O DEFEITO E ANTERIOR A ISTO. Acontecia entre 1:12 e 2:18, que era a
+   janela antiga da folhagem, e so apareceu quando o crescimento foi
+   acelerado e a janela veio para 0:34. Nao se via porque nao se olhava ali.
+
+   E o conserto e nao dizer duas vezes: o alfa por vertice JA diz o que esta
+   vivo -- a ponta que ainda nao chegou some, em vez de esticar. */
+uniform float brota;
 /* A ONDULACAO LENTA, em metros, e so quem pede recebe.
 
    O balanco das plantas tem amplitude fixa de cinco centimetros, que e o
@@ -2576,20 +2594,24 @@ void main(){
   float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
-  p.y *= vivo;
-  /* CADA UMA NASCE DO PROPRIO SOLO, e nao do centro da sala.
+  p.y *= mix(1.0, vivo, brota);
+  /* CADA ARVORE NASCE DO PROPRIO SOLO, e nao do centro da sala.
 
-     Aqui havia um recolhimento: a planta por nascer ficava com o xz a doze
-     por cento da origem e se ABRIA para o lugar dela. O efeito, visto de
-     dentro, nao era nascer -- era a floresta inteira se montando a partir do
-     meio da sala e deslizando para as bordas, todas juntas.
+     Havia um recolhimento para TODO vegetal: o que nao estava vivo ficava
+     com o xz a doze por cento da origem e se ABRIA para o lugar dele. Visto
+     de dentro, aquilo nao era nascer -- era a floresta inteira se montando a
+     partir do meio da sala e deslizando para as bordas, todas juntas.
 
-     Agora o xz nao se move: cada planta sobe onde esta, uma independente da
-     outra, e o unico movimento e o de subir do chao. E o que uma planta faz.
+     TIRAR DE TODOS FOI DEMAIS, e o defeito apareceu na folhagem. O motivo
+     esta no y, e nao no xz: o vertice ainda nao vivo tem p.y multiplicado
+     por zero, ou seja vai ao CHAO. Numa arvore isso e o certo, porque o pe
+     dela ja esta no chao. Num tufo de folhas a dois metros de altura, nao:
+     o tufo esticava da copa ate o piso, e o que se via eram riscos
+     verticais compridos, como chuva de arame. O recolhimento mascarava
+     isso puxando os riscos para a origem.
 
-     O uniforme "planta" saiu junto: ele so servia a esta conta. Uma pedra e
-     uma arvore ja se distinguem pelo "balanca", que e o que de fato as
-     separa -- pedra que balanca deixa de ser pedra. */
+     Entao agora quem recolhe se diz: 1 na folhagem, no solo e na grama --
+     onde nao ha pedido para mudar --, e 0 no resto, arvore inclusive. */
   p.xz = mix(aPos.xz, p.xz, vivo);
 
   // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
@@ -5475,24 +5497,27 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
    pelas paredes, que era metade da sensacao de estar num quarto pintado.
    Numa cupula, subir a passagem devolve o horizonte — o que esta em cima e
    obra, o que esta na altura dos olhos e a sala de quem visita. */
-/* A NUVEM CEDE, E A MARMORIZACAO APARECE.
+/* A NEBLINA MARMORIZADA -- e o nome importa.
 
-   A nuvem tapava o cenario. Mas o problema nao era ela existir: era a MASSA
-   dela, o leitoso, que e o que enche o espaco de neblina. A marmorizacao —
-   os veios, as gotas, os rastelos — e o que se quer ver, e ela estava
-   afogada dentro da propria nuvem.
+   ELA NAO TEM PONTO NENHUM. Sao macos que consultam a marmorizacao assada
+   uma vez por quadro: os veios, as gotas, os rastelos. O codigo a chamava de
+   "nuvem", e "nuvem" no codigo tambem quer dizer nuvem de PONTOS
+   (plantarNuvem, decodificarNuvem) -- duas coisas opostas com o mesmo nome.
+   Renomeada em 09/09 por isso, e nao por gosto.
 
-   Entao "nuvem" cai para perto de um terco, "leite" cai junto, e "marmore"
-   sobe. O resultado e menos nuvem e mais desenho: da para ver atraves, que
-   era o criterio. */
+   ELA CEDIA PARA A MARMORIZACAO APARECER. O problema nao era ela existir:
+   era a MASSA dela, o leitoso, que e o que enche o espaco de bruma. A
+   marmorizacao, que e o que se quer ver, estava afogada dentro dela. Entao
+   "neblina" caiu para perto de um terco, "leite" caiu junto e "marmore"
+   subiu: menos bruma e mais desenho, e da para ver atraves. */
 const CENAS = {
-  1: { ceu:1, ceuB:1, tinta:0.85, nuvem:0.20, marmore:0.95, leite:0.14,
+  1: { ceu:1, ceuB:1, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
        poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
-  2: { ceu:1, ceuB:1, tinta:0.96, nuvem:0.07, marmore:0.78, leite:0.08,
+  2: { ceu:1, ceuB:1, tinta:0.96, neblina:0.07, marmore:0.78, leite:0.08,
        poeira:2600, sopro:0.5, raizes:0, ini:0.12, fim:0.58, inverter:0 },
-  3: { ceu:2, ceuB:2, tinta:0.92, nuvem:0.16, marmore:0.98, leite:0.20,
+  3: { ceu:2, ceuB:2, tinta:0.92, neblina:0.16, marmore:0.98, leite:0.20,
        poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
-  4: { ceu:1, ceuB:0, tinta:0.82, nuvem:0.11, marmore:0.88, leite:0.15,
+  4: { ceu:1, ceuB:0, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
        poeira:2000, sopro:0.8, raizes:0, ini:0.10, fim:0.55, inverter:1 },
 };
 
@@ -5933,7 +5958,7 @@ function montarRegua(){
     const c2 = cenaEm(t);
     cenaAtual = c2; ceuA = CENAS[c2].ceu; ceuB = CENAS[c2].ceu; misturaCeu = 1;
     const a = CENAS[c2];
-    tinta=a.tinta; presenca=a.nuvem; marmore=a.marmore; leitoso=a.leite;
+    tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
     sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
     inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
     pinta();
@@ -5977,7 +6002,13 @@ let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
 // 0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o
 // céu era uma caixa; numa cúpula que acompanha a cabeça a altura do
 // ponto não diz nada sobre o cômodo de ninguém.
-let figurasOn=true, presenca=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
+/* A NEBLINA MARMORIZADA, e nao "nuvem".
+   O nome mudou em 09/09 e o motivo e que o antigo servia a duas coisas: no
+   codigo, "nuvem" e nuvem de PONTOS -- plantarNuvem, decodificarNuvem --, e
+   na partitura era ESTA, que nao tem ponto nenhum: os macos que consultam a
+   marmorizacao assada, com o leitoso por massa. Ler um pedido com o
+   dicionario errado ja custou tres rodadas nesta obra. */
+let neblinaOn=true, neblina=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
 let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
 let emXR = false, janelaContada = false;
 
@@ -6405,9 +6436,9 @@ function seguirPartitura(dt){
      Cede entre 0:20 e 0:44, junto com o crescimento: quando a ultima arvore
      acaba de subir, ela nao esta mais la. So no cenario 1 -- nos outros ela
      e outra coisa, e tem outro valor na partitura. */
-  const nuvemDoComeco = (c === 1) ? 1 - rampa(20, 44, t) : 1;
-  const alvoNuvem = a.nuvem * nuvemDoComeco * (1 - fecho);
-  presenca   = dt > 0 ? aproximar(presenca, alvoNuvem, p) : alvoNuvem;
+  const neblinaDoComeco = (c === 1) ? 1 - rampa(20, 44, t) : 1;
+  const alvoNeblina = a.neblina * neblinaDoComeco * (1 - fecho);
+  neblina    = dt > 0 ? aproximar(neblina, alvoNeblina, p) : alvoNeblina;
   marmore    = aproximar(marmore, a.marmore, p);
   leitoso    = aproximar(leitoso, a.leite, p);
   sopro      = aproximar(sopro, a.sopro, p);
@@ -6739,7 +6770,7 @@ if(emTesteLocal){
       const c = cenaEm(t);
       cenaAtual = c; ceuA = CENAS[c].ceu; ceuB = CENAS[c].ceu; misturaCeu = 1;
       const a = CENAS[c];
-      tinta=a.tinta; presenca=a.nuvem; marmore=a.marmore; leitoso=a.leite;
+      tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
       sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
       inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
       /* Saltar tem que acertar TAMBEM o que a partitura calcula por quadro
@@ -6803,7 +6834,7 @@ bSala.onclick = ()=>{ salaVisivel=!salaVisivel; pinta(); };
 bRaiz.disabled = true;
 bRaiz.title = 'sem efeito: nenhum desenho le raizesOn';
 const bFig = document.getElementById('bFiguras');
-bFig.onclick = ()=>{ figurasOn=!figurasOn; pinta(); };
+bFig.onclick = ()=>{ neblinaOn=!neblinaOn; pinta(); };
 const bPo = document.getElementById('bPoeira');
 bPo.onclick = ()=>{ poeiraOn=!poeiraOn; pinta(); };
 document.getElementById('bSemente').onclick = ()=>{
@@ -6816,7 +6847,7 @@ document.getElementById('bSemente').onclick = ()=>{
 };
 const sP=document.getElementById('sPres'), vP=document.getElementById('vPres');
 sP.addEventListener('input', ()=>{
-  presenca = sP.value/100;
+  neblina = sP.value/100;
   vP.textContent = sP.value+'%';
 });
 const sM=document.getElementById('sMar'), vM=document.getElementById('vMar');
@@ -6867,8 +6898,8 @@ function pinta(){
   bSala.textContent = salaVisivel ? 'Sala visível' : 'Sala oculta';
   bRaiz.classList.toggle('on', raizesOn);
   bRaiz.textContent = 'Raízes (sem efeito)';
-  bFig.classList.toggle('on', figurasOn);
-  bFig.textContent = figurasOn ? 'Nuvem ligada' : 'Nuvem desligada';
+  bFig.classList.toggle('on', neblinaOn);
+  bFig.textContent = neblinaOn ? 'Neblina ligada' : 'Neblina desligada';
   bPo.classList.toggle('on', poeiraOn);
   bPo.textContent = poeiraOn ? 'Poeira ligada' : 'Poeira desligada';
   bSom.classList.toggle('on', somLigado);
@@ -7208,7 +7239,7 @@ const uSo = n=>gl.getUniformLocation(progSolida,n);
 const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'),
                inverte:uSo('inverte'), desloca:uSo('desloca'), casca:uSo('casca'),
                presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta'),
-               materia:uSo('materia'),
+               materia:uSo('materia'), brota:uSo('brota'),
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
@@ -7711,6 +7742,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.uniform1f(locSo.escalaObj, 1.0);
     gl.uniform1f(locSo.inflar, 0.0);
+    // tudo aqui tem o pe no chao, menos a folhagem, que se diz mais abaixo
+    gl.uniform1f(locSo.brota, 1.0);
     gl.uniform3fv(locSo.focos, FOCOS);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
@@ -7812,7 +7845,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.crescimento, crescimento);
       gl.uniform1f(locSo.presenca, presencaMata);
     }
-    /* AS PEDRAS. Mesmo programa, mesma tinta -- so que "planta" em zero:
+    /* AS PEDRAS. Mesmo programa, mesma tinta -- e sem recolhimento:
        elas emergem onde estao, sem se recolher para a origem e sem balancar
        no vento. Pedra que balanca deixa de ser pedra na hora. */
     if(PEDRAS_NO_CHAO && nPedrasIdx > 0 && presencaMata > 0.004){
@@ -7882,6 +7915,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(nFolhagemIdx > 0 && folhagem > 0.004 && presencaMata > 0.004){
       gl.disable(gl.CULL_FACE);
       gl.depthMask(true);
+      /* A FOLHAGEM NAO BROTA DO CHAO: ela esta pendurada no galho. Aqui o
+         crescimento e so alfa -- a ponta que ainda nao chegou some, em vez
+         de esticar da copa ate o piso. */
+      gl.uniform1f(locSo.brota, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.materia, 3.0);
       gl.uniform1f(locSo.escalaTinta, 6.0);
@@ -7893,6 +7930,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhagem.idx);
       gl.drawElements(gl.TRIANGLES, nFolhagemIdx, gl.UNSIGNED_SHORT, 0);
       gl.enable(gl.CULL_FACE);
+      gl.uniform1f(locSo.brota, 1.0);   // devolve: uniforme e estado
     }
 
     /* OS COGUMELOS. Crescem com o resto e ficam ao ALCANCE: sao eles que
@@ -9017,7 +9055,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   // 3) VÉUS por último. Mistura NORMAL, não aditiva: aditiva soma tudo pro
   //    claro e lava a marmorização — e é justo a tinta que tem que
   //    aparecer aqui. Com alfa normal a cor sai como ela é.
-  if(figurasOn && nIdxF > 0){
+  if(neblinaOn && nIdxF > 0){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
@@ -9026,7 +9064,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     soltarAtributos();
     mandarMvp(locF.mvp, mvp);
     gl.uniform1f(locF.tempo, relogio);
-    gl.uniform1f(locF.presenca, presenca);
+    gl.uniform1f(locF.presenca, neblina);
     gl.uniform1f(locF.sopro, sopro);
     // os eixos da câmera: é com eles que cada maço se vira pra pessoa
     gl.uniform3f(locF.camDir, camDir[0], camDir[1], camDir[2]);
@@ -9082,7 +9120,7 @@ function quadro(){
   seguirPartitura(dt);
   pintarPartitura();
   contarQuadro();
-  if(figurasOn) assarTinta();
+  if(neblinaOn) assarTinta();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.03,0.025,0.055,1);
@@ -9151,7 +9189,7 @@ function quadroXR(t, frame){
   if(!janelaContada){
     janelaContada = true;
     relato('QUADRO-1 cena=' + cenaAtual + ' tinta=' + tinta.toFixed(2) +
-           ' nuvem=' + presenca.toFixed(2) + ' raizes=' + (raizesOn?1:0) +
+           ' neblina=' + neblina.toFixed(2) + ' raizes=' + (raizesOn?1:0) +
            ' salaVisivel=' + (salaVisivel?1:0) + ' texturas=' + texProntas + '/' + TEX_TOTAL +
            ' t=' + t.toFixed(0) + ' andando=' + (andando?1:0));
   }
@@ -9165,7 +9203,7 @@ function quadroXR(t, frame){
   // Uma assadura por quadro, antes de trocar para o alvo do headset.
   // Assar dentro do laço dos olhos custaria o dobro e daria a mesma
   // imagem, já que os dois olhos veem o mesmo instante.
-  if(figurasOn) assarTinta();
+  if(neblinaOn) assarTinta();
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, camadaXR.framebuffer);
   // alfa zero: o que não for desenhado deixa passar a câmera do headset

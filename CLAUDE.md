@@ -224,9 +224,15 @@ defeito três vezes seguidas.
 
 | ela diz | quer dizer | como se faz |
 |---|---|---|
+| **neblina marmorizada**, ou *fog* | os maços com a marmorização assada por dentro e o leitoso por massa. **Não tem ponto nenhum.** No código chamava-se `nuvem` até 09/09, e era essa a confusão | `neblina` na partitura, `progFig` |
 | **nuvem** | fluido e macio, sem grão — como o céu cósmico | ruído no shader, volume |
 | **poeira** | grão, e é o único lugar onde partícula é o certo | `progPo` |
 | um bicho, um corpo, um planeta | **superfície**, o mais curva possível | `plantarMalha` + `progSolida` |
+
+> A palavra **nuvem** era o pior caso: no código ela quer dizer nuvem de
+> *pontos* (`plantarNuvem`), e na partitura queria dizer a *neblina*, que
+> não tem ponto nenhum. Duas coisas opostas com o mesmo nome. Renomeada em
+> 09/09 para `neblina`.
 
 **Partícula só quando ela pedir a palavra.** Nada é nuvem de pontos por
 padrão: a floresta já fez essa travessia com `MATA_SOLIDA`, e o que sobrou
