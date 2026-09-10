@@ -2285,8 +2285,24 @@ function semearMontanhas(){
        delas num setor de 132 graus se sobrepoem duas vezes e meia: serra
        continua, com silhueta variada. E 60 m e um predio de vinte andares
        -- colossal e isso, e nao ocupar a tela. */
-    const d = 210 + rnd()*110;
-    const h = 42 + Math.pow(rnd(), 0.8) * 38;
+    /* MEIO QUILOMETRO, E DE CENTO E CINQUENTA METROS.
+
+       Estavam a 210-320 m com 42-80 m de altura. Foram para 430-620 m com
+       105-200 m -- mais que o dobro da distancia e mais que o dobro do
+       tamanho, e a conta e por ANGULO, que e o que o olho le.
+
+       Uma de 150 m a 520 abre 16 graus de altura, contra 12,8 de uma de 60
+       a 265: ela e MAIOR no campo de visao mesmo estando duas vezes mais
+       longe. E e essa combinacao -- ocupar mais e estar mais longe -- que
+       da a escala colossal; longe sozinho encolhe, grande sozinho vira
+       parede.
+
+       E A SERRA CONTINUA FECHADA: o modelo e 2,1 vezes mais largo que
+       alto, entao uma de 150 tem 315 m de frente e abre 34 graus. Onze
+       delas num setor de 132 se sobrepoem quase tres vezes -- silhueta
+       variada, sem buraco entre uma e outra. */
+    const d = 430 + rnd()*190;
+    const h = 105 + Math.pow(rnd(), 0.8) * 95;
     plantarMalha(m, 'pedra-' + (i % 8),
                  [Math.sin(ang)*d, -h*0.16, -Math.cos(ang)*d],
                  h, rnd()*6.28, rnd()*6.28);
@@ -3799,8 +3815,37 @@ void main(){
      tom do ceu. E o que separa "montanha longe" de "pedra grande perto",
      que e o erro classico e era o que estava aqui. */
   if(materia > 0.5 && materia < 1.5){
-    float arNoMeio = smoothstep(18.0, 90.0, length(vMundo.xz));
+    float arNoMeio = smoothstep(18.0, 120.0, length(vMundo.xz));
     c = mix(c, vec3(0.165, 0.190, 0.305), arNoMeio * 0.80);
+    /* AS VEIAS DAS MONTANHAS.
+
+       A pedra do chao ja tem veia, mas a dela ACENDE por proximidade -- e a
+       resposta da sala a quem se abaixa para olhar. A montanha esta a meio
+       quilometro: "perto" ali e zero, e por isso ela nunca teve veia
+       nenhuma. Estava escrito no codigo como economia, e era uma perda.
+
+       ENTAO A VEIA DELA E OUTRA COISA: nao acende por ninguem, esta sempre
+       la, e vem DEPOIS do ar -- somada por cima da bruma em vez de
+       misturada com a rocha. E o que faz sentido fisico: o veio e mineral
+       claro refletindo o ceu, e o ceu e justamente o que chega ate la.
+
+       O EXPOENTE 5 A MANTEM FIO. E o mesmo recurso da pedra do chao: um
+       menos o modulo do valor centrado da faixa, elevado, para virar linha
+       e nao mancha. Na escala de 0,055 cada celula de ruido mede dezessete
+       metros -- numa montanha de cento e cinquenta, sao doze veios, que e o
+       desenho de uma encosta e nao de um marmore. */
+    /* MEDIDO E AFINADO. Com expoente 5 na escala da pedra, a serra saiu
+       coberta de veio de ponta a ponta -- parede acesa, e nao montanha
+       longe. Duas causas: o "rugas" tem media 0,5, e e justamente ai que a
+       faixa dobrada vale um, entao meia superficie cai no veio; e a segunda
+       oitava dele poe celulas de seis metros, que a meio quilometro viram
+       chuvisco.
+
+       Escala 0,45 da celulas de quarenta metros -- quatro veios ao longo de
+       uma montanha de cento e cinquenta, que e desenho de encosta e nao de
+       marmore. E o expoente 8 os deixa FIO. */
+    float veiaLonge = 1.0 - abs(rugas(vMundo * escalaTinta * 0.45) * 2.0 - 1.0);
+    c += vec3(0.26, 0.40, 0.56) * pow(veiaLonge, 8.0) * arNoMeio * 0.34;
   }
 
   if(luzCasulo.w > 0.004 &&
@@ -3914,6 +3959,24 @@ void main(){
      pelo tronco cedido e o cinza que faz as vezes da sala -- no aparelho e
      o assoalho de verdade. E a regra de ouro do teste desta obra: o
      passthrough e outro ambiente, nao uma janela para o mesmo. */
+  /* AS MONTANHAS SE DESFAZEM POR BAIXO.
+
+     Elas terminavam num CORTE RETO -- a beirada de baixo do modelo, a uns
+     trinta metros abaixo da linha do olhar, atravessando o horizonte como
+     uma regua. Montanha nao tem beirada de baixo: ela some no ar que se
+     acumula rente ao chao, e a meio quilometro esse ar e opaco.
+
+     O FADE E PELA ALTURA NO PROPRIO CORPO, e nao pela altura no mundo:
+     cada uma tem um tamanho, e uma faixa em metros comeria a pequena
+     inteira e mal tocaria a grande. Do fundo ate um terco dela, some.
+
+     E SO A QUE ESTA LONGE. As onze pedras do chao sao desta mesma materia,
+     e uma pedra com o pe desfeito nao le como bruma, le como flutuando. */
+  if(materia > 0.5 && materia < 1.5){
+    float longeDaqui = smoothstep(18.0, 120.0, length(vMundo.xz));
+    alfa *= mix(1.0, smoothstep(0.02, 0.34, vAlt), longeDaqui);
+  }
+
   float pertoDoChao = smoothstep(0.06, 0.55, vMundo.y);
   if((materia > 7.5 && materia < 8.5) || (materia > 14.5 && materia < 15.5))
     alfa *= mix(0.46, 1.0, pertoDoChao);          // os troncos, so no pe
@@ -5517,7 +5580,22 @@ const PALETA_PO = [
 /* ATE ONDE A OBRA ENXERGA. Precisa caber a serra do horizonte, que esta a
    duzentos metros; o ceu nao entra na conta porque a cupula acompanha a
    cabeca e esta sempre a sessenta. */
-const LONGE = 420;
+/* OITOCENTOS METROS, e nao 420 -- e este numero tinha de mudar primeiro.
+
+   O plano distante corta tudo o que passa dele, e cortar nao da aviso: o
+   objeto simplesmente nao existe. Com as montanhas indo para 430-620 m, o
+   topo da mais longe fica a 651 m do olho -- com 420 elas sumiriam
+   inteiras, e eu passaria a tarde procurando o erro no shader.
+
+   E O MESMO NUMERO NO HEADSET. Ele vai junto no updateRenderState: sem
+   isso a obra herdava o padrao do aparelho, uns mil metros, e a de tela
+   cortava em 60 -- duas distancias para a mesma obra.
+
+   O QUE CUSTA: precisao de profundidade. A razao entre o perto e o longe
+   passa de 8.400 para 16.000, e e ela que decide quantos bits sobram para
+   separar duas superficies proximas. Onde isso apareceria e no longe, entre
+   montanhas -- que estao a centenas de metros umas das outras. */
+const LONGE = 800;
 const PO_MAX = 6000;
 function semearPoeira(semente){
   const rnd = prng(semente);
@@ -8415,8 +8493,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          montanha: ela a CLAREIA na direcao do ceu, porque o que se ve a
          cinquenta metros e o ar iluminado entre voce e ela. Ceder alfa
          sobre um ceu escuro faz o contrario -- some. Entao o alfa sobe e o
-         clareamento vai para o shader, onde devia estar desde o comeco. */
-      gl.uniform1f(locSo.presenca, presencaMata * 0.72);
+         clareamento vai para o shader, onde devia estar desde o comeco.
+
+         E 0,58 e nao 0,72: com elas maiores e com veia, 0,72 punha a serra
+         no mesmo peso da floresta de perto. Longe tem que ceder para ser
+         longe. */
+      gl.uniform1f(locSo.presenca, presencaMata * 0.58);
       gl.uniform1f(locSo.crescimento, 9.0);
       gl.uniform1f(locSo.balanca, 0.0);
       ligar(aSo.pos, bMontanhas.pos, 3); ligar(aSo.nor, bMontanhas.nor, 3);
