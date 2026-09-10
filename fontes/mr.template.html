@@ -3669,6 +3669,14 @@ void main(){
     c += vec3(0.24, 0.90, 0.80) * pow(clamp(vAlt, 0.0, 1.0), 2.8)
        * (0.12 + 0.34 * bat);
   }
+  /* E A FOLHA AZUL TAMBEM, no azul dela. Ela perdeu esta batida quando
+     saiu da materia da grama; sem ela a copa fica parada enquanto o resto
+     do cenario pulsa, e o compasso e um so. */
+  if(materia > 15.5){
+    float batF = pow(0.5 + 0.5*sin(tempo * 1.9 + vFase), 4.0);
+    c += vec3(0.26, 0.48, 1.00) * pow(clamp(vAlt, 0.0, 1.0), 2.8)
+       * (0.14 + 0.40 * batF);
+  }
 
   /* A LUZ DERRAMADA. So no que esta perto do chao: acima de oitenta
      centimetros nao ha o que iluminar, e a copa das arvores ocupa tela
@@ -3819,6 +3827,36 @@ void main(){
     c += vec3(1.00, 0.55, 0.70) * coracao()
        * (0.38 + 0.62 * (1.0 - raspaoC)) * 0.72;
   }
+
+  /* VER ONDE SE PISA.
+
+     Em realidade mista o chao e o chao DE VERDADE, visto pelas cameras, e
+     tudo o que a obra pinta por cima dele o esconde. Quem esta em pe olha
+     para baixo antes de dar um passo -- e se ali houver terra virtual
+     opaca, a pessoa nao ve o proprio pe, nem o cabo, nem a beirada do
+     tapete, nem quem entrou junto. Isso nao e estetica: e o piso do
+     estande, com fila.
+
+     SO O QUE ESTA PERTO DO PISO CEDE. Acima de sessenta centimetros nada
+     muda, porque ali nao ha em que tropecar. A terra cede em todo lugar --
+     e ela que cobre o chao inteiro --, e o tronco e o capim cedem so no pe.
+
+     NAO CEDEM O COGUMELO NEM A PEDRA. Sao os objetos que a obra POE no
+     chao para serem vistos e tocados, e coisa que se atravessa deixa de
+     estar ali. E os cogumelos sao a luz do cenario: luz translucida deixa
+     de acender.
+
+     E NO COMPUTADOR ISTO PARECE DEFEITO. Sem camera atras, o que aparece
+     pelo tronco cedido e o cinza que faz as vezes da sala -- no aparelho e
+     o assoalho de verdade. E a regra de ouro do teste desta obra: o
+     passthrough e outro ambiente, nao uma janela para o mesmo. */
+  float pertoDoChao = smoothstep(0.06, 0.55, vMundo.y);
+  if((materia > 7.5 && materia < 8.5) || (materia > 14.5 && materia < 15.5))
+    alfa *= mix(0.46, 1.0, pertoDoChao);          // os troncos, so no pe
+  else if(materia > 1.5 && materia < 2.5)
+    alfa *= 0.58;                                  // a terra, sempre
+  else if(materia > 2.5 && materia < 3.5)
+    alfa *= mix(0.40, 1.0, pertoDoChao);          // o capim
 
   gl_FragColor = vec4(c, alfa);
 }`;
@@ -5624,6 +5662,58 @@ montarCrisalida();
 semearMontanhas();
 prepararAlienigena();
 prepararFolhas();
+/* OS ESPOROS -- os pontos acesos junto das arvores.
+
+   PARTICULA E A PALAVRA CERTA AQUI, e foi assim que foram pedidos. Nao sao
+   nuvem nem neblina: sao graos, poucos e pequenos, no turquesa dos
+   cogumelos.
+
+   POR QUE JUNTO DAS ARVORES. A poeira cosmica ocupa o miolo da sala -- um
+   anel de 1,4 a 2,9 m em volta de quem entra -- e os cogumelos moram no
+   chao ali perto. As arvores foram para fora, de 2,9 a 5,0 m, e de la nao
+   sobrou nada aceso: um bosque escuro em volta de um centro iluminado le
+   como cenario de estudio, e nao como floresta.
+
+   O PROGRAMA E O MESMO DA POEIRA -- mesmo shader, mesmos atributos, outro
+   buffer. O cintilo por grao, as faiscas de sete por cento e o teto de
+   tamanho ja estao resolvidos la, e resolver de novo seria manter duas
+   vezes a mesma conta. */
+const ESPOROS_POR_ARVORE = 55;
+function semearEsporos(semente){
+  const rnd = prng(semente);
+  const s = {pos:[], cor:[], dado:[]};
+  for(const b of BASES){
+    for(let i=0;i<ESPOROS_POR_ARVORE;i++){
+      const a = rnd()*Math.PI*2;
+      // raiz do sorteio outra vez: distribui por AREA, senao amontoa no tronco
+      const r = 0.30 + Math.sqrt(rnd()) * 0.95;
+      /* A COLUNA E BAIXA. Estes nao sao poeira do ar: sao esporos saindo do
+         chao, e o que se ve deles acontece entre o tornozelo e o peito. */
+      s.pos.push(b[0] + Math.sin(a)*r, 0.45 + rnd()*1.25, b[2] - Math.cos(a)*r);
+      /* O TURQUESA DOS COGUMELOS, com pouca variacao: o cenario tem uma luz
+         so, e vinte tons dela seriam vinte luzes. */
+      const q = rnd();
+      s.cor.push(0.22 + q*0.16, 0.86 + q*0.10, 0.76 + q*0.12);
+      /* NOVE A VINTE E NOVE MILIMETROS, e nao tres a nove.
+
+         Medido: com 6 mm, a quatro metros do olho, o grao sai com 0,9 pixel
+         e o clamp o sobe para 1 -- um pixel solto que ninguem enxerga. A
+         poeira cosmica pode ser desse tamanho porque mora a um metro e meio
+         de quem olha; estes moram a quatro e cinco, junto das arvores, e
+         tamanho em metros vira tamanho em pixels dividido pela distancia.
+         Com 2 cm eles saem com tres a cinco pixels, que e o que o olho
+         chama de vagalume. */
+      s.dado.push(rnd(), 0.009 + rnd()*rnd()*0.020);
+    }
+  }
+  return s;
+}
+let nEsp = 0;
+const bEsp = criarBufs(['pos','cor','dado']);
+function subirEsporos(s){
+  enviar(bEsp.pos,s.pos); enviar(bEsp.cor,s.cor); enviar(bEsp.dado,s.dado);
+  nEsp = s.pos.length/3;
+}
 function subirPoeira(s){
   enviar(bP.pos,s.pos); enviar(bP.cor,s.cor); enviar(bP.dado,s.dado);
   nPo = s.pos.length/3;
@@ -5638,6 +5728,7 @@ function subirFiguras(s){
 subirRaizes(semearMata(11), 11);
 subirFiguras(semearFiguras(29));
 subirPoeira(semearPoeira(53));
+subirEsporos(semearEsporos(71));   // depois de BASES existir
 
 /* ═══════════ texturas ═══════════ */
 
@@ -9594,6 +9685,33 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locPo.sentido, sentidoPoeira);
     ligar(aP.pos,bP.pos,3); ligar(aP.cor,bP.cor,3); ligar(aP.dado,bP.dado,2);
     gl.drawArrays(gl.POINTS, 0, Math.min(nPo, quantosPo));
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* OS ESPOROS. Buffer proprio e desenho proprio, com o programa da poeira.
+
+     SEPARADOS DA POEIRA DE PROPOSITO, e nao por comodidade: a partitura
+     manda na poeira pelo "quantosPo", que cai a zero em cenario nenhum e em
+     outro sobe -- os esporos nao seguem essa conta, eles seguem a FLORESTA.
+     Onde ela esta, eles estao; quando ela sai, eles saem com ela. Postos no
+     mesmo buffer, um corte de poeira apagaria os esporos junto.
+
+     O SOPRO E UM TERCO. Eles estao presos ao chao de onde saem: a deriva
+     larga da poeira do ar aqui os faria atravessar tronco. */
+  if(nEsp > 0 && presencaMata > 0.004 && poeiraOn){
+    gl.enable(gl.BLEND);
+    somarLuz();
+    gl.depthMask(false);
+    gl.useProgram(progPo);
+    soltarAtributos();
+    mandarMvp(locPo.mvp, mvp);
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto);
+    gl.uniform1f(locPo.sopro, 0.34);
+    gl.uniform1f(locPo.sentido, 1);
+    ligar(aP.pos,bEsp.pos,3); ligar(aP.cor,bEsp.cor,3); ligar(aP.dado,bEsp.dado,2);
+    gl.drawArrays(gl.POINTS, 0, nEsp);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
