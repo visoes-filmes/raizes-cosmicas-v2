@@ -1124,20 +1124,33 @@ function semearMata(semente){
   BASES.push(ARVORE_BASE.slice());
 
   for(let i=0;i<N;i++){
-    // encostadas nas bordas da sala, deixando o centro livre pra pessoa andar
+    /* FORA DA SALA, E NAO ENCOSTADAS NELA.
+
+       Elas ficavam entre 1,2 e 2,0 m do centro -- dentro dos tres metros
+       caminhaveis, ou seja, no meio da pessoa. E arvore de quatro metros a
+       um metro e meio de distancia nao le como arvore: le como TETO. A copa
+       fica em cima da cabeca e o que devia ser floresta em volta vira
+       cobertura.
+
+       Agora o anel vai de 2,9 a 5,0 m: fora do alcance do passo, e antes da
+       mata de fundo, que comeca aos 4,2. O que sobra em cima da pessoa e
+       ceu, que e o que a obra tem para mostrar la. */
     const t = i/N * Math.PI*2 + (rnd()-0.5)*0.4;
-    const rx = (LARG/2 - 0.35) * (0.75 + rnd()*0.25);
-    const rz = (PROF/2 - 0.35) * (0.75 + rnd()*0.25);
+    const rx = 2.9 + rnd()*2.1;
+    const rz = 2.9 + rnd()*2.1;
     const base = [Math.sin(t)*rx, 0, -Math.cos(t)*rz];
-    // Escala contida: o galho inicial mede 0.62*escala e a planta inteira
-    // dá umas 3 vezes isso. Acima de 1.5 ela fura o pé-direito de 3 m.
+    /* E MAIORES, porque estao mais longe. A escala vinha contida pelo
+       pe-direito: acima de 1,5 a planta furava os 3 m do forro. Fora da
+       sala nao ha forro -- ha ceu --, e afastar sem crescer as encolheria
+       no quadro. O dobro da distancia pede quase o dobro do tamanho para o
+       olho ver a mesma floresta. */
     BASES.push(base);
     /* A REPETICAO ERA O DEFEITO: onze plantas do mesmo feitio. Agora sao
        quatro de copa larga, tres inclinadas e quatro como antes -- e a
        ordem e por indice, e nao sorteada, para que a distribuicao pela sala
        seja sempre a mesma e nao dependa da sorte. */
     const feitio = (i % 3 === 0) ? 1 : (i % 3 === 1) ? 2 : 0;
-    gerarPlanta(rnd, base, (feitio === 1 ? 0.95 : 0.85) + rnd()*0.65,
+    gerarPlanta(rnd, base, (feitio === 1 ? 1.75 : 1.55) + rnd()*1.15,
                 rnd()*Math.PI*2, s, feitio);
   }
   return s;
@@ -2364,7 +2377,8 @@ void main(){
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
-  p.xz = mix(aPos.xz * 0.12, p.xz, vivo);
+  // idem na nuvem: sobe do proprio lugar, e nao vem do centro
+  p.xz = mix(aPos.xz, p.xz, vivo);
 
   // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
   float b = aAlt*aAlt;
@@ -2524,7 +2538,6 @@ uniform float inflar;
    abre para o lugar dela; e balanca no vento, mais na ponta que na base.
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
    parada, porque pedra que balanca deixa de ser pedra na hora. */
-uniform float planta;        // 1 = recolhe-se para a origem ao nascer
 uniform float balanca;       // 1 = oscila no vento, mais na ponta
 /* A ONDULACAO LENTA, em metros, e so quem pede recebe.
 
@@ -2564,8 +2577,20 @@ void main(){
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
   p.y *= vivo;
-  vec2 recolhido = mix(aPos.xz, aPos.xz * 0.12, planta);
-  p.xz = mix(recolhido, p.xz, vivo);
+  /* CADA UMA NASCE DO PROPRIO SOLO, e nao do centro da sala.
+
+     Aqui havia um recolhimento: a planta por nascer ficava com o xz a doze
+     por cento da origem e se ABRIA para o lugar dela. O efeito, visto de
+     dentro, nao era nascer -- era a floresta inteira se montando a partir do
+     meio da sala e deslizando para as bordas, todas juntas.
+
+     Agora o xz nao se move: cada planta sobe onde esta, uma independente da
+     outra, e o unico movimento e o de subir do chao. E o que uma planta faz.
+
+     O uniforme "planta" saiu junto: ele so servia a esta conta. Uma pedra e
+     uma arvore ja se distinguem pelo "balanca", que e o que de fato as
+     separa -- pedra que balanca deixa de ser pedra. */
+  p.xz = mix(aPos.xz, p.xz, vivo);
 
   // balanco pelo QUADRADO da altura: ponta fina oscila, base grossa nao
   float b = aAlt*aAlt*balanca;
@@ -6239,10 +6264,16 @@ function seguirPartitura(dt){
      feita, e o nascimento, que e o primeiro acontecimento da obra, nunca
      mais aconteceria. No salto (dt zero) tambem se assenta no valor da
      hora, senao voltar para o comeco mostraria o fim. */
-  const brotando = rampa(15, 69, t);
+  /* CINQUENTA E QUATRO SEGUNDOS ERA DEVAGAR DEMAIS. A floresta levava quase
+     um minuto para subir, e os dez minutos inteiros tem quatro cenarios: um
+     decimo da obra era esperar arvore crescer. Agora leva vinte -- tempo de
+     ver acontecer, e nao de aguardar. */
+  const brotando = rampa(14, 34, t);
   crescimento = dt > 0 ? Math.max(crescimento, brotando) : brotando;
   // a folhagem so comeca quando a arvore ja esta feita, e leva o seu tempo
-  folhagem = (c === 1) ? rampa(72, 138, t) : 1.0;
+  /* E A FOLHAGEM SEGUE LOGO ATRAS, e nao um minuto depois: ela comecava aos
+     72 s porque a arvore so acabava aos 69. Agora a arvore acaba aos 34. */
+  folhagem = (c === 1) ? rampa(34, 78, t) : 1.0;
 
   /* OS PRIMEIROS VINTE SEGUNDOS NAO TEM TEXTURA DE CEU.
 
@@ -6364,7 +6395,18 @@ function seguirPartitura(dt){
   /* A nuvem tambem cede no fecho. Era a ultima coisa acesa quando tudo o
      mais ja tinha se apagado, e por isso a espera acontecia num fundo
      leitoso em vez do ceu escuro estrelado que a obra pede. */
-  const alvoNuvem = a.nuvem * (1 - fecho);
+  /* E NA FLORESTA ELA E SO DO COMECO.
+
+     A nuvem cosmica e o que existe antes de existir mundo: ela abre a obra e
+     sai quando a floresta chega. Ficando, ela disputa -- e o que ela tem de
+     massa, o leitoso, e neblina por cima justamente do que acabou de
+     nascer.
+
+     Cede entre 0:20 e 0:44, junto com o crescimento: quando a ultima arvore
+     acaba de subir, ela nao esta mais la. So no cenario 1 -- nos outros ela
+     e outra coisa, e tem outro valor na partitura. */
+  const nuvemDoComeco = (c === 1) ? 1 - rampa(20, 44, t) : 1;
+  const alvoNuvem = a.nuvem * nuvemDoComeco * (1 - fecho);
   presenca   = dt > 0 ? aproximar(presenca, alvoNuvem, p) : alvoNuvem;
   marmore    = aproximar(marmore, a.marmore, p);
   leitoso    = aproximar(leitoso, a.leite, p);
@@ -7166,7 +7208,7 @@ const uSo = n=>gl.getUniformLocation(progSolida,n);
 const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'),
                inverte:uSo('inverte'), desloca:uSo('desloca'), casca:uSo('casca'),
                presenca:uSo('presenca'), escalaTinta:uSo('escalaTinta'),
-               planta:uSo('planta'), materia:uSo('materia'),
+               materia:uSo('materia'),
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
@@ -7674,7 +7716,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
     gl.uniform1f(locSo.escalaTinta, 1.25);
-    gl.uniform1f(locSo.planta, 1.0);
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
     /* TUDO MIOLO, e com o arranjo DESLIGADO.
@@ -7703,7 +7744,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.escalaTinta, 0.055);  // o grao acompanha o tamanho
       gl.uniform1f(locSo.presenca, presencaMata * 0.26);
       gl.uniform1f(locSo.crescimento, 9.0);
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       ligar(aSo.pos, bMontanhas.pos, 3); ligar(aSo.nor, bMontanhas.nor, 3);
       ligar(aSo.alt, bMontanhas.alt, 1); ligar(aSo.fase, bMontanhas.fase, 1);
@@ -7712,7 +7752,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawElements(gl.TRIANGLES, nMontanhasIdx, gl.UNSIGNED_SHORT, 0);
       gl.uniform1f(locSo.materia, 0.0);
       gl.uniform1f(locSo.escalaTinta, 1.25);
-      gl.uniform1f(locSo.planta, 1.0);
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.crescimento, crescimento);
       gl.uniform1f(locSo.presenca, presencaMata);
@@ -7777,7 +7816,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        elas emergem onde estao, sem se recolher para a origem e sem balancar
        no vento. Pedra que balanca deixa de ser pedra na hora. */
     if(PEDRAS_NO_CHAO && nPedrasIdx > 0 && presencaMata > 0.004){
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       /* PIGMENTO MAIS MIUDO NA PEDRA, e nao o mesmo da arvore.
 
@@ -7805,7 +7843,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.borda, bPedras.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bPedras.idx);
       gl.drawElements(gl.TRIANGLES, nPedrasIdx, gl.UNSIGNED_SHORT, 0);
-      gl.uniform1f(locSo.planta, 1.0);
       gl.uniform1f(locSo.escalaTinta, 1.25);
       gl.uniform1f(locSo.materia, 0.0);
     }
@@ -7816,7 +7853,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        folha. */
     if(nSoloIdx > 0 && presencaMata > 0.004){
       gl.depthMask(false);
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       gl.uniform1f(locSo.materia, 2.0);
       gl.uniform1f(locSo.escalaTinta, 5.0);
@@ -7846,7 +7882,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(nFolhagemIdx > 0 && folhagem > 0.004 && presencaMata > 0.004){
       gl.disable(gl.CULL_FACE);
       gl.depthMask(true);
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.materia, 3.0);
       gl.uniform1f(locSo.escalaTinta, 6.0);
@@ -7874,7 +7909,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 0.0);
       gl.uniform1f(locSo.materia, 5.0);
       gl.uniform1f(locSo.escalaObj, 1.0);
@@ -7927,7 +7961,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(nCrisalidaIdx > 0 && casuloPresenca > 0.004){
       gl.disable(gl.CULL_FACE);
       gl.depthMask(false);
-      gl.uniform1f(locSo.planta, 0.0);
       // presa em cima e solta embaixo: o balanco do shader e o pendulo
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.materia, 4.0);
@@ -7974,8 +8007,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.enable(gl.CULL_FACE);
       gl.uniform3f(locSo.desloca, 0, 0, 0);
     }
-
-    gl.uniform1f(locSo.planta, 1.0);
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
     gl.uniform1f(locSo.escalaTinta, 1.25);
@@ -8123,7 +8154,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.inflar, 0.08 * Math.sin(relogio*0.21));
         gl.uniform3fv(locSo.focos, FOCOS);
         gl.uniform1f(locSo.escalaTinta, 1.0);
-        gl.uniform1f(locSo.planta, 0.0);
         gl.uniform1f(locSo.balanca, 0.0);
         /* MEIO METRO DE ONDULACAO. Num corpo de vinte e seis metros e dois
            por cento -- perto do que o proprio ar faz com uma arvore --, e a
@@ -8142,7 +8172,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
         gl.uniform1f(locSo.materia, 0.0);
         gl.uniform1f(locSo.inflar, 0.0);
-        gl.uniform1f(locSo.planta, 1.0);
         /* E DEVOLVE A ONDULACAO A ZERO. Uniforme e estado: deixada ligada,
            ela ondularia a floresta, o casulo e a agua-viva com meio metro de
            amplitude -- e o defeito apareceria longe daqui. */
@@ -8321,7 +8350,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.escalaTinta, 1.0);
       // planta em zero: eles nao se recolhem para a origem. balanca em um:
       // bicho de agua nao fica parado, e a conta ja existe.
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform1f(locSo.materia, 9.0);
       gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
@@ -8345,7 +8373,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.drawElements(gl.TRIANGLES, nNeonIdx, gl.UNSIGNED_SHORT, 0);
       }
       gl.uniform1f(locSo.materia, 0.0);
-      gl.uniform1f(locSo.planta, 1.0);
       gl.depthMask(true);
       sobrepor();
       gl.useProgram(progAstro);
@@ -8378,7 +8405,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       /* PLANTA EM ZERO: alga nao se recolhe para a origem ao nascer, ela ja
          esta la. BALANCA EM UM: e o que da a corrente de agua, e a conta
          usa o quadrado da altura -- a ponta ondula e o pe nao. */
-      gl.uniform1f(locSo.planta, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);
       gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
@@ -8419,7 +8445,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         sobrepor();
       }
       gl.uniform1f(locSo.materia, 0.0);
-      gl.uniform1f(locSo.planta, 1.0);
 
       /* O HORIZONTE E A CONCHA SEGUEM EM NUVEM, e de proposito: o horizonte
          esta a dezenas de metros, onde forma nao se le, e a concha nao foi
