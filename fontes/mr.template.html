@@ -462,7 +462,7 @@ const MATA_SOLIDA        = true;
 /* MATA_ESTRELAR -- a casca das arvores e ceu noturno, menos a da mae.
 
    A ARVORE-MAE FICA COM A PINTURA, e so ela: e a arvore do roteiro, a que
-   atravessa o teto, e e nela que a aquarela tem sete metros para se
+   atravessa o teto, e e nela que a aquarela tem seis metros e meio para se
    mostrar inteira. Nas outras a mesma pintura so se repetia.
 
    O CEU E GERADO AQUI, e nao e a imagem do ceu esticada na casca. Espalhar
@@ -870,13 +870,25 @@ function gerarArvoreMae2(rnd, base, s){
 }
 
 function gerarArvoreMae(rnd, base, s){
-  const ALTURA = 7.0;
-  const H = ALTURA * 0.62;          // ate onde vai o tronco
+  /* MAIS TRONCO EM CIMA.
 
-  // o tronco: nove aneis, afinando, com desvio em arco
+     Ela tinha 4,34 m de tronco e a copa comecava a 3,38: meio metro de
+     tronco limpo acima do vao, que acaba a 2,89. Meio metro nao le como
+     tronco, le como pescoco -- a copa parecia sentada em cima do vao. Agora
+     o tronco vai a 5,78 e o primeiro galho da copa sai a 4,34: um metro e
+     meio de tronco entre uma coisa e outra.
+
+     E O PASSO ENTRE ANEIS NAO MUDA -- 0,482 m, os mesmos de antes. E o que
+     mantem o vao onde ele foi posto, entre os aneis 3 e 6, de 1,45 a 2,89 m,
+     com o centro na altura dos olhos. Crescer esticando os aneis teria
+     levado o vao junto, para fora do alcance do olhar. */
+  const ANEIS = 12, PASSO = 0.482;
+  const H = ANEIS * PASSO;          // 5,78 m de tronco
+
+  // o tronco: treze aneis, afinando, com desvio em arco
   const pontos = [], raios = [];
-  for(let i=0;i<=9;i++){
-    const k = i/9;
+  for(let i=0;i<=ANEIS;i++){
+    const k = i/ANEIS;
     const y = k * H;
     pontos.push([ base[0] + Math.sin(k*2.1)*0.30,
                   base[1] + y,
@@ -904,26 +916,54 @@ function gerarArvoreMae(rnd, base, s){
      lente, de perfil ela desapareceria numa linha. A arvore esta encostada
      na parede, entao essa direcao e sempre a mesma.
 
-     CADA ARCO LEVA 0,62 DO RAIO. Dois arcos de meia espessura somam mais
-     que o tronco cheio, e e isso que se quer -- o tronco nao afina ao
-     abrir, ele se reparte. */
+     E O TRONCO NAO AFINA AO ABRIR: ELE RACHA. */
   const A = 3, B = 6;
   const paraCa = norm([-base[0], 0.001, -base[2]]);
   const perp = [-paraCa[2], 0, paraCa[0]];
-  const altDe = (i) => 0.62 * i / 9;
+  const altDe = (i) => 0.62 * i / ANEIS;
+  /* CATORZE ANEIS POR ARCO, E NAO OS QUATRO DO TRONCO.
+
+     O primeiro corte reaproveitava os aneis que ja existiam entre A e B, que
+     sao quatro. Com quatro amostras o seno vale 0 / 0,87 / 0,87 / 0: o arco
+     sai TRAPEZIO, com quina no meio, e a lente le como hexagono -- foi o
+     que apareceu na primeira foto. Reamostrar a linha de centro custa uns
+     seiscentos triangulos numa malha de catorze mil, e e a diferenca entre
+     "()" e um losango. */
+  const PASSOS = 14;
+  /* MEIO METRO DE ABERTURA, E NAO 0,42.
+
+     O vao nao mudou de tamanho quando o tronco subiu -- mas a arvore mudou,
+     e proporcao e o que o olho le. Numa arvore de 5,1 m o vao era a forma
+     do meio dela; na de 6,5 m, com o tronco mais grosso naquela altura, o
+     mesmo buraco passou a ler como NO, e nao como "()". Meio metro de cada
+     lado devolve a lente. */
+  const ABRE = 0.50;
+  const apice = {};
   // o pe, sem bico: ele nao acaba no ar, acaba nos arcos
   tuboAoLongo(s, pontos.slice(0, A + 1), raios.slice(0, A + 1),
               0.7, 0.0, altDe(A), 12, true);
   for(const lado of [-1, 1]){
     const seg = [], rr = [];
-    for(let i = A; i <= B; i++){
-      const u = (i - A) / (B - A);
-      const abre = Math.sin(u * Math.PI) * 0.42;
-      seg.push([ pontos[i][0] + perp[0] * abre * lado,
-                 pontos[i][1],
-                 pontos[i][2] + perp[2] * abre * lado ]);
-      rr.push(raios[i] * 0.62);
+    for(let j = 0; j <= PASSOS; j++){
+      const u = j / PASSOS;
+      const g = A + u * (B - A);
+      const i = Math.min(B - 1, Math.floor(g)), f = g - i;
+      const entre = (a, b) => a + (b - a) * f;
+      const seno = Math.sin(u * Math.PI);
+      seg.push([ entre(pontos[i][0], pontos[i+1][0]) + perp[0] * seno * ABRE * lado,
+                 entre(pontos[i][1], pontos[i+1][1]),
+                 entre(pontos[i][2], pontos[i+1][2]) + perp[2] * seno * ABRE * lado ]);
+      /* E CADA ARCO SAI COM A GROSSURA INTEIRA DO TRONCO, afinando so onde
+         esta aberto. Antes cada um levava 0,62 do raio do inicio ao fim; e
+         como no inicio e no fim os dois estao no MESMO lugar, o que se via
+         era um DEGRAU -- o tronco cheio parava e dois canos mais finos
+         comecavam, com o anel aberto do pe aparecendo por dentro. Arvore
+         nao empilha, arvore racha: nas duas pontas do vao os arcos tem o
+         raio inteiro e se atravessam, e a fenda so abre onde eles se
+         afastam. */
+      rr.push(entre(raios[i], raios[i+1]) * (1 - 0.48 * seno));
     }
+    apice[lado] = seg[PASSOS >> 1];
     tuboAoLongo(s, seg, rr, 0.7 + (lado > 0 ? 0.9 : 0.0),
                 altDe(A), altDe(B), 12, true);
   }
@@ -933,31 +973,82 @@ function gerarArvoreMae(rnd, base, s){
 
   /* OS GALHOS. Tres baixos, dentro do comodo -- e e de um deles que o
      casulo pende. Os de cima ficam acima do forro, na parte virtual. */
-  const galho = (kAltura, azimute, inclinacao, comprimento, grosso) => {
-    const i = Math.round(kAltura * 9);
-    const de = pontos[Math.min(i, 9)];
-    const dirH = [Math.sin(azimute), 0, -Math.cos(azimute)];
+  const galho = (kAltura, azimute, inclinacao, comprimento, grosso, de0, prof) => {
+    const p = prof || 0;
+    /* ONDE ELE NASCE, SEM ARREDONDAR PARA O ANEL. Era Math.round(kAltura*9):
+       sete galhos da copa caiam em tres pontos, e sete varas saindo de tres
+       pontos sao uma ESTRELA, nao uma copa. Interpolando entre os aneis,
+       cada galho tem a altura que foi escrita para ele. */
+    const g = Math.min(kAltura, 1) * ANEIS;
+    const i = Math.min(ANEIS - 1, Math.floor(g)), f = g - i;
+    // de0: para quem nao nasce da linha de centro -- ver o galho do vao
+    const de = de0 || [ pontos[i][0] + (pontos[i+1][0] - pontos[i][0]) * f,
+                        pontos[i][1] + (pontos[i+1][1] - pontos[i][1]) * f,
+                        pontos[i][2] + (pontos[i+1][2] - pontos[i][2]) * f ];
+    /* E ELE ENCURVA, EM VEZ DE APONTAR.
+
+       O galho era uma vara reta, com dez por cento de queda no fim, afinando
+       ate quase zero e fechada por um cone. De longe isso e um espinho, e
+       sete espinhos em volta de um tronco sao uma coroa de espinhos -- que
+       foi exatamente o que se viu na foto. Tres coisas mudam:
+
+       DOBRA DE LADO ao longo do caminho, e o quanto vem do proprio azimute.
+       Nao do sorteio: cada rnd() a mais aqui desloca a sequencia inteira e
+       muda a floresta toda de semente, e a floresta ja esta aprovada.
+
+       CAI MAIS NO FIM -- de 0,10 para 0,30 do comprimento. A ponta passa a
+       olhar para baixo em vez de para fora, que e o que galho carregado faz.
+
+       E AFINA DEVAGAR, ACABANDO ROMBUDO. Expoente menor que um segura a
+       grossura ate perto da ponta em vez de afilar desde a base; e o bico
+       vira um coto de dois centimetros no lugar de uma agulha. */
+    const aneis = p === 0 ? 10 : (p === 1 ? 7 : 5);
+    const vira = Math.sin(azimute * 4.7) * 0.55;
     const seg = [], rr = [];
-    for(let j=0;j<=5;j++){
-      const t2 = j/5;
-      // o galho sobe e vai abrindo: nenhum galho de arvore e reto
-      seg.push([ de[0] + dirH[0]*comprimento*t2,
+    for(let j=0;j<=aneis;j++){
+      const t2 = j/aneis;
+      const az = azimute + vira * t2 * t2;
+      seg.push([ de[0] + Math.sin(az)*comprimento*t2,
                  de[1] + Math.sin(inclinacao)*comprimento*t2
-                       - t2*t2*comprimento*0.10,
-                 de[2] + dirH[2]*comprimento*t2 ]);
-      rr.push(grosso * Math.pow(1-t2, 1.2) + 0.012);
+                       - t2*t2*comprimento*0.30,
+                 de[2] - Math.cos(az)*comprimento*t2 ]);
+      rr.push(grosso * Math.pow(1-t2, 0.75) + 0.020);
     }
     tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
+    /* E ELE SE DIVIDE, que e o que separa galho de espinho.
+
+       Nao e a quantidade de varas que faz o olho ler "arvore", e a
+       RAMIFICACAO: uma vara que nao se divide e um espinho por definicao,
+       por mais curva que seja. Duas saidas no primeiro nivel e uma no
+       segundo -- cinco tubos por galho da copa. */
+    if(p < 2 && comprimento > 0.45){
+      const saidas = p === 0 ? [[0.54, 0.62], [0.76, -0.50]] : [[0.62, 0.44]];
+      for(const [u, giro] of saidas){
+        const j = Math.round(u * aneis);
+        galho(kAltura, azimute + vira*u*u + giro, inclinacao + 0.16,
+              comprimento * 0.54, rr[j] * 0.80, seg[j], p + 1);
+      }
+    }
   };
 
   galhoDoCasulo(pontos[3], s);
 
-  galho(0.55, 3.1,  0.42, 0.95, 0.065);
+  /* ESTE NASCE DO ARCO, E NAO DO VAZIO. A 0,55 da altura ele saia do anel
+     5, que e o MEIO DO VAO -- e ali, desde que o tronco abriu, nao ha mais
+     tronco: o galho aparecia atravessando o buraco preso em nada. Agora sai
+     do apice do arco que fica do lado dele, que e madeira de verdade. */
+  galho(0.55, 3.1,  0.42, 0.95, 0.065, apice[1]);
   galho(0.63, 4.9,  0.24, 1.05, 0.070);
   /* A COPA MORA LA EM CIMA, junto do ceu. Estes sete ja estao acima do
      forro -- e e por isso que ela existe: o comodo tem tres metros e a
-     arvore tem sete, entao a copa acontece onde o teto de verdade nao
-     alcanca e o ceu virtual e o que se ve. */
+     arvore tem SEIS E MEIO -- 5,78 m de tronco e o resto de copa --, entao
+     a copa acontece onde o teto de verdade nao alcanca e o ceu virtual e o
+     que se ve.
+
+     E o numero estava errado ate 10/09: dizia-se sete porque a constante
+     chamada ALTURA valia 7,0, mas ela era multiplicada por 0,62 antes de
+     virar tronco. A arvore media 5,1 -- dois metros a menos do que a
+     documentacao afirmava, e ninguem tinha medido. */
   galho(0.74, 1.9,  0.46, 1.70, 0.062);   // ja acima do forro
   galho(0.80, 4.2,  0.54, 1.85, 0.055);
   galho(0.85, 0.6,  0.50, 1.75, 0.050);
@@ -2829,7 +2920,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
    escura cobre a pedra inteira, em escala pequena a repeticao aparece. Nao
    ha escala que resolva. Ruido tridimensional lido na posicao do mundo nao
    tem UV nem ladrilho: a textura existe DENTRO do corpo. A arvore continua
-   com a aquarela, porque tem sete metros e a percorre inteira. */
+   com a aquarela, porque tem seis metros e meio e a percorre inteira. */
 uniform float materia;
 /* QUAO PERTO A MAO ESTA do casulo: zero longe, um encostando. E o mesmo
    valor que arma o toque, que ate agora era so limiar interno e nao
