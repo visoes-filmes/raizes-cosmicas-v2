@@ -3057,6 +3057,24 @@ vec3 aGrama(vec3 p, float alt){
   return mix(raiz, ponta, pow(clamp(alt, 0.0, 1.0), 1.7));
 }
 
+/* A FOLHA, NO AZUL DO CEU.
+
+   MEDIDO, e nao escolhido. Os dez por cento mais azuis do ceu num quadro de
+   4:20 dao rgb(66, 82, 157) -- azul com o verde acima do vermelho --, e o
+   pixel mais vivo dele da rgb(139, 146, 252). E essa a familia, e e por isso
+   que a folha nao e um azul qualquer: e o azul que ja esta la em cima.
+
+   A ESTRUTURA E A MESMA DA GRAMA -- raiz escura, ponta acesa, com o ruido
+   variando as duas. O que muda e a matiz e o quanto a ponta sobe: aqui ela
+   vai a um no azul, e e isso que faz o olho ler FLUORESCENTE em vez de
+   "folha azul". Fluorescente e a ponta estourar enquanto a base fica. */
+vec3 aFolha(vec3 p, float alt){
+  float v = rugas(p * 7.5);
+  vec3 raiz  = mix(vec3(0.030, 0.055, 0.150), vec3(0.070, 0.120, 0.300), v);
+  vec3 ponta = mix(vec3(0.190, 0.370, 0.890), vec3(0.400, 0.640, 1.000), v);
+  return mix(raiz, ponta, pow(clamp(alt, 0.0, 1.0), 1.7));
+}
+
 uniform sampler2D casca;
 uniform float tempo;
 /* ONDE ESTAO OS COGUMELOS: x, z e a fase de cada um.
@@ -3213,7 +3231,34 @@ void main(){
      entram depois da conta de luz, la embaixo. Somadas antes, o lado escuro
      do tronco apagaria metade do ceu -- e ceu nao tem lado escuro. */
   vec3 estrelas = vec3(0.0);
-  if(materia > 12.5){
+  /* A CADEIA FECHADA DOS DOIS LADOS -- 10/09.
+
+     Ela so tinha o limite de BAIXO: "materia > 12.5" pegava 13, 14, 15 e
+     tudo o que viesse depois. Quando o halo da crisalida virou a materia
+     14, ele caiu na CAMUFLAGEM antes de chegar ao ramo dele -- o que
+     aparecia em volta da pupa era o ceu amostrado, somado tres vezes. Era
+     esse o brilho estranho.
+
+     E a armadilha ja tinha mordido aqui uma vez, no alfa da crisalida, com
+     o cogumelo caindo dentro dela; esta escrito no comentario la embaixo.
+     Duas vezes e regra: cada materia tem UM ramo, e o ramo diz qual. */
+  if(materia > 15.5){
+    // 16 -- AS FOLHAS, no azul do ceu
+    c = aFolha(vMundo * escalaTinta, vAlt);
+  } else if(materia > 13.5 && materia < 14.5){
+    /* 14 -- O HALO DA CRISALIDA: o ar aceso em volta dela.
+
+       Luz por DENTRO de uma casca translucida acende a casca e para ali. O
+       que o olho chama de fluorescente e valor que VAZA para os pixels em
+       volta, e aqui tudo e cortado em 1,0: pintar mais claro nao acende
+       nada. O vazamento se faz a mao, com cascas maiores somando luz -- o
+       mesmo recurso dos cogumelos e do Sol.
+
+       A cor e a do que bate por dentro: halo de outra cor seria uma segunda
+       coisa em volta da primeira, e nao a mesma coisa vazando. */
+    c = vec3(1.00, 0.34, 0.64) * pow(1.0 - raspaoC, 2.2)
+      * (0.45 + 0.90 * coracao());
+  } else if(materia > 12.5 && materia < 13.5){
     /* A CAMUFLAGEM.
 
        A pele dele NAO TEM COR: ela mostra o ceu que estaria atras,
@@ -3249,7 +3294,7 @@ void main(){
        nao ha o que descobrir; com mais que um fio, ele deixa de estar
        camuflado e passa a estar exposto. */
     c += vec3(0.17, 0.21, 0.30) * pow(raspaoC, 2.4);
-  } else if(materia > 11.5){
+  } else if(materia > 11.5 && materia < 12.5){
     /* A ALGA DE NEON ROSA, no fundo da agua.
 
        O mesmo tubo da materia 10 -- estoura na borda e vai ao branco --, com
@@ -3266,7 +3311,7 @@ void main(){
        para a ponta acender depois do pe -- e assim que a onda sobe por
        dentro dela. */
     c *= 0.76 + 0.36 * pow(0.5 + 0.5*sin(tempo*0.85 + vFase*2.1 + vAlt*3.2), 2.0);
-  } else if(materia > 10.5){
+  } else if(materia > 10.5 && materia < 11.5){
     /* O SER DO CEU: pele de noite estrelada, e meio translucido.
 
        Ele voa pelo ceu do planeta rosa, e o ceu tem de se ver atraves dele.
@@ -3286,7 +3331,7 @@ void main(){
              + estrelasEm(vMundo, n, 38.0, 0.30, 0.19, 0.85);
     // um gume de agua na beirada, que e o que diz "isto tem parede"
     c += vec3(0.16, 0.34, 0.50) * pow(raspaoC, 1.8);
-  } else if(materia > 9.5){
+  } else if(materia > 9.5 && materia < 10.5){
     /* NEON.
 
        O TUBO ESTOURA NA BORDA, e nao no meio. Um tubo de neon visto de
@@ -3307,7 +3352,7 @@ void main(){
       + vec3(1.0) * pow(raspaoC, 5.0) * 0.55;
     // e ele respira, no compasso lento de quem esta ligado na tomada
     c *= 0.82 + 0.30 * pow(0.5 + 0.5*sin(tempo*1.15 + vFase*1.7), 2.0);
-  } else if(materia > 8.5){
+  } else if(materia > 8.5 && materia < 9.5){
     /* OS SERES. Corpo de agua com luz dentro.
 
        O marmore da a nervura -- e a mesma pedra da crisalida, lida mais
@@ -3359,6 +3404,29 @@ void main(){
     sulco = pow(sulco, 3.0) * (0.40 + 0.60 * fenda);
     c *= 0.88 + 0.24 * fibra;
     c *= 1.0 - 0.32 * sulco;
+    /* 15 -- A SEIVA, E SO NA MAE.
+
+       Uma onda lenta de luz subindo do pe: forte nas sapopemas, apagada
+       antes da altura do peito. Nao e batida no lugar, e uma onda que ANDA
+       -- 1,18 m de comprimento a 15 cm por segundo. Devagar o bastante para
+       nao virar pisca-pisca, e e por isso que le como coisa viva correndo
+       por dentro em vez de efeito ligado.
+
+       O EXPOENTE 8 E O QUE A DEIXA SUTIL. Uma onda de seno acende metade da
+       arvore de cada vez; dobrada e elevada a oito ela vira uma FAIXA
+       estreita, e o resto do tronco fica como estava.
+
+       So a mae, porque so ela e a materia 15 -- as outras onze sao a 8 e o
+       ramo e este mesmo. Uma linha no desenharAMata separa as duas.
+
+       E NO TURQUESA DOS COGUMELOS, e nao no azul das folhas: o cenario tem
+       um batimento so, e a luz que corre por dentro das coisas e sempre
+       esta. */
+    if(materia > 14.5){
+      float sobe = fract(vMundo.y * 0.85 - tempo * 0.13);
+      float onda = pow(1.0 - abs(sobe * 2.0 - 1.0), 8.0);
+      c += vec3(0.13, 0.40, 0.36) * onda * smoothstep(1.90, 0.10, vMundo.y) * 0.45;
+    }
   } else if(materia < 0.5){
     // A AQUARELA, por triplanar: a pele das arvores
     vec2 sx = vMundo.zy * escalaTinta;
@@ -3503,24 +3571,6 @@ void main(){
        branco e que estava comendo o tom, e nao a falta de vermelho. */
     c *= vec3(1.14, 0.80, 0.90);
     c = mix(c, c * 1.26 + vec3(0.18, 0.045, 0.10), pow(raspaoC, 2.0));
-  } else if(materia > 13.5){
-    /* O HALO DA CRISALIDA -- o ar aceso em volta dela.
-
-       Ela tinha duas cascas: o marmore e a luz por DENTRO. Luz por dentro
-       de uma casca translucida acende a casca e para ali -- a dois metros,
-       no meio de uma floresta acesa de turquesa, uma pupa de vinte
-       centimetros nao chama ninguem.
-
-       O que o olho chama de "fluorescente" e valor que VAZA para os pixels
-       em volta, e aqui tudo e cortado em 1,0: pintar mais claro nao acende
-       nada. O vazamento se faz a mao, com cascas maiores que o corpo
-       somando luz -- e o recurso ja existe nesta obra, e o mesmo dos
-       cogumelos e do Sol.
-
-       A COR E A DO QUE BATE POR DENTRO. Halo de outra cor seria uma segunda
-       coisa em volta da primeira, e nao a mesma coisa vazando. */
-    c = vec3(1.00, 0.34, 0.64) * pow(1.0 - raspaoC, 2.2)
-      * (0.45 + 0.90 * coracao());
   } else if(materia > 6.5){
     /* O QUE PULSA DENTRO DA CRISALIDA. Casca menor, somando luz, por dentro
        da casca de marmore. Ela nao pode levar o marmore: somado por cima do
@@ -3669,7 +3719,12 @@ void main(){
      amostrado ja vem com a luz que tem -- sombrear por cima poria uma
      segunda iluminacao sobre a primeira, e a mancha escura no meio do
      corpo seria justamente o que denuncia o bicho. */
-  if(materia > 12.5)                      piso = 1.00;   // camuflagem
+  if(materia > 15.5)                      piso = 0.90;   // as folhas: acesas
+  /* A MAE SOMBREIA COMO AS OUTRAS -- e a mesma casca, e sombra diferente
+     seria justamente o que denunciaria que sao duas materias. */
+  else if(materia > 14.5)                 piso = 0.38;   // a mae
+  else if(materia > 13.5)                 piso = 1.00;   // o halo da crisalida
+  else if(materia > 12.5)                 piso = 1.00;   // camuflagem
   else if(materia > 11.5)                 piso = 1.00;   // alga de neon
   /* O SER DO CEU SOMBREIA, e mais que a arvore. Ele e um corpo pequeno
      e proximo: sem lado escuro ele viraria adesivo colado no ceu. */
@@ -7700,9 +7755,14 @@ function desenharAMata(){
     gl.uniform1f(locSo.materia, 0.0);
     return;
   }
-  // doze plantas, uma casca, UM desenho
+  /* A MESMA CASCA, DUAS MATERIAS. A 15 e a 8 pintam igual -- e o mesmo ramo
+     do shader -- e a unica diferenca e a seiva subindo pelas raizes, que so
+     a mae tem. Dividir aqui custa um desenho e evita passar mais um
+     uniforme por quadro so para dizer "esta e ela". */
+  gl.uniform1f(locSo.materia, 15.0);
+  gl.drawElements(gl.TRIANGLES, nIdxMae, gl.UNSIGNED_SHORT, 0);
   gl.uniform1f(locSo.materia, 8.0);
-  gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+  gl.drawElements(gl.TRIANGLES, nIdxR - nIdxMae, gl.UNSIGNED_SHORT, nIdxMae * 2);
   gl.uniform1f(locSo.materia, 0.0);
 }
 const uS = n=>gl.getUniformLocation(progSala,n);
@@ -8338,7 +8398,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          de esticar da copa ate o piso. */
       gl.uniform1f(locSo.brota, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);
-      gl.uniform1f(locSo.materia, 3.0);
+      /* MATERIA PROPRIA, e nao a da grama. As duas dividiam a 3, e o capim
+         do chao continua verde: o pedido foi das FOLHAS. */
+      gl.uniform1f(locSo.materia, 16.0);
       gl.uniform1f(locSo.escalaTinta, 6.0);
       gl.uniform1f(locSo.crescimento, folhagem);
       gl.uniform1f(locSo.presenca, presencaMata);
