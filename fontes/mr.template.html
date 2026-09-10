@@ -3080,6 +3080,16 @@ uniform float tempo;
    e em duas dimensoes porque cogumelo pousa no chao, e distancia ao quadrado
    sem raiz, porque so o feitio da queda importa. */
 uniform vec3 focos[13];
+/* A LUZ DA CRISALIDA: xyz onde ela esta, w quanto dela existe agora.
+
+   UM VEC4 E NAO UM SEGUNDO ARRANJO DE FOCOS. Os treze focos sao dos
+   cogumelos e a conta deles e em DUAS dimensoes -- eles pousam no chao, e o
+   que interessa e a poca em volta do pe. A pupa esta pendurada a um metro e
+   meio do piso, na frente do tronco: a luz dela cai na madeira atras, nas
+   folhas de cima e no chao embaixo, e para isso a conta tem de ser em tres
+   dimensoes. Sao duas luzes de naturezas diferentes, e por isso duas
+   contas. */
+uniform vec4 luzCasulo;
 uniform vec3 olhoPos;        // de onde se olha: a iridescencia depende disso
 uniform float presenca;
 uniform float escalaTinta;   // quantas voltas da pintura por metro
@@ -3576,7 +3586,7 @@ void main(){
        0,72 para 1,05: entre uma batida e outra ela nunca apaga, e no pico
        estoura. Pupa que so existe no pico pisca; pupa acesa respira. */
     c = vec3(1.00, 0.50, 0.68) * pow(1.0 - raspaoC, 1.6)
-      * (0.30 + 0.82 * coracao());
+      * (0.16 + 0.44 * coracao());
   } else if(materia > 5.5){
     /* A LUZ QUE ELE DERRAMA.
 
@@ -3752,6 +3762,39 @@ void main(){
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
 
+  /* A CRISALIDA REBATE NO QUE ESTA EM VOLTA.
+
+     DEPOIS DO "c *= luz", E NAO ANTES. Luz que chega de fora nao se
+     sombreia: multiplicar o rebatimento pelo piso da materia seria dizer
+     que a face escura do tronco recebe menos luz da pupa por ser a face
+     escura, e ela recebe menos por estar VIRADA PARA OUTRO LADO -- que e
+     outra conta, a de baixo.
+
+     A QUEDA E COM O QUADRADO DA DISTANCIA, como luz de verdade: meio metro
+     recebe 43 %, um metro 16 %, dois metros 5 %. Sem isso a floresta
+     inteira ficaria rosa.
+
+     E SO QUEM ESTA VIRADO PARA ELA RECEBE, com um quarto de piso: luz que
+     chega por tras de uma parede nao acende a parede, mas a sala em volta
+     devolve um pouco por todos os lados, e esse pouco e o quarto.
+
+     QUEM NAO RECEBE: a propria pupa, o halo dela, o que bate por dentro e
+     os cogumelos. Sao corpos que EMITEM, e luz somada em cima de luz nao e
+     rebatimento, e estouro -- que e justamente o defeito que esta rodada
+     veio corrigir. */
+  if(luzCasulo.w > 0.004 &&
+     (materia < 3.5 || (materia > 7.5 && materia < 13.5) || materia > 14.5)){
+    vec3 dc = vMundo - luzCasulo.xyz;
+    /* MEDIDO E APERTADO: com 5,2 o tronco inteiro saia rosa, do pe a copa.
+       Com 8,5 a queda e mais curta -- meio metro recebe 32 %, um metro
+       10 %, dois metros 3 % -- e o que se ve e uma POCA de luz na madeira
+       atras dela, que e o que uma coisa acesa faz. */
+    float queda = 1.0 / (1.0 + dot(dc, dc) * 8.5);
+    float virado = max(dot(n, normalize(-dc)), 0.0);
+    c += vec3(1.00, 0.38, 0.62) * queda * (0.25 + 0.75 * virado)
+       * (0.30 + 0.80 * coracao()) * luzCasulo.w * 0.60;
+  }
+
   /* PISO NO VALOR DA AQUARELA, e depois da luz.
 
      A pintura tem regioes quase pretas. Num tronco VERTICAL a triplanar
@@ -3825,7 +3868,7 @@ void main(){
        porque e la que a luz de dentro atravessa menos parede, mas nao
        desaparece de lado. */
     c += vec3(1.00, 0.55, 0.70) * coracao()
-       * (0.38 + 0.62 * (1.0 - raspaoC)) * 0.72;
+       * (0.38 + 0.62 * (1.0 - raspaoC)) * 0.30;
   }
 
   /* VER ONDE SE PISA.
@@ -7782,6 +7825,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
+               luzCasulo:uSo('luzCasulo'),
                proximidade:uSo('proximidade'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
@@ -8306,6 +8350,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     // tudo aqui tem o pe no chao, menos a folhagem, que se diz mais abaixo
     gl.uniform1f(locSo.brota, 1.0);
     gl.uniform3fv(locSo.focos, FOCOS);
+    /* ONDE A PUPA ESTA E QUANTO DELA EXISTE, uma vez por quadro e para
+       todos os desenhos solidos: quem recebe o rebatimento e o resto da
+       floresta, e nao ela. */
+    gl.uniform4f(locSo.luzCasulo, CASULO[0], CRIS_MEIO, CASULO[2], casuloPresenca);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
@@ -8612,7 +8660,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          pulso e tres halos, todos somando -- estourava em branco: a pupa
          virava uma bola de luz sem pupa dentro, que e o defeito oposto ao
          que se estava consertando. Notar nao e ofuscar. */
-      for(const [grossura, forca] of [[0.026, 0.62], [0.070, 0.34], [0.165, 0.16]]){
+      /* MAIS LARGO E MAIS FRACO, agora que a luz dela cai no resto.
+
+         O halo estava fazendo dois trabalhos ao mesmo tempo: dar o
+         vazamento em volta do corpo E fazer a pupa parecer forte. O segundo
+         trabalho passou para o rebatimento, que e onde ele devia estar --
+         uma coisa parece forte quando ACENDE O QUE ESTA PERTO, e nao quando
+         estoura em branco no meio. Entao a casca de dentro cai de 0,62 para
+         0,40 e as tres ficam um pouco maiores: espalha, e nao queima. */
+      for(const [grossura, forca] of [[0.034, 0.26], [0.095, 0.17], [0.205, 0.09]]){
         gl.uniform1f(locSo.inflar, grossura);
         gl.uniform1f(locSo.presenca, forca * casuloPresenca);
         gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
