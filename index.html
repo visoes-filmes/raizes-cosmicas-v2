@@ -884,7 +884,51 @@ function gerarArvoreMae(rnd, base, s){
     // pe de elefante: o expoente faz a base alargar sem engrossar o meio
     raios.push(0.40 * Math.pow(1-k, 1.35) + 0.085);
   }
-  tuboAoLongo(s, pontos, raios, 0.7, 0.0, 0.62);
+  /* O VAO NO MEIO DELA -- a forma "()".
+
+     O tronco nao sobe inteiro: na altura do meio ele ABRE em dois arcos e
+     fecha de novo acima, deixando um vao em lente. Sao tres tubos onde havia
+     um -- o pe, os dois arcos, e o alto -- e todos os tres saem da MESMA
+     linha de centro, a que ja existia. Por isso o balanco, o desvio em arco
+     e o pe de elefante continuam valendo, e os galhos continuam achando o
+     ponto de onde saem: o vetor pontos[] nao muda.
+
+     ENTRE OS ANEIS 3 E 6, que e de 1,45 a 2,89 m -- o vao fica com o centro
+     na altura dos olhos de quem esta em pe. Mais baixo ele viraria porta e
+     convidaria a passar por dentro, o que num espaco de tres metros com
+     guardian ligado nao e um convite honesto. Mais alto, deixaria de ser
+     forma e passaria a ser galho.
+
+     E ELE FICA VIRADO PARA QUEM VISITA. A abertura e perpendicular a
+     direcao que vai do pe da arvore ate o centro da sala: de frente le-se a
+     lente, de perfil ela desapareceria numa linha. A arvore esta encostada
+     na parede, entao essa direcao e sempre a mesma.
+
+     CADA ARCO LEVA 0,62 DO RAIO. Dois arcos de meia espessura somam mais
+     que o tronco cheio, e e isso que se quer -- o tronco nao afina ao
+     abrir, ele se reparte. */
+  const A = 3, B = 6;
+  const paraCa = norm([-base[0], 0.001, -base[2]]);
+  const perp = [-paraCa[2], 0, paraCa[0]];
+  const altDe = (i) => 0.62 * i / 9;
+  // o pe, sem bico: ele nao acaba no ar, acaba nos arcos
+  tuboAoLongo(s, pontos.slice(0, A + 1), raios.slice(0, A + 1),
+              0.7, 0.0, altDe(A), 12, true);
+  for(const lado of [-1, 1]){
+    const seg = [], rr = [];
+    for(let i = A; i <= B; i++){
+      const u = (i - A) / (B - A);
+      const abre = Math.sin(u * Math.PI) * 0.42;
+      seg.push([ pontos[i][0] + perp[0] * abre * lado,
+                 pontos[i][1],
+                 pontos[i][2] + perp[2] * abre * lado ]);
+      rr.push(raios[i] * 0.62);
+    }
+    tuboAoLongo(s, seg, rr, 0.7 + (lado > 0 ? 0.9 : 0.0),
+                altDe(A), altDe(B), 12, true);
+  }
+  // e o alto, que ACABA no ar: este leva bico
+  tuboAoLongo(s, pontos.slice(B), raios.slice(B), 0.7, altDe(B), 0.62);
   totalRaizes++;
 
   /* OS GALHOS. Tres baixos, dentro do comodo -- e e de um deles que o
@@ -3074,6 +3118,65 @@ void main(){
        cinza, e cor puxada para o cinza nao volta so com contraste. */
     c = clamp((c - 0.052) * 1.62, 0.0, 2.0);
     c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.26);
+
+    /* AS ARRANHADURAS. A casca estava LISA -- a aquarela dava cor e nao dava
+       superficie.
+
+       RUIDO ESTICADO NUM EIXO VIRA RISCO. E a mesma conta da mancha, lida
+       com a frequencia trinta vezes maior no horizontal do que no vertical:
+       deixa de dar mancha e passa a dar FIO, corrido de cima para baixo. E
+       casca de arvore e isso, fio e nao textura -- ela racha no sentido em
+       que cresce.
+
+       E O SULCO SAI DE DOBRAR O RUIDO: um menos o modulo do valor centrado
+       da faixa em vez de mancha, que e o mesmo recurso dos veios da pedra.
+       Elevado ao cubo, a faixa fica ESTREITA -- arranhadura, e nao listra.
+
+       DUAS ESCALAS, porque casca tem as duas: o risco fino, que e a fibra, e
+       a fenda larga, que e onde ela abriu. A larga modula a fina, senao o
+       tronco fica com riscos iguais de cima a baixo, e nada na natureza tem
+       espacamento constante.
+
+       O SULCO ESCURECE E A BEIRADA DELE ACENDE. Sem a beirada, o risco le
+       como sujeira pintada; com ela, le como relevo -- porque e assim que
+       uma quina se comporta na luz. */
+    /* UMA OITAVA, E COM O EIXO TORTO -- e as duas coisas sao conserto.
+
+       O rugas() soma uma segunda oitava 2,9 vezes mais miuda. A 34 ciclos
+       por metro isso da 98, e 98 ciclos por metro num tronco a um metro e
+       meio passa da conta de pixels: o que apareceu nao foi fibra, foi
+       MOIRE -- uma grade regular de celulas quadradas, que nada na madeira
+       tem. Conferido em PNG para descartar a compressao.
+
+       E O EIXO VAI TORTO de proposito. Cisalhado pelo y, as celulas do
+       ruido deixam de se alinhar com os eixos do tronco: a estria sai
+       diagonal, que e como a madeira racha, e nenhuma linha coincide com
+       a grade que a gera. */
+    float fibra = ruido(vec3(vMundo.x*26.0 + vMundo.y*3.1,
+                             vMundo.y*1.25,
+                             vMundo.z*26.0 - vMundo.y*2.4));
+    float fenda = ruido(vec3(vMundo.x*6.0 + vMundo.y*0.9,
+                             vMundo.y*0.5,
+                             vMundo.z*6.0 - vMundo.y*0.7));
+    float sulco = 1.0 - abs(fibra * 2.0 - 1.0);
+    /* EXPOENTE 3,4 e nao mais: acima disso a ranhura fica mais estreita que
+       o pixel e volta a piscar, que e de onde a grade tinha vindo. Largura
+       de ranhura tem limite, e o limite e o que caber na tela. */
+    sulco = pow(sulco, 3.4) * (0.35 + 0.65 * fenda);
+    /* A FIBRA INTEIRA PRIMEIRO, e depois o sulco.
+
+       Com o sulco sozinho a casca ficava lisa ENTRE as ranhuras -- e o
+       cubo do dobramento deixa noventa por cento da superficie intocada.
+       O que faz uma casca nao ser lisa em ponto nenhum e a estriacao de
+       fundo, doze por cento para cada lado, que nao e ranhura: e o
+       sentido em que a madeira corre. */
+    /* MAIS FUNDO AGORA QUE NAO HA MOIRE. Enquanto a grade estava la, ela
+       fazia o volume -- falso, mas fazia. Sem ela, a fibra e o sulco tem de
+       carregar sozinhos: dezoito por cento de estriacao e sessenta e dois
+       de ranhura. */
+    c *= 0.82 + 0.36 * fibra;
+    c *= 1.0 - 0.62 * sulco;
+    c += vec3(0.10, 0.084, 0.066) * pow(1.0 - sulco, 7.0) * 0.62;
     // o piso vem DEPOIS da luz, mais abaixo: aqui ele ainda apanharia dela
   } else if(materia < 1.5){
     c = aPedra(vMundo * escalaTinta);
