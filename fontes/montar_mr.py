@@ -81,6 +81,11 @@ mapa = {
     "__TEX_PANORAMA__": embutir_ceu(bem("ceus", "ceu-floresta-2048.png"), 2048, 88),
     "__CEU_COSMICO__":  embutir_ceu(bem("ceus", "ceu-cosmico-2048.png")),
     "__CEU_ROSA__":     embutir_ceu(bem("ceus", "ceu-rosa-2048.png")),
+    # O QUARTO CEU: o da floresta encantada, trazido em 10/09. A ordem
+    # aqui E o indice em CEUS -- ASPECTOS e preenchido na sequencia em que
+    # embutir_ceu e chamado, entao acrescentar no meio renumeraria os ceus
+    # sem avisar. Novo ceu entra no fim.
+    "__CEU_MATA__":     embutir_ceu(bem("ceus", "ceu-mata-2048.png")),
     # As peles dos planetas: recorte da propria pintura, ja tratado para
     # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
     "__TEX_MARMORE__":  embutir(bem("texturas", "tex-marmore.png"),

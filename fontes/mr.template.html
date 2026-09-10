@@ -2316,20 +2316,41 @@ function semearMontanhas(){
    a pedra encosta no piso da sala e le como adesivo no chao. Coisa pesada
    afunda um pouco no que esta embaixo, e e o afundamento que diz o peso. */
 const PEDRAS_CHAO = [];
-(function(){
+/* NO PE DAS ARVORES, e nao no meio da sala.
+
+   Elas ficavam num anel de 0,55 a 2,05 m do centro -- dentro da area
+   caminhavel, ou seja, entre os pes de quem visita. Isso fazia sentido
+   enquanto a floresta tambem estava ali; quando as arvores foram para o
+   anel de 2,9 a 5,0 m, as pedras ficaram sozinhas no vazio, e uma pedra
+   solta no meio de um chao limpo nao le como paisagem, le como obstaculo.
+
+   UMA POR ARVORE, e nenhuma na mae: as sapopemas dela ja ocupam dois
+   metros em volta do pe.
+
+   E CADA UMA PARA FORA DA SUA. O deslocamento sai do azimute da propria
+   arvore, com uma abertura de meio radiano para cada lado: assim a pedra
+   cai atras ou ao lado do tronco, e nunca entre ele e quem olha. De
+   quebra, mantem a area de andar livre.
+
+   MAIORES, porque agora estao a quatro metros e nao a um: a pedra de 20 cm
+   que dominava o chao vira um cascalho invisivel a essa distancia.
+
+   A LISTA E FEITA DEPOIS DE SEMEAR, e nao no carregamento -- ela depende de
+   BASES, que so existe depois da floresta. Era uma funcao anonima executada
+   na hora; virou funcao com nome, chamada no lugar certo. */
+function semearPedrasNoChao(){
   const rnd = prng(3307);
-  const QUANTAS = 11;
-  for(let i=0;i<QUANTAS;i++){
-    // o angulo sai espalhado e nao sorteado puro: sorteio puro amontoa
-    const ang = (i / QUANTAS) * Math.PI * 2 + rnd() * 0.5;
-    const raio = 0.55 + rnd() * 1.5;
+  PEDRAS_CHAO.length = 0;
+  BASES.slice(1).forEach((b, i) => {
+    const paraFora = Math.atan2(b[0], -b[2]) + (rnd() - 0.5) * 1.0;
+    const d = 0.75 + rnd() * 1.05;
     const grande = i < 4;
     PEDRAS_CHAO.push({
-      x: Math.sin(ang)*raio, z: -Math.cos(ang)*raio,
-      escala: grande ? 0.20 + rnd()*0.14 : 0.07 + rnd()*0.08,
+      x: b[0] + Math.sin(paraFora)*d, z: b[2] - Math.cos(paraFora)*d,
+      escala: grande ? 0.38 + rnd()*0.32 : 0.16 + rnd()*0.14,
       giro: rnd()*6.28, fase: rnd()*6.28, peca: i % 8 });
-  }
-})();
+  });
+}
 
 let bPedras = null, nPedrasIdx = 0;
 function prepararPedras(){
@@ -2348,7 +2369,8 @@ function prepararPedras(){
                  pd.escala, pd.giro, pd.fase);
   });
   if(!m.idx.length) return;
-  bPedras = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  // o buffer e criado uma vez: semear de novo reescreve o mesmo
+  if(!bPedras) bPedras = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bPedras.pos,m.pos); enviar(bPedras.nor,m.nor);
   enviar(bPedras.alt,m.alt); enviar(bPedras.fase,m.fase);
   enviar(bPedras.borda,m.borda);
@@ -3011,9 +3033,17 @@ vec3 aPedra(vec3 p){
   float corpo = rugas(p * 6.5);
   float veio  = 1.0 - abs(rugas(p * 3.1) * 2.0 - 1.0);
   float grao  = ruido(p * 52.0);
-  vec3 c = mix(vec3(0.098, 0.094, 0.112), vec3(0.395, 0.378, 0.372),
+  /* MAIS ESCURA. Ela vinha ate 0,395 de claro -- num cenario onde o chao
+     e a casca das arvores vivem abaixo de 0,10, isso fazia de cada pedra a
+     coisa mais clara do quadro, e onze pontos claros espalhados roubam o
+     olho de tudo o mais. Pela metade, ela volta a ser massa escura, e quem
+     a desenha passa a ser o veio.
+
+     A SERRA QUASE NAO SENTE: ela e misturada oitenta por cento com o ar
+     depois disto, entao a cor propria dela quase nao chega ao quadro. */
+  vec3 c = mix(vec3(0.048, 0.046, 0.058), vec3(0.196, 0.188, 0.190),
                corpo * 0.78 + 0.11);
-  c = mix(c, vec3(0.455, 0.430, 0.398), pow(veio, 5.0) * 0.55);
+  c = mix(c, vec3(0.232, 0.220, 0.208), pow(veio, 5.0) * 0.55);
   c *= 0.85 + 0.30 * grao;
   return c;
 }
@@ -3555,11 +3585,33 @@ void main(){
        nao correria por onde a pedra e desenhada e leria como mancha solta
        por cima. Expoente 4 deixa um fio largo o bastante para se ver; com 7
        ele ficava fino demais para caber num pixel. */
-    float veioAceso = 1.0 - abs(rugas(vMundo * escalaTinta * 1.05) * 2.0 - 1.0);
-    float perto = 1.0 - smoothstep(0.35, 2.20, length(olhoPos - vMundo));
+    /* O VEIO ACESO -- e agora ele se ve.
+
+       ELE NUNCA APARECIA, e por dois motivos somados. O alcance ia a 2,20 m
+       e a pedra mais proxima ficava a um metro do centro: dava para
+       acender, mas so agachando em cima dela. Com as pedras no pe das
+       arvores, a 3 a 6 metros, "perto" passou a ser zero em todas -- a
+       fluorescencia existia no codigo e nao existia na obra.
+
+       CINCO METROS DE ALCANCE, e um piso de 26 % que nao depende de
+       ninguem. O piso e o que a faz ser vista de longe; o resto continua
+       sendo resposta a quem chega perto, que era a ideia e continua sendo.
+
+       E O PISO SO VALE PERTO DO CENTRO. As montanhas sao desta mesma
+       materia: sem este corte, 26 % de turquesa cairia sobre meio
+       quilometro de serra, e ela tem o veio dela, que e azul e de outra
+       natureza.
+
+       TRES VEZES MAIS FINO. Era a mesma escala do corpo da pedra, e dava
+       uma FAIXA larga -- de longe, uma mancha. Multiplicado por tres e
+       elevado a seis, vira fio, que e o que se ve na montanha e o que ela
+       pediu. */
+    float veioAceso = 1.0 - abs(rugas(vMundo * escalaTinta * 3.0) * 2.0 - 1.0);
+    float perto = 1.0 - smoothstep(0.60, 5.00, length(olhoPos - vMundo));
+    float noChao = 1.0 - smoothstep(8.0, 20.0, length(vMundo.xz));
     float batP = pow(0.5 + 0.5*sin(tempo * 1.9), 4.0);
-    c += vec3(0.24, 0.90, 0.80) * pow(veioAceso, 4.0) * perto
-       * (0.55 + 1.50 * batP);
+    c += vec3(0.24, 0.90, 0.80) * pow(veioAceso, 6.0) * noChao
+       * (0.26 + 0.74 * perto) * (0.55 + 1.50 * batP);
   } else if(materia < 2.5){
     c = aTerra(vMundo * escalaTinta);
   } else if(materia < 3.5){
@@ -5771,7 +5823,17 @@ function subirRaizes(s, semente){
   enviar(bM.alt, nuvem.alt); enviar(bM.fase, nuvem.fase); enviar(bM.tam, nuvem.tam);
   nMata = nuvem.pos.length/3;
   semearFundo(semente + 907);   // depois de PONTAS existir, e antes da folhagem
-  prepararSolo();       // depende de BASES, que so existe depois de semear
+  /* AS PEDRAS AQUI DENTRO, e nao la embaixo no corpo do arquivo.
+
+     O prepararPedras() era chamado no nivel do modulo, e o subirRaizes que
+     semeia a floresta so roda DEPOIS dele: quando o preparo acontecia, a
+     lista de lugares ainda estava vazia, e ele saia pelo "if(!m.idx.length)
+     return" sem criar buffer nenhum. Onze pedras deixaram de existir sem
+     erro, sem aviso e sem console -- so ausencia, que e como esta obra
+     falha. Custou uma foto para ver: o mapa de cima veio preto. */
+  semearPedrasNoChao();
+  prepararPedras();
+  prepararSolo();       // depende de BASES e das pedras, para a mancha de terra
   prepararFolhagem();   // e de PONTAS, pelo mesmo motivo
   document.getElementById('vRaiz').textContent = totalRaizes;
   document.getElementById('vTri').textContent =
@@ -5791,7 +5853,6 @@ for(const f of enviarDepois) f();
    mil pontos subiam para a placa a cada abertura sem nada desenhar. */
 if(RAIZES_NOS_ASTROS) prepararRaizesDosAstros();
 prepararEstrelas();
-prepararPedras();
 montarCrisalida();
 semearMontanhas();
 prepararAlienigena();
@@ -6073,9 +6134,18 @@ function carregar(t,url,ehCeu){
 }
 relatarTex();
 const texRaiz = novaTex([80,75,120]);
-/* Os tres ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
-   shader mistura dois deles durante a travessia. */
-const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95])];
+/* Os QUATRO ceus. O indice em CENAS escolhe qual entra em cada cenario, e o
+   shader mistura dois deles durante a travessia.
+
+     0  a floresta, da pintura da Odara -- hoje so no fecho do cenario 4
+     1  o cosmico, com as galaxias
+     2  o rosa, do planeta de agua
+     3  a MATA -- os filamentos iridescentes, entrou em 10/09
+
+   O 3 e o ceu do cenario 1, e so dele: os cenarios 2 e 4 continuam no
+   cosmico. Trocar tambem os outros e mudar um numero em CENAS. */
+const CEUS = [novaTex([30,26,48]), novaTex([8,8,14]), novaTex([120,80,95]),
+              novaTex([6,8,22])];
 /* A PROPORCAO DE CADA PINTURA, entregue pelo montador -- ele a mede no
    arquivo no momento de embutir. Escrita a mao ela derivaria no primeiro
    dia em que alguem trocasse uma imagem, e uma proporcao errada aqui nao
@@ -6112,6 +6182,7 @@ carregar(texRaiz, '__TEX_RAIZ__');
 carregar(CEUS[0], '__TEX_PANORAMA__', true);
 carregar(CEUS[1], '__CEU_COSMICO__', true);
 carregar(CEUS[2], '__CEU_ROSA__', true);
+carregar(CEUS[3], '__CEU_MATA__', true);
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
 carregar(PELES[2], '__PELE_SOL__');
@@ -6184,7 +6255,7 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
    "neblina" caiu para perto de um terco, "leite" caiu junto e "marmore"
    subiu: menos bruma e mais desenho, e da para ver atraves. */
 const CENAS = {
-  1: { ceu:1, ceuB:1, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
+  1: { ceu:3, ceuB:3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
        poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
   2: { ceu:1, ceuB:1, tinta:0.96, neblina:0.07, marmore:0.78, leite:0.08,
        poeira:2600, sopro:0.5, raizes:0, ini:0.12, fim:0.58, inverter:0 },
