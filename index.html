@@ -882,10 +882,10 @@ function gerarArvoreMae(rnd, base, s){
      mantem o vao onde ele foi posto, entre os aneis 3 e 6, de 1,45 a 2,89 m,
      com o centro na altura dos olhos. Crescer esticando os aneis teria
      levado o vao junto, para fora do alcance do olhar. */
-  const ANEIS = 12, PASSO = 0.482;
-  const H = ANEIS * PASSO;          // 5,78 m de tronco
+  const ANEIS = 10, PASSO = 0.482;
+  const H = ANEIS * PASSO;          // 4,82 m de tronco, e a copa por cima
 
-  // o tronco: treze aneis, afinando, com desvio em arco
+  // o tronco: onze aneis, afinando, com desvio em arco
   const pontos = [], raios = [];
   for(let i=0;i<=ANEIS;i++){
     const k = i/ANEIS;
@@ -893,8 +893,17 @@ function gerarArvoreMae(rnd, base, s){
     pontos.push([ base[0] + Math.sin(k*2.1)*0.30,
                   base[1] + y,
                   base[2] + Math.sin(k*1.4 + 1.1)*0.22 ]);
-    // pe de elefante: o expoente faz a base alargar sem engrossar o meio
-    raios.push(0.40 * Math.pow(1-k, 1.35) + 0.085);
+    /* O ALTO DO TRONCO NAO AFINA ATE SUMIR.
+
+       O perfil era 0,40*(1-k)^1,35 + 0,085: no topo sobravam 8,5 cm de raio,
+       e dali saiam galhos de tres a seis centimetros. Uma arvore de seis
+       metros e meio acabando num pau de dedo -- e "topo magro" e exatamente
+       o que se via.
+
+       Agora o piso e 0,175, o dobro, e o expoente caiu para perto de um: a
+       queda deixa de ser um tobogã e vira conicidade de tronco. A base
+       continua a mesma (0,515 de raio), que e o pe de elefante. */
+    raios.push(0.34 * Math.pow(1-k, 1.15) + 0.175);
   }
   /* O VAO NO MEIO DELA -- a forma "()".
 
@@ -967,8 +976,8 @@ function gerarArvoreMae(rnd, base, s){
     tuboAoLongo(s, seg, rr, 0.7 + (lado > 0 ? 0.9 : 0.0),
                 altDe(A), altDe(B), 12, true);
   }
-  // e o alto, que ACABA no ar: este leva bico
-  tuboAoLongo(s, pontos.slice(B), raios.slice(B), 0.7, altDe(B), 0.62);
+  // e o alto, que tambem NAO acaba no ar: ele acaba na forquilha
+  tuboAoLongo(s, pontos.slice(B), raios.slice(B), 0.7, altDe(B), 0.62, 12, true);
   totalRaizes++;
 
   /* OS GALHOS. Tres baixos, dentro do comodo -- e e de um deles que o
@@ -1026,7 +1035,7 @@ function gerarArvoreMae(rnd, base, s){
       for(const [u, giro] of saidas){
         const j = Math.round(u * aneis);
         galho(kAltura, azimute + vira*u*u + giro, inclinacao + 0.16,
-              comprimento * 0.54, rr[j] * 0.80, seg[j], p + 1);
+              comprimento * 0.54, rr[j] * 0.86, seg[j], p + 1);
       }
     }
   };
@@ -1037,8 +1046,8 @@ function gerarArvoreMae(rnd, base, s){
      5, que e o MEIO DO VAO -- e ali, desde que o tronco abriu, nao ha mais
      tronco: o galho aparecia atravessando o buraco preso em nada. Agora sai
      do apice do arco que fica do lado dele, que e madeira de verdade. */
-  galho(0.55, 3.1,  0.42, 0.95, 0.065, apice[1]);
-  galho(0.63, 4.9,  0.24, 1.05, 0.070);
+  galho(0.55, 3.1,  0.42, 0.95, 0.080, apice[1]);
+  galho(0.75, 4.9,  0.24, 1.05, 0.095);
   /* A COPA MORA LA EM CIMA, junto do ceu. Estes sete ja estao acima do
      forro -- e e por isso que ela existe: o comodo tem tres metros e a
      arvore tem SEIS E MEIO -- 5,78 m de tronco e o resto de copa --, entao
@@ -1049,13 +1058,78 @@ function gerarArvoreMae(rnd, base, s){
      chamada ALTURA valia 7,0, mas ela era multiplicada por 0,62 antes de
      virar tronco. A arvore media 5,1 -- dois metros a menos do que a
      documentacao afirmava, e ninguem tinha medido. */
-  galho(0.74, 1.9,  0.46, 1.70, 0.062);   // ja acima do forro
-  galho(0.80, 4.2,  0.54, 1.85, 0.055);
-  galho(0.85, 0.6,  0.50, 1.75, 0.050);
-  galho(0.90, 2.6,  0.64, 1.70, 0.046);
-  galho(0.94, 5.6,  0.60, 1.55, 0.042);
-  galho(0.97, 3.6,  0.72, 1.40, 0.038);
-  galho(0.99, 0.9,  0.78, 1.20, 0.034);
+  /* E O TRONCO SE DIVIDE EM TRES BRACOS.
+
+     Aqui havia SETE VARAS saindo dos ultimos aneis do tronco, de 3,4 a 6,2
+     centimetros de raio. Sete varas finas espetadas num mastro nao sao uma
+     copa: sao um espanador. O que faz uma arvore madura e o tronco PARAR de
+     ser tronco e virar dois ou tres bracos da grossura dele -- e sao esses
+     bracos que depois se dividem.
+
+     CADA UM LEVA 0,72 DO RAIO DO TOPO, que da 25 cm de espessura contra os
+     8 de antes. Tres bracos de 0,72 somam uma vez e meia a secao do tronco:
+     a regra de Leonardo pediria 0,58 para conservar, e o excesso e de
+     proposito, porque e ele que le como "maduro" em vez de "jovem".
+
+     E ELES JA SE RAMIFICAM SOZINHOS -- o galho() se divide duas vezes. Onde
+     havia sete varas com sete pontas agora ha tres bracos com doze pontas, e
+     custa menos triangulo do que custava antes. */
+  const rTopo = raios[ANEIS];
+  for(const [az, incl, comp, esp] of [[0.5, 0.95, 2.15, 0.82],
+                                      [2.7, 1.05, 1.90, 0.76],
+                                      [4.6, 0.88, 2.25, 0.80]])
+    galho(ANEIS/ANEIS, az, incl, comp, rTopo * esp, pontos[ANEIS]);
+
+  /* AS RAIZES QUE AGARRAM O CHAO.
+
+     Ela nascia do chao como um poste: o pe de elefante alargava o tronco,
+     mas alargar nao e agarrar. Arvore grande tem SAPOPEMA -- a raiz que sai
+     do colo, desce em arco e se deita no chao. E o que diz ao olho que ela
+     pesa.
+
+     SETE, E NEM TODAS DO MESMO TAMANHO. A que aponta para o meio da sala e
+     a mais curta de proposito: o chao ali e chao de verdade, com gente
+     andando em cima dele, e uma raiz virtual atravessada no caminho e um
+     convite a tropecar em nada. As que vao para a parede podem esticar.
+
+     E ELAS ACABAM ENTERRADAS, com a ponta a doze centimetros abaixo do
+     piso: assim o fecho do tubo nunca aparece. Pelo mesmo motivo a ponta
+     tem 6,8 cm de raio e nao menos -- abaixo de seis, o tuboAoLongo as
+     registraria como PONTAS, e ponta e onde a folhagem se prende. Raiz com
+     folha no chao. */
+  for(let r = 0; r < 7; r++){
+    const az = r/7 * Math.PI*2 + 0.4;
+    const dir = [Math.sin(az), 0, -Math.cos(az)];
+    const paraDentro = dir[0]*paraCa[0] + dir[2]*paraCa[2];
+    /* O ALCANCE E O NUMERO QUE DECIDE SE ISTO E RAIZ.
+
+       Na primeira tentativa elas iam a 0,95 m -- e o tronco tem 0,515 de
+       raio na base. Quase toda a raiz ficava DENTRO do tronco, e o que
+       sobrava do lado de fora era um babado de meio metro em volta do pe:
+       saia, e nao sapopema.
+
+       Agora vao a 1,55 de lado e 2,30 para a parede. A que aponta para o
+       meio da sala fica em 0,80, e isso nao e estetica: o pe da arvore esta
+       a 2,21 m do centro e a area caminhavel tem 1,5 m de raio. Oitenta
+       centimetros param a quarenta do limite -- uma raiz virtual dentro do
+       caminho e um convite a tropecar em nada. */
+    const alc = (1.55 - 0.75 * paraDentro) * (0.85 + 0.30*Math.abs(Math.sin(az*2.3)));
+    const seg = [], rr = [];
+    for(let j = 0; j <= 9; j++){
+      const u = j/9;
+      /* E ELA SAI DEVAGAR. Expoente maior que um faz a raiz ABRACAR o
+         tronco no comeco e so depois disparar para fora: ate uns quarenta
+         por cento do caminho ela esta enterrada na madeira, e e por isso
+         que a juncao nao tem emenda nenhuma. Sair depressa daria um cano
+         espetado no colo. */
+      const fora = Math.pow(u, 1.15) * alc;
+      seg.push([ base[0] + dir[0]*fora,
+                 base[1] + 0.95*Math.pow(1-u, 1.9) - 0.10*u,
+                 base[2] + dir[2]*fora ]);
+      rr.push(0.30 * Math.pow(1-u, 1.15) + 0.068);
+    }
+    tuboAoLongo(s, seg, rr, 0.7 + az*0.6, 0.0, 0.10, 10);
+  }
 }
 
 /* TRES FEITIOS DE ARVORE.
