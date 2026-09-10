@@ -1011,7 +1011,7 @@ function gerarArvoreMae(rnd, base, s){
        E AFINA DEVAGAR, ACABANDO ROMBUDO. Expoente menor que um segura a
        grossura ate perto da ponta em vez de afilar desde a base; e o bico
        vira um coto de dois centimetros no lugar de uma agulha. */
-    const aneis = p === 0 ? 10 : (p === 1 ? 7 : 5);
+    const aneis = p === 0 ? 10 : (p === 1 ? 8 : (p === 2 ? 6 : 5));
     const vira = Math.sin(azimute * 4.7) * 0.55;
     const seg = [], rr = [];
     for(let j=0;j<=aneis;j++){
@@ -1030,12 +1030,31 @@ function gerarArvoreMae(rnd, base, s){
        RAMIFICACAO: uma vara que nao se divide e um espinho por definicao,
        por mais curva que seja. Duas saidas no primeiro nivel e uma no
        segundo -- cinco tubos por galho da copa. */
-    if(p < 2 && comprimento > 0.45){
-      const saidas = p === 0 ? [[0.54, 0.62], [0.76, -0.50]] : [[0.62, 0.44]];
-      for(const [u, giro] of saidas){
+    /* QUATRO ORDENS, E NENHUM FILHO ENCOSTADO NO TRONCO.
+
+       Eram tres ordens com um filho so na ultima, e o resultado, visto de
+       cima, era um FORCADO: cada braco acabava em duas ou tres lancas
+       paralelas do mesmo tamanho. Lanca e o que sobra quando a divisao
+       para cedo -- o ramo terminal ficava com sessenta centimetros de cone
+       fino, que e um espinho por outro nome. Com mais uma divisao o
+       terminal cai para trinta e sete centimetros e vira galhinho.
+
+       E O PRIMEIRO FILHO SAI A 44 % DO CAMINHO, e nao a 36. Perto da base
+       os filhos dos tres bracos se encontravam todos em volta do mesmo no,
+       e aquilo virava uma ROSETA de espinhos curtos espetada na forquilha
+       -- dava para ver de cima, parecia um carrapicho.
+
+       OS ANGULOS SAO TODOS DIFERENTES, e alternam de sinal: dois filhos com
+       o mesmo desvio saem paralelos, e dois ramos paralelos nunca leem como
+       arvore. */
+    if(p < 3 && comprimento > 0.30){
+      const saidas = p === 0 ? [[0.44, 0.78, 0.14], [0.72, -0.86, -0.26]]
+                   : p === 1 ? [[0.46, -0.72, 0.26], [0.76, 0.84, -0.20]]
+                             : [[0.48, 0.66, -0.24], [0.80, -0.62, 0.22]];
+      for(const [u, giro, dInc] of saidas){
         const j = Math.round(u * aneis);
-        galho(kAltura, azimute + vira*u*u + giro, inclinacao + 0.16,
-              comprimento * 0.54, rr[j] * 0.86, seg[j], p + 1);
+        galho(kAltura, azimute + vira*u*u + giro, inclinacao + dInc,
+              comprimento * 0.52, rr[j] * 0.86, seg[j], p + 1);
       }
     }
   };
@@ -1074,11 +1093,23 @@ function gerarArvoreMae(rnd, base, s){
      E ELES JA SE RAMIFICAM SOZINHOS -- o galho() se divide duas vezes. Onde
      havia sete varas com sete pontas agora ha tres bracos com doze pontas, e
      custa menos triangulo do que custava antes. */
-  const rTopo = raios[ANEIS];
-  for(const [az, incl, comp, esp] of [[0.5, 0.95, 2.15, 0.82],
-                                      [2.7, 1.05, 1.90, 0.76],
-                                      [4.6, 0.88, 2.25, 0.80]])
-    galho(ANEIS/ANEIS, az, incl, comp, rTopo * esp, pontos[ANEIS]);
+  /* E AS FORQUILHAS SAO ESCALONADAS.
+
+     Os tres bracos saiam do MESMO ponto, o ultimo anel. Visto de cima
+     aquilo era uma estrela-do-mar: tres raios num plano, saindo de um
+     centro. Arvore nenhuma se divide toda de uma vez -- ela perde um braco
+     aqui, outro meio metro acima, e o resto segue como tronco ate se
+     partir em dois no fim.
+
+     Entao sao QUATRO: dois laterais que saem do tronco ainda inteiro, a
+     4,00 e a 4,43 m, e a bifurcacao do topo a 4,82. O tronco deixa de ser
+     um mastro com um buque em cima e passa a ter camadas. */
+  for(const [k, az, incl, comp, esp] of [[8.3/ANEIS, 1.15, 0.60, 2.00, 0.60],
+                                         [9.2/ANEIS, 4.10, 0.66, 2.15, 0.62],
+                                         [1.0,       0.35, 0.88, 2.25, 0.78],
+                                         [1.0,       2.95, 0.95, 2.00, 0.70]])
+    galho(k, az, incl, comp, raios[Math.round(k*ANEIS)] * esp,
+          k === 1.0 ? pontos[ANEIS] : null);
 
   /* AS RAIZES QUE AGARRAM O CHAO.
 
