@@ -473,6 +473,9 @@ const MATA_SOLIDA        = true;
    nao tem dono. E a mesma licao da arvore-mae do v1, que ao virar
    procedural levou a pendencia embora junto com a malha. */
 const MATA_ESTRELAR      = true;
+/* false = as doze arvores com a mesma casca de ceu noturno (o de 10/09);
+   true  = a mae de volta com a aquarela dela, e so ela. */
+const MAE_COM_PINTURA    = false;
 /* QUANTO DA FLORESTA FICA nos cenarios 2, 3 e 4 -- so alfa, e nada mais.
 
    ZERO, E E DRAMATURGIA. A floresta encantada acaba no primeiro cenario:
@@ -747,7 +750,7 @@ function galhoDoCasulo(de, s){
     }
     return seg;
   };
-  const maior = arcoAte(de, [0.92, 1.66, -0.34], 0.30, 0.22);
+  const maior = arcoAte(de, [-0.28, 1.94, -0.58], 0.30, 0.22);
   /* SEM BICO NOS DOIS: eles nao acabam no ar, acabam no casulo. Um bico
      ali seria um espeto saindo da pupa por fora, e a pupa e o objeto que a
      obra inteira convida a olhar de perto. */
@@ -1011,19 +1014,44 @@ function gerarArvoreMae(rnd, base, s){
        E AFINA DEVAGAR, ACABANDO ROMBUDO. Expoente menor que um segura a
        grossura ate perto da ponta em vez de afilar desde a base; e o bico
        vira um coto de dois centimetros no lugar de uma agulha. */
-    const aneis = p === 0 ? 10 : (p === 1 ? 8 : (p === 2 ? 6 : 5));
+    /* O ANGULO PASSA A SER ANGULO.
+
+       A conta andava "comprimento" no horizontal e "sen(inclinacao) x
+       comprimento" no vertical. Como o seno nunca passa de um, NENHUM ramo
+       conseguia subir mais que 45 graus, por maior que fosse a inclinacao
+       pedida: um galho de inclinacao 1,5 subia igual a um de 1,0. Era por
+       isso que a copa inteira ABRIA e nada nela subia -- o teto estava na
+       formula, e nao no numero.
+
+       Agora o horizontal leva cos e o vertical leva sen, que e o que
+       decompoe um vetor. "comprimento" passa a ser o comprimento do ramo, e
+       "inclinacao" o angulo dele com o chao, de zero a noventa. Um braco de
+       1,2 rad sobe 93 % e anda 36 % -- sobe como tronco.
+
+       E A QUEDA ACOMPANHA: ela vale 30 % do comprimento vezes o cosseno, ou
+       seja, cai quem esta deitado. Sem isso, o braco vertical arriaria no
+       fim como um galho carregado, que e o contrario do que ele e.
+
+       MENOS LADOS QUANTO MAIS FUNDO. Um galhinho de trinta centimetros a
+       seis metros de distancia ocupa poucos pixels: doze lados ali sao
+       desperdicio. Doze no braco, dez na primeira divisao, oito no resto --
+       e e o que paga os sete bracos. */
+    const aneis = p === 0 ? 9 : (p === 1 ? 7 : (p === 2 ? 5 : 4));
+    const lados = p === 0 ? 12 : (p === 1 ? 10 : 8);
     const vira = Math.sin(azimute * 4.7) * 0.55;
+    const deitado = Math.cos(inclinacao);
     const seg = [], rr = [];
     for(let j=0;j<=aneis;j++){
       const t2 = j/aneis;
       const az = azimute + vira * t2 * t2;
-      seg.push([ de[0] + Math.sin(az)*comprimento*t2,
+      seg.push([ de[0] + Math.sin(az)*comprimento*deitado*t2,
                  de[1] + Math.sin(inclinacao)*comprimento*t2
-                       - t2*t2*comprimento*0.30,
-                 de[2] - Math.cos(az)*comprimento*t2 ]);
+                       - t2*t2*comprimento*0.30*deitado,
+                 de[2] - Math.cos(az)*comprimento*deitado*t2 ]);
       rr.push(grosso * Math.pow(1-t2, 0.75) + 0.020);
     }
-    tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62, 0.62 + comprimento*0.09);
+    tuboAoLongo(s, seg, rr, 0.7 + azimute, kAltura*0.62,
+                0.62 + comprimento*0.09, lados);
     /* E ELE SE DIVIDE, que e o que separa galho de espinho.
 
        Nao e a quantidade de varas que faz o olho ler "arvore", e a
@@ -1104,10 +1132,28 @@ function gerarArvoreMae(rnd, base, s){
      Entao sao QUATRO: dois laterais que saem do tronco ainda inteiro, a
      4,00 e a 4,43 m, e a bifurcacao do topo a 4,82. O tronco deixa de ser
      um mastro com um buque em cima e passa a ter camadas. */
-  for(const [k, az, incl, comp, esp] of [[8.3/ANEIS, 1.15, 0.60, 2.00, 0.60],
-                                         [9.2/ANEIS, 4.10, 0.66, 2.15, 0.62],
-                                         [1.0,       0.35, 0.88, 2.25, 0.78],
-                                         [1.0,       2.95, 0.95, 2.00, 0.70]])
+  /* SETE, E TRES DELES SAO TRONCO.
+
+     Quatro bracos ainda deixavam o alto vazio: dois laterais e uma
+     bifurcacao nao enchem seis metros de ceu. Agora sao sete, em cinco
+     alturas, e a diferenca esta na inclinacao -- que so agora quer dizer
+     alguma coisa.
+
+     OS QUATRO DE BAIXO SAO GALHO: inclinacao de 0,55 a 0,80, entre 32 e 46
+     graus, e eles ABREM. Saem do tronco ainda inteiro, escalonados de 3,66
+     a 4,53 m.
+
+     OS TRES DE CIMA SAO TRONCO: inclinacao de 1,00 a 1,15, entre 57 e 66
+     graus, com dois tercos do raio do topo cada um. Eles nao abrem, eles
+     SOBEM -- e sao tres, e nao dois, porque duas verticais fazem forquilha
+     e tres fazem copa. */
+  for(const [k, az, incl, comp, esp] of [[7.6/ANEIS, 2.30, 0.55, 1.75, 0.50],
+                                         [8.3/ANEIS, 5.10, 0.62, 1.90, 0.52],
+                                         [8.9/ANEIS, 1.15, 0.70, 1.95, 0.56],
+                                         [9.4/ANEIS, 3.85, 0.80, 1.85, 0.56],
+                                         [1.0,       0.40, 1.15, 2.30, 0.72],
+                                         [1.0,       2.60, 1.05, 2.10, 0.68],
+                                         [1.0,       4.90, 1.00, 1.95, 0.64]])
     galho(k, az, incl, comp, raios[Math.round(k*ANEIS)] * esp,
           k === 1.0 ? pontos[ANEIS] : null);
 
@@ -1312,7 +1358,18 @@ const ARVORE_BASE = [-1.35, 0, -1.75];
    Crianca de seis anos alcanca confortavelmente ate cerca de 1,15 m com o
    braco estendido, e o casulo e o objeto que mais convida ao toque na obra
    inteira. Posto a 1,44 ele era um convite so para adultos. */
-const CASULO = [0.42, 1.00, -0.78];
+/* NA FRENTE DA ARVORE, e nao ao lado dela.
+
+   Ela morava em (0,42 / -0,78). Da onde a pessoa entra, isso fica a
+   sessenta graus do rumo da arvore-mae: quem olha para a arvore nao ve o
+   casulo, e quem acha o casulo perdeu a arvore. Duas coisas que a obra
+   quer juntas ficavam em dois lugares.
+
+   Agora ele esta na LINHA que vai de quem entra ate a arvore, a 1,22 m do
+   centro e a 0,73 m na frente do tronco: olhar para a arvore e ve-lo. E
+   subiu de 1,00 para 1,45 m, que e altura de peito -- na anterior ele
+   ficava abaixo da linha do olhar de quem esta em pe. */
+const CASULO = [-0.85, 1.45, -0.88];
 /* ONDE O GALHO TERMINA: exatamente no topo do pedunculo do casulo. Nao ha
    fio nenhum entre os dois -- o casulo se prende ao galho pelo proprio
    corpo, como pupa faz. CASULO marca a barriga; o pedunculo sobe dali. */
@@ -1833,7 +1890,8 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
    sao um detalhe que passa batido. */
 const CRIS_ALTURA = 0.233;
 // o meio do corpo dela: e daqui que se mede a mao chegando
-const CRIS_MEIO = 1.00 + 0.085 + 0.058 - CRIS_ALTURA * 0.5;
+// escrito a partir do FIO_ALTO: o 1,00 aqui era a altura do CASULO copiada
+const CRIS_MEIO = FIO_ALTO - CRIS_ALTURA * 0.5;
 
 /* A CRISALIDA E O BICHO, e nao o torno.
 
@@ -3283,6 +3341,24 @@ void main(){
        primeira grandeza mede um centimetro e a poeira meio. */
     estrelas = estrelasEm(vMundo, n, 13.0, 0.55, 0.13, 1.70)
              + estrelasEm(vMundo, n, 34.0, 0.45, 0.16, 0.70);
+    /* E CASCA CONTINUA SENDO CASCA.
+
+       As arranhaduras eram da aquarela, que era so da mae. Com as doze
+       iguais elas sumiriam junto e o tronco voltaria a ser LISO -- que foi
+       exatamente a queixa que as trouxe. Sao as mesmas contas: ruido
+       esticado trinta vezes mais no horizontal que no vertical vira FIO, e
+       o fio dobrado vira sulco.
+
+       METADE DA FORCA, e nao inteira, porque aqui a casca e ceu: escurecer
+       demais apagaria as estrelas junto. O sulco entra so no corpo, e as
+       estrelas passam por cima intactas -- relevo POR BAIXO delas, e nao no
+       lugar delas. */
+    float fibra = rugas(vMundo * vec3(34.0, 1.15, 34.0));
+    float fenda = rugas(vMundo * vec3(7.0, 0.55, 7.0));
+    float sulco = 1.0 - abs(fibra * 2.0 - 1.0);
+    sulco = pow(sulco, 3.0) * (0.40 + 0.60 * fenda);
+    c *= 0.88 + 0.24 * fibra;
+    c *= 1.0 - 0.32 * sulco;
   } else if(materia < 0.5){
     // A AQUARELA, por triplanar: a pele das arvores
     vec2 sx = vMundo.zy * escalaTinta;
@@ -3427,6 +3503,24 @@ void main(){
        branco e que estava comendo o tom, e nao a falta de vermelho. */
     c *= vec3(1.14, 0.80, 0.90);
     c = mix(c, c * 1.26 + vec3(0.18, 0.045, 0.10), pow(raspaoC, 2.0));
+  } else if(materia > 13.5){
+    /* O HALO DA CRISALIDA -- o ar aceso em volta dela.
+
+       Ela tinha duas cascas: o marmore e a luz por DENTRO. Luz por dentro
+       de uma casca translucida acende a casca e para ali -- a dois metros,
+       no meio de uma floresta acesa de turquesa, uma pupa de vinte
+       centimetros nao chama ninguem.
+
+       O que o olho chama de "fluorescente" e valor que VAZA para os pixels
+       em volta, e aqui tudo e cortado em 1,0: pintar mais claro nao acende
+       nada. O vazamento se faz a mao, com cascas maiores que o corpo
+       somando luz -- e o recurso ja existe nesta obra, e o mesmo dos
+       cogumelos e do Sol.
+
+       A COR E A DO QUE BATE POR DENTRO. Halo de outra cor seria uma segunda
+       coisa em volta da primeira, e nao a mesma coisa vazando. */
+    c = vec3(1.00, 0.34, 0.64) * pow(1.0 - raspaoC, 2.2)
+      * (0.45 + 0.90 * coracao());
   } else if(materia > 6.5){
     /* O QUE PULSA DENTRO DA CRISALIDA. Casca menor, somando luz, por dentro
        da casca de marmore. Ela nao pode levar o marmore: somado por cima do
@@ -3436,8 +3530,11 @@ void main(){
        da pedra. Uma coisa turquesa no meio de tudo turquesa e ambiente; em
        rosa, ela e a unica que pede a mao. Cor complementar nao e enfeite
        aqui, e a instrucao que substitui a instrucao. */
-    c = vec3(1.00, 0.55, 0.70) * pow(1.0 - raspaoC, 1.6)
-      * (0.16 + 0.72 * coracao());
+    /* E MAIS FORTE DO QUE ERA. O piso subiu de 0,16 para 0,40 e a batida de
+       0,72 para 1,05: entre uma batida e outra ela nunca apaga, e no pico
+       estoura. Pupa que so existe no pico pisca; pupa acesa respira. */
+    c = vec3(1.00, 0.50, 0.68) * pow(1.0 - raspaoC, 1.6)
+      * (0.30 + 0.82 * coracao());
   } else if(materia > 5.5){
     /* A LUZ QUE ELE DERRAMA.
 
@@ -3588,6 +3685,11 @@ void main(){
      iluminado por outra coisa". Sobra um fio de variacao (0,86 a 1,00) so
      para a forma nao sumir: sem nenhuma, o corpo vira recorte chapado. */
   else if(materia > 4.5)                  piso = 0.86;   // cogumelo: aceso
+  /* A CRISALIDA TAMBEM E CORPO ACESO. Ela caia na regra da grama logo
+     abaixo e era sombreada de 0,50 a 0,94 pela altura no proprio corpo --
+     metade dela ficava na sombra, e a metade escura de uma coisa que
+     deveria brilhar e o que fazia ninguem nota-la. */
+  else if(materia > 3.5)                  piso = 0.95;   // a pupa: acesa
   /* Na grama o piso SOBE COM A ALTURA: a raiz e materia iluminada, a ponta
      e materia acesa, e a folha faz a passagem de uma para a outra. */
   else if(materia > 2.5)   piso = mix(0.50, 0.94, clamp(vAlt, 0.0, 1.0));
@@ -7581,9 +7683,26 @@ function desenharAMata(){
     gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
     return;
   }
-  gl.drawElements(gl.TRIANGLES, nIdxMae, gl.UNSIGNED_SHORT, 0);
+  /* A MAE COM A CASCA DAS OUTRAS -- decidido em 10/09.
+
+     Ela era a unica com a aquarela; as onze outras usavam o ceu noturno. A
+     direcao de arte trocou: agora sao doze iguais, e a mae se distingue
+     pelo TAMANHO e pela FORMA -- o vao, as sapopemas, os sete bracos --, e
+     nao pela pele. Distinguir pela forma e mais forte que pela textura,
+     porque a forma se le de qualquer distancia.
+
+     O caminho de volta custa uma linha, e e o if abaixo. nIdxMae continua
+     marcando onde ela acaba no buffer justamente para isso. */
+  if(MAE_COM_PINTURA){
+    gl.drawElements(gl.TRIANGLES, nIdxMae, gl.UNSIGNED_SHORT, 0);
+    gl.uniform1f(locSo.materia, 8.0);
+    gl.drawElements(gl.TRIANGLES, nIdxR - nIdxMae, gl.UNSIGNED_SHORT, nIdxMae * 2);
+    gl.uniform1f(locSo.materia, 0.0);
+    return;
+  }
+  // doze plantas, uma casca, UM desenho
   gl.uniform1f(locSo.materia, 8.0);
-  gl.drawElements(gl.TRIANGLES, nIdxR - nIdxMae, gl.UNSIGNED_SHORT, nIdxMae * 2);
+  gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
   gl.uniform1f(locSo.materia, 0.0);
 }
 const uS = n=>gl.getUniformLocation(progSala,n);
@@ -8331,6 +8450,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.alt, bCrisalida.alt, 1); ligar(aSo.fase, bCrisalida.fase, 1);
       ligar(aSo.borda, bCrisalida.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCrisalida.idx);
+
+      /* TRES CASCAS DE HALO, cada uma maior e mais fraca, infladas pela
+         normal -- o mesmo recurso dos cogumelos.
+
+         O DESCARTE PASSA PARA A FACE DA FRENTE: numa casca que soma luz o
+         que interessa e a parede de tras, senao a metade da frente cobre a
+         de tras e a soma acontece pela metade. Como o bloco da crisalida
+         desliga o corte de face, ele e religado so aqui. */
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.FRONT);
+      somarLuz();
+      gl.uniform1f(locSo.materia, 14.0);
+      gl.uniform1f(locSo.escalaObj, 1.0);
+      /* MEDIDO E BAIXADO. Com 1,25 na primeira casca o conjunto -- corpo,
+         pulso e tres halos, todos somando -- estourava em branco: a pupa
+         virava uma bola de luz sem pupa dentro, que e o defeito oposto ao
+         que se estava consertando. Notar nao e ofuscar. */
+      for(const [grossura, forca] of [[0.026, 0.62], [0.070, 0.34], [0.165, 0.16]]){
+        gl.uniform1f(locSo.inflar, grossura);
+        gl.uniform1f(locSo.presenca, forca * casuloPresenca);
+        gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
+      }
+      gl.uniform1f(locSo.inflar, 0.0);
+      gl.uniform1f(locSo.presenca, casuloPresenca);
+      gl.cullFace(gl.BACK);
+      gl.disable(gl.CULL_FACE);
 
       somarLuz();
       gl.uniform1f(locSo.materia, 7.0);   // a de dentro e luz, nao marmore
