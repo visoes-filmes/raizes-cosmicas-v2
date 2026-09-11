@@ -99,7 +99,9 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               "scallop-icon": "concha",
               # O ser alienigena. Ele vai ser MUITO grande, e uma nuvem de
               # pontos espalhada por vinte metros deixa de ler como corpo.
-              "ser_alienigena_rigged": "alien"}
+              # A VERSAO E A ANDROGINA (11/09): "troque o alienigena por
+              # esse", com o arquivo pelo nome.
+              "ser_alienigena_androgino_rigged": "alien"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -751,7 +753,7 @@ def main():
         c = os.path.join(acima, nome)
         if os.path.exists(c):
             extras.append(c)
-    for nome in ("ser_alienigena_rigged.glb", "ser_alienigena.glb"):
+    for nome in ("ser_alienigena_androgino_rigged.glb", "ser_alienigena_rigged.glb", "ser_alienigena.glb"):
         c = os.path.join(acima, nome)
         if os.path.exists(c):
             extras.append(c)

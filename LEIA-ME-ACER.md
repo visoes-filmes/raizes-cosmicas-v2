@@ -291,15 +291,21 @@ sete asteroides, o buraco negro no chão, a deusa galáctica inteira ao
 fundo, os seres aquáticos (7 águas-vivas, 4 corais, 2 estrelas-do-mar —
 pedidos: "você esqueceu os seres aquáticos estranhos"), a neblina indo e
 vindo e 2 600 grãos de poeira. **Saíram em 11/09** a mão cósmica, a árvore
-de ícone, as conchas e o galho de frutos em neon: estavam ali só porque
-"estavam baixados e nunca tinham aparecido", e a direção de arte os viu
-como coisas que não deveriam estar.
+de ícone, as conchas e o galho de frutos em neon ("estavam baixados e nunca
+tinham aparecido") e, na rodada seguinte, os seres aquáticos
+(`SERES_NO_ESPACO = false` — "nele é apenas os planetas"). O ser do céu
+(`alien-0`) é desde 11/09 o modelo `ser_alienigena_androgino_rigged.glb`,
+com **60 m** a 46 m de distância (era 26 m a 35); continua camuflado e só
+existe onde há pintura no céu — no cenário dos planetas ele some.
 
 **As figuras recortadas** (`FIGURAS`, `FS_FIGU`): desde 11/09 o shader não
 corta mais nada além da beirada — havia um corte em 0,17 no alfa, um pé
 dissolvido e uma moldura circular que tiravam da deusa vermelha 44% do
-arquivo. A galáctica é a pintura inteira, 44 × 25 m a 42 m de distância,
-atrás de tudo. As outras duas ainda são os recortes por luminância de
+arquivo. A galáctica é a pintura inteira, **80 × 45 m a 45 m de distância**
+(83° × 53°), atrás de tudo, no azimute −60° para o Sol não pousar na frente
+do rosto dela; a beirada rasga com ruído (6–22% nos lados, 5–14% em cima,
+10–26% embaixo) em vez de terminar em reta, e só o preto de verdade da
+pintura (luminância < 0,06) vira janela para as estrelas. As outras duas ainda são os recortes por luminância de
 `figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
 frames_frames_chave`) não estão mais nesta máquina — para refazê-las
 inteiras é preciso os quadros `chave_23` e `t_072` de novo.

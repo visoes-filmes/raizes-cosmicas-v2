@@ -504,7 +504,11 @@ const MATA_QUE_FICA      = 0.0;
    quatro corais, montados como malha pelo mesmo caminho da floresta, com a
    materia 9. As algas e as pedras nao subiram: no fundo do mar sao cenario,
    e cenario de fundo do mar nao e ser que flutua no espaco. */
-const SERES_NO_ESPACO    = true;
+/* DESLIGADO EM 11/09 pela mesma direcao de arte que os pediu: ao ver o
+   cenario dos planetas limpo da pintura do ceu, "ainda tem objetos que nao
+   pertencem a esse cenario". Eles continuam no fundo do mar do cenario 3,
+   que e de onde vieram. O interruptor fica: religar e uma palavra. */
+const SERES_NO_ESPACO    = false;
 /* RAIZES_NOS_ASTROS -- coral em nuvem em volta de cada planeta, para ele
    deixar de ser bola no vazio. Mesmo motivo, e o pedido e o mesmo: planeta
    nao e feito de particula. Doze mil pontos por planeta que, medidos no
@@ -1632,7 +1636,8 @@ function prepararAlienigena(){
      pontos ficam a trinta centimetros um do outro e deixam de ler como
      corpo -- viram chuvisco com contorno de gente.
 
-     VINTE E SEIS METROS, a trinta e cinco de distancia. Ele nao cabe no
+     VINTE E SEIS METROS, a trinta e cinco de distancia (hoje sessenta a
+     quarenta e seis -- ver abaixo). Ele nao cabe no
      campo de visao de uma olhada: para ver o bicho inteiro a pessoa tem de
      percorre-lo com a cabeca, e e nesse percurso que ele se revela. Um
      colosso que cabe no quadro nao e um colosso, e uma estatua.
@@ -1651,7 +1656,13 @@ function prepararAlienigena(){
      Fica um vigesimo em toda parte. Zero absoluto arrancaria a mao e o pe
      do desenho, e o que se procura nao e um torso flutuando: e um corpo
      inteiro cujas pontas nao se sabe onde acabam. */
-  plantarMalha(m, 'alien-0', [-15.5, 4.5, -33.0], 26.0, 0.62, 0,
+  /* SESSENTA METROS A QUARENTA E SEIS -- 11/09: "esta pequena ainda, tem
+     que ser muuito grande". Eram vinte e seis a trinta e cinco. Do pe, a
+     dois graus sobre o horizonte, ao alto da cabeca, a cinquenta e tres: e
+     mais da metade do ceu, e nao cabe em olhada nenhuma. Na mesma direcao
+     de antes. E o corpo e o andrógino (ser_alienigena_androgino_rigged),
+     trocado a pedido no mesmo dia. */
+  plantarMalha(m, 'alien-0', [-19.5, 3.0, -41.6], 60.0, 0.62, 0,
     (x, y, z) => {
       const macio = (t) => { const u = Math.min(1, Math.max(0, t)); return u*u*(3 - 2*u); };
       const acima = macio((y - 0.30) / 0.32);
@@ -4820,6 +4831,16 @@ uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasc
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
+/* Ruido de valor, duas oitavas: e o que faz a beirada da pintura inteira
+   RASGAR em vez de terminar numa reta. Barato -- oito leituras de hash. */
+float ondaFig(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  float a = fract(sin(dot(i,             vec2(127.1, 311.7))) * 43758.5453);
+  float b = fract(sin(dot(i + vec2(1,0), vec2(127.1, 311.7))) * 43758.5453);
+  float c = fract(sin(dot(i + vec2(0,1), vec2(127.1, 311.7))) * 43758.5453);
+  float d = fract(sin(dot(i + vec2(1,1), vec2(127.1, 311.7))) * 43758.5453);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 void main(){
   vec4 c = texture2D(figura, vUV);
 
@@ -4829,17 +4850,36 @@ void main(){
      nebulosa em volta. Aqui a imagem chega como veio -- um JPEG, sem canal
      alfa -- e o alfa nasce de duas coisas so:
 
-       a BEIRADA, que esmaece (dez por cento de cada lado, catorze em cima e
-       embaixo -- e o que apaga o retangulo do arquivo, e nada mais);
+       a BEIRADA, que esmaece (oito por cento de cada lado -- e o que apaga
+       o retangulo do arquivo, e nada mais);
 
        e o VAZIO da propria pintura: onde ela e preta de verdade, entre os
        veus, ela deixa passar as estrelas. Nenhuma tinta e tocada -- so o
-       preto vira janela, e e isso que a faz paisagem em vez de cartaz. */
+       preto vira janela, e e isso que a faz paisagem em vez de cartaz.
+
+     A CABECA SUMIA -- 11/09, segunda rodada. O corte do preto comecava em
+     0,035 e so chegava a cheio em 0,15 de luminancia, e o rosto dela e
+     azul-escuro: media 0,12 -- metade dele virava janela, e o esmaecido de
+     catorze por cento no alto comia o resto. Medido no arquivo: o alfa
+     medio na cabeca era 0,53; com o corte so no preto de verdade (0,012 a
+     0,06) e a beirada em oito, fica 0,88. */
+  /* A BEIRADA RASGA, nao termina em reta -- medido na bancada: com o
+     esmaecido de oito por cento em linha reta, a nebulosa, que e clara ate
+     a borda do arquivo, mostrava o RETANGULO inteiro no ceu. Agora a
+     largura do esmaecido varia ao longo da borda com um ruido: de seis a
+     vinte e dois por cento nos lados, de cinco a catorze em cima e embaixo
+     -- e o teto e menor em cima porque a cabeca dela comeca a dezoito por
+     cento do alto e nao pode ser tocada. O que se ve e a pintura
+     dissolvendo em farrapos, como nevoa acaba. */
   if(inteira > 0.5){
     vec2 d = min(vUV, 1.0 - vUV);
-    float beira = smoothstep(0.0, 0.10, d.x) * smoothstep(0.0, 0.14, d.y);
+    float n = 0.65 * ondaFig(vUV * 5.0) + 0.35 * ondaFig(vUV * 11.0 + 3.7);
+    // em cima o rasgo e curto (a cabeca comeca a 18% do alto); embaixo,
+    // onde a nebulosa e clara ate a borda, ele vai mais fundo
+    float limY = vUV.y < 0.5 ? 0.05 + 0.09 * n : 0.10 + 0.16 * n;
+    float beira = smoothstep(0.0, 0.06 + 0.16 * n, d.x) * smoothstep(0.0, limY, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-    float a = beira * smoothstep(0.035, 0.15, lum) * presenca;
+    float a = beira * smoothstep(0.012, 0.06, lum) * presenca;
     gl_FragColor = vec4(c.rgb * 0.92, a);
     return;
   }
@@ -6623,13 +6663,19 @@ function ondeAsteroide(a, t){
 /* A DEUSA GALACTICA E A PINTURA INTEIRA -- 11/09. Nao mais o recorte
    quadrado que perdia a cabeca e os bracos: o quadro todo, 16:9, com a
    nebulosa em volta. E "muito grande mesmo, atras de tudo, fazendo parte da
-   paisagem": quarenta e quatro metros de largura a quarenta e dois de
-   distancia -- mais longe que o ser do ceu, que esta a trinta e cinco --,
-   com o pe a tres graus acima do horizonte e o alto a trinta e tres. Na
-   mesma direcao de antes, o lado infinito. */
+   paisagem" -- e na segunda rodada, "muuito grande": OITENTA metros de
+   largura por quarenta e cinco de altura, a quarenta e cinco de distancia
+   -- mais longe que o ser do ceu, que esta a trinta e cinco. Oitenta e tres
+   graus de largura por cinquenta e tres de altura: olhando para ela, ela e
+   o ceu. O pe a oito graus acima do horizonte, que e onde a cupula ainda e
+   noite e nao a sala de quem visita; o alto a quarenta e nove.
+
+   MAIS PARA A ESQUERDA do que antes (azimute -60, e nao -31): o Sol pousa a
+   -38 e ficava exatamente na frente do rosto dela -- medido na bancada aos
+   4:22. Continua no lado infinito, que e o lado da arvore. */
 const FIGURAS = [
-  { nome:'galactico', tex:0, centro:[-21.6, 16.2, -36.0], tam:[22.0, 12.4],
-    de:206, ate:376, balanco:0.5, espelha:false, inteira:true },
+  { nome:'galactico', tex:0, centro:[-39.0, 30.4, -22.5], tam:[40.0, 22.5],
+    de:206, ate:376, balanco:0.3, espelha:false, inteira:true },
   { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
     de:420, ate:508, balanco:0.9, espelha:true },
   { nome:'integra',   tex:2, centro:[ 0.55, 4.20,  -8.2], tam:[6.2, 6.2],
