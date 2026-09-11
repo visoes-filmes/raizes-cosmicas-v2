@@ -1512,6 +1512,8 @@ function decodificarMalha(nome){
   return { n: m.n, t: m.t,
            pos: new Int16Array(cru(m.pos)),
            nor: new Int8Array(cru(m.nor)),
+           // so a borboleta traz uv: e a unica pintada com a pele do modelo
+           uv:  m.uv ? new Int16Array(cru(m.uv)) : null,
            idx: new Uint16Array(cru(m.idx)) };
 }
 
@@ -4549,6 +4551,7 @@ void main(){
 const VS_BORBO = `
 attribute vec3 aPos, aNor;
 attribute float aLado;          // 0 corpo ou conta de rastro, -1/+1 asa
+attribute vec2 aUVm;            // o uv do MODELO: a pele da asa de cima
 uniform mat4 mvp;
 uniform vec3 centro, frente;
 uniform float fase, tamanho, inclina;
@@ -4557,6 +4560,7 @@ varying vec2 vUV;
 varying vec3 vNor;
 varying vec3 vMundo;
 varying vec2 vAsa;              // (da raiz a ponta, da beira de tras a da frente)
+varying vec2 vUVm;
 varying float vCima;            // +1 na face de cima da asa, -1 na de baixo
 varying float vCorpo;
 
@@ -4650,11 +4654,13 @@ void main(){
      E o UV sai da posicao ANTES do giro, senao a tinta escorrega pela asa a
      cada batida -- a asa se moveria por dentro da propria pintura. */
   vUV = vec2(aPos.x + 0.5, 0.5 - aPos.z * 1.15);
+  vUVm = aUVm;
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_BORBO = `
 precision highp float;
-uniform sampler2D asa;
+uniform sampler2D asa;       // a aquarela: a face de BAIXO, com o 88
+uniform sampler2D morpho;    // a pele do modelo: a face de CIMA
 uniform float presenca;
 uniform float brilho;        // 1 = luz (conta de rastro ou casca), 0 = ela
 uniform vec3 corBrilho;
@@ -4663,6 +4669,7 @@ varying vec2 vUV;
 varying vec3 vNor;
 varying vec3 vMundo;
 varying vec2 vAsa;
+varying vec2 vUVm;
 varying float vCima;
 varying float vCorpo;
 void main(){
@@ -4723,37 +4730,26 @@ void main(){
      camada visivel tinha a normal do modelo em -y. Ou seja, no espaco do
      modelo "cima" e -y -- o exportador olhava a borboleta de outro lado. */
   if(vCima < 0.0 && vCorpo < 0.5){
-    float luzTinta = dot(cor, vec3(0.299, 0.587, 0.114));
-    /* O DORSO E O DE UM MORPHO, pela referencia que a direcao de arte
-       mandou em 10/09: campo azul vivo, mais claro junto do corpo, um ARO
-       escuro em toda a beira de fora com um fio claro no rebordo, e pintas
-       palidas na ponta da asa dianteira.
+    /* A FACE DE CIMA E A PELE DO PROPRIO MODELO, nos UVs do proprio modelo.
 
-       O 88 SAIU DE CIMA. Ele e o desenho da face de BAIXO da Diaethria, e
-       aqui estava aparecendo por cima porque a aquarela decidia o claro e o
-       escuro do dorso inteiro. Agora ela so da o veio -- vinte por cento --
-       e o resto e o azul.
+       Antes era um azul de conta com um aro que seguia uma CAIXA -- "vao"
+       e "corda" --, e nao o contorno da asa: o escuro caia em linha reta
+       onde a asa e curva, e a direcao de arte viu na hora ("a textura nao
+       esta bem aplicada"). O modelo trouxe a resposta pronta: uma asa de
+       morpho pintada para estes exatos triangulos, com o aro escuro
+       acompanhando cada recorte, os veios e as pintas da ponta. Ninguem
+       tinha aberto o arquivo, e o conversor jogava os UVs fora.
 
-       A COR E MEDIDA na textura embutida no modelo (rgb 10/91/161 no
-       corpo da asa, 6/46/87 nos escuros, 23/130/208 nos claros): o
-       comentario antigo dizia "laranja" e ninguem tinha aberto o arquivo.
+       O conversor agora os carrega (so para ela), e a textura sai do GLB
+       para assets/texturas/tex-asa-morpho.png na conversao. Aqui e so ler.
 
-       O ARO SAI DE ONDE SE ESTA NA ASA, e nao de textura: "vao" vai da raiz
-       a ponta e "corda" da beira de tras a da frente; o maior dos dois,
-       perto de um, e beirada. A emenda entre a asa dianteira e a traseira
-       fica em corda 0,5 e por isso NAO escurece -- que e o certo, ela nao e
-       beira de fora. */
-    float doCorpo = 1.0 - vAsa.x;
-    vec3 azul = mix(vec3(0.030, 0.220, 0.420), vec3(0.120, 0.580, 0.920),
-                    0.36 + 0.50 * doCorpo + 0.08 * luzTinta);
-    float beira = max(vAsa.x, abs(vAsa.y * 2.0 - 1.0));
-    float aro = smoothstep(0.80, 0.96, beira);
-    azul = mix(azul, vec3(0.022, 0.018, 0.030), aro * 0.92);
-    float fio = smoothstep(0.955, 0.995, beira);
-    azul += vec3(0.55, 0.62, 0.72) * fio * 0.40;
-    float ponta = smoothstep(0.60, 0.88, vAsa.x) * smoothstep(0.55, 0.85, vAsa.y) * (1.0 - aro);
-    azul = mix(azul, vec3(0.66, 0.80, 0.96), ponta * 0.60 * smoothstep(0.35, 0.75, luzTinta));
-    cor = azul;
+       O DEGRAU DE CLARO: a pele e pintada para luz de estudio, e o cenario
+       vive no escuro. Um pouco de ganho e a saturacao puxada para o azul
+       da familia do ceu, e ela para de parecer uma foto colada. */
+    vec3 pele = texture2D(morpho, vUVm).rgb;
+    float luzPele = dot(pele, vec3(0.299, 0.587, 0.114));
+    cor = mix(vec3(luzPele), pele, 1.18) * 1.15;
+    cor = mix(cor, vec3(0.12, 0.50, 1.00) * luzPele * 1.4, 0.22);
   }
 
   /* A LUZ NA ASA, pelos DOIS LADOS. O valor absoluto e o que importa: asa e
@@ -8232,15 +8228,19 @@ function atualizarTempo(t){
 })();
 
 const uBb = n=>gl.getUniformLocation(progBorbo,n);
+const texMorpho = novaTex([10, 91, 161]);
+carregar(texMorpho, '__TEX_ASA_MORPHO__');
 const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
+               morpho:uBb('morpho'),
                fase:uBb('fase'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
                asa:uBb('asa'), presenca:uBb('presenca'),
                brilho:uBb('brilho'), corBrilho:uBb('corBrilho'),
                inflar:uBb('inflar'), olhoPos:uBb('olhoPos')};
 const aBb = {pos: gl.getAttribLocation(progBorbo,'aPos'),
              nor: gl.getAttribLocation(progBorbo,'aNor'),
-             lado: gl.getAttribLocation(progBorbo,'aLado')};
-const bBb = criarBufs(['pos','nor','lado','idx']);
+             lado: gl.getAttribLocation(progBorbo,'aLado'),
+             uv: gl.getAttribLocation(progBorbo,'aUVm')};
+const bBb = criarBufs(['pos','nor','lado','uv','idx']);
 /* A BORBOLETA MONTADA DO MODELO, e a conta de luz no fim.
 
    Cinco pecas vem do arquivo: o corpo e as quatro asas, todas no mesmo
@@ -8264,7 +8264,7 @@ const bBb = criarBufs(['pos','nor','lado','idx']);
    Um fuso de oito lados custa sessenta e quatro. */
 let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
 (function(){
-  const pos = [], nor = [], lado = [], idx = [];
+  const pos = [], nor = [], lado = [], uv = [], idx = [];
   const juntar = (nome, quemE) => {
     const o = decodificarMalha(nome);
     if(!o) return null;
@@ -8277,6 +8277,10 @@ let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
       pos.push(o.pos[i*3]/8000, o.pos[i*3+1]/8000, o.pos[i*3+2]/8000);
       nor.push(o.nor[i*3]/127, o.nor[i*3+1]/127, o.nor[i*3+2]/127);
       lado.push(lad);
+      /* O UV DO MODELO, para a pele que ele trouxe. Se um dia o conversor
+         nao o mandar, a asa cai no azul de conta -- e nao some. */
+      if(o.uv) uv.push(o.uv[i*2]/32767, o.uv[i*2+1]/32767);
+      else     uv.push(0, 0);
     }
     for(let i=0;i<o.idx.length;i++) idx.push(o.idx[i] + base);
     return {n: o.n, meioX};
@@ -8305,7 +8309,7 @@ let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
         const r = raio(y);
         pos.push(Math.cos(u)*r, Math.sin(u)*r, y);
         nor.push(Math.cos(u), Math.sin(u), 0);
-        lado.push(0);
+        lado.push(0); uv.push(0, 0);
         idx.push(base + v); v++;
       }
     }
@@ -8313,6 +8317,7 @@ let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
   nConta = idx.length - contaDe;
 
   enviar(bBb.pos, pos); enviar(bBb.nor, nor); enviar(bBb.lado, lado);
+  enviar(bBb.uv, uv);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bBb.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
   console.log('borboleta: ' + (nAsas/3) + ' tri de asa, ' + (nCorpo/3)
@@ -9801,10 +9806,16 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locBb.fase, faseAsa);
       // os atributos entram antes do rastro, que desenha antes dela
       ligar(aBb.pos, bBb.pos, 3); ligar(aBb.nor, bBb.nor, 3);
-      ligar(aBb.lado, bBb.lado, 1);
+      ligar(aBb.lado, bBb.lado, 1); ligar(aBb.uv, bBb.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bBb.idx);
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
       gl.uniform1i(locBb.asa, 7);
+      /* A PELE DO MODELO NA UNIDADE 1, que nenhum outro desenho usa. As
+         demais sao ligadas por quem as usa, no proprio desenho -- e por
+         isso trocar de unidade aqui trocaria a asa pela pele de outra
+         coisa em silencio (a armadilha da tabela do LEIA-ME). */
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texMorpho);
+      gl.uniform1i(locBb.morpho, 1);
       gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
       gl.uniform3f(locBb.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.uniform1f(locBb.inflar, 0.0);

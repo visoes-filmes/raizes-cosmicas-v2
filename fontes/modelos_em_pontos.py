@@ -32,6 +32,7 @@ import base64
 import json
 import os
 import struct
+import zlib
 
 import numpy as np
 
@@ -375,10 +376,16 @@ def acessar(gltf, binario, indice):
     return saida
 
 
-def triangulos(caminho):
-    """Todos os triangulos do arquivo, ja no lugar onde o no os poe."""
+def triangulos(caminho, com_uv=False):
+    """Todos os triangulos do arquivo, ja no lugar onde o no os poe.
+
+    COM_UV: devolve tambem (tris, uvs), com o UV de cada canto de cada
+    triangulo -- e a unica maneira de a textura do proprio modelo chegar a
+    obra. So a borboleta pede: os outros modelos sao pintados com a aquarela
+    por triplanar e nunca precisaram saber de UV."""
     gltf, binario = ler_glb(caminho)
     tris = []
+    uvs = []
 
     def andar(no_id, matriz):
         no = gltf["nodes"][no_id]
@@ -410,13 +417,34 @@ def triangulos(caminho):
                 else:
                     idx = np.arange(len(pos))
                 tris.append(pos[idx].reshape(-1, 3, 3))
+                if com_uv:
+                    if "TEXCOORD_0" in prim["attributes"]:
+                        uv = acessar(gltf, binario, prim["attributes"]["TEXCOORD_0"])
+                        uvs.append(uv[idx].reshape(-1, 3, 2))
+                    else:
+                        uvs.append(np.zeros((len(idx) // 3, 3, 2)))
         for filho in no.get("children", []):
             andar(filho, m)
 
     cena = gltf.get("scene", 0)
     for no_id in gltf["scenes"][cena].get("nodes", []):
         andar(no_id, np.eye(4))
-    return np.concatenate(tris) if tris else np.zeros((0, 3, 3))
+    saida = np.concatenate(tris) if tris else np.zeros((0, 3, 3))
+    if com_uv:
+        return saida, (np.concatenate(uvs) if uvs else np.zeros((0, 3, 2)))
+    return saida
+
+
+def primeira_imagem(caminho):
+    """Os bytes da primeira imagem embutida no GLB, e o tipo dela."""
+    gltf, binario = ler_glb(caminho)
+    for im in gltf.get("images", []):
+        if "bufferView" not in im:
+            continue
+        vista = gltf["bufferViews"][im["bufferView"]]
+        ini = vista.get("byteOffset", 0)
+        return binario[ini: ini + vista["byteLength"]], im.get("mimeType", "")
+    return None, None
 
 
 def amostrar(tris, quantos, semente):
@@ -481,8 +509,45 @@ def pecas(tris):
     return saida
 
 
-def simplificar(tris, grade):
-    """Malha reduzida por agrupamento em grade: devolve (pos, nor, idx)."""
+def pecas_indices(tris):
+    """Como pecas(), mas devolve os indices de cada peca em vez das fatias:
+    e o que permite fatiar do mesmo jeito qualquer coisa que ande junto
+    com os triangulos -- os UVs da borboleta."""
+    chave = {}
+    pai = []
+
+    def achar(a):
+        while pai[a] != a:
+            pai[a] = pai[pai[a]]
+            a = pai[a]
+        return a
+
+    ids = np.empty((len(tris), 3), dtype=int)
+    for i, t in enumerate(tris):
+        for j, ponto in enumerate(t):
+            k = (round(ponto[0], 5), round(ponto[1], 5), round(ponto[2], 5))
+            if k not in chave:
+                chave[k] = len(pai)
+                pai.append(len(pai))
+            ids[i, j] = chave[k]
+        for j in (1, 2):
+            ra, rb = achar(ids[i, 0]), achar(ids[i, j])
+            if ra != rb:
+                pai[rb] = ra
+    grupos = {}
+    for i in range(len(tris)):
+        grupos.setdefault(achar(ids[i, 0]), []).append(i)
+    saida = [np.array(v) for v in grupos.values()]
+    saida.sort(key=len, reverse=True)
+    return saida
+
+
+def simplificar(tris, grade, uvs=None):
+    """Malha reduzida por agrupamento em grade: devolve (pos, nor, idx) --
+    e, quando uvs vem junto, (pos, nor, idx, uv), com o UV de cada vertice
+    novo sendo a MEDIA dos UVs que cairam na celula, pela mesma conta da
+    posicao. Na borboleta a grade e 200 e quase nada se funde, entao a media
+    e o proprio UV do modelo."""
     v = tris.reshape(-1, 3)
     lo, hi = v.min(axis=0), v.max(axis=0)
     tam = np.maximum(hi - lo, 1e-9)
@@ -529,7 +594,11 @@ def simplificar(tris, grade):
         np.add.at(nor, idx[:, k], face)
     comp = np.linalg.norm(nor, axis=1, keepdims=True)
     nor = np.divide(nor, comp, out=np.zeros_like(nor), where=comp > 0)
-    return pos, nor, idx
+    if uvs is None:
+        return pos, nor, idx
+    soma_uv = np.zeros((len(unicos), 2))
+    np.add.at(soma_uv, inverso, uvs.reshape(-1, 2))
+    return pos, nor, idx, soma_uv / conta
 
 
 def normais(pos, idx):
@@ -699,7 +768,11 @@ def main():
             if len(tris) == 0:
                 print(f"  {curto:24} sem triangulos, pulado")
                 continue
-            p, n = amostrar(tris, quantos, abs(hash(curto)) % 100000)
+            # SEMENTE ESTAVEL. Era hash(curto), e o hash de texto do Python muda
+            # a cada processo: cada rodada do conversor reembaralhava TODAS as
+            # nuvens de pontos em silencio, e o nuvens.js saia diferente sem
+            # que nada tivesse mudado. Apareceu ao comparar duas rodadas.
+            p, n = amostrar(tris, quantos, zlib.crc32(curto.encode("utf-8")) % 100000)
             p = normalizar(p)
             b64p, b64n = empacotar(p, n)
             saida[curto] = {"n": len(p), "pos": b64p, "nor": b64n}
@@ -707,17 +780,44 @@ def main():
 
             if curto in COMO_MALHA:
                 teto = PECAS_POR.get(COMO_MALHA[curto], PECAS)
-                partes = [q for q in pecas(tris) if len(q) >= 60]
+                # A BORBOLETA LEVA OS UVs E A TEXTURA DO PROPRIO MODELO. E o
+                # unico modelo que se pinta com a pele que trouxe: a asa de
+                # morpho por cima. Os outros continuam na aquarela.
+                com_uv = COMO_MALHA[curto] == "borboleta"
+                uvs_todos = None
+                if com_uv:
+                    tris, uvs_todos = triangulos(caminho, com_uv=True)
+                    imagem, mime = primeira_imagem(caminho)
+                    if imagem:
+                        ext = "png" if "png" in (mime or "") else "jpg"
+                        alvo = os.path.join(RAIZ, "assets", "texturas",
+                                            "tex-asa-morpho." + ext)
+                        with open(alvo, "wb") as f:
+                            f.write(imagem)
+                        print(f"  {curto:24} textura do modelo -> "
+                              f"assets/texturas/{os.path.basename(alvo)}")
+                    indices = [q for q in pecas_indices(tris) if len(q) >= 60]
+                    partes = [tris[q] for q in indices]
+                    partes_uv = [uvs_todos[q] for q in indices]
+                else:
+                    partes = [q for q in pecas(tris) if len(q) >= 60]
+                    partes_uv = [None] * len(partes)
                 if COMO_MALHA[curto] in SEM_PEDESTAL:
                     partes = sem_pedestal(partes, tris)
-                partes = partes[:teto]
+                partes, partes_uv = partes[:teto], partes_uv[:teto]
                 montado = COMO_MALHA[curto] in MONTADO
                 if montado:
                     todos = np.array(tris).reshape(-1, 3)
                     caixaLo, caixaHi = todos.min(axis=0), todos.max(axis=0)
                 for k, parte in enumerate(partes):
-                    mp, _mn, mi = simplificar(
-                        parte, GRADES.get(COMO_MALHA[curto], GRADE))
+                    muv = None
+                    if partes_uv[k] is not None:
+                        mp, _mn, mi, muv = simplificar(
+                            parte, GRADES.get(COMO_MALHA[curto], GRADE),
+                            partes_uv[k])
+                    else:
+                        mp, _mn, mi = simplificar(
+                            parte, GRADES.get(COMO_MALHA[curto], GRADE))
                     mp, mi = arredondar(
                         mp, mi,
                         divisoes=DIVISOES.get(COMO_MALHA[curto], 1),
@@ -735,8 +835,16 @@ def main():
                         "pos": b64mp, "nor": b64mn,
                         "idx": base64.b64encode(
                             mi.astype("<u2").tobytes()).decode()}
+                    if muv is not None:
+                        # UV em int16 de 0 a 32767: o modelo usa 0..1, e
+                        # o que passar disso e repeticao, que a asa nao tem
+                        uv16 = np.clip(np.round(np.array(muv) * 32767),
+                                       -32768, 32767).astype("<i2")
+                        malhas[nome]["uv"] = base64.b64encode(
+                            uv16.tobytes()).decode()
                     print(f"  {nome:24} {len(parte):7d} tri  ->  {len(mi):5d}"
-                          f" tri  ({len(mp):5d} vertices)   MALHA")
+                          f" tri  ({len(mp):5d} vertices)   MALHA"
+                          + ("  +uv" if muv is not None else ""))
 
                 if curto in CRU:
                     cp, _c, ci = simplificar(tris, GRADE)
