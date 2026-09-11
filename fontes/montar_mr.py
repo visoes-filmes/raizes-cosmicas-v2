@@ -103,7 +103,11 @@ mapa = {
     # A PELE DA ASA DA BORBOLETA: sai de dentro do GLB na conversao (o
     # conversor a escreve aqui). 512 e potencia de dois: repete e tem mipmap.
     "__TEX_ASA_MORPHO__": embutir(bem("texturas", "tex-asa-morpho.png"), (512, 512), qualidade=90),
-    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactico.png"), (512,512), com_alfa=True),
+    # A DEUSA GALACTICA INTEIRA (11/09): o quadro todo, 16:9, em JPEG. Sem
+    # canal alfa de proposito -- o alfa nasce no shader, so da beirada e do
+    # preto da propria pintura. PNG com alfa desta pintura pesaria mais de
+    # um megabyte; o JPEG fica em torno de cento e cinquenta kilobytes.
+    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-inteira.jpg"), (1024, 576), qualidade=88),
     "__FIG_DEUSA__":     embutir(bem("figuras", "fig-deusa-vermelha.png"), (512,512), com_alfa=True),
     "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-deusa-integra.png"), (512,512), com_alfa=True),
     "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),

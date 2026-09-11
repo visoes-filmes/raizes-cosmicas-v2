@@ -88,7 +88,9 @@ raizes-cosmicas-v2/
 │   │   ├── ceu-cosmico-2048.png       Cenário 2 e 4.
 │   │   └── ceu-rosa-2048.png          Cenário 3.
 │   ├── figuras/
-│   │   ├── fig-galactico.png          O ser galáctico (quadro chave_05).
+│   │   ├── fig-galactico.png          O recorte antigo do ser galáctico — não é mais usado.
+│   │   ├── fig-galactica-inteira.jpg  A deusa galáctica, o quadro INTEIRO (11/09): 16:9, sem
+│   │   │                              alfa; o alfa nasce no shader, só da beirada e do preto.
 │   │   ├── fig-deusa-vermelha.png     A deusa vermelha (chave_23).
 │   │   ├── fig-deusa-integra.png      A deusa que integra tudo (t_072).
 │   │   └── fig-borboleta.png          A borboleta 88 (t_005).
@@ -281,6 +283,26 @@ const CENAS = {
 - `inverter` — o cenário 4 lê o céu **de cabeça para baixo**. É o que faz a
   floresta do primeiro cenário reaparecer sob os pés no último, sem custar
   uma imagem nova.
+
+**O que há no cenário dos planetas** (inventário de 11/09, medido por
+chamada de desenho aos 5:00): a cúpula da noite, 84 estrelas, o Sol com
+três cascas de corona, quatro planetas com halo (rosa, água, fogo, verde),
+sete asteroides, o buraco negro no chão, a deusa galáctica inteira ao
+fundo, os seres aquáticos (7 águas-vivas, 4 corais, 2 estrelas-do-mar —
+pedidos: "você esqueceu os seres aquáticos estranhos"), a neblina indo e
+vindo e 2 600 grãos de poeira. **Saíram em 11/09** a mão cósmica, a árvore
+de ícone, as conchas e o galho de frutos em neon: estavam ali só porque
+"estavam baixados e nunca tinham aparecido", e a direção de arte os viu
+como coisas que não deveriam estar.
+
+**As figuras recortadas** (`FIGURAS`, `FS_FIGU`): desde 11/09 o shader não
+corta mais nada além da beirada — havia um corte em 0,17 no alfa, um pé
+dissolvido e uma moldura circular que tiravam da deusa vermelha 44% do
+arquivo. A galáctica é a pintura inteira, 44 × 25 m a 42 m de distância,
+atrás de tudo. As outras duas ainda são os recortes por luminância de
+`figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
+frames_frames_chave`) não estão mais nesta máquina — para refazê-las
+inteiras é preciso os quadros `chave_23` e `t_072` de novo.
 
 ### Os corpos e as peles
 

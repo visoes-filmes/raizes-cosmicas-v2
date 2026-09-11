@@ -2032,47 +2032,12 @@ function montarSeres(){
   nSeresIdx = m.idx.length;
 }
 
-/* OS QUATRO QUE NUNCA TINHAM ENTRADO, EM NEON.
-
-   Estavam baixados e embarcados no nuvens.js desde sempre, custando o
-   download do aparelho sem nada aparecer na tela: a mao cosmica, a arvore
-   de icone, as conchas e o galho de frutos.
-
-   VIRAM MALHA, e nao nuvem, porque neon precisa de SILHUETA -- a cor dele
-   mora na beirada, e nuvem de pontos nao tem beirada. Este e o mesmo
-   motivo pelo qual a materia 10 le o raspao e ignora a luz.
-
-   QUANTOS E POR QUE. A mao sozinha custa trinta e seis mil triangulos: ela
-   nao se simplifica, porque a teia entre os dedos e feita de fios de um
-   triangulo de largura e o agrupamento por grade os come primeiro -- e a
-   teia e o nome da peca. Uma so, entao. O galho de frutos custa catorze mil
-   (trinta e oito pecas, quase todas esferas), e tambem vai um. A arvore e as
-   conchas sao baratas e vao duas e tres. */
-let bNeon = null, nNeonIdx = 0;
-function montarNeon(){
-  const rnd = prng(8419);
-  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const por = (quantos, prefixo, pecas, escMin, escMax) => {
-    for(let i=0;i<quantos;i++){
-      const ang = rnd()*Math.PI*2, raio = 1.25 + rnd()*2.0;
-      const base = [Math.sin(ang)*raio, 1.15 + rnd()*1.05, -Math.cos(ang)*raio];
-      const esc = escMin + rnd()*(escMax - escMin);
-      const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
-      for(let k=0;k<pecas;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
-    }
-  };
-  por(1, 'mao-cosmica-',   1, 0.52, 0.52);
-  por(2, 'arvore-icone-',  1, 0.30, 0.44);
-  por(3, 'conchas-',       6, 0.16, 0.26);
-  por(1, 'frutos-',       38, 0.26, 0.34);
-  if(!m.idx.length) return;
-  bNeon = criarBufs(['pos','nor','alt','fase','borda','idx']);
-  enviar(bNeon.pos,m.pos); enviar(bNeon.nor,m.nor); enviar(bNeon.alt,m.alt);
-  enviar(bNeon.fase,m.fase); enviar(bNeon.borda,m.borda);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bNeon.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
-  nNeonIdx = m.idx.length;
-}
+/* OS QUATRO EM NEON SAIRAM -- 11/09. A mao cosmica, a arvore de icone, as
+   conchas e o galho de frutos flutuavam entre os planetas so porque
+   "estavam baixados e nunca tinham aparecido". Ninguem os pediu ali, e a
+   direcao de arte, ao ver o cenario, disse que havia um monte de coisas que
+   nao deveriam estar. Os modelos continuam no nuvens.js -- a mao cosmica
+   tem hora marcada no roteiro, as 8:25, e ainda nao tem forma. */
 
 /* O FUNDO DO MAR COM FORMA, E OS BICHOS NO CEU.
 
@@ -4851,11 +4816,33 @@ uniform sampler2D figura;
    visivel: as figuras simplesmente nao aparecem. */
 uniform highp float espelho;
 uniform float presenca, corte;
+uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasce aqui
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
 void main(){
   vec4 c = texture2D(figura, vUV);
+
+  /* A PINTURA INTEIRA -- direcao de arte, 11/09: "a imagem nao foi
+     preservada; eu so pedi para esmaecer as bordas". O recorte por
+     luminancia e a moldura circular comiam a cabeca, os bracos abertos e a
+     nebulosa em volta. Aqui a imagem chega como veio -- um JPEG, sem canal
+     alfa -- e o alfa nasce de duas coisas so:
+
+       a BEIRADA, que esmaece (dez por cento de cada lado, catorze em cima e
+       embaixo -- e o que apaga o retangulo do arquivo, e nada mais);
+
+       e o VAZIO da propria pintura: onde ela e preta de verdade, entre os
+       veus, ela deixa passar as estrelas. Nenhuma tinta e tocada -- so o
+       preto vira janela, e e isso que a faz paisagem em vez de cartaz. */
+  if(inteira > 0.5){
+    vec2 d = min(vUV, 1.0 - vUV);
+    float beira = smoothstep(0.0, 0.10, d.x) * smoothstep(0.0, 0.14, d.y);
+    float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    float a = beira * smoothstep(0.035, 0.15, lum) * presenca;
+    gl_FragColor = vec4(c.rgb * 0.92, a);
+    return;
+  }
 
   /* A BORDA. O recorte vinha com alfa duro: ou o pixel era figura, ou nao
      era. E isso o que faz uma figura parecer ADESIVO COLADO — na aquarela
@@ -4876,8 +4863,13 @@ void main(){
      quase nada passa a ser nada mesmo. E o que sobra e elevado a uma
      potencia: o meio-tom cede muito, o opaco quase nao sente. O desenho
      continua inteiro; o que some e so o veu. */
-  float a = smoothstep(0.17, 0.62, c.a);
-  a = pow(a, 1.5) * presenca;
+  /* SO A BEIRADA, e mais nada -- 11/09. O que havia aqui em cima do alfa
+     do arquivo (um corte em 0,17, uma potencia 1,5, o pe dissolvido nos 18%
+     de baixo e uma moldura circular) tirava da deusa vermelha 44% do que o
+     arquivo trazia -- o corpo de baixo, a margem, a concha. A direcao de
+     arte pediu que a beirada esmaecesse, e nao que a figura perdesse
+     partes. O alfa e o do arquivo; a beirada e a unica coisa que cede. */
+  float a = c.a * presenca;
 
   /* O PE SE DISSOLVE, E ISSO NAO E ESTILO: E CONSERTO.
 
@@ -4892,7 +4884,6 @@ void main(){
      pe desenhado: a figura emerge do chao e da agua em vez de estar
      apoiada sobre eles, que e como as figuras da Odara existem — saindo da
      tinta, nao de pe sobre ela. */
-  a *= 1.0 - smoothstep(0.82, 0.99, vUV.y);
 
   /* E A MOLDURA INTEIRA, porque cada figura foi cortada de um lado
      diferente. Medido nos quatro arquivos: a galactica encosta no topo
@@ -4918,13 +4909,9 @@ void main(){
 
      Circulo e nao quadrado de proposito: desvanecer em quadrado ainda
      deixa cantos, e canto e o que o olho le como moldura. */
-  vec2 doCentro = (vUV - 0.5) * 2.0;
-  float raio = length(doCentro * vec2(1.0, 0.92));
-  a *= 1.0 - smoothstep(0.55, 0.99, raio);
-
-  // e a beirada do arquivo, que nunca pode aparecer inteira
+  // a beirada do arquivo esmaece: e o unico corte que sobra
   vec2 d = min(vUV, 1.0 - vUV);
-  a *= smoothstep(0.0, 0.04, min(d.x, d.y));
+  a *= smoothstep(0.0, 0.08, min(d.x, d.y));
 
   /* O AR DO CENARIO ENTRA NELA. Uma figura pintada com a luz que tinha na
      tela de origem nunca vai pertencer a um lugar de outra luz. Aqui ela
@@ -6571,7 +6558,6 @@ const COGUMELOS = [];
 
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
-montarNeon();        // idem
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarHorizonteSolido();   // idem
 
@@ -6634,9 +6620,16 @@ function ondeAsteroide(a, t){
    muda o que importa: o PARALAXE. Andando pela sala, uma figura a doze
    metros quase nao se desloca -- e e isso que o olho le como "esta longe",
    nao o tamanho dela. */
+/* A DEUSA GALACTICA E A PINTURA INTEIRA -- 11/09. Nao mais o recorte
+   quadrado que perdia a cabeca e os bracos: o quadro todo, 16:9, com a
+   nebulosa em volta. E "muito grande mesmo, atras de tudo, fazendo parte da
+   paisagem": quarenta e quatro metros de largura a quarenta e dois de
+   distancia -- mais longe que o ser do ceu, que esta a trinta e cinco --,
+   com o pe a tres graus acima do horizonte e o alto a trinta e tres. Na
+   mesma direcao de antes, o lado infinito. */
 const FIGURAS = [
-  { nome:'galactico', tex:0, centro:[-7.2, 4.60, -11.8], tam:[5.0, 5.0],
-    de:206, ate:376, balanco:0.5, espelha:false },
+  { nome:'galactico', tex:0, centro:[-21.6, 16.2, -36.0], tam:[22.0, 12.4],
+    de:206, ate:376, balanco:0.5, espelha:false, inteira:true },
   { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
     de:420, ate:508, balanco:0.9, espelha:true },
   { nome:'integra',   tex:2, centro:[ 0.55, 4.20,  -8.2], tam:[6.2, 6.2],
@@ -8727,7 +8720,7 @@ const uFi = n=>gl.getUniformLocation(progFigu,n);
 const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                centro:uFi('centro'), tamanho:uFi('tamanho'), espelho:uFi('espelho'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
-               presenca:uFi('presenca'), corte:uFi('corte')};
+               presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -9755,18 +9748,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.borda, bSeres.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSeres.idx);
       gl.drawElements(gl.TRIANGLES, nSeresIdx, gl.UNSIGNED_SHORT, 0);
-      /* E O NEON, no mesmo passe: mesmo programa, mesmos atributos, so a
-         materia e o buffer mudam. Somando luz, e nao sobrepondo -- neon e
-         luz que chega, e luz que chega soma com o que ja estava la. */
-      if(bNeon && nNeonIdx){
-        somarLuz();
-        gl.uniform1f(locSo.materia, 10.0);
-        ligar(aSo.pos, bNeon.pos, 3); ligar(aSo.nor, bNeon.nor, 3);
-        ligar(aSo.alt, bNeon.alt, 1); ligar(aSo.fase, bNeon.fase, 1);
-        ligar(aSo.borda, bNeon.borda, 1);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bNeon.idx);
-        gl.drawElements(gl.TRIANGLES, nNeonIdx, gl.UNSIGNED_SHORT, 0);
-      }
       gl.uniform1f(locSo.materia, 0.0);
       gl.depthMask(true);
       sobrepor();
@@ -10125,9 +10106,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
                 3:[0.85,0.54,0.66], 4:[0.82,0.69,0.53]};
     const ar = AR[cenaAtual] || AR[1];
 
-    const desenharFigura = (tex, cen, tam, pres, bal, esp) => {
+    const desenharFigura = (tex, cen, tam, pres, bal, esp, inteira) => {
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(locFi.figura, 7);
+      gl.uniform1f(locFi.inteira, inteira ? 1 : 0);
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
       gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
@@ -10154,11 +10136,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       for(const f of FIGURAS){
         const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
         if(pr < 0.004) continue;
-        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false);
+        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f.inteira);
         if(f.espelha && aguaPresenca > 0.004){
           // o reflexo nasce da linha d'agua, nao do pe da figura
           const c = [f.centro[0], NIVEL_AGUA * 2 - f.centro[1], f.centro[2]];
-          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true);
+          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true, f.inteira);
         }
       }
 
