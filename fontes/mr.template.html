@@ -4844,22 +4844,33 @@ uniform sampler2D figura;
    visivel: as figuras simplesmente nao aparecem. */
 uniform highp float espelho;
 uniform float presenca, corte;
+uniform highp float tempo;      // highp: e highp no vertice, e precisao diferente nao linka
 uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasce aqui
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
-/* Ruido de valor, duas oitavas: e o que faz a beirada da pintura inteira
-   RASGAR em vez de terminar numa reta. Barato -- oito leituras de hash. */
-float ondaFig(vec2 p){
-  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
-  float a = fract(sin(dot(i,             vec2(127.1, 311.7))) * 43758.5453);
-  float b = fract(sin(dot(i + vec2(1,0), vec2(127.1, 311.7))) * 43758.5453);
-  float c = fract(sin(dot(i + vec2(0,1), vec2(127.1, 311.7))) * 43758.5453);
-  float d = fract(sin(dot(i + vec2(1,1), vec2(127.1, 311.7))) * 43758.5453);
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
 void main(){
-  vec4 c = texture2D(figura, vUV);
+  /* DOIS TEMPOS -- 11/09, "uma ilusao de otica para parecer que a Deusa
+     esta se movimentando num tempo diferente do fundo dela". Nao ha duas
+     imagens: ha uma pintura e duas leituras dela. O FUNDO e lido com um
+     balanco lento -- a nebulosa ondula como agua parada, um ciclo de
+     quase um minuto, cinco milesimos do quadro de amplitude. A FIGURA e
+     lida quase parada: so respira, meio por cento de escala num ciclo de
+     vinte e cinco segundos. A passagem entre as duas leituras e uma elipse
+     macia em volta do corpo dela, medida no arquivo (o corpo vai de 35% a
+     78% da largura). Onde o fundo se mexe e ela nao, o olho le que ela
+     esta noutro tempo. E o teste que a direcao de arte pediu. */
+  vec2 uv = vUV;
+  if(inteira > 0.5){
+    vec2 dc = (uv - vec2(0.56, 0.62)) / vec2(0.21, 0.44);
+    float figura = 1.0 - smoothstep(0.75, 1.35, length(dc));
+    vec2 fundo = uv + 0.005 * vec2(sin(tempo * 0.11 + uv.y * 6.3),
+                                   cos(tempo * 0.09 + uv.x * 5.1));
+    float respira = 1.0 + 0.005 * sin(tempo * 0.25);
+    vec2 corpo = vec2(0.56, 0.62) + (uv - vec2(0.56, 0.62)) / respira;
+    uv = mix(fundo, corpo, figura);
+  }
+  vec4 c = texture2D(figura, uv);
 
   /* A PINTURA INTEIRA -- direcao de arte, 11/09: "a imagem nao foi
      preservada; eu so pedi para esmaecer as bordas". O recorte por
@@ -4888,15 +4899,18 @@ void main(){
      -- e o teto e menor em cima porque a cabeca dela comeca a dezoito por
      cento do alto e nao pode ser tocada. O que se ve e a pintura
      dissolvendo em farrapos, como nevoa acaba. */
+  /* SO O PRETO VIRA NOITE -- 11/09, "busque deixar o redor dela; apenas o
+     fundo preto e que vai ficar la no cenario". A pintura expandida duas
+     vezes ja termina em espaco escuro por conta propria: o rasgo de antes
+     comia o cabelo e as raizes, e nao e mais preciso. Fica uma guarda de
+     dois por cento na beirada do arquivo, e o resto e a luminancia: o que e
+     preto de verdade deixa passar as estrelas, GRADUALMENTE -- de 0,012 a
+     0,09 -- e tudo o que tem tinta fica. */
   if(inteira > 0.5){
     vec2 d = min(vUV, 1.0 - vUV);
-    float n = 0.65 * ondaFig(vUV * 5.0) + 0.35 * ondaFig(vUV * 11.0 + 3.7);
-    // em cima o rasgo e curto (a cabeca comeca a 18% do alto); embaixo,
-    // onde a nebulosa e clara ate a borda, ele vai mais fundo
-    float limY = vUV.y < 0.5 ? 0.05 + 0.09 * n : 0.10 + 0.16 * n;
-    float beira = smoothstep(0.0, 0.06 + 0.16 * n, d.x) * smoothstep(0.0, limY, d.y);
+    float beira = smoothstep(0.0, 0.02, min(d.x, d.y));
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-    float a = beira * smoothstep(0.012, 0.06, lum) * presenca;
+    float a = beira * smoothstep(0.012, 0.09, lum) * presenca;
     /* AS CORES DELA, E NAO UM DEGRAU ABAIXO -- 11/09, "equilibrar as cores
        para ficar mais parecida com a deusa". Medido pixel a pixel contra
        o arquivo: a pintura sozinha saia com saturacao 0,40 contra 0,43 e
@@ -6746,10 +6760,13 @@ const FIGURAS = [
      comido pelo esmaecido) ate cinquenta e cinco graus de altura. Nao e
      uma figura no ceu: e o ceu daquele lado. O Sol pousa a -38, vinte e
      um graus fora da beira esquerda dela. */
-  /* A PINTURA EXPANDIDA e 16:10 (2048 x 1280): a mesma largura de cento e
-     vinte metros, setenta e cinco de altura -- o que cresceu foi ceu sobre a
-     cabeca e nebulosa em volta, 20% de cada lado. */
-  { nome:'galactico', tex:0, centro:[26.5, 32.0, -36.4], tam:[60.0, 37.5],
+  /* EXPANDIDA DUAS VEZES (2536 x 1586, 16:10): o corpo dela ocupa 42% da
+     largura, e o resto e nebulosa e espaco. O plano cresce junto -- cento e
+     cinquenta metros por noventa e quatro, a quarenta e cinco: 118 por 92
+     graus -- para o corpo continuar com os mesmos cinquenta graus de
+     antes e a nebulosa ir ate onde a pintura vai. Do azimute -23 ao +95;
+     o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
+  { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true },
   { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
     de:420, ate:508, balanco:0.9, espelha:true },
