@@ -4707,11 +4707,23 @@ void main(){
      O corpo fica de fora: ele nao tem lado de cima e de baixo diferentes. */
   if(gl_FrontFacing && vCorpo < 0.5){
     float luzTinta = dot(cor, vec3(0.299, 0.587, 0.114));
-    /* MENOS AFUNDADO. O dorso da 88 e escuro de verdade, mas 0,055 de
-       vermelho num cenario que vive no escuro e preto: a asa de cima sumia
-       contra o ceu. Sobe um degrau e continua sendo o azul-noite do bicho. */
-    cor = mix(vec3(0.100, 0.130, 0.360),      // o azul escuro do dorso
-              vec3(0.340, 0.560, 1.000),      // a faixa que o atravessa
+    /* O AZUL DO MODELO, e nao o da 88 -- corrigido em 10/09.
+
+       O comentario la em cima dizia que o modelo trazia "uma borboleta
+       laranja pintada a mao", e por isso a cor do dorso foi inventada aqui:
+       o azul-noite da Diaethria. A direcao de arte mandou olhar a animacao
+       e a textura embutida no GLB e uma asa de MORPHO -- azul-cobalto
+       vivo, com veio claro. Ninguem tinha aberto o arquivo.
+
+       MEDIDO na textura: o corpo da asa da rgb(10, 91, 161); os vinte por
+       cento mais escuros, rgb(6, 46, 87); os mais claros, rgb(23, 130,
+       208). E essa a familia -- ciano puxado ao azul, quase nada de
+       vermelho. Os dois tons aqui sao os extremos medidos, um degrau mais
+       claros para caberem num cenario que vive no escuro. A aquarela
+       continua decidindo ONDE fica claro e onde fica escuro, entao a asa
+       tem desenho e nao e uma chapa azul. */
+    cor = mix(vec3(0.030, 0.220, 0.420),      // o azul fundo da asa
+              vec3(0.120, 0.580, 0.920),      // o veio claro dela
               smoothstep(0.32, 0.78, luzTinta));
   }
 
