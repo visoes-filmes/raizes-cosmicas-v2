@@ -5231,21 +5231,22 @@ void main(){
    aqui: e a Odara envolvendo uma esfera. */
 const VS_ASTRO = `
 attribute vec3 aPos;
+attribute vec2 aUV;
 uniform mat4 mvp;
 uniform vec3 centro;
 uniform float raio, giro, achatar;
 varying vec3 vN;
 varying vec2 vUV;
+varying vec3 vMundo;
 void main(){
   // giro proprio em torno do eixo vertical
   float c = cos(giro), sn = sin(giro);
   vec3 q = vec3(aPos.x*c - aPos.z*sn, aPos.y, aPos.x*sn + aPos.z*c);
   vN = normalize(q);
 
-  // Coordenada esferica para a pele. A latitude e comprimida perto dos
-  // polos como em qualquer mapa de esfera; para textura de marmore isso
-  // nao aparece, porque marmore nao tem direcao propria a denunciar.
-  vUV = vec2(atan(vN.z, vN.x)/6.2831853 + 0.5, acos(clamp(vN.y,-1.0,1.0))/3.14159265);
+  // a pele vem presa ao vertice: ver montarEsfera para o porque
+  vUV = aUV;
+  vMundo = centro + vec3(q.x, q.y * achatar, q.z) * raio;
 
   // achatar: nem todo planeta e esfera. Outros universos podem nao
   // respeitar a gravidade que arredonda tudo.
@@ -5260,9 +5261,27 @@ uniform float presenca, brilhoProprio;
 uniform float halo;          // 0 = o corpo; >0 = a luz que ele derrama
 uniform float iris;          // 0 = corpo comum; 1 = iridescente (o Sol)
 uniform float tempoIris;
+uniform vec3 olhoPos;
 varying vec3 vN;
 varying vec2 vUV;
+varying vec3 vMundo;
 void main(){
+  /* A LINHA PRETA NOS ASTROS -- corrigida em 11/09.
+
+     Tudo aqui que fala de "limbo", "silhueta" e "borda" usava abs(vN.z): o
+     z da normal NO MUNDO. Isso so e a silhueta quando a camera olha para
+     -z. De qualquer outro angulo, |vN.z| = 0 e um CIRCULO MAXIMO fixo no
+     mundo, o plano x-y, e o que estava preso a ele saia como um meridiano
+     atravessando o disco: o alfa que devia amaciar a borda cavava uma
+     LINHA transparente e escura de polo a polo, a corona acendia num aro
+     torto, e a iridescencia corria em faixas em vez de do centro para a
+     borda. A direcao de arte viu a linha no celular e perguntou o que era.
+
+     O que a silhueta e, de verdade, e a normal perpendicular a quem olha:
+     o cosseno entre a normal e a direcao ate o olho. Um no meio do disco,
+     zero na borda -- de QUALQUER lugar, o que e o unico jeito de estar
+     certo num headset, onde a camera e a cabeca. */
+  float paraOlho = abs(dot(normalize(vN), normalize(olhoPos - vMundo)));
   /* A CORONA. Um corpo que ilumina nao pode terminar na propria borda: o
      que faz o olho ler "isto e uma fonte" nao e o brilho do disco, e o ar
      aceso em volta dele. Aqui e a mesma esfera, um pouco maior, desenhada
@@ -5272,8 +5291,18 @@ void main(){
      A queda e por potencia, e nao linear, porque luz no ar cai depressa
      perto e devagar longe — linear daria um aro de adesivo. */
   if(halo > 0.5){
-    float borda = pow(1.0 - abs(vN.z), 2.6);
-    gl_FragColor = vec4(cor * borda * brilhoProprio, borda * presenca);
+    /* ACESA NO MEIO E MORRENDO NA BORDA -- e nao o contrario.
+
+       A casca acendia na propria silhueta e sumia para o centro. Com a
+       silhueta torta (o defeito acima) isso lia como glow; com a silhueta
+       certa, tres cascas viram TRES ANEIS concentricos, bolhas de sabao em
+       volta do Sol. Ar aceso nao tem borda: e mais forte junto do corpo e
+       vai sumindo -- a receita dos cogumelos e da crisalida. A parte da
+       frente da casca passa por cima do disco e o acende um pouco mais, e
+       entre o disco e a borda da casca a luz cai continua ate zero. Tres
+       cascas somadas dao a queda longa. */
+    float miolo = pow(paraOlho, 1.5);
+    gl_FragColor = vec4(cor * miolo * brilhoProprio, miolo * presenca);
     return;
   }
 
@@ -5286,7 +5315,7 @@ void main(){
 
   // O limbo aceso: a borda que olha para fora ganha luz. E o que faz uma
   // bola pintada parecer um corpo com atmosfera em vez de um adesivo.
-  float limbo = pow(1.0 - abs(vN.z), 3.0) * 0.5;
+  float limbo = pow(1.0 - paraOlho, 3.0) * 0.5;
 
   vec3 c = t * cor * (sombreado + limbo) + brilhoProprio * cor;
 
@@ -5299,7 +5328,7 @@ void main(){
      cossenos defasados sobre ele dao o arco que corre do centro para a
      borda, e o tempo o faz escorregar devagar. */
   if(iris > 0.5){
-    float ang = 1.0 - abs(vN.z);
+    float ang = 1.0 - paraOlho;
     vec3 arco = 0.5 + 0.5*cos(6.2831*(ang*1.6 + vec3(0.0, 0.33, 0.67))
                               + tempoIris*0.35);
     /* UM TERCO, e nao 0,72: tres cossenos defasados somam branco, e a
@@ -5314,7 +5343,7 @@ void main(){
      do limbo transforma escada em passagem, e custa uma linha. A nota
      reclama disso "principalmente do Sol", que e o mais claro e por isso o
      que mais mostra. */
-  gl_FragColor = vec4(c, presenca * smoothstep(0.0, 0.055, abs(vN.z)));
+  gl_FragColor = vec4(c, presenca * smoothstep(0.0, 0.055, paraOlho));
 }`;
 
 /* ═══════════ a bandeja assada ═══════════
@@ -5773,12 +5802,26 @@ function semearPoeira(semente){
    Uma so, reaproveitada por todos os astros. Poucos gomos: a pele e que
    faz o desenho, e gomo demais so custa. */
 function montarEsfera(anel, gomo){
-  const pos = [], idx = [];
+  const pos = [], uv = [], idx = [];
   for(let i=0;i<=anel;i++){
     const v = i/anel, phi = v*Math.PI;
     for(let j=0;j<=gomo;j++){
       const u = j/gomo, th = u*Math.PI*2;
       pos.push(Math.sin(phi)*Math.cos(th), Math.cos(phi), Math.sin(phi)*Math.sin(th));
+      /* O UV VAI NO VERTICE, e nao e calculado no shader.
+
+         Era calculado por vertice a partir do atan da normal, e o atan da
+         um salto de 1 para 0 na volta da esfera: o triangulo que atravessa
+         esse salto interpola o u inteiro numa fatia de um gomo -- a
+         textura toda espremida numa coluna, que aparece como uma LINHA
+         ESCURA de polo a polo. Era isso nos astros, e a direcao de arte
+         viu no celular. Com o u parametrico, o gomo da emenda tem dois
+         vertices no mesmo lugar (u=0 e u=1) e a interpolacao nunca salta.
+
+         E de quebra o giro passa a girar de verdade: a textura estava
+         presa ao mundo e a malha girava por baixo dela, o que numa esfera
+         nao se ve. Agora o texel anda com o vertice. */
+      uv.push(u, v);
     }
   }
   for(let i=0;i<anel;i++)
@@ -5786,7 +5829,7 @@ function montarEsfera(anel, gomo){
       const a = i*(gomo+1)+j, b = a+gomo+1;
       idx.push(a, b, a+1,  b, b+1, a+1);
     }
-  return {pos, idx};
+  return {pos, uv, idx};
 }
 
 /* ═══════════ buffers ═══════════ */
@@ -5800,7 +5843,7 @@ const bM = criarBufs(['pos','uv','alt','fase','tam']);
 const bS = criarBufs(['pos','nor','uv','tipo','idx']);
 const bF = criarBufs(['centro','canto','dado','tam','idx']);
 const bP = criarBufs(['pos','cor','dado']);
-const bE = criarBufs(['pos','idx']);
+const bE = criarBufs(['pos','uv','idx']);
 const bQ = criarBufs(['xy']);
 let nIdxR = 0, nIdxS = 0, nIdxF = 0, nPo = 0, nIdxE = 0;
 // quantos indices sao da arvore-mae: os primeiros nIdxMae de bR
@@ -5817,7 +5860,7 @@ enviarDepois.push(()=>enviar(bQ.xy, [-1,-1, 1,-1, -1,1, 1,-1, 1,1, -1,1]));
 (function(){
   const e = montarEsfera(14, 22);
   enviarDepois.push(()=>{
-    enviar(bE.pos, e.pos);
+    enviar(bE.pos, e.pos); enviar(bE.uv, e.uv);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(e.idx), gl.STATIC_DRAW);
     nIdxE = e.idx.length;
@@ -8420,8 +8463,10 @@ const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
                 brilho:uAs('brilhoProprio'), halo:uAs('halo'),
-                iris:uAs('iris'), tempoIris:uAs('tempoIris')};
-const aAst = {pos: gl.getAttribLocation(progAstro,'aPos')};
+                iris:uAs('iris'), tempoIris:uAs('tempoIris'),
+                olhoPos:uAs('olhoPos')};
+const aAst = {pos: gl.getAttribLocation(progAstro,'aPos'),
+              uv:  gl.getAttribLocation(progAstro,'aUV')};
 
 const locF = {mvp:uFg('mvp'), tempo:uFg('tempo'), presenca:uFg('presenca'),
              tinta:uFg('tinta'), sopro:uFg('sopro'),
@@ -9247,7 +9292,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.useProgram(progAstro);
         soltarAtributos();
         mandarMvp(locAst.mvp, mvp);
-        ligar(aAst.pos, bE.pos, 3);
+      gl.uniform3f(locAst.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+        ligar(aAst.pos, bE.pos, 3); ligar(aAst.uv, bE.uv, 2);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
       }
     }
@@ -9263,7 +9309,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.useProgram(progAstro);
     soltarAtributos();
     mandarMvp(locAst.mvp, mvp);
-    ligar(aAst.pos, bE.pos, 3);
+      gl.uniform3f(locAst.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    ligar(aAst.pos, bE.pos, 3); ligar(aAst.uv, bE.uv, 2);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
 
     // O SOL. Nao tem sombreado: ele e a fonte, entao brilha por si.
@@ -9311,9 +9358,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          o rosa da crisalida no meio, e o violeta da nebulosa longe -- as
          cores que a obra ja tem, e nao tres brancos. Enquanto ele ainda e
          estrela, as tres puxam para o azul junto com o corpo. */
-      const CASCAS = [[1.35, 0.55, [1.00, 0.62, 0.25]],
-                      [1.95, 0.26, [1.00, 0.45, 0.42]],
-                      [2.90, 0.11, [0.70, 0.40, 0.85]]];
+      // mais fracas que antes: agora elas somam por cima do disco tambem
+      const CASCAS = [[1.35, 0.30, [1.00, 0.62, 0.25]],
+                      [1.95, 0.18, [1.00, 0.45, 0.42]],
+                      [2.90, 0.09, [0.70, 0.40, 0.85]]];
       for(const [escala, forca, cc] of CASCAS){
         gl.uniform1f(locAst.raio, raioSol * escala);
         gl.uniform1f(locAst.brilho, forca);
@@ -9430,7 +9478,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.useProgram(progAstro);
       soltarAtributos();
       mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
+      gl.uniform3f(locAst.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      ligar(aAst.pos, bE.pos, 3); ligar(aAst.uv, bE.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
@@ -9523,7 +9572,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.useProgram(progAstro);
       soltarAtributos();
       mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
+      gl.uniform3f(locAst.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      ligar(aAst.pos, bE.pos, 3); ligar(aAst.uv, bE.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
@@ -9587,7 +9637,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.useProgram(progAstro);
       soltarAtributos();
       mandarMvp(locAst.mvp, mvp);
-      ligar(aAst.pos, bE.pos, 3);
+      gl.uniform3f(locAst.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      ligar(aAst.pos, bE.pos, 3); ligar(aAst.uv, bE.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
     }
 
