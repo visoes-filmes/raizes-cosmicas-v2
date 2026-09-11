@@ -3146,6 +3146,8 @@ uniform vec3 focos[13];
    dimensoes. Sao duas luzes de naturezas diferentes, e por isso duas
    contas. */
 uniform vec4 luzCasulo;
+/* O TOQUE: xyz onde a mao encostou, w o tempo desde entao (0 a 1). */
+uniform vec4 toque;
 uniform vec3 olhoPos;        // de onde se olha: a iridescencia depende disso
 uniform float presenca;
 uniform float escalaTinta;   // quantas voltas da pintura por metro
@@ -3902,6 +3904,29 @@ void main(){
     c += vec3(0.26, 0.40, 0.56) * pow(veiaLonge, 8.0) * arNoMeio * 0.34;
   }
 
+  /* O PULSO DO TOQUE. Um anel de luz que parte de onde a mao encostou e
+     atravessa a materia -- tronco, raiz, chao, o que estiver no caminho --
+     a 2,3 m/s, sumindo enquanto anda. Nao e a coisa acendendo inteira, e a
+     coisa RESPONDENDO no lugar onde foi tocada, como agua.
+
+     SUTIL POR NUMERO, e medido: com 0,38 de pico e anel de 22 cm o tronco
+     inteiro da mae virava uma chapa ciano na bancada -- a 1,3 m do olho um
+     anel de meio metro cobre o tronco todo. Ficou 0,15 de pico, anel de
+     12 cm, e a frente anda mais rapido: le-se como uma onda que PASSA, e
+     nao como a arvore acendendo. */
+  /* Fora do anel: a crisalida e o pulso dela (4 e 7), que ja tem luz
+     propria e nao podem estourar, e o halo (14). */
+  if(toque.w < 1.0 && (materia < 13.5 || materia > 14.5) &&
+     !(materia > 3.5 && materia < 4.5) && !(materia > 6.5 && materia < 7.5)){
+    float dT = length(vMundo - toque.xyz);
+    float frente = toque.w * 3.2;
+    float anel = exp(-pow((dT - frente) / 0.12, 2.0)) * (1.0 - toque.w);
+    /* O COGUMELO ja e luz: somar ciano nele nao se ve. Nele o anel
+       MULTIPLICA -- o chapeu clareia quando a onda passa, e volta. */
+    if(materia > 4.5 && materia < 6.5) c *= 1.0 + anel * 1.1;
+    else c += vec3(0.30, 0.85, 0.95) * anel * 0.15;
+  }
+
   if(luzCasulo.w > 0.004 &&
      (materia < 3.5 || (materia > 7.5 && materia < 13.5) || materia > 14.5)){
     vec3 dc = vMundo - luzCasulo.xyz;
@@ -4259,6 +4284,7 @@ attribute vec2 aDado;    // .x = fase própria, .y = tamanho em metros
 uniform mat4 mvp;
 uniform float tempo, escalaPonto, sopro;
 uniform float sentido;   // +1 sobe (ambiente), -1 cai (a chegada)
+uniform float fixo;      // 1 = o grao fica onde esta (o glitter, que anda por fora)
 varying vec3 vCor;
 varying float vBrilho;
 void main(){
@@ -4271,8 +4297,8 @@ void main(){
   /* O sentido decide se o grao sobe ou cai. Uma troca de sinal, e a
      poeira de ambiente vira a chuva de estrelas do primeiro minuto — nao
      e neve: e como se as estrelas estivessem caindo, ou se aproximando. */
-  float sobe = fract(fase + tempo * 0.014 * sentido);
-  float y = aPos.y * sobe;
+  float sobe = mix(fract(fase + tempo * 0.014 * sentido), 0.5, fixo);
+  float y = mix(aPos.y * sobe, aPos.y, fixo);
 
   /* Se aproximando: caindo, o grao cresce um pouco ao chegar perto do
      chao. E o que separa "estrela que se aproxima" de "floco de neve" —
@@ -4332,16 +4358,21 @@ void main(){
   float lampejo = pow(max(0.0, sin(tempo * 1.7 + fase * 44.0)), 22.0);
   cintilo += faisca * lampejo * 5.5;
 
-  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 5.0 + faisca * 1.5)
+  /* O GLITTER PASSA DO TETO. Com o teto de cinco pixels da poeira, os
+     quarenta e oito graos soltos da borboleta sumiam entre as estrelas do
+     ceu -- medido na bancada: a um metro e meio, cinco pixels e uma
+     estrela a mais. Glitter e o que se ve cair; ele tem teto proprio, de
+     onze pixels, e brilho quase dobrado. So ele: a poeira nao muda. */
+  gl_PointSize = clamp(aDado.y * (1.0 + chegando * 5.0 + faisca * 1.5 + fixo * 1.0)
                        * escalaPonto / max(clip.w, 0.05),
-                       1.0, 5.0 + chegando * 20.0 + faisca * 3.0);
+                       1.0, 5.0 + chegando * 20.0 + faisca * 3.0 + fixo * 6.0);
 
   // Acende e apaga nas pontas da coluna: a emenda do laco nao aparece.
-  float pontas = smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe);
+  float pontas = mix(smoothstep(0.0, 0.14, sobe) * smoothstep(1.0, 0.86, sobe), 1.0, fixo);
   /* MAIS BRILHO, E NAO MAIS TAMANHO. Um grao de dois pixels apagado
      desaparece; o mesmo grao aceso e um cintilo. Como a mistura e aditiva,
      subir o brilho nao engorda nada -- so acende. */
-  vBrilho = pontas * cintilo;
+  vBrilho = pontas * cintilo * (1.0 + fixo * 0.9);
   vCor = aCor;
 }`;
 const FS_PO = `
@@ -6040,6 +6071,46 @@ function subirEsporos(s){
   enviar(bEsp.pos,s.pos); enviar(bEsp.cor,s.cor); enviar(bEsp.dado,s.dado);
   nEsp = s.pos.length/3;
 }
+/* O GLITTER. Quarenta e oito graos que nascem onde a borboleta foi tocada,
+   saem em todas as direcoes e se apagam em dois segundos. Andam na CPU --
+   sao quarenta e oito, e o custo e nada -- e sobem para a placa a cada
+   quadro enquanto vivem. Usam o programa da poeira com "fixo" ligado: o
+   grao fica onde a CPU o pos, sem a coluna que a poeira sobe. */
+const GLITTER_N = 48;
+const glitter = { pos: new Float32Array(GLITTER_N*3), vel: new Float32Array(GLITTER_N*3),
+                  cor: new Float32Array(GLITTER_N*3), dado: new Float32Array(GLITTER_N*2),
+                  idade: 9, vivo: false };
+const bGli = criarBufs(['pos','cor','dado']);
+function soltarGlitter(x, y, z){
+  for(let i = 0; i < GLITTER_N; i++){
+    const a = Math.random()*6.2832, b = Math.acos(Math.random()*2 - 1), v = 0.35 + Math.random()*0.7;
+    glitter.pos[i*3] = x; glitter.pos[i*3+1] = y; glitter.pos[i*3+2] = z;
+    glitter.vel[i*3]   = Math.sin(b)*Math.cos(a) * v;
+    glitter.vel[i*3+1] = Math.cos(b) * v + 0.25;          // um pouco para cima
+    glitter.vel[i*3+2] = Math.sin(b)*Math.sin(a) * v;
+    glitter.dado[i*2] = Math.random(); glitter.dado[i*2+1] = 0.010 + Math.random()*0.016;
+  }
+  glitter.idade = 0; glitter.vivo = true;
+}
+function andarGlitter(dt){
+  if(!glitter.vivo) return;
+  glitter.idade += dt;
+  const fade = Math.max(0, 1 - glitter.idade / 2.2);
+  if(fade <= 0){ glitter.vivo = false; return; }
+  const freio = Math.exp(-dt * 1.6);
+  for(let i = 0; i < GLITTER_N; i++){
+    glitter.pos[i*3]   += glitter.vel[i*3]   * dt;
+    glitter.pos[i*3+1] += glitter.vel[i*3+1] * dt;
+    glitter.pos[i*3+2] += glitter.vel[i*3+2] * dt;
+    glitter.vel[i*3] *= freio; glitter.vel[i*3+1] = glitter.vel[i*3+1]*freio - 0.15*dt; glitter.vel[i*3+2] *= freio;
+    // do azul neon da luz dela ao branco, apagando
+    const q = (i % 3) / 2;
+    glitter.cor[i*3]   = (0.40 + 0.50*q) * fade;
+    glitter.cor[i*3+1] = (0.70 + 0.25*q) * fade;
+    glitter.cor[i*3+2] = 1.00 * fade;
+  }
+  enviar(bGli.pos, glitter.pos); enviar(bGli.cor, glitter.cor); enviar(bGli.dado, glitter.dado);
+}
 function subirPoeira(s){
   enviar(bP.pos,s.pos); enviar(bP.cor,s.cor); enviar(bP.dado,s.dado);
   nPo = s.pos.length/3;
@@ -7065,32 +7136,82 @@ let tocouCasulo = 0, tocouConcha = 0;
 /* O QUE PODE SER TOCADO, E QUANDO. Um alvo so existe na sua janela. O raio
    e generoso de proposito: no ar, sem apoio, a mao nao acerta alvo
    pequeno, e errar tres vezes ensina a pessoa que a obra nao responde. */
+/* ONDE A BORBOLETA ESTA NESTE QUADRO -- escrito pelo desenho, lido pelo
+   toque. E o unico jeito de tocar numa coisa cuja posicao e calculada no
+   meio do desenho, com a chegada ao rosto e tudo. */
+const borboletaAgora = [0, -9, 0];
+let borboletaPresenteAgora = 0;
+
+/* O PULSO DO TOQUE, para o shader: onde foi e ha quanto tempo. Um so por
+   vez -- dois toques num segundo sao raros, e o segundo simplesmente
+   recomeca o anel. */
+const toqueLuz = [0, 0, 0, 1.0];   // x, y, z, e o tempo normalizado (1 = acabou)
+let toqueEm = -9;
+function pulsarEm(x, y, z){
+  toqueLuz[0] = x; toqueLuz[1] = y; toqueLuz[2] = z;
+  toqueEm = relogio;
+}
+
 function alvosAgora(){
   const lista = [];
+  /* O QUE RESPONDE AO TOQUE, alem dos tres gatilhos da partitura.
+
+     A nota: "quando a pessoa tocasse nas arvores ou nas coisas elas
+     pulsassem e tocassem um som agradavel, mas muito sutil". So que a
+     floresta esta FORA DO ALCANCE, por decisao anterior da propria direcao
+     de arte: as onze arvores moram no anel de 2,9 a 5,0 m, e um braco a
+     partir da beira da area caminhavel chega a uns 2,2. O que se alcanca e
+     o que esta aqui: a MAE (tronco e sapopemas), os COGUMELOS, o casulo, a
+     borboleta na volta que ela da, e o planeta rosa.
+
+     Cada um tem a sua nota. A mae e a mais grave. */
+  if(presencaMata > 0.3){
+    const tx = ARVORE_BASE[0], tz = ARVORE_BASE[2];
+    lista.push({ id:'mae', dentro(m){
+                   const dx = m.x - tx, dz = m.z - tz, d2 = dx*dx + dz*dz;
+                   return (m.y < 0.55 && d2 < 1.4*1.4) || (m.y < 2.6 && d2 < 0.62*0.62);
+                 },
+                 fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(0, 1.0); relato('TOCOU-A-MAE'); } });
+    COGUMELOS.forEach((cg, i) => {
+      lista.push({ id:'cogumelo-' + i, x:cg.x, y:0.18, z:cg.z, raio:0.24,
+                   fazer(m){ pulsarEm(cg.x, 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7); } });
+    });
+  }
+  if(borboletaPresenteAgora > 0.3)
+    lista.push({ id:'borboleta', x:borboletaAgora[0], y:borboletaAgora[1], z:borboletaAgora[2], raio:0.30,
+                 fazer(m){ soltarGlitter(borboletaAgora[0], borboletaAgora[1], borboletaAgora[2]);
+                           somEstranho(); relato('TOCOU-A-BORBOLETA'); } });
+  if(presencaAstro(0, t) > 0.3){
+    const q = ondeEsta(0, t);
+    lista.push({ id:'rosa', x:q[0], y:q[1], z:q[2], raio:0.36,
+                 fazer(m){ pulsarEm(q[0], q[1], q[2]); sinoDoToque(4, 0.8); } });
+  }
   if(casuloPresenca > 0.3)
     // o alvo acompanha o corpo: 0,28 era generoso para a pupa de 23 cm
-    lista.push({ x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.34,
+    lista.push({ id:'casulo', x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.34,
                  /* O QUE O TOQUE FAZ: adianta a partitura ate a borboleta.
                     Nao inventa um efeito paralelo -- faz acontecer AGORA o
                     que aconteceria as 2:50 de qualquer jeito. Quem toca
                     conduz, quem nao toca e conduzido, e os dois chegam ao
                     mesmo lugar. E a unica forma de interacao que nao quebra
                     os dez minutos nem cria dois caminhos para manter. */
-                 fazer(){ if(t < 163){ t = 163; tocouCasulo = 1;
+                 fazer(m){ pulsarEm(CASULO[0], CRIS_MEIO, CASULO[2]); sinoDoToque(1, 0.8);
+                           if(t < 163){ t = 163; tocouCasulo = 1;
                                         relato('TOCOU-O-CASULO'); } } });
   /* A CONCHA. Ela aparece na terceira janela e nunca teve o que fazer.
      Tocada, ela chama a mao gigante — que e o que o roteiro ja marcava
      para as 8:25. Como no casulo: o toque ANTECIPA, nao inventa. */
   if(conchaPresenca > 0.3)
-    lista.push({ x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.26,
-                 fazer(){ if(t < 505){ t = 505; tocouConcha = 1;
+    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.26,
+                 fazer(m){ pulsarEm(CONCHA[0], CONCHA[1], CONCHA[2]); sinoDoToque(3, 0.8);
+                          if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
   /* O RIZOMAR. Na espera, a unica coisa tocavel da obra -- e o que a
      recomeca. Raio generoso: e o primeiro gesto que alguem faz aqui, e
      errar o primeiro ensina que a obra nao responde. */
   if(esperando && esperaPresenca > 0.5)
-    lista.push({ x:RIZOMAR[0], y:RIZOMAR[1], z:RIZOMAR[2], raio:0.34,
-                 fazer(){ recomecarAViagem(); } });
+    lista.push({ id:'rizomar', x:RIZOMAR[0], y:RIZOMAR[1], z:RIZOMAR[2], raio:0.34,
+                 fazer(m){ recomecarAViagem(); } });
 
   return lista;
 }
@@ -7149,11 +7270,20 @@ function conferirToque(dt){
   for(const m of MAOS){
     let perto = null;
     if(m.tem) for(const a of alvos){
-      const dx = m.x-a.x, dy = m.y-a.y, dz = m.z-a.z;
-      if(dx*dx + dy*dy + dz*dz < a.raio*a.raio){ perto = a; break; }
+      if(a.dentro ? a.dentro(m) : (()=>{ const dx = m.x-a.x, dy = m.y-a.y, dz = m.z-a.z;
+                                          return dx*dx + dy*dy + dz*dz < a.raio*a.raio; })()){
+        perto = a; break;
+      }
     }
     m.aceso = Math.max(0, Math.min(1, m.aceso + (perto ? dt*4 : -dt*3)));
-    if(perto && (m.aceso > 0.6 || m.apertando)) perto.fazer();
+    /* UMA VEZ POR ENCOSTAR, e nao setenta e duas por segundo. O fazer() era
+       chamado a cada quadro enquanto a mao ficasse dentro -- indiferente
+       para o casulo, que so adianta o relogio, mas um sino disparado a
+       cada quadro e uma serra. A mao lembra em que alvo esta e so dispara
+       de novo depois de sair dele. */
+    if(perto && (m.aceso > 0.6 || m.apertando)){
+      if(m.ultimoAlvo !== perto.id){ perto.fazer(m); m.ultimoAlvo = perto.id; }
+    } else if(!perto) m.ultimoAlvo = null;
   }
 }
 let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0;
@@ -7550,7 +7680,118 @@ if(TEM_SOM) trilha.volume = volume;
    Agora a marca e posta ANTES de pedir. Se o pedido falhar, ela e desfeita
    e o proximo gesto tenta de novo. */
 let pedindoSom = false;
+/* ═══════════ O SOM DOS GESTOS ═══════════
+
+   SINTETIZADO, e nao gravado -- de proposito, e por tres motivos. Um: nao
+   ha licenca a resolver, e esta obra ja carrega dezenove modelos de origem
+   desconhecida. Dois: nao ha byte a mais no arquivo de onze megabytes, e
+   o estande carrega uma vez. Tres: e o que a obra E -- tudo aqui, da pedra
+   ao ceu, e feito na hora; um sino gravado seria a unica coisa colada.
+
+   Se um dia se quiser som gravado, o lugar e este: cada funcao abaixo
+   viraria um createBufferSource com o arquivo, e o resto nao muda.
+
+   TUDO PASSA POR UM GANHO MESTRE BAIXO. A nota pede "muito sutil", e sutil
+   e um numero: o mestre esta em 0,35 e cada som nasce ja fraco. A trilha
+   toca a 0,16 e os gestos tem de ficar ABAIXO dela, senao viram efeito de
+   jogo.
+
+   E O CONTEXTO NASCE NO MESMO GESTO QUE ACORDA A TRILHA: o navegador so
+   deixa som existir depois de um toque humano, e o "Iniciar" ja e um. */
+let audio = null, somMestre = null, ruidoCurto = null;
+function acordarGestos(){
+  if(audio){ if(audio.state === 'suspended') audio.resume().catch(function(){}); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  try{ audio = new AC(); }catch(e){ audio = null; return; }
+  somMestre = audio.createGain();
+  somMestre.gain.value = 0.35;
+  somMestre.connect(audio.destination);
+}
+function podeSoar(){ return audio && somLigado && audio.state === 'running'; }
+
+/* O SINO DO TOQUE. Tres parciais em seno -- a fundamental, a oitava e a
+   duodecima --, ataque de doze milissegundos e cauda de quase dois
+   segundos. E o espectro de um sino de vidro, sem o ataque metalico: o que
+   se quer e que a coisa tocada RESPONDA, e nao que faca barulho.
+
+   A NOTA VEM DE QUEM FOI TOCADO, numa escala pentatonica: cinco notas que
+   nunca brigam entre si, entao dois toques seguidos em coisas diferentes
+   sempre soam como acorde e nunca como erro. */
+const NOTAS = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+function sinoDoToque(nota, forca){
+  if(!podeSoar()) return;
+  const t0 = audio.currentTime, freq = NOTAS[nota % NOTAS.length];
+  for(const [mult, peso, dur] of [[1.0, 1.0, 1.9], [2.0, 0.32, 1.2], [3.0, 0.10, 0.7]]){
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o.frequency.value = freq * mult;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * peso * 0.085), t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(somMestre);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+}
+
+/* O SOPRO DA ASA. Um sopro de ruido de sessenta milissegundos, filtrado
+   numa faixa entre 1,8 e 2,7 kHz -- e o som de asa de verdade: nao ha tom,
+   ha ar sendo empurrado. Um por batida, e so quando ela esta a menos de
+   cinco metros, caindo com o quadrado da distancia: de longe asa nao se
+   ouve, e e por isso que ouvi-la de perto e intimo. */
+function soproDaAsa(dist){
+  if(!podeSoar() || dist > 5.0) return;
+  if(!ruidoCurto){
+    const n = Math.floor(audio.sampleRate * 0.12);
+    ruidoCurto = audio.createBuffer(1, n, audio.sampleRate);
+    const d = ruidoCurto.getChannelData(0);
+    for(let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const t0 = audio.currentTime;
+  const f = audio.createBufferSource(); f.buffer = ruidoCurto;
+  const filtro = audio.createBiquadFilter();
+  filtro.type = 'bandpass'; filtro.frequency.value = 1800 + Math.random() * 900; filtro.Q.value = 1.3;
+  const g = audio.createGain();
+  const forca = 0.028 / (1.0 + dist * dist * 0.6);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca), t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+  f.connect(filtro); filtro.connect(g); g.connect(somMestre);
+  f.start(t0); f.stop(t0 + 0.09);
+}
+
+/* O SOM ESTRANHO DA BORBOLETA. Um triangulo subindo uma oitava e meia em
+   pouco mais de um segundo, com um vibrato largo e lento por cima -- lento
+   demais para ser musica, largo demais para ser afinado: e o que o faz
+   estranho. E um chuvisco de sete parciais agudas, uma atras da outra,
+   que e o glitter em som. */
+function somEstranho(){
+  if(!podeSoar()) return;
+  const t0 = audio.currentTime;
+  const o = audio.createOscillator(), v = audio.createOscillator(),
+        vg = audio.createGain(), g = audio.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(220, t0);
+  o.frequency.exponentialRampToValueAtTime(660, t0 + 1.1);
+  v.type = 'sine'; v.frequency.value = 6.5; vg.gain.value = 38;
+  v.connect(vg); vg.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
+  o.connect(g); g.connect(somMestre);
+  o.start(t0); v.start(t0); o.stop(t0 + 1.5); v.stop(t0 + 1.5);
+  for(let i = 0; i < 7; i++){
+    const pp = audio.createOscillator(), pg = audio.createGain();
+    pp.type = 'sine'; pp.frequency.value = 2400 + Math.random() * 3200;
+    const ti = t0 + 0.08 + i * 0.09;
+    pg.gain.setValueAtTime(0.0001, ti);
+    pg.gain.exponentialRampToValueAtTime(0.018, ti + 0.01);
+    pg.gain.exponentialRampToValueAtTime(0.0001, ti + 0.35);
+    pp.connect(pg); pg.connect(somMestre); pp.start(ti); pp.stop(ti + 0.4);
+  }
+}
+
 function acordarSom(){
+  acordarGestos();
   if(!TEM_SOM || tocando || pedindoSom || !somLigado) return;
   pedindoSom = true;
   trilha.play().then(function(){
@@ -7695,6 +7936,13 @@ if(emTesteLocal){
 
 if(emTesteLocal){
   window.raizes = {
+    /* UMA MAO DE MENTIRA, para a bancada: poe a mao 0 num ponto (ou tira,
+       sem argumento). E so daqui que se testa toque sem headset. */
+    mao(x, y, z){
+      const m = MAOS[0];
+      if(x === undefined){ m.tem = false; return 'sem mao'; }
+      m.tem = true; m.x = +x; m.y = +y; m.z = +z; return [m.x, m.y, m.z];
+    },
     ir(segundos){
       /* SAIR DA ESPERA, se a obra ja acabou uma vez.
 
@@ -8181,7 +8429,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                balanca:uSo('balanca'), olhoPos:uSo('olhoPos'),
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
-               luzCasulo:uSo('luzCasulo'),
+               luzCasulo:uSo('luzCasulo'), toque:uSo('toque'),
                proximidade:uSo('proximidade'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
@@ -8359,6 +8607,7 @@ const bBb = criarBufs(['pos','nor','lado','uv','idx']);
    conta de luz nao precisa de forma nenhuma; precisa de silhueta redonda.
    Um fuso de oito lados custa sessenta e quatro. */
 let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
+let ultimaBatida = -1;
 (function(){
   const pos = [], nor = [], lado = [], uv = [], idx = [];
   const juntar = (nome, quemE) => {
@@ -8531,7 +8780,7 @@ function assarTinta(){
 
 const uPo = n=>gl.getUniformLocation(progPo,n);
 const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'), sentido:uPo('sentido'),
-               escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro')};
+               escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro'), fixo:uPo('fixo')};
 const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
             cor:gl.getAttribLocation(progPo,'aCor'),
             dado:gl.getAttribLocation(progPo,'aDado')};
@@ -8722,6 +8971,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        todos os desenhos solidos: quem recebe o rebatimento e o resto da
        floresta, e nao ela. */
     gl.uniform4f(locSo.luzCasulo, CASULO[0], CRIS_MEIO, CASULO[2], casuloPresenca);
+    toqueLuz[3] = Math.min(1.0, (relogio - toqueEm) / 1.4);
+    gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
        que o olho pega na hora. */
@@ -9915,6 +10166,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          shader, porque cada ponto da asa precisa consulta-la na sua propria
          hora, e daqui so daria para mandar uma resposta para a asa toda. */
       const faseAsa = relogio * 6.2;
+      /* A BATIDA SOA. Uma vez por golpe, no comeco do golpe para baixo, que
+         e quando a asa empurra o ar. A fase anda 6,2 rad/s: uma batida por
+         segundo, e o numero inteiro dela e o contador. */
+      const batidaAgora = Math.floor(faseAsa / 6.2831853);
+      if(batidaAgora !== ultimaBatida){
+        ultimaBatida = batidaAgora;
+        const ddx = aqui[0]-olhoPos[0], ddy = aqui[1]-olhoPos[1], ddz = aqui[2]-olhoPos[2];
+        soproDaAsa(Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz));
+      }
+      borboletaAgora[0] = aqui[0]; borboletaAgora[1] = aqui[1]; borboletaAgora[2] = aqui[2];
+      borboletaPresenteAgora = pb;
 
       gl.enable(gl.BLEND);
       sobrepor();
@@ -10220,6 +10482,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locPo.escalaPonto, escalaPonto);
     gl.uniform1f(locPo.sopro, sopro);
     gl.uniform1f(locPo.sentido, sentidoPoeira);
+    gl.uniform1f(locPo.fixo, 0.0);
     ligar(aP.pos,bP.pos,3); ligar(aP.cor,bP.cor,3); ligar(aP.dado,bP.dado,2);
     gl.drawArrays(gl.POINTS, 0, Math.min(nPo, quantosPo));
     gl.depthMask(true);
@@ -10247,8 +10510,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locPo.escalaPonto, escalaPonto);
     gl.uniform1f(locPo.sopro, 0.34);
     gl.uniform1f(locPo.sentido, 1);
+    gl.uniform1f(locPo.fixo, 0.0);
     ligar(aP.pos,bEsp.pos,3); ligar(aP.cor,bEsp.cor,3); ligar(aP.dado,bEsp.dado,2);
     gl.drawArrays(gl.POINTS, 0, nEsp);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  // O GLITTER, quando alguem tocou a borboleta ha menos de dois segundos.
+  if(glitter.vivo){
+    gl.enable(gl.BLEND);
+    somarLuz();
+    gl.depthMask(false);
+    gl.useProgram(progPo);
+    soltarAtributos();
+    mandarMvp(locPo.mvp, mvp);
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto);
+    gl.uniform1f(locPo.sopro, 0.0);
+    gl.uniform1f(locPo.sentido, 1);
+    gl.uniform1f(locPo.fixo, 1.0);
+    ligar(aP.pos,bGli.pos,3); ligar(aP.cor,bGli.cor,3); ligar(aP.dado,bGli.dado,2);
+    gl.drawArrays(gl.POINTS, 0, GLITTER_N);
+    gl.uniform1f(locPo.fixo, 0.0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
@@ -10273,6 +10557,8 @@ function quadro(){
   seguirPartitura(dt);
   pintarPartitura();
   contarQuadro();
+  andarGlitter(dt);
+  conferirToque(dt);   // na tela so ha mao se a bancada puser uma
   if(neblinaOn) assarTinta();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
@@ -10335,6 +10621,7 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  andarGlitter(dt);
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
      capacete nao ha como olhar variavel nenhuma, e sem isto a diferenca

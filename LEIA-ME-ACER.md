@@ -320,6 +320,42 @@ figuras recortadas) · `progBolha` (buracos negros e seres do mar) ·
 > deixou de ser nuvem e virou superfície; `progBorbo` quando a borboleta
 > deixou de ser recorte plano.
 
+### O toque e o som (11/09)
+
+As duas mãos rastreadas (`MAOS`, lidas em `lerMaos`) são conferidas a cada
+quadro contra a lista de `alvosAgora()`. **Uma vez por encostar**: a mão
+lembra em que alvo está (`ultimoAlvo`) e só dispara de novo depois de sair
+dele — antes o `fazer()` rodava setenta e duas vezes por segundo.
+
+O que responde, e como:
+
+| alvo | luz | som |
+|---|---|---|
+| a árvore-mãe (tronco e sapopemas) | um anel ciano que parte de onde a mão encostou e atravessa o que estiver no caminho, a 3,2 m/s, sumindo em 1,4 s (`pulsarEm` → uniforme `toque`) | sino grave |
+| os treze cogumelos | o mesmo anel; **neles a onda multiplica**, porque somar ciano em coisa que já é luz não se vê | sino, uma nota por cogumelo |
+| a borboleta, na volta que ela dá | **glitter**: 48 grãos saem dela e caem por 2,2 s (`soltarGlitter`, andam na CPU, usam `progPo` com `fixo = 1`) | o som estranho: triângulo subindo uma oitava e meia com vibrato largo, mais sete pings agudos |
+| o casulo, a concha, o rizomar | o anel | sino |
+| o planeta rosa | o anel | sino |
+
+E **a asa soa**: um sopro de ruído filtrado por batida, só a menos de cinco
+metros, caindo com o quadrado da distância.
+
+**Todo som é sintetizado** (Web Audio, `acordarGestos`), por três motivos:
+não há licença a resolver, não há byte a mais nos onze megabytes, e é o que
+a obra é — tudo aqui é feito na hora. Ganho mestre **0,35**, e cada som
+nasce abaixo da trilha (0,16). O contexto nasce no mesmo gesto humano que
+acorda a trilha (`acordarSom`): sem gesto o navegador não deixa som existir.
+Se um dia se quiser som gravado, cada função vira um `createBufferSource`
+com o arquivo e o resto não muda.
+
+**A floresta está fora do alcance** — as onze árvores moram no anel de 2,9
+a 5,0 m, por decisão anterior da direção de arte, e um braço a partir da
+beira da área caminhável chega a uns 2,2. Por isso a lista é o que está
+perto, e não "as árvores".
+
+Na bancada, sem headset: `raizes.mao(x, y, z)` põe a mão 0 num ponto;
+`raizes.mao()` tira.
+
 ---
 
 ## 9. As armadilhas deste projeto
@@ -451,8 +487,9 @@ técnica.
 
 ### Decidido, mas não construído
 
-- **As interações.** Tocar o casulo, pegar um planeta, tocar a mão gigante.
-  Dependem do teste acima.
+- **As interações que faltam.** Pegar um planeta, tocar a mão gigante.
+  Tocar o casulo, a mãe, os cogumelos e a borboleta já respondem (seção 8,
+  "O toque e o som") — **nada disso foi visto dentro do Quest ainda**.
 - **Um sinal de que uma coisa pode ser tocada.** Uma respiração, um brilho.
 - **As borboletas circundando**, depois de tocar o casulo.
 - **As deusas em vídeo**, em bumerangue. **Um por cenário, nunca dois ao
