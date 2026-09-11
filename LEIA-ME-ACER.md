@@ -301,9 +301,10 @@ existe onde há pintura no céu — no cenário dos planetas ele some.
 **As figuras recortadas** (`FIGURAS`, `FS_FIGU`): desde 11/09 o shader não
 corta mais nada além da beirada — havia um corte em 0,17 no alfa, um pé
 dissolvido e uma moldura circular que tiravam da deusa vermelha 44% do
-arquivo. A galáctica é a pintura inteira, **80 × 45 m a 45 m de distância**
-(83° × 53°), atrás de tudo, no azimute −60° para o Sol não pousar na frente
-do rosto dela; a beirada rasga com ruído (6–22% nos lados, 5–14% em cima,
+arquivo. A galáctica é a pintura inteira, **120 × 67,5 m a 45 m de
+distância** (106° × 74°): é o céu do lado direito de quem entra, do azimute
+−17° ao +89°, do horizonte a 55° de altura — "parte do céu", pedido de
+11/09. O Sol pousa a −38°, fora dela; a beirada rasga com ruído (6–22% nos lados, 5–14% em cima,
 10–26% embaixo) em vez de terminar em reta, e só o preto de verdade da
 pintura (luminância < 0,06) vira janela para as estrelas. As outras duas ainda são os recortes por luminância de
 `figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
