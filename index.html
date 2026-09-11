@@ -5387,9 +5387,11 @@ void main(){
   vec3 t = texture2D(pele, vUV).rgb;
   /* O SOL NAO TEM NOITE NA PELE. A pintura dele tem redemoinhos escuros,
      e num corpo que e a fonte de luz um redemoinho escuro le como mancha
-     apagada -- vira planeta. A pele dele sobe: o mais escuro fica na
-     metade, o desenho continua e nada apaga. So no Sol (iris). */
-  if(iris > 0.5) t = 0.5 + 0.5 * t;
+     apagada -- vira planeta. A pele dele sobe: o mais escuro fica em
+     72%, sobra so o fio do desenho -- a metade ainda mostrava o
+     redemoinho inteiro com o polo dele, e lia como bola de gude. So no
+     Sol (iris). */
+  if(iris > 0.5) t = 0.72 + 0.28 * t;
 
   /* A LUZ VEM DO SOL DA OBRA -- e a sombra era estranha por isso mesmo.
 
@@ -6728,11 +6730,19 @@ function ondeAsteroide(a, t){
    o ceu. O pe a oito graus acima do horizonte, que e onde a cupula ainda e
    noite e nao a sala de quem visita; o alto a quarenta e nove.
 
-   MAIS PARA A ESQUERDA do que antes (azimute -60, e nao -31): o Sol pousa a
-   -38 e ficava exatamente na frente do rosto dela -- medido na bancada aos
-   4:22. Continua no lado infinito, que e o lado da arvore. */
+   PARA A DIREITA DO SOL, e nao atras dele -- 11/09, "a deusa e o sol estao
+   conflitando". Com oitenta metros de largura ela ocupa oitenta e tres
+   graus, e no azimute -60 o Sol (que pousa a -38) caia DENTRO dela: um
+   disco dourado colado na nebulosa, a corona brigando com a tinta, e a
+   estrela chegando atravessando o corpo dela. No azimute +28 ela vai de
+   -13 a +69: o Sol a esquerda, ela a direita, os dois na frente de quem
+   entra, e vinte e cinco graus de noite entre a beira dela e a corona. */
 const FIGURAS = [
-  { nome:'galactico', tex:0, centro:[-39.0, 30.4, -22.5], tam:[40.0, 22.5],
+  /* E BAIXA, NO HORIZONTE -- "mais pro ceu horizonte do que perto dos
+     astros": o centro a vinte graus de altura, o pe abaixo da linha do
+     horizonte (o esmaecido de baixo o come antes de encostar no chao
+     real), o alto a quarenta e dois. Os astros moram acima e a esquerda. */
+  { nome:'galactico', tex:0, centro:[21.1, 17.5, -39.7], tam:[40.0, 22.5],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true },
   { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
     de:420, ate:508, balanco:0.9, espelha:true },
@@ -9731,12 +9741,13 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          que o acendem. Medido: sem estouro no disco. */
       /* MEDIDO PARA NAO ESTOURAR. O Sol e a fonte: a face que se ve esta
          sempre "de dia" (a luz dele vem de quem olha, abaixo), entao o
-         sombreado e 1 e o ponto mais claro da pele da 0,80 + 0,16 = 0,96
-         no vermelho -- o teto. DOURADO, e nao laranja nem branco: verde
+         sombreado e 1 e o ponto mais claro da pele da 0,76 + 0,16 = 0,92
+         no vermelho -- o teto; medido com 0,80, sete por cento do disco
+         encostava em 250, com 0,76 fica em torno de dois. DOURADO, e nao laranja nem branco: verde
          0,82, azul 0,46 no mais claro; o redemoinho mais escuro da pele
          fica em (143,125,79). A luz de cima que ele tinha antes escurecia
          a propria face dele para 42%: um sol com sombra. */
-      const quente = [0.80, 0.66, 0.30], fria = [0.60, 0.78, 1.00];
+      const quente = [0.76, 0.63, 0.29], fria = [0.60, 0.78, 1.00];
       const respiro = 0.04 * Math.sin(relogio * 0.19);
       gl.uniform3f(locAst.cor,
         fria[0] + (quente[0] - fria[0]) * kSol + respiro,
