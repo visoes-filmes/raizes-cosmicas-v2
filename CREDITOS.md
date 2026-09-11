@@ -22,6 +22,22 @@ https://sketchfab.com/3d-models/animated-butterfly-d4fbcbaab845402999f30c5aa7585
 Quaternius, via poly.pizza. **CC0** — domínio público, sem exigência de
 crédito. Escolhido entre cinco por ser o único numa peça só.
 
+**Os três do oceano** (11/09) — no fundo do mar do cenário 3, como malha.
+Baixados do Sketchfab pela conta da Visões Filmes, os três sob a licença
+**Sketchfab Free Standard** (uso na obra liberado, inclusive comercial; o
+arquivo em si não pode ser redistribuído):
+- `planta_fantasia.glb` — "Fantasy Plant", de **3Dahlgren**.
+  https://sketchfab.com/3d-models/fantasy-plant-526b5cb6c6c24afab7f473cfd1087daa
+- `planta_alienigena.glb` — "A bizarre alien plant", de **ScyBTC**,
+  marcado pelo autor como gerado com IA (Meshy).
+  https://sketchfab.com/3d-models/a-bizarre-alien-plant-c849c264d03b4e7c9c35fbd49baa8f9e
+- `cogumelos_colecao.glb` — "Mushrooms Collection", de **Duffator**, com
+  a marca NoAI (não pode alimentar modelos generativos).
+  https://sketchfab.com/3d-models/mushrooms-collection-fecfa695681c40f5ae33d7f9fb6f3ccd
+
+**O ser do céu** — `ser_alienigena_androgino_rigged.glb`, modelo próprio
+da Visões Filmes (feito em casa, sem licença a resolver).
+
 ## Pendentes
 
 Nenhuma destas impede a obra de rodar. Todas impedem a obra de ser exposta

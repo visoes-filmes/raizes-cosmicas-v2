@@ -101,7 +101,15 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
               # pontos espalhada por vinte metros deixa de ler como corpo.
               # A VERSAO E A ANDROGINA (11/09): "troque o alienigena por
               # esse", com o arquivo pelo nome.
-              "ser_alienigena_androgino_rigged": "alien"}
+              "ser_alienigena_androgino_rigged": "alien",
+              # OS TRES DO OCEANO, pedidos em 11/09 pelo endereco do
+              # Sketchfab (licenca Free Standard): uma planta de fantasia
+              # (3Dahlgren), uma planta alienigena (ScyBTC, gerada por IA) e
+              # tres cogumelos (Duffator). Vao para o fundo do mar do
+              # cenario 3, como malha, com a materia dos seres.
+              "planta_fantasia": "planta-fantasia",
+              "planta_alienigena": "planta-alien",
+              "cogumelos_colecao": "cogumelos-mar"}
 
 # QUEM SAI MONTADO, e nao peca por peca.
 #
@@ -128,7 +136,8 @@ COMO_MALHA = {"rocks-icon": "pedra", "cogumelo": "cogumelo",
 # vermes empilhados. Ja aconteceu duas vezes neste arquivo, e a segunda foi
 # hoje -- o coral saiu daqui por um minuto e voltou como um seixo.
 MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos",
-           "alga-a", "alga-b", "alga-c", "estrela-mar", "concha"}
+           "alga-a", "alga-b", "alga-c", "estrela-mar", "concha",
+           "planta-fantasia", "planta-alien", "cogumelos-mar"}
 #
 # A ESTRELA-DO-MAR ENTRA AQUI POR UM MOTIVO DIFERENTE dos outros: ela e uma
 # peca SO, entao nao ha o que montar. O que ela precisa e da ESCALA, que no
@@ -185,6 +194,7 @@ MONTADO = {"borboleta", "agua-viva", "coral", "conchas", "frutos",
 # vinte mil e trezentos em todos os graus, medido.
 SUAVE = {"pedra": 0.62, "cogumelo": 0.28, "crisalida": 0.42, "borboleta": 0.0,
          "alien": 0.45,
+         "planta-fantasia": 0.40, "planta-alien": 0.45, "cogumelos-mar": 0.45,
          "agua-viva": 0.50, "coral": 0.50, "estrela-mar": 0.0,
          "mao-cosmica": 0.0, "arvore-icone": 0.30,
          "conchas": 0.30, "frutos": 0.35,
@@ -206,6 +216,7 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
             "agua-viva": 0, "coral": 0, "estrela-mar": 0,
             "mao-cosmica": 0, "arvore-icone": 0,
             "conchas": 0, "frutos": 0, "alien": 0,
+            "planta-fantasia": 0, "planta-alien": 0, "cogumelos-mar": 0,
             "alga-a": 0, "alga-b": 0, "alga-c": 0, "concha": 1}
 
 # POLIMENTO: passadas de media SEM dividir de novo. Dividir custa
@@ -217,7 +228,8 @@ DIVISOES = {"pedra": 1, "cogumelo": 2, "crisalida": 0, "borboleta": 0,
 # e a quina que sobra depois de dividir sai de graca aqui.
 POLIR = {"cogumelo": 3, "crisalida": 3, "agua-viva": 4, "coral": 4, "estrela-mar": 0,
          "mao-cosmica": 0, "arvore-icone": 2, "conchas": 2, "frutos": 2,
-         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3, "alien": 4}
+         "alga-a": 3, "alga-b": 3, "alga-c": 3, "concha": 3, "alien": 4,
+         "planta-fantasia": 2, "planta-alien": 3, "cogumelos-mar": 3}
 
 # QUEM TAMBEM SAI EM VERSAO CRUA, sem dividir nem polir.
 #
@@ -249,7 +261,10 @@ PECAS_POR = {"coral": 60, "frutos": 48, "conchas": 8,
              # menos folhas e so uma alga mais rala, e continua alga. Com
              # todas as pecas ela custava dez mil triangulos, e o fundo do
              # mar tem dezenove: nao caberia.
-             "alga-a": 22, "alga-b": 8, "alga-c": 16}
+             "alga-a": 22, "alga-b": 8, "alga-c": 16,
+             # a planta de fantasia e folha por folha, como a alga: trinta
+             # folhas e uma planta mais rala, e continua planta
+             "planta-fantasia": 18, "planta-alien": 4, "cogumelos-mar": 8}
 
 # O PEDESTAL FICA DE FORA, TAMBEM NA MALHA.
 #
@@ -337,7 +352,15 @@ GRADES = {"crisalida": 70, "borboleta": 200, "agua-viva": 30, "coral": 30, "estr
           "conchas": 60, "frutos": 40,
           "alga-a": 26, "alga-b": 34, "alga-c": 30, "concha": 70,
           # 60 guarda as placas e corta pela metade; ele vai ser um so
-          "alien": 60}
+          "alien": 60,
+          # OS DO OCEANO, medidos: a planta de fantasia sao 137 folhas de
+          # 1 610 triangulos; os cogumelos, 108 mil; a planta alienigena,
+          # dez mil numa peca. Grades curtas: sao objetos de fundo, a um
+          # metro do chao e a mais de um metro de quem olha.
+          # Medido na primeira rodada: com 20/30/34 saiam 24 mil, 6 mil e 30
+          # mil triangulos -- sessenta mil para tres objetos de fundo. Com
+          # 10/18/16 ficam em torno de quatro, dois e sete mil.
+          "planta-fantasia": 10, "planta-alien": 18, "cogumelos-mar": 16}
 
 TIPOS = {5120: ("b", 1), 5121: ("B", 1), 5122: ("h", 2),
          5123: ("H", 2), 5125: ("I", 4), 5126: ("f", 4)}
