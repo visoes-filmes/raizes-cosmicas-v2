@@ -1884,11 +1884,19 @@ function folhaDeCapim(m, base, altura, larg, dir, curva, fase){
    engrossando, e o corpo -- sen(k^0,55 . pi), que fecha nas duas pontas e poe
    a maior largura em 22%, onde uma pupa a tem. Os aneis do abdome entram
    como ondulacao no terco de baixo, e o corpo e achatado de lado. */
-/* O TAMANHO DELA. Uma pupa de 88 de verdade tem dois centimetros; esta tem
-   vinte e tres, e e de proposito -- ela esta a um metro do chao para uma
-   crianca alcancar, e a essa distancia dois centimetros nao sao um bicho,
-   sao um detalhe que passa batido. */
-const CRIS_ALTURA = 0.233;
+/* O TAMANHO DELA. Uma pupa de verdade tem dois centimetros; esta tem
+   TRINTA E OITO, e e de proposito.
+
+   Ela ja tinha vinte e tres pelo mesmo argumento -- a dois metros, dois
+   centimetros nao sao um bicho, sao um detalhe que passa batido. Mas a
+   pupa saiu do lado da arvore e foi para a frente dela, a 1,22 m de quem
+   entra, e virou o objeto que a obra pede para olhar: vinte e tres
+   centimetros a essa distancia ainda leem como fruto, e nao como corpo.
+
+   Trinta e oito e o tamanho de um antebraco. O corpo dela pendura entre
+   1,21 e 1,59 m -- altura de peito a queixo --, que e onde a mao vai sem
+   pensar. */
+const CRIS_ALTURA = 0.38;
 // o meio do corpo dela: e daqui que se mede a mao chegando
 // escrito a partir do FIO_ALTO: o 1,00 aqui era a altura do CASULO copiada
 const CRIS_MEIO = FIO_ALTO - CRIS_ALTURA * 0.5;
@@ -4552,8 +4560,10 @@ attribute float aLado;          // 0 corpo ou conta de rastro, -1/+1 asa
 uniform mat4 mvp;
 uniform vec3 centro, frente;
 uniform float fase, tamanho, inclina;
+uniform float inflar;           // metros pela normal: as cascas de luz
 varying vec2 vUV;
 varying vec3 vNor;
+varying vec3 vMundo;
 varying float vCorpo;
 
 /* A CURVA DA BATIDA.
@@ -4620,6 +4630,11 @@ void main(){
                   + cima2 * (q.y * tamanho)
                   + f     * (q.z * tamanho);
   vNor = normalize(lado2*n.x + cima2*n.y + f*n.z);
+  /* INFLADA PELA NORMAL, ja batendo. A casca de luz e a propria asa
+     empurrada para fora -- depois do giro, senao a luz ficaria parada
+     enquanto a asa bate por dentro dela. */
+  p += vNor * inflar;
+  vMundo = p;
 
   /* A TINTA VEM DA AQUARELA, e a do modelo fica de fora.
 
@@ -4637,12 +4652,38 @@ const FS_BORBO = `
 precision highp float;
 uniform sampler2D asa;
 uniform float presenca;
-uniform float brilho;        // 1 = conta de rastro, e nao a borboleta
+uniform float brilho;        // 1 = luz (conta de rastro ou casca), 0 = ela
 uniform vec3 corBrilho;
+uniform vec3 olhoPos;
 varying vec2 vUV;
 varying vec3 vNor;
+varying vec3 vMundo;
 varying float vCorpo;
 void main(){
+  /* A LUZ, SEM GEOMETRIA.
+
+     O pedido foi "mais iluminada, sem ficar geometrica e mais suave", e as
+     tres coisas sao a mesma: o que faz um objeto aceso parecer GEOMETRICO
+     e a luz mudar de faceta para faceta -- cada triangulo com o seu tom. A
+     saida nao e sombrear menos, e nao sombrear NADA e deixar a luz vir de
+     outro lugar: de cascas em volta, somando, que acendem onde estao de
+     frente e SOMEM na silhueta.
+
+     Esse sumir e o que da a macieza. A conta e a mesma dos cogumelos e da
+     crisalida -- um menos o raspao, elevado --, e o expoente e o que decide
+     o quao cedo a borda se desfaz. Sem ele o rastro era um disco chapado
+     de luz, que era o outro defeito, ainda nao apontado. */
+  if(brilho > 0.5){
+    vec3 v = normalize(olhoPos - vMundo);
+    float raspao = 1.0 - abs(dot(normalize(vNor), v));
+    /* 3,4 E NAO 2,4. Com 2,4 o halo do corpo ainda mostrava a beirada da
+       casca -- e o corpo da borboleta e uma malha grossa, entao a beirada
+       era um octogono. Elevar mais faz a luz morrer antes de chegar la:
+       o que se ve e o miolo aceso, e a borda nunca aparece. */
+    float macio = pow(1.0 - raspao, 3.4);
+    gl_FragColor = vec4(corBrilho * macio, presenca * macio);
+    return;
+  }
   /* O ALFA DA PINTURA NAO ENTRA MAIS.
 
      Ele existia para recortar a borboleta de dentro de um retangulo, quando
@@ -4674,8 +4715,11 @@ void main(){
      O corpo fica de fora: ele nao tem lado de cima e de baixo diferentes. */
   if(gl_FrontFacing && vCorpo < 0.5){
     float luzTinta = dot(cor, vec3(0.299, 0.587, 0.114));
-    cor = mix(vec3(0.055, 0.075, 0.230),      // o azul escuro do dorso
-              vec3(0.240, 0.430, 0.880),      // a faixa que o atravessa
+    /* MENOS AFUNDADO. O dorso da 88 e escuro de verdade, mas 0,055 de
+       vermelho num cenario que vive no escuro e preto: a asa de cima sumia
+       contra o ceu. Sobe um degrau e continua sendo o azul-noite do bicho. */
+    cor = mix(vec3(0.100, 0.130, 0.360),      // o azul escuro do dorso
+              vec3(0.340, 0.560, 1.000),      // a faixa que o atravessa
               smoothstep(0.32, 0.78, luzTinta));
   }
 
@@ -4687,11 +4731,14 @@ void main(){
      O corpo se sombreia MAIS, porque e opaco. E a diferenca entre os dois
      -- um cedendo a luz, o outro barrando -- que faz o olho ler duas
      materias em vez de um recorte so. */
+  /* E ELA MESMA QUASE NAO SE SOMBREIA. O piso subiu de 0,62 para 0,84 na
+     asa e de 0,34 para 0,56 no corpo: a diferenca entre a faceta virada
+     para a luz e a virada para longe dela caiu pela metade, e essa
+     diferenca ERA a geometria que se via. O que sobra e so o bastante para
+     a asa continuar tendo dois lados. */
   float lz = abs(dot(normalize(vNor), normalize(vec3(0.3, 0.9, 0.35))));
-  cor *= mix(0.62 + 0.38 * lz, 0.34 + 0.66 * lz, vCorpo);
-  cor *= mix(1.0, 0.74, vCorpo);
-
-  cor = mix(cor, corBrilho, brilho);
+  cor *= mix(0.84 + 0.16 * lz, 0.56 + 0.44 * lz, vCorpo);
+  cor *= mix(1.0, 0.80, vCorpo);
   gl_FragColor = vec4(cor, presenca);
 }`;
 
@@ -6892,7 +6939,8 @@ let tocouCasulo = 0, tocouConcha = 0;
 function alvosAgora(){
   const lista = [];
   if(casuloPresenca > 0.3)
-    lista.push({ x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.28,
+    // o alvo acompanha o corpo: 0,28 era generoso para a pupa de 23 cm
+    lista.push({ x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.34,
                  /* O QUE O TOQUE FAZ: adianta a partitura ate a borboleta.
                     Nao inventa um efeito paralelo -- faz acontecer AGORA o
                     que aconteceria as 2:50 de qualquer jeito. Quem toca
@@ -8141,7 +8189,8 @@ const uBb = n=>gl.getUniformLocation(progBorbo,n);
 const locBb = {mvp:uBb('mvp'), centro:uBb('centro'), frente:uBb('frente'),
                fase:uBb('fase'), tamanho:uBb('tamanho'), inclina:uBb('inclina'),
                asa:uBb('asa'), presenca:uBb('presenca'),
-               brilho:uBb('brilho'), corBrilho:uBb('corBrilho')};
+               brilho:uBb('brilho'), corBrilho:uBb('corBrilho'),
+               inflar:uBb('inflar'), olhoPos:uBb('olhoPos')};
 const aBb = {pos: gl.getAttribLocation(progBorbo,'aPos'),
              nor: gl.getAttribLocation(progBorbo,'aNor'),
              lado: gl.getAttribLocation(progBorbo,'aLado')};
@@ -8853,7 +8902,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          uma coisa parece forte quando ACENDE O QUE ESTA PERTO, e nao quando
          estoura em branco no meio. Entao a casca de dentro cai de 0,62 para
          0,40 e as tres ficam um pouco maiores: espalha, e nao queima. */
-      for(const [grossura, forca] of [[0.034, 0.26], [0.095, 0.17], [0.205, 0.09]]){
+      /* AS CASCAS CRESCEM COM ELA. A inflacao e em METROS, e nao em
+         fracao do corpo: com a pupa passando de 23 para 38 cm, as mesmas
+         medidas dariam um halo proporcionalmente mais estreito, e o halo e
+         justamente o que a faz ser notada de longe. Um e quatro decimos,
+         que e o quanto ela cresceu descontando o que a distancia perdoa. */
+      for(const [grossura, forca] of [[0.048, 0.26], [0.133, 0.17], [0.287, 0.09]]){
         gl.uniform1f(locSo.inflar, grossura);
         gl.uniform1f(locSo.presenca, forca * casuloPresenca);
         gl.drawElements(gl.TRIANGLES, nCrisalidaIdx, gl.UNSIGNED_SHORT, 0);
@@ -9706,6 +9760,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, FIGS[3]);
       gl.uniform1i(locBb.asa, 7);
       gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
+      gl.uniform3f(locBb.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      gl.uniform1f(locBb.inflar, 0.0);
 
       /* ELA ABRE AS ASAS ao sair, e nao aparece do tamanho final.
 
@@ -9781,7 +9837,29 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.drawElements(gl.TRIANGLES, nConta, gl.UNSIGNED_SHORT, contaDe * 2);
       }
 
-      // e ela, por cima do proprio rastro
+      /* AS CASCAS DE LUZ DELA, antes dela e somando.
+
+         Tres, cada uma mais larga e mais fraca, infladas pela normal da
+         propria asa -- batendo junto. E a mesma receita dos cogumelos e da
+         crisalida, e e ela que responde ao pedido: a borboleta fica mais
+         iluminada sem que nenhuma faceta apareca, porque a luz nao esta NA
+         superficie, esta em volta dela e se desfaz na borda.
+
+         A cor e a da crisalida de onde ela saiu, puxada para o claro: ela
+         carrega a luz em que nasceu. */
+      gl.uniform1f(locBb.brilho, 1.0);
+      gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
+      gl.uniform1f(locBb.tamanho, tam);
+      gl.uniform3f(locBb.corBrilho, 1.00, 0.70, 0.84);
+      for(const [grossura, forca] of [[0.010, 0.55], [0.026, 0.30], [0.055, 0.14]]){
+        gl.uniform1f(locBb.inflar, grossura * (tam / 0.34));
+        gl.uniform1f(locBb.presenca, pb * forca);
+        gl.drawElements(gl.TRIANGLES, nAsas + nCorpo, gl.UNSIGNED_SHORT,
+                        asasDe * 2);
+      }
+      gl.uniform1f(locBb.inflar, 0.0);
+
+      // e ela, por cima do proprio rastro e da propria luz
       sobrepor();
       gl.uniform1f(locBb.brilho, 0.0);
       gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
