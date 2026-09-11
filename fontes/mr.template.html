@@ -4897,7 +4897,16 @@ void main(){
     float beira = smoothstep(0.0, 0.06 + 0.16 * n, d.x) * smoothstep(0.0, limY, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     float a = beira * smoothstep(0.012, 0.06, lum) * presenca;
-    gl_FragColor = vec4(c.rgb * 0.92, a);
+    /* AS CORES DELA, E NAO UM DEGRAU ABAIXO -- 11/09, "equilibrar as cores
+       para ficar mais parecida com a deusa". Medido pixel a pixel contra
+       o arquivo: a pintura sozinha saia com saturacao 0,40 contra 0,43 e
+       luminancia 89 contra 96 -- o 0,92 que a escurecia, o JPEG e a
+       mistura com a noite nos escuros. Sem o 0,92, com a saturacao um
+       quinto acima e o contraste um nada mais fechado, ela volta ao
+       arquivo; o que a cena poe por cima (poeira, neblina) e da cena. */
+    vec3 cc = mix(vec3(lum), c.rgb, 1.22);
+    cc = pow(max(cc, 0.0), vec3(1.06)) * 1.04;
+    gl_FragColor = vec4(cc, a);
     return;
   }
 
