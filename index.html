@@ -4564,6 +4564,8 @@ uniform float inflar;           // metros pela normal: as cascas de luz
 varying vec2 vUV;
 varying vec3 vNor;
 varying vec3 vMundo;
+varying vec2 vAsa;              // (da raiz a ponta, da beira de tras a da frente)
+varying float vCima;            // +1 na face de cima da asa, -1 na de baixo
 varying float vCorpo;
 
 /* A CURVA DA BATIDA.
@@ -4608,6 +4610,15 @@ void main(){
   vec3 q = aPos;
   vec3 n = aNor;
   vCorpo = abs(aLado) < 0.5 ? 1.0 : 0.0;
+  vAsa = vec2(0.0, 0.5);          // o corpo: nem beira nem ponta
+  /* QUAL FACE E A DE CIMA -- pela NORMAL DO MODELO, e nao pelo
+     gl_FrontFacing. A asa do modelo nao e uma folha: e uma casca fina com
+     DUAS camadas de triangulos, uma por cima e outra por baixo. De qualquer
+     lado que se olhe, o triangulo visivel e o de frente -- e por isso o
+     gl_FrontFacing dizia "cima" dos dois lados, e a face de baixo, com a
+     aquarela e o 88, nunca apareceu. No espaco do modelo y e a espessura:
+     normal para +y e a camada de cima. */
+  vCima = aNor.y;
 
   if(abs(aLado) > 0.5){
     /* O ATRASO. A raiz manda e a ponta obedece depois -- 0,95 de radiano do
@@ -4620,6 +4631,7 @@ void main(){
        parecer papel. */
     float vao   = clamp((abs(q.x) - 0.03) / 0.47, 0.0, 1.0);
     float corda = clamp(q.z * 1.6 + 0.5, 0.0, 1.0);
+    vAsa = vec2(vao, corda);
     float a = baterEm(fase - vao*0.95 - corda*0.22) * aLado;
     float c = cos(a), sn = sin(a);
     q = vec3(q.x*c - q.y*sn, q.x*sn + q.y*c, q.z);
@@ -4658,6 +4670,8 @@ uniform vec3 olhoPos;
 varying vec2 vUV;
 varying vec3 vNor;
 varying vec3 vMundo;
+varying vec2 vAsa;
+varying float vCima;
 varying float vCorpo;
 void main(){
   /* A LUZ, SEM GEOMETRIA.
@@ -4713,26 +4727,41 @@ void main(){
      para o indigo, com o brilho da tinta virando a faixa clara.
 
      O corpo fica de fora: ele nao tem lado de cima e de baixo diferentes. */
-  if(gl_FrontFacing && vCorpo < 0.5){
+  /* O SINAL E ESTE, E FOI MEDIDO: com a asa vista de cima na bancada, a
+     camada visivel tinha a normal do modelo em -y. Ou seja, no espaco do
+     modelo "cima" e -y -- o exportador olhava a borboleta de outro lado. */
+  if(vCima < 0.0 && vCorpo < 0.5){
     float luzTinta = dot(cor, vec3(0.299, 0.587, 0.114));
-    /* O AZUL DO MODELO, e nao o da 88 -- corrigido em 10/09.
+    /* O DORSO E O DE UM MORPHO, pela referencia que a direcao de arte
+       mandou em 10/09: campo azul vivo, mais claro junto do corpo, um ARO
+       escuro em toda a beira de fora com um fio claro no rebordo, e pintas
+       palidas na ponta da asa dianteira.
 
-       O comentario la em cima dizia que o modelo trazia "uma borboleta
-       laranja pintada a mao", e por isso a cor do dorso foi inventada aqui:
-       o azul-noite da Diaethria. A direcao de arte mandou olhar a animacao
-       e a textura embutida no GLB e uma asa de MORPHO -- azul-cobalto
-       vivo, com veio claro. Ninguem tinha aberto o arquivo.
+       O 88 SAIU DE CIMA. Ele e o desenho da face de BAIXO da Diaethria, e
+       aqui estava aparecendo por cima porque a aquarela decidia o claro e o
+       escuro do dorso inteiro. Agora ela so da o veio -- vinte por cento --
+       e o resto e o azul.
 
-       MEDIDO na textura: o corpo da asa da rgb(10, 91, 161); os vinte por
-       cento mais escuros, rgb(6, 46, 87); os mais claros, rgb(23, 130,
-       208). E essa a familia -- ciano puxado ao azul, quase nada de
-       vermelho. Os dois tons aqui sao os extremos medidos, um degrau mais
-       claros para caberem num cenario que vive no escuro. A aquarela
-       continua decidindo ONDE fica claro e onde fica escuro, entao a asa
-       tem desenho e nao e uma chapa azul. */
-    cor = mix(vec3(0.030, 0.220, 0.420),      // o azul fundo da asa
-              vec3(0.120, 0.580, 0.920),      // o veio claro dela
-              smoothstep(0.32, 0.78, luzTinta));
+       A COR E MEDIDA na textura embutida no modelo (rgb 10/91/161 no
+       corpo da asa, 6/46/87 nos escuros, 23/130/208 nos claros): o
+       comentario antigo dizia "laranja" e ninguem tinha aberto o arquivo.
+
+       O ARO SAI DE ONDE SE ESTA NA ASA, e nao de textura: "vao" vai da raiz
+       a ponta e "corda" da beira de tras a da frente; o maior dos dois,
+       perto de um, e beirada. A emenda entre a asa dianteira e a traseira
+       fica em corda 0,5 e por isso NAO escurece -- que e o certo, ela nao e
+       beira de fora. */
+    float doCorpo = 1.0 - vAsa.x;
+    vec3 azul = mix(vec3(0.030, 0.220, 0.420), vec3(0.120, 0.580, 0.920),
+                    0.36 + 0.50 * doCorpo + 0.08 * luzTinta);
+    float beira = max(vAsa.x, abs(vAsa.y * 2.0 - 1.0));
+    float aro = smoothstep(0.80, 0.96, beira);
+    azul = mix(azul, vec3(0.022, 0.018, 0.030), aro * 0.92);
+    float fio = smoothstep(0.955, 0.995, beira);
+    azul += vec3(0.55, 0.62, 0.72) * fio * 0.40;
+    float ponta = smoothstep(0.60, 0.88, vAsa.x) * smoothstep(0.55, 0.85, vAsa.y) * (1.0 - aro);
+    azul = mix(azul, vec3(0.66, 0.80, 0.96), ponta * 0.60 * smoothstep(0.35, 0.75, luzTinta));
+    cor = azul;
   }
 
   /* A LUZ NA ASA, pelos DOIS LADOS. O valor absoluto e o que importa: asa e
@@ -9842,10 +9871,13 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
            funciona: nenhuma faisca e forte, o punhado e que ilumina. */
         gl.uniform1f(locBb.tamanho, tam * (0.46 - 0.32 * k));
         gl.uniform1f(locBb.presenca, pb * (1 - k) * 0.34);
+        /* E O RASTRO COMECA NO MESMO AZUL da luz dela, senao a conta mais
+           proxima seria rosa colada num corpo azul -- duas luzes brigando
+           num palmo. Continua indo ao turquesa do cenario na ponta. */
         gl.uniform3f(locBb.corBrilho,
-                     1.00 * (1-k) + 0.24 * k,
-                     0.55 * (1-k) + 0.90 * k,
-                     0.70 * (1-k) + 0.80 * k);
+                     0.30 * (1-k) + 0.24 * k,
+                     0.62 * (1-k) + 0.90 * k,
+                     1.00 * (1-k) + 0.80 * k);
         gl.drawElements(gl.TRIANGLES, nConta, gl.UNSIGNED_SHORT, contaDe * 2);
       }
 
@@ -9857,12 +9889,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          iluminada sem que nenhuma faceta apareca, porque a luz nao esta NA
          superficie, esta em volta dela e se desfaz na borda.
 
-         A cor e a da crisalida de onde ela saiu, puxada para o claro: ela
-         carrega a luz em que nasceu. */
+         AZUL NEON, por decisao de direcao de arte em 10/09 -- ela tinha
+         saido rosa, como a luz da crisalida de onde a borboleta nasce. O
+         azul e o da familia das folhas e do ceu deste cenario: verde no
+         meio, azul no teto, quase nada de vermelho. Luz que soma com essa
+         proporcao e o que o olho chama de neon. */
+      /* O CORTE DE FACE LIGADO, para a asa -- e e isso que faz a face de
+         baixo existir.
+
+         A asa do modelo e uma casca com DUAS camadas de triangulos, a um
+         centimetro uma da outra, e a borboleta nao escreve profundidade
+         (e translucida). Sem profundidade e sem corte, quem aparece e a
+         camada desenhada por ULTIMO, de qualquer angulo -- o ponto de vista
+         nao decidia nada. Foi por isso que a aquarela da face de baixo, com
+         o 88, nunca apareceu em nenhum quadro desde que a borboleta virou
+         malha, e ninguem soube.
+
+         Com o corte, a camada virada para longe de quem olha some, e sobra
+         a que esta de frente: em cima a de cima, embaixo a de baixo. E a
+         face e decidida pela normal do modelo, nao pelo gl_FrontFacing --
+         que agora e sempre verdadeiro. */
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
       gl.uniform1f(locBb.brilho, 1.0);
       gl.uniform3f(locBb.centro, aqui[0], aqui[1], aqui[2]);
       gl.uniform1f(locBb.tamanho, tam);
-      gl.uniform3f(locBb.corBrilho, 1.00, 0.70, 0.84);
+      gl.uniform3f(locBb.corBrilho, 0.30, 0.62, 1.00);
       for(const [grossura, forca] of [[0.010, 0.55], [0.026, 0.30], [0.055, 0.14]]){
         gl.uniform1f(locBb.inflar, grossura * (tam / 0.34));
         gl.uniform1f(locBb.presenca, pb * forca);
@@ -9882,6 +9934,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          primeiro. */
       gl.drawElements(gl.TRIANGLES, nAsas + nCorpo, gl.UNSIGNED_SHORT,
                       asasDe * 2);
+      gl.disable(gl.CULL_FACE);
       gl.depthMask(true);
       gl.disable(gl.BLEND);
     }
