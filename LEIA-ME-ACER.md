@@ -257,15 +257,22 @@ misturam. É por isso que não há corte em lugar nenhum da obra.
 
 ```js
 const CENAS = {
-  1: { ceu:0, tinta:0.85, nuvem:0.55, ... ini:0.10, fim:0.80, inverter:0 },
-  2: { ceu:1, tinta:0.96, nuvem:0.18, ... ini:0.00, fim:0.30, inverter:0 },
-  3: { ceu:2, tinta:0.92, nuvem:0.42, ... ini:0.28, fim:0.95, inverter:0 },
-  4: { ceu:1, tinta:0.82, nuvem:0.30, ... ini:0.02, fim:0.50, inverter:1 },
+  1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72, inverter:0 },
+  2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58, inverter:0 },
+  3: { ceu:2, tinta:0.92, neblina:0.16, ... ini:0.30, fim:0.86, inverter:0 },
+  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:0.10, fim:0.55, inverter:1 },
 };
 ```
 
-- `ceu` — qual dos três céus (0 floresta, 1 cósmico, 2 rosa)
-- `tinta` — quanto o céu aparece no total
+- `ceu` — qual dos quatro céus (0 floresta da Odara, 1 cósmico, 2 rosa,
+  3 mata — os filamentos do Midjourney, só no cenário 1)
+- `tinta` — quanto do que se vê é pintura e quanto é noite. **O cenário dos
+  planetas está em zero desde 11/09**: sem pintura, só a noite da cúpula e
+  as oitenta e quatro estrelas, como na abertura — e a neblina (a nuvem
+  cósmica do começo) indo e vindo num ciclo de 48 s (`nuvemVaiEVem`). Ele
+  declara o céu rosa porque a travessia para o 3 mistura os dois céus
+  enquanto a tinta sobe, e com o cósmico declarado a pintura cósmica
+  aparecia por três segundos no meio da passagem.
 - `ini` / `fim` — **o degradê vertical**, em fração do quarto de volta:
   0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o céu
   era uma caixa. O céu é
