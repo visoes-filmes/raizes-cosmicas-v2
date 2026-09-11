@@ -35,8 +35,12 @@ arquivo em si não pode ser redistribuído):
   a marca NoAI (não pode alimentar modelos generativos).
   https://sketchfab.com/3d-models/mushrooms-collection-fecfa695681c40f5ae33d7f9fb6f3ccd
 
-**O ser do céu** — `ser_alienigena_androgino_rigged.glb`, modelo próprio
-da Visões Filmes (feito em casa, sem licença a resolver).
+**O ser do céu** — `ser_alienigena_androgino_rigged.glb`, **gerado no
+Magnific pela Crisia** (Visões Filmes), em 10/09. É criação da própria
+direção de arte, com IA: os direitos sobre o que se gera são do assinante,
+pelos termos do Magnific. Não vem de terceiros — não há autor externo a
+creditar. Os outros `ser_alienigena*.glb` da pasta são versões anteriores do
+mesmo processo; a obra usa só esta.
 
 ## Pendentes
 
