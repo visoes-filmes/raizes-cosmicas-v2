@@ -5294,7 +5294,11 @@ void main(){
     float ang = 1.0 - abs(vN.z);
     vec3 arco = 0.5 + 0.5*cos(6.2831*(ang*1.6 + vec3(0.0, 0.33, 0.67))
                               + tempoIris*0.35);
-    c = mix(c, c * (0.45 + 1.15*arco), 0.72);
+    /* UM TERCO, e nao 0,72: tres cossenos defasados somam branco, e a
+       nota e "muito branco". A iridescencia fica -- e o que faz a
+       superficie mudar com o angulo --, mas por baixo da cor, e nao em
+       cima dela. */
+    c = mix(c, c * (0.45 + 1.15*arco), 0.34);
   }
 
   /* A BORDA. Uma esfera opaca contra o ceu escuro serrilha: o pixel ou e do
@@ -6293,10 +6297,11 @@ const MOMENTOS = [
   [   5, 1, 'as estrelas comecam a cair'],
   [  15, 1, 'o nascimento: grama, cogumelo, a arvore'],
   [ 110, 1, 'JANELA — os cogumelos, o casulo'],
-  [ 170, 1, 'a borboleta sobe e o mundo se desintegra'],
-  [ 180, 2, 'as estrelas acendem, da mais distante ate o Sol'],
-  [ 220, 2, 'os planetas descem e orbitam a pessoa'],
-  [ 250, 2, 'eles se dispersam pelo ceu e esperam'],
+  [ 168, 1, 'a borboleta da uma volta em quem olha'],
+  [ 184, 1, 'ela sobe para o infinito, e o mundo vai com ela'],
+  [ 196, 2, 'ela vira estrela; a estrela vem, e e o Sol'],
+  [ 240, 2, 'os planetas descem e orbitam a pessoa'],
+  [ 268, 2, 'eles se dispersam pelo ceu e esperam'],
   [ 280, 2, 'os buracos negros aparecem'],
   [ 300, 2, 'o bale dos planetas nao escolhidos'],
   [ 330, 2, 'JANELA — pegar e dimensionar um planeta'],
@@ -6517,24 +6522,28 @@ const FIGURAS = [
    levando o mundo. A subida acontece entre 2:48 e 3:00, que e a passagem do
    primeiro cenario para o segundo. */
 function ondeBorboleta(t){
-  const k = rampa(168, 182, t);
-  /* SAI DE ONDE O CASULO ESTA, e nao de um numero.
+  /* A VOLTA E A SUBIDA -- roteiro de 10/09.
 
-     O ponto de partida era (0,62 / 1,42 / -0,78), escrito a mao -- que era
-     ao lado do casulo enquanto o casulo morou em (0,42 / 1,00 / -0,78).
-     Quando ele foi para a frente da arvore, em 10/09, a borboleta continuou
-     nascendo no lugar antigo: a um metro e meio da pupa, no ar. Apareceu na
-     foto, e nao no codigo.
+     Primeiro ela DA UMA VOLTA em quem olha: sai do casulo, contorna a
+     pessoa a um metro e trinta, na altura do peito ao rosto, e volta ao
+     lado de onde saiu. Depois SOBE, para o infinito -- o lado da arvore --
+     ate o ponto onde vira estrela. A subida acelera (k ao quadrado): ela
+     hesita ao deixar a volta e dispara no fim, que e como se vai embora.
 
-     Agora ela parte do alto do casulo (FIO_ALTO) e sobe DERIVANDO PARA O
-     MEIO DA SALA -- a deriva antiga era em -z, que com o casulo na frente
-     da arvore a levaria para dentro do tronco. Ela sobe levando o mundo, e
-     passa por cima de quem olha. */
-  const paraSala = [-CASULO[0], -CASULO[2]];
-  const l = Math.hypot(paraSala[0], paraSala[1]) || 1;
-  return [CASULO[0] + 0.20 + Math.sin(k * 2.6) * 0.55 + k * 0.9 * paraSala[0] / l,
-          FIO_ALTO - 0.15 + k * k * 4.6,
-          CASULO[2] + Math.sin(k * 3.1) * 0.25 + k * 0.9 * paraSala[1] / l];
+     E o mundo vai com ela: a floresta cede entre 186 e 198, que e a subida
+     dela, e nao num corte de cenario. */
+  const kv = rampa(VOLTA_INI, VOLTA_FIM, t);
+  const ks = rampa(VOLTA_FIM, SUBIDA_FIM, t);
+  const az0 = Math.atan2(CASULO[0], -CASULO[2]);
+  const r0 = Math.hypot(CASULO[0], CASULO[2]);
+  const az = az0 + kv * Math.PI * 2;
+  const r = r0 + (1.35 - r0) * Math.sin(Math.min(kv * 3.0, 1.0) * Math.PI * 0.5);
+  const y = FIO_ALTO - 0.15 + 0.45 * Math.sin(kv * Math.PI) + 0.12 * Math.sin(kv * Math.PI * 4.0);
+  const volta = [Math.sin(az) * r, y, -Math.cos(az) * r];
+  const kk = ks * ks;
+  return [volta[0] + (ESTRELA_LONGE[0] - volta[0]) * kk,
+          volta[1] + (ESTRELA_LONGE[1] - volta[1]) * kk,
+          volta[2] + (ESTRELA_LONGE[2] - volta[2]) * kk];
 }
 /* Por qual dos dois voos perguntar. O rastro amostra o passado e precisa
    saber se aquele instante era a subida do casulo ou a espiral do fim. */
@@ -6545,7 +6554,7 @@ function presencaBorboleta(t){
   /* DUAS VIDAS. A primeira e a do roteiro: sai do casulo aos 2:43 e sobe
      levando o mundo. A segunda e o fim -- ela volta no ultimo cenario,
      voa em volta de quem visita e entra no coracao da deusa. */
-  const primeira = rampa(163, 170, t) * (1 - rampa(180, 190, t));
+  const primeira = rampa(163, 170, t) * (1 - rampa(196, 200, t));
   const segunda  = rampa(552, 560, t) * (1 - rampa(594, 599, t));
   return Math.max(primeira, segunda);
 }
@@ -6665,7 +6674,38 @@ function subidaPapel(i, t){
    Nada disto depende de interacao. Quem interage conduz, quem nao
    interage e conduzido. */
 
-const SOL = [0.55, 3.15, -1.05];
+/* A ESTRELA QUE A BORBOLETA VIRA E O SOL -- decidido em 10/09.
+
+   O roteiro: ela da uma volta em quem olha, sobe para o infinito levando
+   o mundo, e no alto vira uma estrela. Essa estrela vem, cresce, e quando
+   chega e o Sol do cenario dos planetas. Entao o Sol nao e mais um ponto
+   fixo: ele NASCE onde ela some e ANDA ate onde vai ficar.
+
+   O INFINITO E UM LADO. E o lado da arvore-mae -- a mesma direcao que as
+   montanhas usam --, e o Sol pousa nesse lado, a 2,2 m do centro e 3,6 de
+   altura, em vez de do lado oposto onde estava. */
+const O_INFINITO = Math.atan2(ARVORE_BASE[0], -ARVORE_BASE[2]);
+const VOLTA_INI = 168, VOLTA_FIM = 184;   // a volta em torno de quem olha
+const SUBIDA_FIM = 198;                   // onde ela vira estrela
+const SOL_CHEGA = 232;                    // onde a estrela ja e o Sol
+const ESTRELA_LONGE = [Math.sin(O_INFINITO) * 14.0, 7.0, -Math.cos(O_INFINITO) * 14.0];
+const SOL_POUSO     = [Math.sin(O_INFINITO) * 2.2,  3.6, -Math.cos(O_INFINITO) * 2.2];
+const SOL = ESTRELA_LONGE.slice();        // atualizado por quadro em atualizarSol
+let raioSol = 0.16, kSol = 0;
+function atualizarSol(t){
+  const k = rampa(SUBIDA_FIM - 2, SOL_CHEGA, t);
+  kSol = k * k * (3.0 - 2.0 * k);           // suave nas duas pontas
+  for(let i = 0; i < 3; i++)
+    SOL[i] = ESTRELA_LONGE[i] + (SOL_POUSO[i] - ESTRELA_LONGE[i]) * kSol;
+  /* O raio cresce com a chegada, mas o que o olho ve e o ANGULO: a 14 m um
+     raio de 6 cm e um ponto, e a 2,2 m 42 cm e um Sol. A chegada faz a
+     maior parte do trabalho sozinha. */
+  /* DEZESSEIS CENTIMETROS AO NASCER, e nao seis: medido na bancada, seis a
+     catorze metros era um pixel -- a estrela que a borboleta vira tem de
+     ser VISTA virando. Com dezesseis e a corona em volta, e um ponto de
+     luz com halo, que e o que "estrela" quer dizer. */
+  raioSol = 0.16 + (0.42 - 0.16) * kSol;
+}
 
 /* Os quatro planetas do roteiro. O rosa e o unico que aceita entrada por
    enquanto, e por isso e o unico que NAO se afasta: a distancia e o
@@ -6723,10 +6763,10 @@ function ondeEsta(i, t){
   const p = PLANETAS[i], n = PLANETAS.length;
   const fase = i / n * Math.PI * 2;
 
-  // 220 → 250: descem do Sol e vem orbitar a pessoa
-  const desceu = rampa(220, 250, t);
-  // 250 → 280: se dispersam pelo ceu, com respiro
-  const dispersou = p.interativo ? 0 : rampa(250, 280, t);
+  // 240 → 268: descem do Sol e vem orbitar a pessoa (o Sol chegou aos 232)
+  const desceu = rampa(240, 268, t);
+  // 268 → 290: se dispersam pelo ceu, com respiro
+  const dispersou = p.interativo ? 0 : rampa(268, 290, t);
 
   const w = relogio * 0.11 + fase;
 
@@ -6761,11 +6801,15 @@ function ondeEsta(i, t){
    roteiro pede que as estrelas acendam da mais distante para a mais
    proxima, e os planetas so depois. */
 function presencaAstro(i, t){
-  const nasce = 205 + i * 4;
+  // nascem em volta do Sol quando ele ja esta quase chegando
+  const nasce = 226 + i * 4;
   return rampa(nasce, nasce + 14, t) * (1 - rampa(378, 392, t));
 }
 function presencaSol(t){
-  return rampa(182, 214, t) * (1 - rampa(378, 392, t));
+  /* O SOL ACENDE ONDE A BORBOLETA SE APAGA: ela some entre 196 e 200, e ele
+     nasce no mesmo lugar e no mesmo intervalo. E uma coisa virando outra,
+     e nao duas coisas. */
+  return rampa(196, 202, t) * (1 - rampa(378, 392, t));
 }
 
 /* ═══════════ a barra da partitura ═══════════ */
@@ -7099,6 +7143,7 @@ function seguirPartitura(dt){
   const c = cenaEm(t);
   const a = CENAS[c];
   if(!a) return;
+  atualizarSol(t);
 
   // Dentro dos primeiros segundos de um cenario, o ceu anterior ainda esta
   // presente e vai cedendo. Fora disso, mistura fixa no ceu do cenario.
@@ -7190,7 +7235,15 @@ function seguirPartitura(dt){
   const piscando = 0.10 + 0.90 * Math.max(0,
       0.5 + 0.5*Math.sin(t*0.9) * Math.sin(t*0.41 + 1.3) * Math.sin(t*0.23));
 
-  const cheia = (c === 1) ? 1.0 : 0.0;
+  /* A FLORESTA VAI COM A BORBOLETA. Ela nao cai a zero no corte de cenario:
+     cede ao longo da subida, de 186 a 198, para tudo desaparecer JUNTO com
+     ela, como pede o roteiro. Nos cenarios seguintes a rampa ja esta em um
+     e o valor e zero, como era. */
+  /* E NAO DEPENDE DO NUMERO DO CENARIO: o cenario 2 comeca aos 196, e uma
+     conta presa a ele saltaria de um para 0,17 nesse instante -- que e um
+     corte, e nao a subida. A rampa sozinha vale um antes dos 186 e zero
+     depois dos 198, em qualquer cenario. */
+  const cheia = 1 - rampa(186, 198, t);
   const alvoMata = (MATA_QUE_FICA + (1 - MATA_QUE_FICA)*cheia)
                  * (1 - antesDoNascimento) + antesDoNascimento * piscando * 0.55;
   /* dt zero e o salto de cenario, que nao tem tempo para desvanecer nada:
@@ -9210,16 +9263,23 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[2]);
       gl.uniform1i(locAst.pele, 5);
       gl.uniform3f(locAst.centro, SOL[0], SOL[1], SOL[2]);
-      gl.uniform1f(locAst.raio, 0.42);
+      gl.uniform1f(locAst.raio, raioSol);
       gl.uniform1f(locAst.giro, relogio * 0.03);
       gl.uniform1f(locAst.achatar, 1.0);
-      // Iridescente: as cores se alteram devagar, sem pisca-pisca, com o
-      // branco dominante. Tres senos de periodos primos entre si nunca
-      // repetem o mesmo acorde.
+      /* A COR CONTA A CHEGADA. Ele nasce ESTRELA -- fria, azul-branca, a
+         luz da borboleta de onde saiu -- e vai ESQUENTANDO conforme vem: no
+         pouso e um Sol de ambar. A cor narra a distancia: estrela longe e
+         fria, sol perto e quente. Um respiro lento por cima, sem branco.
+
+         O branco de antes vinha de dois lugares: a cor era 0,95/0,93/0,96 e
+         a iridescencia misturava tres cossenos que somam branco. A cor
+         agora tem matiz, e a iridescencia caiu para um terco. */
+      const quente = [1.00, 0.70, 0.30], fria = [0.60, 0.78, 1.00];
+      const respiro = 0.06 * Math.sin(relogio * 0.19);
       gl.uniform3f(locAst.cor,
-        0.95 + 0.05*Math.sin(relogio*0.17),
-        0.93 + 0.07*Math.sin(relogio*0.23 + 2.1),
-        0.96 + 0.04*Math.sin(relogio*0.31 + 4.2));
+        fria[0] + (quente[0] - fria[0]) * kSol + respiro,
+        fria[1] + (quente[1] - fria[1]) * kSol,
+        fria[2] + (quente[2] - fria[2]) * kSol - respiro);
       gl.uniform3f(locAst.luzDe, 0, 1, 0);
       gl.uniform1f(locAst.presenca, pSol);
       gl.uniform1f(locAst.brilho, 0.85);
@@ -9238,10 +9298,21 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       somarLuz();
       gl.depthMask(false);
       gl.uniform1f(locAst.halo, 1.0);
-      const CASCAS = [[1.35, 0.55], [1.95, 0.26], [2.90, 0.11]];
-      for(const [escala, forca] of CASCAS){
-        gl.uniform1f(locAst.raio, 0.42 * escala);
+      /* A CORONA EM TRES CORES, de dentro para fora: ouro, rosa, violeta.
+         E a corona que faz um sol nao ser uma bola: ouro colado no disco,
+         o rosa da crisalida no meio, e o violeta da nebulosa longe -- as
+         cores que a obra ja tem, e nao tres brancos. Enquanto ele ainda e
+         estrela, as tres puxam para o azul junto com o corpo. */
+      const CASCAS = [[1.35, 0.55, [1.00, 0.62, 0.25]],
+                      [1.95, 0.26, [1.00, 0.45, 0.42]],
+                      [2.90, 0.11, [0.70, 0.40, 0.85]]];
+      for(const [escala, forca, cc] of CASCAS){
+        gl.uniform1f(locAst.raio, raioSol * escala);
         gl.uniform1f(locAst.brilho, forca);
+        gl.uniform3f(locAst.cor,
+          fria[0] + (cc[0] - fria[0]) * kSol,
+          fria[1] + (cc[1] - fria[1]) * kSol,
+          fria[2] + (cc[2] - fria[2]) * kSol);
         gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       }
       gl.uniform1f(locAst.halo, 0.0);
