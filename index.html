@@ -6530,10 +6530,23 @@ const FIGURAS = [
    primeiro cenario para o segundo. */
 function ondeBorboleta(t){
   const k = rampa(168, 182, t);
-  // sai do casulo, curva e vai para o alto
-  return [0.62 + Math.sin(k * 2.6) * 0.55,
-          1.42 + k * k * 4.6,
-          -1.28 + Math.cos(k * 1.9) * 0.5 - k * 0.9];
+  /* SAI DE ONDE O CASULO ESTA, e nao de um numero.
+
+     O ponto de partida era (0,62 / 1,42 / -0,78), escrito a mao -- que era
+     ao lado do casulo enquanto o casulo morou em (0,42 / 1,00 / -0,78).
+     Quando ele foi para a frente da arvore, em 10/09, a borboleta continuou
+     nascendo no lugar antigo: a um metro e meio da pupa, no ar. Apareceu na
+     foto, e nao no codigo.
+
+     Agora ela parte do alto do casulo (FIO_ALTO) e sobe DERIVANDO PARA O
+     MEIO DA SALA -- a deriva antiga era em -z, que com o casulo na frente
+     da arvore a levaria para dentro do tronco. Ela sobe levando o mundo, e
+     passa por cima de quem olha. */
+  const paraSala = [-CASULO[0], -CASULO[2]];
+  const l = Math.hypot(paraSala[0], paraSala[1]) || 1;
+  return [CASULO[0] + 0.20 + Math.sin(k * 2.6) * 0.55 + k * 0.9 * paraSala[0] / l,
+          FIO_ALTO - 0.15 + k * k * 4.6,
+          CASULO[2] + Math.sin(k * 3.1) * 0.25 + k * 0.9 * paraSala[1] / l];
 }
 /* Por qual dos dois voos perguntar. O rastro amostra o passado e precisa
    saber se aquele instante era a subida do casulo ou a espiral do fim. */
