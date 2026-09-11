@@ -7696,6 +7696,14 @@ let pedindoSom = false;
    toca a 0,16 e os gestos tem de ficar ABAIXO dela, senao viram efeito de
    jogo.
 
+   SEM AGUDO ALTO -- direcao de arte, 11/09. Dois cuidados, um em cada
+   ponta. Na fonte: nenhum som nasce acima de uns 800 Hz -- os sinos
+   descem uma oitava (do do central para baixo), o sopro da asa fica na
+   faixa do ar e nao do chiado, e o som estranho perde o chuvisco de pings
+   a 2-5 kHz. E na saida: um passa-baixas em 1,4 kHz depois do mestre,
+   pelo qual TUDO passa. E o teto: mesmo que alguem um dia ponha um som
+   agudo aqui, ele chega ao ouvido abafado.
+
    E O CONTEXTO NASCE NO MESMO GESTO QUE ACORDA A TRILHA: o navegador so
    deixa som existir depois de um toque humano, e o "Iniciar" ja e um. */
 let audio = null, somMestre = null, ruidoCurto = null;
@@ -7706,7 +7714,9 @@ function acordarGestos(){
   try{ audio = new AC(); }catch(e){ audio = null; return; }
   somMestre = audio.createGain();
   somMestre.gain.value = 0.35;
-  somMestre.connect(audio.destination);
+  const teto = audio.createBiquadFilter();
+  teto.type = 'lowpass'; teto.frequency.value = 1400; teto.Q.value = 0.5;
+  somMestre.connect(teto); teto.connect(audio.destination);
 }
 function podeSoar(){ return audio && somLigado && audio.state === 'running'; }
 
@@ -7717,12 +7727,17 @@ function podeSoar(){ return audio && somLigado && audio.state === 'running'; }
 
    A NOTA VEM DE QUEM FOI TOCADO, numa escala pentatonica: cinco notas que
    nunca brigam entre si, entao dois toques seguidos em coisas diferentes
-   sempre soam como acorde e nunca como erro. */
-const NOTAS = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25];
+   sempre soam como acorde e nunca como erro.
+
+   GRAVE: a escala vai do do da oitava abaixo do central (131 Hz) ao do
+   central. O som mais alto que existe aqui e a duodecima da nota mais
+   aguda -- 785 Hz --, e ela pesa quatro por cento. Era uma oitava acima,
+   e a direcao de arte nao quer agudo. */
+const NOTAS = [130.81, 146.83, 164.81, 196.00, 220.00, 261.63];
 function sinoDoToque(nota, forca){
   if(!podeSoar()) return;
   const t0 = audio.currentTime, freq = NOTAS[nota % NOTAS.length];
-  for(const [mult, peso, dur] of [[1.0, 1.0, 1.9], [2.0, 0.32, 1.2], [3.0, 0.10, 0.7]]){
+  for(const [mult, peso, dur] of [[1.0, 1.0, 2.3], [2.0, 0.24, 1.4], [3.0, 0.04, 0.6]]){
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = 'sine'; o.frequency.value = freq * mult;
     g.gain.setValueAtTime(0.0001, t0);
@@ -7734,10 +7749,16 @@ function sinoDoToque(nota, forca){
 }
 
 /* O SOPRO DA ASA. Um sopro de ruido de sessenta milissegundos, filtrado
-   numa faixa entre 1,8 e 2,7 kHz -- e o som de asa de verdade: nao ha tom,
-   ha ar sendo empurrado. Um por batida, e so quando ela esta a menos de
+   numa faixa entre 240 e 540 Hz -- e o som de asa de verdade: nao ha tom,
+   ha ar sendo empurrado. Estava entre 1,8 e 2,7 kHz, que e chiado e nao
+   ar; desceu a pedido. Um por batida, e so quando ela esta a menos de
    cinco metros, caindo com o quadrado da distancia: de longe asa nao se
-   ouve, e e por isso que ouvi-la de perto e intimo. */
+   ouve, e e por isso que ouvi-la de perto e intimo.
+
+   A FORCA E 0,30, e nao 0,028: ruido filtrado numa faixa estreita perde
+   quase toda a energia no filtro -- medido na bancada, com 0,028 o sopro
+   saia a -68 dB, quarenta abaixo da trilha, que e o mesmo que nao existir.
+   Com 0,30 ele fica a uns -48 dB a um metro e meio: delicado, e presente. */
 function soproDaAsa(dist){
   if(!podeSoar() || dist > 5.0) return;
   if(!ruidoCurto){
@@ -7749,9 +7770,9 @@ function soproDaAsa(dist){
   const t0 = audio.currentTime;
   const f = audio.createBufferSource(); f.buffer = ruidoCurto;
   const filtro = audio.createBiquadFilter();
-  filtro.type = 'bandpass'; filtro.frequency.value = 1800 + Math.random() * 900; filtro.Q.value = 1.3;
+  filtro.type = 'bandpass'; filtro.frequency.value = 240 + Math.random() * 300; filtro.Q.value = 1.2;
   const g = audio.createGain();
-  const forca = 0.028 / (1.0 + dist * dist * 0.6);
+  const forca = 0.30 / (1.0 + dist * dist * 0.6);
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca), t0 + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
@@ -7760,33 +7781,35 @@ function soproDaAsa(dist){
 }
 
 /* O SOM ESTRANHO DA BORBOLETA. Um triangulo subindo uma oitava e meia em
-   pouco mais de um segundo, com um vibrato largo e lento por cima -- lento
-   demais para ser musica, largo demais para ser afinado: e o que o faz
-   estranho. E um chuvisco de sete parciais agudas, uma atras da outra,
-   que e o glitter em som. */
+   pouco mais de um segundo, de 110 a 330 Hz, com um vibrato largo e lento
+   por cima -- lento demais para ser musica, largo demais para ser afinado:
+   e o que o faz estranho. Estava uma oitava acima, com um chuvisco de sete
+   pings entre 2 e 5 kHz; a direcao de arte nao quer agudo, e o chuvisco
+   virou cinco BORBULHAS entre 300 e 700 Hz, mais baixas que o proprio
+   glide -- o glitter em som, mas por baixo. */
 function somEstranho(){
   if(!podeSoar()) return;
   const t0 = audio.currentTime;
   const o = audio.createOscillator(), v = audio.createOscillator(),
         vg = audio.createGain(), g = audio.createGain();
   o.type = 'triangle';
-  o.frequency.setValueAtTime(220, t0);
-  o.frequency.exponentialRampToValueAtTime(660, t0 + 1.1);
-  v.type = 'sine'; v.frequency.value = 6.5; vg.gain.value = 38;
+  o.frequency.setValueAtTime(110, t0);
+  o.frequency.exponentialRampToValueAtTime(330, t0 + 1.1);
+  v.type = 'sine'; v.frequency.value = 6.5; vg.gain.value = 19;
   v.connect(vg); vg.connect(o.frequency);
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.05);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
   o.connect(g); g.connect(somMestre);
   o.start(t0); v.start(t0); o.stop(t0 + 1.5); v.stop(t0 + 1.5);
-  for(let i = 0; i < 7; i++){
+  for(let i = 0; i < 5; i++){
     const pp = audio.createOscillator(), pg = audio.createGain();
-    pp.type = 'sine'; pp.frequency.value = 2400 + Math.random() * 3200;
-    const ti = t0 + 0.08 + i * 0.09;
+    pp.type = 'sine'; pp.frequency.value = 300 + Math.random() * 400;
+    const ti = t0 + 0.10 + i * 0.13;
     pg.gain.setValueAtTime(0.0001, ti);
-    pg.gain.exponentialRampToValueAtTime(0.018, ti + 0.01);
-    pg.gain.exponentialRampToValueAtTime(0.0001, ti + 0.35);
-    pp.connect(pg); pg.connect(somMestre); pp.start(ti); pp.stop(ti + 0.4);
+    pg.gain.exponentialRampToValueAtTime(0.014, ti + 0.02);
+    pg.gain.exponentialRampToValueAtTime(0.0001, ti + 0.40);
+    pp.connect(pg); pg.connect(somMestre); pp.start(ti); pp.stop(ti + 0.45);
   }
 }
 

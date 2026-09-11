@@ -340,6 +340,12 @@ O que responde, e como:
 E **a asa soa**: um sopro de ruído filtrado por batida, só a menos de cinco
 metros, caindo com o quadrado da distância.
 
+**Nenhum agudo alto** (pedido de 11/09): os sinos vão de 131 a 262 Hz, o
+som estranho sobe de 110 a 330 Hz, o sopro da asa fica entre 240 e 540 Hz, e
+um passa-baixas em 1,4 kHz depois do mestre abafa qualquer coisa acima. Medido
+na bancada: mãe a −35 dBFS com centroide em 138 Hz; som estranho a −40 dBFS,
+165 Hz; sopro da asa a −58 dBFS, 675 Hz — o mais fraco de todos, de propósito.
+
 **Todo som é sintetizado** (Web Audio, `acordarGestos`), por três motivos:
 não há licença a resolver, não há byte a mais nos onze megabytes, e é o que
 a obra é — tudo aqui é feito na hora. Ganho mestre **0,35**, e cada som
