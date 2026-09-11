@@ -5370,14 +5370,24 @@ void main(){
 
   vec3 t = texture2D(pele, vUV).rgb;
 
-  // A estrela irradia luz e projeta sombra em todos os objetos do cenario.
-  // Aqui isso e um termo so: o quanto a face olha para ela.
-  float lz = max(dot(normalize(vN), normalize(luzDe)), 0.0);
-  float sombreado = mix(0.16, 1.0, lz);
+  /* A LUZ VEM DO SOL DA OBRA -- e a sombra era estranha por isso mesmo.
 
-  // O limbo aceso: a borda que olha para fora ganha luz. E o que faz uma
-  // bola pintada parecer um corpo com atmosfera em vez de um adesivo.
-  float limbo = pow(1.0 - paraOlho, 3.0) * 0.5;
+     O Sol pousa a dois metros de quem olha, no meio dos planetas. Um
+     planeta entre a pessoa e ele mostra a NOITE para a pessoa: com a noite
+     a 16% e o limbo aceso em volta inteira, o que se via era um disco
+     preto com um aro claro -- um buraco com borda, e nao um corpo. A
+     direcao de arte estranhou a luz e a sombra em 11/09.
+
+     Agora a luz ENVOLVE: o dia comeca antes do terminador e a noite nunca
+     desce de 42% -- a pintura da pele continua legivel do lado escuro, que
+     e como planeta pintado a aquarela existe. Ainda se sabe de que lado
+     esta o Sol; so nao se perde o planeta por causa dele. E o limbo acende
+     mais do lado do dia: aro aceso na noite inteira era o que fazia o
+     buraco. */
+  float lz = dot(normalize(vN), normalize(luzDe));
+  float dia = smoothstep(-0.55, 0.65, lz);
+  float sombreado = mix(0.42, 1.0, dia);
+  float limbo = pow(1.0 - paraOlho, 3.0) * (0.18 + 0.42 * dia);
 
   vec3 c = t * cor * (sombreado + limbo) + brilhoProprio * cor;
 
