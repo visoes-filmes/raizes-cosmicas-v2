@@ -4446,9 +4446,14 @@ void main(){
     anel *= 0.45 + 0.55 * (0.5 + 0.5*veio);
 
     c = cor * (anel * 2.3 + halo);
-    a = max(nucleo, anel + halo);
-    // dentro do nucleo a cor e preta: em realidade mista isso abre um
-    // buraco de verdade na obra, e a sala real aparece por ele
+    /* O NUCLEO NAO E OPACO -- 11/09: "a pessoa precisa ver onde pisa". Ele
+       fica no chao, a 1,4 m de quem anda; preto a 100% e um tapete sobre
+       o piso de verdade, e tapete que nao se ve atraves e tropeco. A 55%
+       o chao continua la, escurecido -- o buraco le como sombra funda, e
+       nao como falta de piso. */
+    a = max(nucleo * 0.55, anel + halo);
+    // dentro do nucleo a cor e preta: em realidade mista isso escurece a
+    // sala real, sem tapa-la
     c *= (1.0 - nucleo);
   } else {
     // SER: borrao macio, sem contorno, pulsando devagar
@@ -5363,12 +5368,20 @@ void main(){
        frente da casca passa por cima do disco e o acende um pouco mais, e
        entre o disco e a borda da casca a luz cai continua ate zero. Tres
        cascas somadas dao a queda longa. */
-    float miolo = pow(paraOlho, 1.5);
+    /* 1,1 e nao 1,5: pela parede de tras, so a parte da casca que passa
+       da silhueta do corpo aparece, e ali paraOlho ja e pequeno. Cair
+       mais devagar e o que deixa a corona existir. */
+    float miolo = pow(paraOlho, 1.1);
     gl_FragColor = vec4(cor * miolo * brilhoProprio, miolo * presenca);
     return;
   }
 
   vec3 t = texture2D(pele, vUV).rgb;
+  /* O SOL NAO TEM NOITE NA PELE. A pintura dele tem redemoinhos escuros,
+     e num corpo que e a fonte de luz um redemoinho escuro le como mancha
+     apagada -- vira planeta. A pele dele sobe: o mais escuro fica na
+     metade, o desenho continua e nada apaga. So no Sol (iris). */
+  if(iris > 0.5) t = 0.5 + 0.5 * t;
 
   /* A LUZ VEM DO SOL DA OBRA -- e a sombra era estranha por isso mesmo.
 
@@ -5407,7 +5420,11 @@ void main(){
        nota e "muito branco". A iridescencia fica -- e o que faz a
        superficie mudar com o angulo --, mas por baixo da cor, e nao em
        cima dela. */
-    c = mix(c, c * (0.45 + 1.15*arco), 0.34);
+    /* DESLIGADA EM 11/09: o arco passa pelo verde, e verde num sol e
+       mofo. Ela nunca tinha rodado de verdade (o uniforme "iris" nao era
+       enviado); quando rodou, foi isso que apareceu. Fica o codigo para
+       um dia ter uma paleta so quente. */
+    c = mix(c, c * (0.45 + 1.15*arco), 0.0);
   }
 
   /* A BORDA. Uma esfera opaca contra o ceu escuro serrilha: o pixel ou e do
@@ -5896,10 +5913,21 @@ function montarEsfera(anel, gomo){
       uv.push(u, v);
     }
   }
+  /* A ORDEM DOS TRIANGULOS OLHA PARA FORA -- consertada em 11/09.
+
+     Estava ao contrario, e com o descarte da face de tras ligado a placa
+     descartava a PAREDE DE PERTO e desenhava a de tras: todo astro era
+     visto por dentro. A pele saia espelhada, a luz do Sol batia no lado
+     errado (a normal da parede de tras aponta para longe de quem olha, e
+     o terminador aparecia invertido -- "essa luz e sombra e estranha"), e
+     as cascas de luz somavam so FORA do disco, porque por dentro a parede
+     de tras delas ficava atras do corpo e perdia no teste de profundidade.
+     Medido na bancada: o miolo do Sol ia de (152,101,45) a (245,244,172)
+     so de virar a face. */
   for(let i=0;i<anel;i++)
     for(let j=0;j<gomo;j++){
       const a = i*(gomo+1)+j, b = a+gomo+1;
-      idx.push(a, b, a+1,  b, b+1, a+1);
+      idx.push(a, a+1, b,  b, a+1, b+1);
     }
   return {pos, uv, idx};
 }
@@ -9685,18 +9713,40 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          O branco de antes vinha de dois lugares: a cor era 0,95/0,93/0,96 e
          a iridescencia misturava tres cossenos que somam branco. A cor
          agora tem matiz, e a iridescencia caiu para um terco. */
-      const quente = [1.00, 0.70, 0.30], fria = [0.60, 0.78, 1.00];
-      const respiro = 0.06 * Math.sin(relogio * 0.19);
+      /* O CORPO CEDE PARA A CORONA -- 11/09, "parecido com o cogumelo: a
+         gente precisa sentir que ele irradia, mas nao pode estourar". O
+         cogumelo nao e claro por si: e um corpo alto na faixa com cascas
+         de luz somadas por cima, e e a SOMA que le como radiacao. Aqui o
+         disco estava saturado sozinho (vermelho em 1,85 antes do corte) e
+         as cascas, fracas, nao tinham o que acrescentar. Agora o corpo
+         desce -- cor menos quente e brilho proprio 0,45 -- e sao as cascas
+         que o acendem. Medido: sem estouro no disco. */
+      /* MEDIDO PARA NAO ESTOURAR. O Sol e a fonte: a face que se ve esta
+         sempre "de dia" (a luz dele vem de quem olha, abaixo), entao o
+         sombreado e 1 e o ponto mais claro da pele da 0,80 + 0,16 = 0,96
+         no vermelho -- o teto. DOURADO, e nao laranja nem branco: verde
+         0,82, azul 0,46 no mais claro; o redemoinho mais escuro da pele
+         fica em (143,125,79). A luz de cima que ele tinha antes escurecia
+         a propria face dele para 42%: um sol com sombra. */
+      const quente = [0.80, 0.66, 0.30], fria = [0.60, 0.78, 1.00];
+      const respiro = 0.04 * Math.sin(relogio * 0.19);
       gl.uniform3f(locAst.cor,
         fria[0] + (quente[0] - fria[0]) * kSol + respiro,
         fria[1] + (quente[1] - fria[1]) * kSol,
         fria[2] + (quente[2] - fria[2]) * kSol - respiro);
-      gl.uniform3f(locAst.luzDe, 0, 1, 0);
+      gl.uniform3f(locAst.luzDe, olhoPos[0]-SOL[0], olhoPos[1]-SOL[1], olhoPos[2]-SOL[2]);
       gl.uniform1f(locAst.presenca, pSol);
-      gl.uniform1f(locAst.brilho, 0.85);
+      gl.uniform1f(locAst.brilho, 0.16);
       gl.uniform1f(locAst.halo, 0.0);
+      /* O SINAL DE QUE E O SOL. "iris" existia no shader desde 09/09 -- a
+         iridescencia, e agora a pele erguida -- e NUNCA foi enviado: o
+         uniforme ficava em zero e o ramo nunca rodava. Achado em 11/09 ao
+         medir por que a pele do Sol continuava com os redemoinhos escuros. */
+      gl.uniform1f(locAst.iris, 1.0);
+      gl.uniform1f(locAst.tempoIris, relogio);
       gl.depthMask(pSol > 0.92);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locAst.iris, 0.0);
 
       /* A LUZ QUE O SOL DERRAMA. Sem isto ele era uma bola clara: brilhava
          na propria pele e acabava na borda, que e o que uma pedra acesa
@@ -9714,10 +9764,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          o rosa da crisalida no meio, e o violeta da nebulosa longe -- as
          cores que a obra ja tem, e nao tres brancos. Enquanto ele ainda e
          estrela, as tres puxam para o azul junto com o corpo. */
-      // mais fracas que antes: agora elas somam por cima do disco tambem
-      const CASCAS = [[1.35, 0.30, [1.00, 0.62, 0.25]],
-                      [1.95, 0.18, [1.00, 0.45, 0.42]],
-                      [2.90, 0.09, [0.70, 0.40, 0.85]]];
+      /* CINCO CASCAS, PELA PAREDE DE TRAS. Com a esfera virada para fora, a
+         parede de tras de uma casca maior que o corpo fica ESCONDIDA atras
+         do disco e so aparece em volta dele: a corona nao toca o disco, e
+         o disco nao estoura por causa dela -- quem decide o brilho do
+         corpo e o corpo. E a receita do cogumelo: duas cascas coladas e
+         fortes, tres largas e fracas, a queda longa do ar aceso. Ouro
+         perto, rosa no meio, violeta longe: somando, nunca da branco. */
+      gl.cullFace(gl.FRONT);
+      const CASCAS = [[1.12, 1.70, [1.00, 0.70, 0.26]],
+                      [1.35, 1.05, [1.00, 0.64, 0.26]],
+                      [1.70, 0.60, [1.00, 0.58, 0.30]],
+                      [2.30, 0.34, [1.00, 0.48, 0.40]],
+                      [3.30, 0.17, [0.85, 0.42, 0.62]]];
       for(const [escala, forca, cc] of CASCAS){
         gl.uniform1f(locAst.raio, raioSol * escala);
         gl.uniform1f(locAst.brilho, forca);
@@ -9727,6 +9786,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
           fria[2] + (cc[2] - fria[2]) * kSol);
         gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       }
+      gl.cullFace(gl.BACK);
       gl.uniform1f(locAst.halo, 0.0);
       sobrepor();
     }
@@ -9761,10 +9821,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       // casca so, porque cinco coronas do tamanho da do Sol viravam sopa.
       somarLuz();
       gl.depthMask(false);
+      gl.cullFace(gl.FRONT);           // a parede de tras: so em volta do corpo
       gl.uniform1f(locAst.halo, 1.0);
       gl.uniform1f(locAst.raio, pl.raio * 1.6);
       gl.uniform1f(locAst.brilho, 0.30);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.cullFace(gl.BACK);
       gl.uniform1f(locAst.halo, 0.0);
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
