@@ -107,7 +107,11 @@ mapa = {
     # canal alfa de proposito -- o alfa nasce no shader, so da beirada e do
     # preto da propria pintura. PNG com alfa desta pintura pesaria mais de
     # um megabyte; o JPEG fica em torno de cento e cinquenta kilobytes.
-    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-inteira.jpg"), (1024, 576), qualidade=92),
+    # EXPANDIDA NO MAGNIFIC (11/09, pelo site -- o conector ignorava a
+    # proporcao): 2048 x 1280, a pintura original no meio com nebulosa
+    # continuada em volta e ceu sobre a cabeca. Em 2048 porque ela cobre
+    # 106 graus do ceu: sao 19 pixels por grau, o que o Quest resolve.
+    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-ceu.jpg"), (2048, 1280), qualidade=88),
     "__FIG_DEUSA__":     embutir(bem("figuras", "fig-deusa-vermelha.png"), (512,512), com_alfa=True),
     "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-deusa-integra.png"), (512,512), com_alfa=True),
     "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),

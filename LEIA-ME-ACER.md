@@ -89,8 +89,11 @@ raizes-cosmicas-v2/
 │   │   └── ceu-rosa-2048.png          Cenário 3.
 │   ├── figuras/
 │   │   ├── fig-galactico.png          O recorte antigo do ser galáctico — não é mais usado.
-│   │   ├── fig-galactica-inteira.jpg  A deusa galáctica, o quadro INTEIRO (11/09): 16:9, sem
-│   │   │                              alfa; o alfa nasce no shader, só da beirada e do preto.
+│   │   ├── fig-galactica-inteira.jpg  A deusa galáctica, o quadro inteiro como a direção de arte
+│   │   │                              mandou (11/09), 1364 × 767. Guardado; a obra usa o abaixo.
+│   │   ├── fig-galactica-ceu.jpg      O mesmo quadro EXPANDIDO no Magnific (pelo site, 11/09) a
+│   │   │                              2048 × 1280: nebulosa continuada em volta e céu sobre a
+│   │   │                              cabeça. Sem alfa; o alfa nasce no shader, da beirada e do preto.
 │   │   ├── fig-deusa-vermelha.png     A deusa vermelha (chave_23).
 │   │   ├── fig-deusa-integra.png      A deusa que integra tudo (t_072).
 │   │   └── fig-borboleta.png          A borboleta 88 (t_005).
