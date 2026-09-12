@@ -5428,6 +5428,7 @@ uniform float iris;          // 0 = corpo comum; 1 = iridescente (o Sol)
 uniform float tempoIris;
 uniform float gas;           // 0 = borda nitida; 1 = gasoso, a borda some aos poucos
 uniform vec3 olhoPos;
+uniform vec4 toque;          // onde a mao encostou, e o tempo do pulso (1 = acabou)
 varying vec3 vN;
 varying vec2 vUV;
 varying vec3 vMundo;
@@ -5537,6 +5538,19 @@ void main(){
      nitidas": a borda deixa de ser a ultima lasca e passa a ser metade do
      disco cedendo aos poucos, e o corpo inteiro fica um pouco translucido.
      O que sobra nitido e o miolo. */
+  /* O PULSO DO TOQUE -- 12/09. O rosa e o unico astro que se toca, e ate
+     aqui o toque so tocava o sino: o anel de luz morava no shader das
+     superficies, e planeta nao passa por ele. A receita dos cogumelos,
+     sobre o corpo: uma frente de luz que sai do ponto tocado e atravessa
+     o disco num segundo -- mais devagar que nos cogumelos, porque o disco
+     tem 47 cm e a frente dos cogumelos o cruzaria em meio segundo, que o
+     olho le como piscada e nao como onda. */
+  if(toque.w < 1.0 && halo < 0.5){
+    float dT = distance(vMundo, toque.xyz);
+    float frente = toque.w * 0.6;
+    float anel = exp(-pow((dT - frente) / 0.05, 2.0)) * (1.0 - toque.w);
+    c *= 1.0 + anel * 0.8;
+  }
   float borda = mix(0.055, 0.62, gas);
   float corpo = mix(1.0, 0.82, gas);
   gl_FragColor = vec4(c, presenca * corpo * smoothstep(0.0, borda, paraOlho));
@@ -6689,7 +6703,7 @@ const MOMENTOS = [
   [ 330, 2, 'JANELA — pegar e dimensionar um planeta'],
   [ 380, 2, 'entrar no planeta'],
   [ 390, 3, 'o planeta rosa; a agua sobe ate a cintura'],
-  [ 425, 3, 'a deusa vermelha na margem, com reflexo'],
+  [ 402, 3, 'os seres do mar chegam'],
   [ 450, 3, 'JANELA — os seres, as pedras, a concha'],
   [ 505, 3, 'a mao gigante vem, e puxa'],
   [ 525, 4, 'o mundo de papel sobe, de baixo para cima'],
@@ -7537,7 +7551,12 @@ function alvosAgora(){
   if(presencaAstro(0, t) > 0.3){
     const q = ondeEsta(0, t);
     lista.push({ id:'rosa', x:q[0], y:q[1], z:q[2], raio:0.36,
-                 fazer(m){ pulsarEm(q[0], q[1], q[2]); sinoDoToque(4, 0.8); } });
+                 /* O pulso nasce ONDE A MAO ENCOSTOU -- no ponto da superficie
+                    mais perto dela --, e nao no centro: do centro, toda a
+                    superficie esta a um raio, e a onda vira piscada. */
+                 fazer(m){ const dx = m.x-q[0], dy = m.y-q[1], dz = m.z-q[2], L = Math.hypot(dx, dy, dz) || 1;
+                           const r = PLANETAS[0].raio;
+                           pulsarEm(q[0] + dx/L*r, q[1] + dy/L*r, q[2] + dz/L*r); sinoDoToque(4, 0.8); } });
   }
   if(casuloPresenca > 0.3)
     // o alvo acompanha o corpo: 0,28 era generoso para a pupa de 23 cm
@@ -9095,7 +9114,7 @@ const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
                 brilho:uAs('brilhoProprio'), halo:uAs('halo'),
                 iris:uAs('iris'), tempoIris:uAs('tempoIris'), gas:uAs('gas'),
-                olhoPos:uAs('olhoPos')};
+                olhoPos:uAs('olhoPos'), toque:uAs('toque')};
 const aAst = {pos: gl.getAttribLocation(progAstro,'aPos'),
               uv:  gl.getAttribLocation(progAstro,'aUV')};
 
@@ -9248,6 +9267,11 @@ function mandarMvp(loc, m){
 
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   gl.enable(gl.DEPTH_TEST);
+  /* O RELOGIO DO PULSO DO TOQUE, uma vez por quadro e para todos os
+     desenhos que o mostram. Vivia dentro do desenho das superficies, que
+     no cosmos nao acontece (nao ha mata la): o planeta rosa era tocado e
+     o pulso nunca andava. */
+  toqueLuz[3] = Math.min(1.0, (relogio - toqueEm) / 1.4);
 
   // Eixos da câmera no mundo, tirados da matriz de visão. Como ela é a
   // rotação invertida, as LINHAS dela são os eixos da câmera: linha 0 é
@@ -9366,7 +9390,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        todos os desenhos solidos: quem recebe o rebatimento e o resto da
        floresta, e nao ela. */
     gl.uniform4f(locSo.luzCasulo, CASULO[0], CRIS_MEIO, CASULO[2], casuloPresenca);
-    toqueLuz[3] = Math.min(1.0, (relogio - toqueEm) / 1.4);
     gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
     /* UMA VOLTA DA PINTURA A CADA OITENTA CENTIMETROS. Maior que isso e a
        aquarela vira mancha chapada no tronco; menor, vira estampa repetida,
@@ -10052,6 +10075,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
 
     // OS PLANETAS
+    gl.uniform4f(locAst.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
     for(let i=0;i<PLANETAS.length;i++){
       const pl = PLANETAS[i], pr = presencaAstro(i, t);
       if(pr < 0.004) continue;

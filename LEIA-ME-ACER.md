@@ -429,7 +429,15 @@ O que responde, e como:
 | os treze cogumelos | o mesmo anel; **neles a onda multiplica**, porque somar ciano em coisa que já é luz não se vê | sino, uma nota por cogumelo |
 | a borboleta, na volta que ela dá | **glitter**: 48 grãos saem dela e caem por 2,2 s (`soltarGlitter`, andam na CPU, usam `progPo` com `fixo = 1`) | o som estranho: triângulo subindo uma oitava e meia com vibrato largo, mais sete pings agudos |
 | o casulo, a concha, o rizomar | o anel | sino |
-| o planeta rosa | o anel | sino |
+| o planeta rosa | **uma onda de luz que atravessa o disco** a partir do ponto tocado, em ~1 s (o mesmo `toque`, agora também no `FS_ASTRO` — até 12/09 o anel só existia no shader das superfícies, e o toque no planeta era só o sino) | sino |
+
+**O que a janela "pegar e dimensionar um planeta" (5:30) é hoje:** só isto —
+o rosa orbita ao alcance (0,95 m, à altura do peito), e o toque acende a onda
+e o sino. **Não há pegar nem redimensionar**: o rótulo está na partitura
+(`MOMENTOS`), o gesto nunca foi construído. O pinçar (`apertando`) já é lido
+das mãos e serve de gatilho, então agarrar e escalar é possível de fazer;
+depende de decisão da direção de arte. A entrada no planeta (6:20) é pelo
+relógio, para todo mundo.
 
 E **a asa soa**: um sopro de ruído filtrado por batida, só a menos de cinco
 metros, caindo com o quadrado da distância.
