@@ -521,6 +521,14 @@ const ARVORE_MAE         = 1;
 /* Os cogumelos sao esferas, e nao particulas -- por isso saem do
    OBJETOS_NO_CHAO, que desliga o que e nuvem de pontos. */
 const COGUMELOS_NO_CHAO  = true;
+/* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
+   do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
+   fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
+   qualquer corpo -- o proprio, o dos outros -- e desenha um fio de luz onde
+   a distancia salta; e as JUNTAS das maos rastreadas, que so veem as maos
+   de quem usa, para quando o mapa nao vier. */
+const CONTORNO_PROFUNDIDADE = true;
+const CONTORNO_MAOS         = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -4317,6 +4325,82 @@ void main(){
   gl_FragColor = vec4(c * brilho * presenca, brilho * presenca);
 }`;
 
+/* ═══════════ O CONTORNO PELA PROFUNDIDADE ═══════════
+   Um quadro inteiro por olho. Para cada pixel le-se o mapa de profundidade
+   do aparelho neste ponto e nos quatro vizinhos; onde a distancia SALTA
+   (um corpo na frente do fundo) acende-se um fio de luz. So o que esta a
+   menos de tres metros: o que se quer contornar e gente, nao a sala. O
+   mapa e grosso (poucas centenas de pontos de lado), por isso o fio sai
+   macio, como uma aura, e nao como linha de caneta. */
+const VS_CONTORNO = `
+attribute vec2 aXY;
+void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
+const FS_CONTORNO = `
+precision mediump float;
+uniform sampler2D prof;      // o mapa de profundidade desta vista
+uniform mat4 paraProf;       // das coordenadas normalizadas da vista para as do mapa
+uniform vec4 janela;         // x, y, largura e altura da vista, em pixels
+uniform vec2 passo;          // um ponto do mapa, em uv
+uniform float escala;        // de valor bruto para metros
+uniform float formato;       // 0 = dois bytes (luminance-alpha), 1 = float32
+uniform vec3 cor;
+uniform float presenca;
+float metros(vec2 uv){
+  vec4 t = texture2D(prof, uv);
+  float bruto = formato < 0.5 ? (t.r * 255.0 + t.a * 255.0 * 256.0) : t.r;
+  float m = bruto * escala;
+  return m <= 0.0 ? 100.0 : m;      // zero e "nao sei": vale longe
+}
+void main(){
+  vec2 uv = (gl_FragCoord.xy - janela.xy) / janela.zw;
+  vec2 d = (paraProf * vec4(uv, 0.0, 1.0)).xy;
+  if(d.x < 0.0 || d.x > 1.0 || d.y < 0.0 || d.y > 1.0) discard;
+  float c = metros(d);
+  float e = metros(d - vec2(passo.x, 0.0)), w = metros(d + vec2(passo.x, 0.0));
+  float su = metros(d - vec2(0.0, passo.y)), n = metros(d + vec2(0.0, passo.y));
+  float perto = min(min(c, min(e, w)), min(su, n));
+  float longe = max(max(c, max(e, w)), max(su, n));
+  if(perto > 3.0) discard;
+  // o salto relativo a distancia do que esta perto: um braco a meio metro
+  // contra a parede salta muito; a curva do proprio braco, quase nada
+  float salto = longe - perto;
+  float ha = smoothstep(0.08, 0.30, salto / max(perto, 0.3));
+  /* O FIO fica onde a leitura interpolada cruza o meio do salto -- e a
+     silhueta, e nao os dois pontos do mapa em volta dela. Um nucleo fino e
+     uma aura larga e fraca. */
+  float t = (c - perto) / max(salto, 0.001);
+  float fio = exp(-pow((t - 0.5) / 0.16, 2.0));
+  float aura = 0.35 * exp(-pow((t - 0.5) / 0.45, 2.0));
+  float borda = ha * min(1.0, fio + aura);
+  gl_FragColor = vec4(cor * borda, borda * presenca);
+}`;
+
+/* ═══════════ O CONTORNO DAS MAOS PELAS JUNTAS ═══════════
+   Cada osso e uma fita virada para o olho, com a largura do raio da junta
+   e as pontas esticadas em um raio: as bordas da fita coincidem com a
+   silhueta do dedo. A ponta de cada dedo ganha meio anel. So se acende a
+   beirada: o miolo e a mao de verdade, que a camera ja mostra. */
+const VS_MAO = `
+attribute vec3 aPos;
+attribute vec2 aQ;         // -1..1 na fita (x de lado) ou no disco (x, y)
+attribute float aTipo;     // 0 = fita, 1 = meio anel da ponta
+uniform mat4 mvp;
+varying vec2 vQ;
+varying float vTipo;
+void main(){ vQ = aQ; vTipo = aTipo; gl_Position = mvp * vec4(aPos, 1.0); }`;
+const FS_MAO = `
+precision mediump float;
+uniform vec3 cor;
+uniform float presenca;
+varying vec2 vQ;
+varying float vTipo;
+void main(){
+  float k = vTipo < 0.5 ? abs(vQ.x) : length(vQ);
+  if(vTipo > 0.5 && (k > 1.0 || vQ.y < 0.0)) discard;
+  float borda = smoothstep(0.55, 0.90, k) * (1.0 - smoothstep(0.96, 1.0, k));
+  gl_FragColor = vec4(cor * borda, borda * presenca);
+}`;
+
 const VS_PO = `
 attribute vec3 aPos;     // x,z = onde a coluna fica; y = altura da coluna
 attribute vec3 aCor;
@@ -5890,6 +5974,8 @@ const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progFio  = programa(VS_FIO,  FS_FIO);
+const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
+const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
 const progPapel = programa(VS_PAPEL, FS_PAPEL);
@@ -7575,8 +7661,8 @@ function medirAgitacao(dt, olhoPos){
    Cada mao guarda quanto esta ACESA: um alvo nao acende de golpe, cresce e
    apaga, senao o toque vira pisca-pisca. */
 const MAOS = [
-  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false },
-  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false },
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25) },
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25) },
 ];
 
 /* Tocar o casulo e um acontecimento, nao um interruptor: a obra nao volta
@@ -7711,6 +7797,15 @@ function lerMaos(frame){
     if(!alvo) continue;
     const p = alvo.transform.position;
     m.tem = true; m.x = p.x; m.y = p.y; m.z = p.z;
+    /* AS VINTE E CINCO JUNTAS, para o contorno da mao. fillPoses enche as
+       vinte e cinco matrizes de uma vez, sem alocar nada por quadro. */
+    m.temJuntas = false;
+    if(fonte.hand && frame.fillPoses && juntasOk){
+      try{
+        m.temJuntas = frame.fillPoses(fonte.hand.values(), espaco, m.juntas);
+        if(m.temJuntas && frame.fillJointRadii) frame.fillJointRadii(fonte.hand.values(), m.raios);
+      }catch(e){ juntasOk = false; relato('JUNTAS-ERRO ' + (e && e.name)); }
+    }
     if(!m.contada){
       m.contada = true;
       relato('MAO-' + i + ' apareceu tipo=' + (fonte.hand ? 'mao-nua' : 'controle'));
@@ -8432,9 +8527,54 @@ if(emTesteLocal){
        sem argumento). E so daqui que se testa toque sem headset. */
     mao(x, y, z, aperta, qual){
       const m = MAOS[qual | 0];
-      if(x === undefined){ m.tem = false; m.apertando = false; return 'sem mao'; }
+      if(x === undefined){ m.tem = false; m.apertando = false; m.temJuntas = false; return 'sem mao'; }
       m.tem = true; m.x = +x; m.y = +y; m.z = +z; m.apertando = !!aperta;
       return [m.x, m.y, m.z, m.apertando];
+    },
+    /* UMA MAO COM JUNTAS, de mentira, para ver o contorno na bancada: a
+       palma no ponto dado, virada para -z, os dedos para cima. */
+    maoJuntas(x, y, z, qual){
+      const m = MAOS[qual | 0];
+      if(x === undefined){ m.tem = false; m.temJuntas = false; return 'sem mao'; }
+      const J = m.juntas; J.fill(0);
+      const poe = (j, px, py, pz, r) => { J[j*16+12] = px; J[j*16+13] = py; J[j*16+14] = pz; J[j*16+15] = 1; m.raios[j] = r; };
+      poe(0, x, y, z, 0.022);
+      // polegar, para o lado
+      poe(1, x-0.025, y+0.02, z, 0.014); poe(2, x-0.055, y+0.045, z, 0.011); poe(3, x-0.075, y+0.07, z, 0.009); poe(4, x-0.088, y+0.088, z, 0.008);
+      const dedos = [[-0.028, 0.170], [-0.009, 0.185], [0.010, 0.178], [0.030, 0.155]];
+      for(let d = 0; d < 4; d++){
+        const b = 5 + d*5, dx = dedos[d][0], alt = dedos[d][1];
+        poe(b,   x+dx*0.6, y+0.045, z, 0.013);            // metacarpo
+        poe(b+1, x+dx,     y+0.085, z, 0.011);            // no
+        poe(b+2, x+dx,     y+0.085+(alt-0.085)*0.40, z, 0.0095);
+        poe(b+3, x+dx,     y+0.085+(alt-0.085)*0.72, z, 0.0085);
+        poe(b+4, x+dx,     y+alt,   z, 0.0075);           // ponta
+      }
+      m.tem = true; m.temJuntas = true; m.x = x; m.y = y + 0.17; m.z = z;
+      return 'mao com juntas em ' + [x, y, z];
+    },
+    /* UM MAPA DE PROFUNDIDADE de mentira, 160 x 120, dois bytes por ponto
+       em milimetros: fundo a 2,5 m, um braco a 0,6 m entrando por baixo a
+       direita, e uma pessoa a 1,8 m a esquerda. Serve para ver o fio. */
+    profundidade(liga){
+      if(!liga){ profundidadeFalsa = null; return 'sem mapa'; }
+      const W = 160, H = 120, dados = new Uint8Array(W*H*2);
+      for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){
+        const u = x / W, v = y / H;
+        let mm = 2500 + Math.round(Math.sin(u*9)*40 + Math.cos(v*7)*40);
+        const braco = (u > 0.62 && u < 0.78 && v < 0.55) || Math.hypot((u-0.70)*1.3, v-0.55) < 0.11;
+        const pessoa = Math.hypot((u-0.22)*1.3, (v-0.62)) < 0.09 || (u > 0.10 && u < 0.34 && v < 0.55 && v > 0.0);
+        if(pessoa) mm = 1800 + Math.round(Math.cos(u*30)*15);
+        if(braco) mm = 600 + Math.round(Math.sin(v*20)*8);
+        const i = (y*W + x)*2; dados[i] = mm & 255; dados[i+1] = mm >> 8;
+      }
+      const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE_ALPHA, W, H, 0, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE, dados);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      profundidadeFalsa = { texture: tex, width: W, height: H, rawValueToMeters: 0.001,
+                            normDepthBufferFromNormView: { matrix: new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]) } };
+      return 'mapa falso ' + W + 'x' + H;
     },
     ir(segundos){
       /* SAIR DA ESPERA, se a obra ja acabou uma vez.
@@ -8626,6 +8766,9 @@ const bXR = document.getElementById('bXR');
 const vXR = document.getElementById('vXR');
 const vPlanos = document.getElementById('vPlanos');
 let sessao = null, espaco = null, camadaXR = null;
+let juntasOk = true;                  // desliga sozinho se o aparelho nao der as juntas
+let profundidadeFalsa = null;         // so a bancada poe algo aqui
+let ligacaoXR = null, temProfundidade = false, profundidadeContada = false;
 /* AINDA NAO NOS ORIENTAMOS. Vira true no primeiro quadro com pose valida. */
 let mundoOrientado = false;
 
@@ -8711,9 +8854,14 @@ async function entrarXR(aoEntrar){
      Aqui nada e exigido. O que vier, vem; o que faltar, se contorna. Uma
      obra que abre torta e mil vezes melhor do que uma obra que nao abre,
      principalmente com fila esperando. */
+  /* A PROFUNDIDADE E OPCIONAL, como tudo: se o aparelho nao der, o
+     contorno dos corpos fica so com as maos, pelas juntas. gpu-optimized e
+     uma textura por olho, que e o que o shader do contorno le. */
   const pedido = {
     requiredFeatures: [],
-    optionalFeatures: ['local-floor','hand-tracking','plane-detection','anchors','hit-test']
+    optionalFeatures: ['local-floor','hand-tracking','plane-detection','anchors','hit-test',
+                       'depth-sensing'],
+    depthSensing: { usagePreference: ['gpu-optimized'], dataFormatPreference: ['luminance-alpha', 'float32'] }
   };
 
   /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
@@ -8791,6 +8939,18 @@ async function entrarXR(aoEntrar){
      ajustada assim. Agora e o mesmo numero nos dois. */
   sessao.updateRenderState({ baseLayer: camadaXR, depthNear: 0.05, depthFar: LONGE });
   relato('PASSO-3 camada criada');
+  /* A LIGACAO que entrega o mapa de profundidade por vista. Construtor
+     sincrono: nao pendura. Se nao existir, fica sem. */
+  temProfundidade = false; profundidadeContada = false; ligacaoXR = null;
+  if(CONTORNO_PROFUNDIDADE){
+    try{
+      const dadas = Array.from(sessao.enabledFeatures || []);
+      if(dadas.includes('depth-sensing') && window.XRWebGLBinding){
+        ligacaoXR = new XRWebGLBinding(sessao, gl);
+        temProfundidade = true;
+      }
+    }catch(e){ ligacaoXR = null; temProfundidade = false; relato('PROFUNDIDADE-ERRO ' + (e && e.name)); }
+  }
 
   /* 72 E O ALVO, E AGORA E PEDIDO.
 
@@ -9290,6 +9450,14 @@ const locFio = {mvp:uFio('mvp'), tempo:uFio('tempo'), presenca:uFio('presenca'),
                 cor:uFio('cor'), corPulso:uFio('corPulso')};
 const aFio = {pos:gl.getAttribLocation(progFio,'aPos'), t:gl.getAttribLocation(progFio,'aT'),
               fase:gl.getAttribLocation(progFio,'aFase')};
+const uCt = n=>gl.getUniformLocation(progContorno,n);
+const locCt = {prof:uCt('prof'), paraProf:uCt('paraProf'), janela:uCt('janela'), passo:uCt('passo'),
+               escala:uCt('escala'), formato:uCt('formato'), cor:uCt('cor'), presenca:uCt('presenca')};
+const aCt = {xy:gl.getAttribLocation(progContorno,'aXY')};
+const uMao = n=>gl.getUniformLocation(progMao,n);
+const locMao = {mvp:uMao('mvp'), cor:uMao('cor'), presenca:uMao('presenca')};
+const aMao = {pos:gl.getAttribLocation(progMao,'aPos'), q:gl.getAttribLocation(progMao,'aQ'),
+              tipo:gl.getAttribLocation(progMao,'aTipo')};
 const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
             canto:gl.getAttribLocation(progFig,'aCanto'),
             dado:gl.getAttribLocation(progFig,'aDado'),
@@ -11162,6 +11330,115 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   }
 }
 
+/* A cor do contorno e a cor do cenario -- a mesma familia da lampada da
+   sala --, puxada para o branco: e luz em volta de um corpo. */
+const COR_CONTORNO = { 1:[0.00,1.00,0.83], 2:[0.36,0.00,1.00], 3:[1.00,0.50,0.58], 4:[0.00,0.17,1.00] };
+function corDoContorno(){
+  const c = COR_CONTORNO[cenaAtual] || COR_CONTORNO[1];
+  return [c[0] + (1 - c[0]) * 0.35, c[1] + (1 - c[1]) * 0.35, c[2] + (1 - c[2]) * 0.35];
+}
+
+/* O CONTORNO PELA PROFUNDIDADE, numa vista. prof e o XRWebGLDepthInformation
+   desta vista (ou um falso da bancada, com os mesmos campos). */
+function desenharContornoProfundidade(prof, vp, formato){
+  if(!prof || !prof.texture || (prof.textureType && prof.textureType !== 'texture')) return;
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
+  gl.useProgram(progContorno); soltarAtributos();
+  gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, prof.texture);
+  /* macio no mapa de dois bytes; no de float, LINEAR sem a extensao deixa
+     a textura incompleta e tudo vira zero -- ai fica NEAREST */
+  const suave = formato !== 'float32' || !!gl.getExtension('OES_texture_float_linear');
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, suave ? gl.LINEAR : gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, suave ? gl.LINEAR : gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(locCt.prof, 7);
+  gl.uniformMatrix4fv(locCt.paraProf, false, prof.normDepthBufferFromNormView.matrix);
+  gl.uniform4f(locCt.janela, vp.x, vp.y, vp.width, vp.height);
+  gl.uniform2f(locCt.passo, 1 / prof.width, 1 / prof.height);
+  gl.uniform1f(locCt.escala, prof.rawValueToMeters);
+  gl.uniform1f(locCt.formato, formato === 'float32' ? 1 : 0);
+  const c = corDoContorno();
+  gl.uniform3f(locCt.cor, c[0], c[1], c[2]);
+  gl.uniform1f(locCt.presenca, 0.85);
+  ligar(aCt.xy, bQ.xy, 2);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+/* O CONTORNO DAS MAOS PELAS JUNTAS. Os ossos que fazem silhueta: o polegar
+   inteiro, os dois lados da palma (do pulso ao no do indicador e ao do
+   mindinho) e os quatro dedos a partir dos nos. Os metacarpos do meio e
+   do anular ficam de fora: correm por dentro da palma, e por dentro nao
+   ha borda. Sem alocar por quadro: um Float32Array de uma vez. */
+const OSSOS_MAO = [[0,1],[1,2],[2,3],[3,4], [0,5],[0,20],
+                   [5,6],[6,7],[7,8],[8,9], [10,11],[11,12],[12,13],[13,14],
+                   [15,16],[16,17],[17,18],[18,19], [20,21],[21,22],[22,23],[23,24]];
+const PONTAS_MAO = [[3,4],[8,9],[13,14],[18,19],[23,24]];
+const MAO_VERTICES = 2 * (OSSOS_MAO.length + PONTAS_MAO.length) * 6;
+const maoDados = new Float32Array(MAO_VERTICES * 6);
+const bMao = criarBufs(['tudo']);
+function desenharContornoMaos(mvp, olho){
+  let k = 0;
+  const pos = (m, j) => [m.juntas[j*16+12], m.juntas[j*16+13], m.juntas[j*16+14]];
+  const poe = (p, qx, qy, tipo) => { maoDados[k++] = p[0]; maoDados[k++] = p[1]; maoDados[k++] = p[2]; maoDados[k++] = qx; maoDados[k++] = qy; maoDados[k++] = tipo; };
+  const quad = (a, b, c, d, tipo) => { poe(a[0], a[1], a[2], tipo); poe(b[0], b[1], b[2], tipo); poe(c[0], c[1], c[2], tipo);
+                                       poe(a[0], a[1], a[2], tipo); poe(c[0], c[1], c[2], tipo); poe(d[0], d[1], d[2], tipo); };
+  for(const m of MAOS){
+    if(!m.tem || !m.temJuntas) continue;
+    for(const [i, j] of OSSOS_MAO){
+      const a = pos(m, i), b = pos(m, j), ra = m.raios[i] || 0.01, rb = m.raios[j] || 0.01;
+      let dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2]; const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
+      const ox = olho[0] - (a[0]+b[0])/2, oy = olho[1] - (a[1]+b[1])/2, oz = olho[2] - (a[2]+b[2])/2;
+      // o lado da fita: perpendicular ao osso e a linha do olho
+      let sx = dy*oz - dz*oy, sy = dz*ox - dx*oz, sz = dx*oy - dy*ox; const S = Math.hypot(sx, sy, sz) || 1; sx /= S; sy /= S; sz /= S;
+      const a0 = [a[0]-dx*ra, a[1]-dy*ra, a[2]-dz*ra], b0 = [b[0]+dx*rb, b[1]+dy*rb, b[2]+dz*rb];
+      quad([[a0[0]-sx*ra, a0[1]-sy*ra, a0[2]-sz*ra], -1, 0], [[b0[0]-sx*rb, b0[1]-sy*rb, b0[2]-sz*rb], -1, 1],
+           [[b0[0]+sx*rb, b0[1]+sy*rb, b0[2]+sz*rb],  1, 1], [[a0[0]+sx*ra, a0[1]+sy*ra, a0[2]+sz*ra],  1, 0], 0);
+    }
+    for(const [i, j] of PONTAS_MAO){
+      const a = pos(m, i), b = pos(m, j), r = m.raios[j] || 0.009;
+      let dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2]; const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
+      const ox = olho[0]-b[0], oy = olho[1]-b[1], oz = olho[2]-b[2];
+      let sx = dy*oz - dz*oy, sy = dz*ox - dx*oz, sz = dx*oy - dy*ox; const S = Math.hypot(sx, sy, sz) || 1; sx /= S; sy /= S; sz /= S;
+      quad([[b[0]-sx*r-dx*r, b[1]-sy*r-dy*r, b[2]-sz*r-dz*r], -1, -1], [[b[0]-sx*r+dx*r, b[1]-sy*r+dy*r, b[2]-sz*r+dz*r], -1, 1],
+           [[b[0]+sx*r+dx*r, b[1]+sy*r+dy*r, b[2]+sz*r+dz*r],  1,  1], [[b[0]+sx*r-dx*r, b[1]+sy*r-dy*r, b[2]+sz*r-dz*r],  1, -1], 1);
+    }
+  }
+  if(k === 0) return;
+  gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
+  gl.useProgram(progMao); soltarAtributos();
+  mandarMvp(locMao.mvp, mvp);
+  const c = corDoContorno();
+  gl.uniform3f(locMao.cor, c[0], c[1], c[2]);
+  gl.uniform1f(locMao.presenca, 0.9);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bMao.tudo);
+  gl.bufferData(gl.ARRAY_BUFFER, maoDados.subarray(0, k), gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(aMao.pos);  gl.vertexAttribPointer(aMao.pos,  3, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(aMao.q);    gl.vertexAttribPointer(aMao.q,    2, gl.FLOAT, false, 24, 12);
+  gl.enableVertexAttribArray(aMao.tipo); gl.vertexAttribPointer(aMao.tipo, 1, gl.FLOAT, false, 24, 20);
+  gl.drawArrays(gl.TRIANGLES, 0, k / 6);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+/* O CONTORNO, numa vista: pela profundidade quando o aparelho a da; pelas
+   juntas das maos quando nao. Nunca os dois: seria contorno em dobro. */
+function desenharContorno(vista, vp, mvp, olho, profFalsa){
+  let prof = profFalsa || null, formato = profFalsa ? 'luminance-alpha' : null;
+  if(!prof && temProfundidade && ligacaoXR && vista){
+    try{ prof = ligacaoXR.getDepthInformation(vista); formato = sessao.depthDataFormat; }
+    catch(e){ temProfundidade = false; relato('PROFUNDIDADE-ERRO ' + (e && e.name)); prof = null; }
+    if(prof && !profundidadeContada){
+      profundidadeContada = true;
+      relato('PROFUNDIDADE ' + prof.width + 'x' + prof.height + ' ' + formato + ' ' + (prof.textureType || 'texture') + ' x' + prof.rawValueToMeters);
+    }
+  }
+  if(prof){ desenharContornoProfundidade(prof, vp, formato); return; }
+  if(CONTORNO_MAOS) desenharContornoMaos(mvp, olho);
+}
+
 const eY = document.getElementById('vYaw');
 
 function quadro(){
@@ -11194,7 +11471,12 @@ function quadro(){
   // escala do ponto: metade da altura em pixels vezes o termo vertical
   // da projeção. É o mesmo fator que a projeção aplica em y, então um
   // grão de 2 cm sai com o tamanho de 2 cm na tela.
-  desenharCena(multiplicar(proj, vis), vis, false, 0.5*cv.height*proj[5]);
+  const mvpTela = multiplicar(proj, vis);
+  desenharCena(mvpTela, vis, false, 0.5*cv.height*proj[5]);
+  // na tela so ha contorno se a bancada puser juntas ou um mapa falso
+  desenharContorno(null, {x:0, y:0, width:cv.width, height:cv.height}, mvpTela,
+                   [-(vis[0]*vis[12] + vis[1]*vis[13] + vis[2]*vis[14]), -(vis[4]*vis[12] + vis[5]*vis[13] + vis[6]*vis[14]), -(vis[8]*vis[12] + vis[9]*vis[13] + vis[10]*vis[14])],
+                   profundidadeFalsa);
   eY.textContent = (((Math.round(yaw*180/Math.PI)%360)+360)%360)+'°';
   requestAnimationFrame(quadro);
 }
@@ -11281,7 +11563,10 @@ function quadroXR(t, frame){
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
     const vis = Array.from(vista.transform.inverse.matrix);
     const pj = Array.from(vista.projectionMatrix);
-    desenharCena(multiplicar(pj, vis), vis, true, 0.5*vp.height*pj[5]);
+    const mvpVista = multiplicar(pj, vis);
+    desenharCena(mvpVista, vis, true, 0.5*vp.height*pj[5]);
+    const o = vista.transform.position;
+    desenharContorno(vista, vp, mvpVista, [o.x, o.y, o.z], null);
   }
 }
 quadro();

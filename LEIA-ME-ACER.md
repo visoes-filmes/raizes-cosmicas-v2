@@ -654,6 +654,36 @@ sobem a luz a 100% na mesma cor, para a câmera achar as mãos — **se luz
 colorida saturada basta para o rastreio, só o Quest diz**; se não bastar, o
 que cede é o valor do escuro, não a cor.
 
+### O contorno dos corpos (12/09)
+
+Pedido: "contorno para as mãos e demais partes do corpo que entrarem na
+nossa visão, inclusive de outras pessoas". Duas fontes, nunca as duas ao
+mesmo tempo (`desenharContorno`):
+
+- **Pela profundidade** (`CONTORNO_PROFUNDIDADE`, `FS_CONTORNO`): a sessão
+  pede `depth-sensing` como opcional (`gpu-optimized`, `luminance-alpha` ou
+  `float32`), e por vista lê `XRWebGLBinding.getDepthInformation(vista)` —
+  uma textura com a distância de cada ponto. Um quadro inteiro por olho: onde
+  a distância **salta** (um corpo na frente do fundo) e o lado de perto está
+  a menos de 3 m, acende um fio na cor do cenário, fino no cruzamento da
+  silhueta e com uma aura fraca em volta. Vê qualquer corpo: mãos, braços,
+  pernas, quem passa. O mapa é grosso (poucas centenas de pontos de lado);
+  o fio segue a resolução dele. **Nunca visto no aparelho**: se o navegador
+  do Quest dá o mapa em `immersive-ar`, só o relato `PROFUNDIDADE
+  <largura>x<altura> <formato>` do próximo teste pelo cabo diz. Se não der,
+  a sessão abre igual (é opcional) e entra a segunda fonte.
+- **Pelas juntas** (`CONTORNO_MAOS`, `FS_MAO`): `frame.fillPoses` enche as
+  25 juntas de cada mão sem alocar por quadro; cada osso que faz silhueta
+  (polegar, os dois lados da palma, os quatro dedos a partir dos nós) vira
+  uma fita virada para o olho com a largura do raio da junta, e só a
+  beirada acende; as pontas ganham meio anel. Só as mãos de quem usa.
+
+Na bancada: `raizes.maoJuntas(x, y, z, qual)` põe uma mão com juntas de
+mentira e `raizes.profundidade(true)` um mapa de profundidade de mentira
+(fundo a 2,5 m, um braço a 0,6 m, uma pessoa a 1,8 m) — foi assim que os
+dois fios foram vistos (`_fotos/contorno-*.jpg`). A cor é a do cenário, a
+mesma família da lâmpada, puxada 35% para o branco.
+
 ### Conferido no aparelho, pelo cabo (12/09)
 
 Pelo DevTools do Quest (`adb forward tcp:9222 localabstract:chrome_devtools_remote`),

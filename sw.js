@@ -19,7 +19,7 @@
  * momento em que metade da obra é de uma versão e metade de outra.
  */
 
-const VERSAO = 'raizes-cosmicas-2026-09-12w';
+const VERSAO = 'raizes-cosmicas-2026-09-12z';
 
 /**
  * O que é baixado na instalação, sem esperar ninguém pedir.
