@@ -7130,13 +7130,17 @@ function atualizarSol(t){
    na sua inclinacao, e acesa pelo mesmo Sol. O rosa, que e o que a pessoa
    pega, fica sem lua: lua em volta de coisa que se pega e coisa a mais na
    mao. dist e raio sao multiplos do raio do planeta; per em segundos. */
+/* GASOSOS TODOS -- 11/09, "vai ser bom esse efeito em todos os astros,
+   mas o rosa um pouco mais gasoso". gas e o quanto a borda cede: 0,55 nos
+   tres, 1,35 no rosa (a borda cede sobre 80% do disco e o corpo fica a
+   76%); as luas a 0,35, para nao serem pedrinhas duras ao lado de gas. */
 const PLANETAS = [
-  { nome:'rosa',    cor:[1.00, 0.62, 0.78], raio:0.235, achatar:1.00, pele:3, interativo:true,  luas:[], gas:1.0 },
-  { nome:'agua',    cor:[0.50, 0.78, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false,
+  { nome:'rosa',    cor:[1.00, 0.62, 0.78], raio:0.235, achatar:1.00, pele:3, interativo:true,  luas:[], gas:1.35 },
+  { nome:'agua',    cor:[0.50, 0.78, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false, gas:0.55,
     luas:[{raio:0.16, dist:2.2, per:16, inc:0.35, fase:0.0}, {raio:0.10, dist:3.0, per:27, inc:-0.6, fase:2.1}] },
-  { nome:'fogo',    cor:[1.00, 0.60, 0.38], raio:0.185, achatar:1.06, pele:7, interativo:false,
+  { nome:'fogo',    cor:[1.00, 0.60, 0.38], raio:0.185, achatar:1.06, pele:7, interativo:false, gas:0.55,
     luas:[{raio:0.13, dist:2.4, per:12, inc:0.8, fase:4.0}] },
-  { nome:'verde',   cor:[0.62, 1.00, 0.74], raio:0.215, achatar:0.90, pele:5, interativo:false,
+  { nome:'verde',   cor:[0.62, 1.00, 0.74], raio:0.215, achatar:0.90, pele:5, interativo:false, gas:0.55,
     luas:[{raio:0.14, dist:2.1, per:19, inc:0.25, fase:1.0}, {raio:0.09, dist:2.7, per:31, inc:1.1, fase:3.3},
           {raio:0.07, dist:3.4, per:44, inc:-0.3, fase:5.0}] },
 ];
@@ -10033,8 +10037,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.brilho, 0.30);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       if(pl.gas){   // o gasoso derrama mais longe: e gas, nao pedra
-        gl.uniform1f(locAst.raio, pl.raio * 2.3);
-        gl.uniform1f(locAst.brilho, 0.16);
+        gl.uniform1f(locAst.raio, pl.raio * (1.6 + 0.55 * pl.gas));
+        gl.uniform1f(locAst.brilho, 0.12 * pl.gas);
         gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       }
       gl.cullFace(gl.BACK);
@@ -10048,7 +10052,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform3f(locAst.cor, 0.86, 0.84, 0.92);
         gl.uniform1f(locAst.achatar, 1.0);
         gl.uniform1f(locAst.brilho, 0.10);
-        gl.depthMask(pr > 0.92);
+        gl.uniform1f(locAst.gas, 0.35);
+        gl.depthMask(false);
         for(let k=0;k<pl.luas.length;k++){
           const lua = pl.luas[k], q = ondeLua(pl, c, lua, t);
           gl.uniform3f(locAst.centro, q[0], q[1], q[2]);
@@ -10057,7 +10062,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
           gl.uniform3f(locAst.luzDe, SOL[0]-q[0], SOL[1]-q[1], SOL[2]-q[2]);
           gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
         }
-        gl.depthMask(false);
+        gl.uniform1f(locAst.gas, 0.0);
       }
     }
 
