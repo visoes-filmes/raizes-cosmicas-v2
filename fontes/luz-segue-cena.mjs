@@ -66,7 +66,6 @@ const JANELAS = [
    com luz colorida a 100%, o que cede e o valor do escuro, nao a cor. */
 const VALOR_OBRA   = 0.60;   // o escuro da obra, ainda com cor
 const VALOR_JANELA = 1.00;   // o que a camera precisa para achar uma mao
-const SAT_JANELA   = 1.00;   // a cor nao afrouxa
 
 /* AS CORES, MEDIDAS -- 12/09, "a cor dominante de cada um, mais intensa".
    Medido na bancada em tres olhares por cenario (histograma de matiz dos
@@ -83,7 +82,7 @@ const SAT_JANELA   = 1.00;   // a cor nao afrouxa
 const COR_DA_CENA = {
   1: { matiz: 170, nome: 'verde-turquesa' },  // a floresta: "falta um verde turquesa" (12/09); mede azul, mas e a floresta
   2: { matiz: 262, nome: 'violeta' },         // o cosmos, a assinatura da regua (medido: azul 215)
-  3: { matiz: 335, nome: 'magenta' },         // o planeta rosa, medido
+  3: { matiz: 350, nome: 'rosa-claro', sat: 0.50 },  // o planeta rosa: medido 335; "mais avermelhado" e "mais suave, para o branco" (12/09)
   4: { matiz: 230, nome: 'azul' },            // o mundo de papel, o azul-violeta medido (o ambar "nao combina")
 };
 
@@ -163,7 +162,8 @@ for (;;) {
     const chave = `${cena}/${janela ? 'janela' : 'escuro'}`;
     if (chave !== ultima) {
       const c = COR_DA_CENA[cena];
-      const cor = c && hsvParaHex(c.matiz, janela ? SAT_JANELA : 1.0, janela ? VALOR_JANELA : VALOR_OBRA);
+      // a saturacao e cheia, salvo onde a direcao de arte pediu mais suave (sat na tabela)
+      const cor = c && hsvParaHex(c.matiz, c.sat ?? 1.0, janela ? VALOR_JANELA : VALOR_OBRA);
       if (cor && await pintar(cor)) {
         console.log(`  ${onde.tempo}  cenario ${cena}  ${c.nome}  ${cor}` +
                     (janela ? `  — janela: ${janela.o_que}` : '  — o escuro da obra'));

@@ -645,7 +645,7 @@ saturação afrouxada na janela, a cor não se lia):
 |---|---|---|---|---|
 | 1 floresta | azul 220–240° (52–77%) | **verde-turquesa** 170° — "falta um verde turquesa"; é a floresta, e a régua já a chamava de verde-azulado | `#009980` | `#00ffd5` |
 | 2 cosmos | azul 200–220° (a galáctica), vermelho e magenta atrás | **violeta** 262° — a assinatura da régua | `#380099` | `#5d00ff` |
-| 3 planeta rosa | magenta 320–340° (45–62%) | **magenta** 335° | `#990040` | `#ff006a` |
+| 3 planeta rosa | magenta 320–340° (45–62%) | **rosa-claro** 350°, saturação 50% — "mais avermelhado" e "mais suave, para o branco" (12/09); é a única sem saturação cheia | `#994d59` | `#ff8095` |
 | 4 papel | azul-violeta 210–260° (o céu cósmico invertido) | **azul** 230° — o medido; o âmbar de vela "não combina" | `#001999` | `#002aff` |
 
 Na espera do fim (depois dos 10:00) a sala volta ao azul da floresta, pronta
