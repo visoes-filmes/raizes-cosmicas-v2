@@ -111,7 +111,7 @@ mapa = {
     # proporcao): 2048 x 1280, a pintura original no meio com nebulosa
     # continuada em volta e ceu sobre a cabeca. Em 2048 porque ela cobre
     # 106 graus do ceu: sao 19 pixels por grau, o que o Quest resolve.
-    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-ceu.jpg"), (2048, 1281), qualidade=88),
+    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-ampliada.jpg"), (3072, 1921), qualidade=86),
     # AS OUTRAS DUAS DEUSAS PELO MESMO CAMINHO (12/09): o quadro inteiro do
     # mesmo momento da animacao, expandido e ampliado 2x no Magnific, em
     # JPEG sem alfa; 3072 de largura porque cada uma cobre uns oitenta

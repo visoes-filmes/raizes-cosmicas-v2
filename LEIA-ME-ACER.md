@@ -91,9 +91,14 @@ raizes-cosmicas-v2/
 │   │   ├── fig-galactico.png          O recorte antigo do ser galáctico — não é mais usado.
 │   │   ├── fig-galactica-inteira.jpg  A deusa galáctica, o quadro inteiro como a direção de arte
 │   │   │                              mandou (11/09), 1364 × 767. Guardado; a obra usa o abaixo.
-│   │   ├── fig-galactica-ceu.jpg      O mesmo quadro EXPANDIDO no Magnific (pelo site, 11/09) a
-│   │   │                              2048 × 1280: nebulosa continuada em volta e céu sobre a
-│   │   │                              cabeça. Sem alfa; o alfa nasce no shader, da beirada e do preto.
+│   │   ├── fig-galactica-ceu.jpg      O mesmo quadro EXPANDIDO no Magnific (pelo site, 11/09, duas
+│   │   │                              vezes) a 2536 × 1586: nebulosa continuada em volta e céu sobre
+│   │   │                              a cabeça. Guardado; a obra usa o abaixo.
+│   │   ├── fig-galactica-ampliada.jpg A que a obra usa (12/09): o expandido AMPLIADO 2× no Magnific
+│   │   │                              (criativo, sutil, arte e ilustração), 5072 × 3168, embutido a
+│   │   │                              3072 × 1921. Antes era embutido a 2048 — a 118° de largura no
+│   │   │                              céu dava 17 px por grau, abaixo do que o Quest mostra; agora
+│   │   │                              26. Sem alfa; o alfa nasce no shader, da beirada e do preto.
 │   │   ├── fig-deusa-vermelha.png     O recorte antigo da deusa vermelha (chave_23) — não é mais usado.
 │   │   ├── fig-vermelha-91.jpg        A deusa vermelha, o quadro inteiro aos 91 s da animação da Odara
 │   │   │                              (o MESMO momento do recorte antigo), 1280 × 714. fig-vermelha-quadro.jpg
