@@ -4273,6 +4273,48 @@ void main(){
    distância ao centro. Não tem o que serrilhar nem o que amostrar de
    raspão, então o defeito que sujava o véu simplesmente não existe aqui.
    A cor de cada grão já vem decidida da CPU, num atributo. */
+/* ═══════════ OS FIOS DA DEUSA ═══════════
+   A pintura dela e feita de linhas finas de luz -- veios, filamentos com
+   bolhas -- e a direcao de arte pediu (11/09) que elas "saiam da imagem e
+   percorram o espaco". Sao catorze curvas no ar, cada uma nascendo no plano
+   da pintura e vindo ate uns dez metros da pessoa, desenhadas como linha
+   (um pixel: fio e fio) somando luz. Por cada uma corre um PULSO de luz da
+   pintura para fora, com cauda: e o percorrer. E o fio inteiro ondula
+   devagar, para nao ser arame. */
+const VS_FIO = `
+attribute vec3 aPos;
+attribute float aT;          // 0 na pintura, 1 na ponta perto da pessoa
+attribute float aFase;
+uniform mat4 mvp;
+uniform highp float tempo;
+varying float vT, vFase;
+void main(){
+  vec3 p = aPos;
+  float onda = sin(tempo * 0.23 + aT * 7.0 + aFase) * 0.30 * aT;
+  p.y += onda;
+  p.x += sin(tempo * 0.17 + aT * 5.0 + aFase * 1.7) * 0.22 * aT;
+  vT = aT; vFase = aFase;
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_FIO = `
+precision mediump float;
+uniform highp float tempo;
+uniform float presenca;
+varying float vT, vFase;
+void main(){
+  /* O PULSO: uma frente que anda da pintura (t=0) para a ponta (t=1) em
+     uns catorze segundos, com cauda atras. Entre um pulso e outro o fio
+     fica aceso a um quinto, para nunca sumir. */
+  float frente = fract(tempo * 0.07 + vFase * 0.37);
+  float atras = frente - vT;
+  float pulso = (atras > 0.0) ? exp(-atras * 9.0) : exp(-(-atras) * 60.0);
+  float brilho = 0.20 + 0.80 * pulso;
+  // a ponta perto da pessoa rareia, como a linha da pintura rareia
+  brilho *= 1.0 - smoothstep(0.80, 1.0, vT);
+  vec3 cor = mix(vec3(0.45, 0.82, 1.00), vec3(0.85, 0.96, 1.00), pulso);
+  gl_FragColor = vec4(cor * brilho * presenca, brilho * presenca);
+}`;
+
 const VS_PO = `
 attribute vec3 aPos;     // x,z = onde a coluna fica; y = altura da coluna
 attribute vec3 aCor;
@@ -5800,6 +5842,7 @@ const progMata = programa(VS_MATA, FS_MATA);
 const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
+const progFio  = programa(VS_FIO,  FS_FIO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
 const progPapel = programa(VS_PAPEL, FS_PAPEL);
@@ -6198,6 +6241,57 @@ const glitter = { pos: new Float32Array(GLITTER_N*3), vel: new Float32Array(GLIT
                   cor: new Float32Array(GLITTER_N*3), dado: new Float32Array(GLITTER_N*2),
                   idade: 9, vivo: false };
 const bGli = criarBufs(['pos','cor','dado']);
+/* AS PARTICULAS DA DEUSA. A pintura dela e cheia de pontos azuis acesos
+   -- bolhas, gotas de luz -- e a direcao de arte pediu (11/09) "algumas
+   delas na frente da imagem, para integrar mais": o que esta na tela sai
+   da tela e entra no ar da sala. Cento e sessenta pontos no volume entre
+   seis e trinta e cinco metros, no cone da deusa (azimute +36, mais ou
+   menos cinquenta graus; do horizonte a cinquenta graus de altura), nunca
+   perto do rosto. Ciano-branco como os da pintura; uns poucos maiores,
+   que sao as bolhas. Andam pelo programa da poeira, fixos no lugar, com
+   um sopro fraco de deriva, e somam luz. */
+const PONTOS_DEUSA_N = 160;
+const bPontosDeusa = criarBufs(['pos','cor','dado']);
+(function(){
+  const rnd = prng(3131), s = {pos:[], cor:[], dado:[]};
+  for(let i = 0; i < PONTOS_DEUSA_N; i++){
+    const az = 0.63 + (rnd() - 0.5) * 1.75;             // +36 graus, +-50
+    const el = 0.02 + Math.pow(rnd(), 1.3) * 0.85;      // do horizonte a ~50 graus
+    const d  = 6.0 + Math.pow(rnd(), 0.7) * 29.0;       // mais perto da pintura do que da pessoa
+    s.pos.push(Math.sin(az) * Math.cos(el) * d, 1.6 + Math.sin(el) * d, -Math.cos(az) * Math.cos(el) * d);
+    const branco = rnd() < 0.3;
+    s.cor.push(branco ? 0.80 : 0.40, branco ? 0.95 : 0.82, 1.00);
+    const bolha = rnd() < 0.12;
+    s.dado.push(rnd(), bolha ? 0.14 + rnd() * 0.16 : 0.035 + rnd() * 0.06);
+  }
+  enviar(bPontosDeusa.pos, s.pos); enviar(bPontosDeusa.cor, s.cor); enviar(bPontosDeusa.dado, s.dado);
+})();
+
+/* AS CURVAS DOS FIOS. Cada uma parte de um ponto do plano da pintura (a
+   quarenta metros, no cone dela) e vem ate nove a dezesseis metros da
+   pessoa, com duas ondas de curvatura de ate tres metros pelo caminho. */
+const FIOS_N = 14, FIO_PONTOS = 48;
+const bFios = criarBufs(['pos','ao','fase']);   // "ao" longo do fio, 0 a 1
+(function(){
+  const rnd = prng(4747), s = {pos:[], ao:[], fase:[]};
+  for(let i = 0; i < FIOS_N; i++){
+    const az0 = 0.63 + (rnd() - 0.5) * 1.4, el0 = 0.06 + rnd() * 0.70;
+    const az1 = az0 + (rnd() - 0.5) * 0.9, el1 = 0.02 + rnd() * 0.55;
+    const d0 = 40.0, d1 = 9.0 + rnd() * 7.0;
+    const a = [Math.sin(az0)*Math.cos(el0)*d0, 1.6 + Math.sin(el0)*d0, -Math.cos(az0)*Math.cos(el0)*d0];
+    const b = [Math.sin(az1)*Math.cos(el1)*d1, 1.6 + Math.sin(el1)*d1, -Math.cos(az1)*Math.cos(el1)*d1];
+    const k1 = (rnd() - 0.5) * 6.0, k2 = (rnd() - 0.5) * 4.0, f1 = rnd() * 6.283, f2 = rnd() * 6.283;
+    const fase = rnd() * 6.283;
+    for(let j = 0; j < FIO_PONTOS; j++){
+      const u = j / (FIO_PONTOS - 1);
+      const curva = Math.sin(u * 3.1416) * (k1 * Math.sin(u * 6.283 + f1) + k2 * Math.sin(u * 12.566 + f2)) * 0.5;
+      s.pos.push(a[0] + (b[0]-a[0])*u + curva, a[1] + (b[1]-a[1])*u + curva * 0.6, a[2] + (b[2]-a[2])*u);
+      s.ao.push(u); s.fase.push(fase);
+    }
+  }
+  enviar(bFios.pos, s.pos); enviar(bFios.ao, s.ao); enviar(bFios.fase, s.fase);
+})();
+
 function soltarGlitter(x, y, z){
   for(let i = 0; i < GLITTER_N; i++){
     const a = Math.random()*6.2832, b = Math.acos(Math.random()*2 - 1), v = 0.35 + Math.random()*0.7;
@@ -8977,6 +9071,10 @@ const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'), sentido:uPo('sentido'),
 const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
             cor:gl.getAttribLocation(progPo,'aCor'),
             dado:gl.getAttribLocation(progPo,'aDado')};
+const uFio = n=>gl.getUniformLocation(progFio,n);
+const locFio = {mvp:uFio('mvp'), tempo:uFio('tempo'), presenca:uFio('presenca')};
+const aFio = {pos:gl.getAttribLocation(progFio,'aPos'), t:gl.getAttribLocation(progFio,'aT'),
+              fase:gl.getAttribLocation(progFio,'aFase')};
 const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
             canto:gl.getAttribLocation(progFig,'aCanto'),
             dado:gl.getAttribLocation(progFig,'aDado'),
@@ -10757,6 +10855,48 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locPo.fixo, 0.0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  // AS PARTICULAS DA DEUSA, enquanto ela esta no ceu (3:26 a 6:16).
+  {
+    const f = FIGURAS[0];
+    const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+    if(pd > 0.004 && poeiraOn){
+      gl.enable(gl.BLEND);
+      somarLuz();
+      gl.depthMask(false);
+      gl.useProgram(progPo);
+      soltarAtributos();
+      mandarMvp(locPo.mvp, mvp);
+      gl.uniform1f(locPo.tempo, relogio);
+      gl.uniform1f(locPo.escalaPonto, escalaPonto * pd);
+      gl.uniform1f(locPo.sopro, 0.35);
+      gl.uniform1f(locPo.sentido, 1);
+      gl.uniform1f(locPo.fixo, 1.0);
+      ligar(aP.pos,bPontosDeusa.pos,3); ligar(aP.cor,bPontosDeusa.cor,3); ligar(aP.dado,bPontosDeusa.dado,2);
+      gl.drawArrays(gl.POINTS, 0, PONTOS_DEUSA_N);
+      gl.uniform1f(locPo.fixo, 0.0);
+
+      // E OS FIOS, saindo da pintura. Tres passadas com um deslocamento de
+      // dois centimetros: linha de um pixel a dez metros e fina demais para
+      // somar; tres, lado a lado, viram um fio de luz com corpo.
+      gl.useProgram(progFio);
+      soltarAtributos();
+      gl.uniform1f(locFio.tempo, relogio);
+      gl.uniform1f(locFio.presenca, pd * 0.9);
+      ligar(aFio.pos,bFios.pos,3); ligar(aFio.t,bFios.ao,1); ligar(aFio.fase,bFios.fase,1);
+      // medido na bancada: com tres passadas a 0,55 os fios mal se liam;
+      // cinco passadas (cruz de dois centimetros) a 0,9 e um fio de luz
+      for(const [dx, dy] of [[0,0],[0.02,0],[-0.02,0],[0,0.02],[0,-0.02]]){
+        const m2 = new Float32Array(mvp);
+        m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
+        m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
+        mandarMvp(locFio.mvp, m2);
+        for(let i = 0; i < FIOS_N; i++) gl.drawArrays(gl.LINE_STRIP, i * FIO_PONTOS, FIO_PONTOS);
+      }
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
   }
 }
 

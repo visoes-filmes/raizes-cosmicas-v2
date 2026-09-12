@@ -312,7 +312,12 @@ preto de verdade vira noite, gradualmente (luminância 0,012–0,09). E há
 **dois tempos** na mesma pintura (`FS_FIGU`, `inteira`): o fundo é lido com
 um balanço lento (ciclo de ~1 min, 0,005 do quadro) e o corpo dela, dentro
 de uma elipse macia, só respira (0,5% em 25 s) — a ilusão de que ela se
-move noutro tempo, pedida em 11/09 como teste. As outras duas ainda são os recortes por luminância de
+move noutro tempo, pedida em 11/09 como teste. E a pintura sai da pintura:
+**160 partículas** azuis-brancas (`bPontosDeusa`, pelo `progPo` com `fixo`)
+entre 6 e 35 m no cone dela, e **14 fios de luz** (`progFio`, `LINE_STRIP`
+em cinco passadas de 2 cm) que nascem no plano dela e vêm até 9–16 m da
+pessoa, com um pulso correndo da pintura para fora a cada ~14 s — pedidos
+em 11/09 "para integrar mais". Só enquanto ela está no céu (3:26–6:16). As outras duas ainda são os recortes por luminância de
 `figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
 frames_frames_chave`) não estão mais nesta máquina — para refazê-las
 inteiras é preciso os quadros `chave_23` e `t_072` de novo.
