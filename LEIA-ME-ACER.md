@@ -654,6 +654,34 @@ sobem a luz a 100% na mesma cor, para a câmera achar as mãos — **se luz
 colorida saturada basta para o rastreio, só o Quest diz**; se não bastar, o
 que cede é o valor do escuro, não a cor.
 
+### Conferido no aparelho, pelo cabo (12/09)
+
+Pelo DevTools do Quest (`adb forward tcp:9222 localabstract:chrome_devtools_remote`),
+com a obra servida por `estande.py` e o navegador do headset na frente
+(`am broadcast -a com.oculus.vrpowermanager.prox_close` finge o capacete na
+cabeça; `automation_disable` desfaz):
+
+- OculusBrowser 150 / Chrome 150, Adreno 740, `MAX_TEXTURE_SIZE` 8192 (as
+  deusas a 3072 cabem), `navigator.xr` presente, `immersive-ar` suportado;
+  o contexto não se perde e `gl.getError()` fica em zero nos quatro cenários.
+- **Nenhuma exceção de JavaScript** ao carregar e ao correr os quatro
+  cenários. Os únicos erros de console são os 404 dos `/_relato/…`, que
+  são o bilhete pela janela: o servidor lê a URL e responde 404 de
+  propósito.
+- Os quatro cenários desenham na GPU do aparelho (`_fotos/quest-c*.jpg`,
+  capturas pelo `Page.captureScreenshot`): floresta, cosmos com as duas
+  deusas e o rosa ao alcance, planeta rosa, papel com a integra.
+- **Quadros por segundo NA TELA PLANA do navegador** (1280 × 670, um olho
+  só): floresta **50**, cosmos 72 (o teto), planeta rosa 69, papel 65. Em
+  RM são dois olhos a mais resolução — é esperado cair bem abaixo disto, e
+  a floresta é a mais pesada (1,6 milhão de pontos da mata como nuvem, mais
+  a mata sólida). **A medida em RM ainda não foi feita**: precisa de alguém
+  com o capacete na cabeça para entrar na sessão.
+
+O que continua sem conferência dentro da RM: o toque, o pegar e dimensionar
+do rosa, as deusas vistas em estéreo, o buraco no chão, a luz da sala com as
+mãos.
+
 ### Decidido, mas não construído
 
 - **As interações que faltam.** Pegar um planeta, tocar a mão gigante.
