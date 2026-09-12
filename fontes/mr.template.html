@@ -4292,6 +4292,7 @@ const FS_FIO = `
 precision mediump float;
 uniform highp float tempo;
 uniform float presenca;
+uniform vec3 cor, corPulso;    // a cor do fio e a do pulso: as de cada quadro
 varying float vT, vFase;
 void main(){
   /* O PULSO: uma frente que anda da pintura (t=0) para a ponta (t=1) em
@@ -4303,9 +4304,9 @@ void main(){
   float brilho = 0.20 + 0.80 * pulso;
   // a ponta perto da pessoa rareia, como a linha da pintura rareia
   brilho *= 1.0 - smoothstep(0.80, 1.0, vT);
-  // azul como os veios da pintura: o pulso clareia sem chegar ao branco
-  vec3 cor = mix(vec3(0.30, 0.55, 1.00), vec3(0.62, 0.86, 1.00), pulso);
-  gl_FragColor = vec4(cor * brilho * presenca, brilho * presenca);
+  // a cor de cada quadro: o pulso clareia sem chegar ao branco
+  vec3 c = mix(cor, corPulso, pulso);
+  gl_FragColor = vec4(c * brilho * presenca, brilho * presenca);
 }`;
 
 const VS_PO = `
@@ -4889,6 +4890,9 @@ uniform highp float espelho;
 uniform float presenca, corte;
 uniform highp float tempo;      // highp: e highp no vertice, e precisao diferente nao linka
 uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasce aqui
+uniform vec4 elipse;            // o corpo dela no quadro: centro (xy) e raios (zw), em uv
+uniform vec2 escuro;            // de que luminancia a que luminancia o preto vira noite
+uniform float mergulho;         // quantos metros abaixo da linha d'agua o reflexo ainda existe
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
@@ -4905,12 +4909,13 @@ void main(){
      esta noutro tempo. E o teste que a direcao de arte pediu. */
   vec2 uv = vUV;
   if(inteira > 0.5){
-    vec2 dc = (uv - vec2(0.56, 0.62)) / vec2(0.21, 0.44);
+    // a elipse do corpo vem por figura: cada quadro tem a sua no seu lugar
+    vec2 dc = (uv - elipse.xy) / elipse.zw;
     float figura = 1.0 - smoothstep(0.75, 1.35, length(dc));
     vec2 fundo = uv + 0.005 * vec2(sin(tempo * 0.11 + uv.y * 6.3),
                                    cos(tempo * 0.09 + uv.x * 5.1));
     float respira = 1.0 + 0.005 * sin(tempo * 0.25);
-    vec2 corpo = vec2(0.56, 0.62) + (uv - vec2(0.56, 0.62)) / respira;
+    vec2 corpo = elipse.xy + (uv - elipse.xy) / respira;
     uv = mix(fundo, corpo, figura);
   }
   vec4 c = texture2D(figura, uv);
@@ -4960,7 +4965,19 @@ void main(){
     vec2 d = min(vUV, 1.0 - vUV);
     float beira = smoothstep(0.0, 0.15, d.x) * smoothstep(0.0, 0.15, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-    float a = beira * smoothstep(0.012, 0.09, lum) * presenca;
+    // "escuro" vem por figura: na galactica o preto vira noite entre 0,012
+    // e 0,09; na integra, cuja noite e azul e tem ondas, so o preto puro
+    float a = beira * smoothstep(escuro.x, escuro.y, lum) * presenca;
+    /* O REFLEXO DA INTEIRA: a copia espelhada abaixo da linha d'agua se
+       apaga com a profundidade, como o das outras -- so que numa pintura
+       de quarenta metros de altura o alcance e proporcional (mergulho),
+       senao o reflexo inteiro cairia fora dos setenta centimetros de antes
+       e nao existiria. Medido: sem isto a copia espelhada saia inteira,
+       sem apagar, e a praia de petalas aparecia duas vezes. */
+    if(espelho > 0.5){
+      float fundo = clamp((corte - vAltura) / mergulho, 0.0, 1.0);
+      a *= (1.0 - fundo) * 0.55;
+    }
     /* AS CORES DELA, E NAO UM DEGRAU ABAIXO -- 11/09, "equilibrar as cores
        para ficar mais parecida com a deusa". Medido pixel a pixel contra
        o arquivo: a pintura sozinha saia com saturacao 0,40 contra 0,43 e
@@ -6241,63 +6258,65 @@ const glitter = { pos: new Float32Array(GLITTER_N*3), vel: new Float32Array(GLIT
                   cor: new Float32Array(GLITTER_N*3), dado: new Float32Array(GLITTER_N*2),
                   idade: 9, vivo: false };
 const bGli = criarBufs(['pos','cor','dado']);
-/* AS PARTICULAS DA DEUSA. A pintura dela e cheia de pontos azuis acesos
-   -- bolhas, gotas de luz -- e a direcao de arte pediu (11/09) "algumas
-   delas na frente da imagem, para integrar mais": o que esta na tela sai
-   da tela e entra no ar da sala. Cento e sessenta pontos no volume entre
-   seis e trinta e cinco metros, no cone da deusa (azimute +36, mais ou
-   menos cinquenta graus; do horizonte a cinquenta graus de altura), nunca
-   perto do rosto. Ciano-branco como os da pintura; uns poucos maiores,
-   que sao as bolhas. Andam pelo programa da poeira, fixos no lugar, com
-   um sopro fraco de deriva, e somam luz. */
-const PONTOS_DEUSA_N = 160;
-const bPontosDeusa = criarBufs(['pos','cor','dado']);
-(function(){
-  const rnd = prng(3131), s = {pos:[], cor:[], dado:[]};
-  for(let i = 0; i < PONTOS_DEUSA_N; i++){
-    const az = 0.63 + (rnd() - 0.5) * 1.75;             // +36 graus, +-50
-    const el = 0.02 + Math.pow(rnd(), 1.3) * 0.85;      // do horizonte a ~50 graus
-    const d  = 6.0 + Math.pow(rnd(), 0.7) * 29.0;       // mais perto da pintura do que da pessoa
+/* AS PARTICULAS E OS FIOS DE CADA DEUSA. A pintura sai da pintura: pontos
+   de luz no ar entre a pessoa e o quadro, e fios ramificados que nascem no
+   plano dela e vem ate perto -- pedidos em 11/09 para a galactica ("para
+   integrar mais") e estendidos em 12/09 as outras duas, com as cores de
+   cada quadro: ciano-branco na galactica, vermelho e ouro na vermelha (as
+   petalas e os fios dourados das maos dela), branco-ouro e turquesa na
+   integra (as estrelas e os beija-flores). Cada uma no seu cone, no seu
+   tempo. Cento e sessenta pontos e catorze troncos de fio por deusa. */
+const FIO_PONTOS = 40;
+/* troncos e passadas por deusa: medido na bancada, catorze troncos de ouro
+   sobre o ceu rosa liam como relampago; oito, em tres passadas, sao fios.
+   abre e a largura do cone (1 = os 80 graus da galactica); pontos, quantos
+   graos. A vermelha, no cosmos ao lado da azul, ganha metade do cone e
+   cinco troncos: "ta bem poluido" (12/09) -- o que sai dela sao os poucos
+   fios de ouro das maos, nao uma tempestade. */
+const ENFEITES = [
+  { fig:0, az:0.63, cores:[[0.40,0.82,1.00],[0.80,0.95,1.00]], fio:[0.30,0.55,1.00], pulso:[0.62,0.86,1.00], troncos:14, passadas:5, abre:1.0, pontos:160 },
+  { fig:1, az:-1.361, cores:[[1.00,0.36,0.30],[1.00,0.80,0.42]], fio:[1.00,0.72,0.30], pulso:[1.00,0.92,0.68], troncos:5, passadas:3, abre:0.55, pontos:80 },
+  { fig:2, az:-0.070, cores:[[1.00,0.94,0.78],[0.40,0.92,0.86]], fio:[0.92,0.86,0.66], pulso:[1.00,1.00,0.90], troncos:8, passadas:3, abre:1.0, pontos:160 },
+];
+for(let e = 0; e < ENFEITES.length; e++){
+  const E = ENFEITES[e], rnd = prng(3131 + e * 101);
+  // os pontos
+  const s = {pos:[], cor:[], dado:[]};
+  for(let i = 0; i < E.pontos; i++){
+    const az = E.az + (rnd() - 0.5) * 1.75 * E.abre;
+    const el = 0.02 + Math.pow(rnd(), 1.3) * 0.85;
+    const d  = 6.0 + Math.pow(rnd(), 0.7) * 29.0;
     s.pos.push(Math.sin(az) * Math.cos(el) * d, 1.6 + Math.sin(el) * d, -Math.cos(az) * Math.cos(el) * d);
-    const branco = rnd() < 0.3;
-    s.cor.push(branco ? 0.80 : 0.40, branco ? 0.95 : 0.82, 1.00);
+    const c = rnd() < 0.3 ? E.cores[1] : E.cores[0];
+    s.cor.push(c[0], c[1], c[2]);
     const bolha = rnd() < 0.12;
     s.dado.push(rnd(), bolha ? 0.14 + rnd() * 0.16 : 0.035 + rnd() * 0.06);
   }
-  enviar(bPontosDeusa.pos, s.pos); enviar(bPontosDeusa.cor, s.cor); enviar(bPontosDeusa.dado, s.dado);
-})();
-
-/* AS CURVAS DOS FIOS, RAMIFICADAS -- 11/09, "como os da imagem: organicos,
-   azulados e mais ramificados". Catorze troncos partem do plano da
-   pintura (a quarenta metros, no cone dela) e vem ate nove a dezesseis
-   metros da pessoa; de cada tronco saem dois a quatro ramos, e de cada
-   ramo, as vezes, um raminho -- como o veio da pintura, que se abre. O
-   parametro "ao" (0 na pintura, 1 na ponta) continua do tronco para o
-   ramo, entao o pulso de luz entra nos ramos sem cortar. A curvatura tem
-   duas ondas largas e uma miuda: e a miuda que tira o arame. */
-const FIO_PONTOS = 40;
-const bFios = criarBufs(['pos','ao','fase']);
-const FIOS = [];                 // [inicio, quantos] de cada linha no buffer
-(function(){
-  const rnd = prng(4747), s = {pos:[], ao:[], fase:[]};
+  E.nPontos = E.pontos; E.pontos = criarBufs(['pos','cor','dado']);
+  enviar(E.pontos.pos, s.pos); enviar(E.pontos.cor, s.cor); enviar(E.pontos.dado, s.dado);
+  // os fios, ramificados
+  const f = {pos:[], ao:[], fase:[]}, linhas = [];
   const curva = (a, b, u, k1, k2, k3, f1, f2, f3) => {
     const w = Math.sin(u * 3.1416);
     const c = w * (k1 * Math.sin(u * 6.283 + f1) + k2 * Math.sin(u * 12.566 + f2)) * 0.5
-            + w * k3 * Math.sin(u * 31.4 + f3);
+            + w * k3 * Math.sin(u * 18.85 + f3);
     return [a[0] + (b[0]-a[0])*u + c, a[1] + (b[1]-a[1])*u + c * 0.6, a[2] + (b[2]-a[2])*u + c * 0.3];
   };
+  /* Todo ramo tem os quarenta pontos, e o tremor fino tem tres ciclos e
+     nao cinco: medido em 12/09, o ramo de treze pontos com cinco ciclos de
+     tremor era um zigue-zague de tres pontos por ciclo -- relampago, e nao
+     fio. Com treze pontos por ciclo a curva e curva. */
   const linha = (a, b, ao0, ao1, fase, prof) => {
-    const k1 = (rnd() - 0.5) * 6.0 / (prof + 1), k2 = (rnd() - 0.5) * 4.0 / (prof + 1), k3 = 0.25 + rnd() * 0.35;
+    const k1 = (rnd() - 0.5) * 6.0 / (prof + 1), k2 = (rnd() - 0.5) * 4.0 / (prof + 1), k3 = (0.25 + rnd() * 0.35) / (prof + 1);
     const f1 = rnd() * 6.283, f2 = rnd() * 6.283, f3 = rnd() * 6.283;
-    const n = Math.max(8, Math.round(FIO_PONTOS / (prof + 1)));
-    const inicio = s.ao.length, pontos = [];
+    const n = FIO_PONTOS;
+    const inicio = f.ao.length, pontos = [];
     for(let j = 0; j < n; j++){
       const u = j / (n - 1), q = curva(a, b, u, k1, k2, k3, f1, f2, f3);
-      s.pos.push(q[0], q[1], q[2]); s.ao.push(ao0 + (ao1 - ao0) * u); s.fase.push(fase); pontos.push(q);
+      f.pos.push(q[0], q[1], q[2]); f.ao.push(ao0 + (ao1 - ao0) * u); f.fase.push(fase); pontos.push(q);
     }
-    FIOS.push([inicio, n]);
+    linhas.push([inicio, n]);
     if(prof >= 2) return;
-    // os ramos: saem de um ponto no meio, para um lado, mais curtos
     const quantos = prof === 0 ? 2 + Math.floor(rnd() * 3) : (rnd() < 0.5 ? 1 : 0);
     for(let r = 0; r < quantos; r++){
       const u = 0.20 + rnd() * 0.60, j = Math.min(n - 1, Math.round(u * (n - 1)));
@@ -6310,16 +6329,17 @@ const FIOS = [];                 // [inicio, quantos] de cada linha no buffer
       linha(de, ate, ao0 + (ao1 - ao0) * u, Math.min(1.0, ao0 + (ao1 - ao0) * (u + 0.35)), fase, prof + 1);
     }
   };
-  for(let i = 0; i < 14; i++){
-    const az0 = 0.63 + (rnd() - 0.5) * 1.4, el0 = 0.06 + rnd() * 0.70;
-    const az1 = az0 + (rnd() - 0.5) * 0.9, el1 = 0.02 + rnd() * 0.55;
+  for(let i = 0; i < E.troncos; i++){
+    const az0 = E.az + (rnd() - 0.5) * 1.4 * E.abre, el0 = 0.06 + rnd() * 0.70 * E.abre;
+    const az1 = az0 + (rnd() - 0.5) * 0.9 * E.abre, el1 = 0.02 + rnd() * 0.55 * E.abre;
     const d0 = 40.0, d1 = 9.0 + rnd() * 7.0;
     const a = [Math.sin(az0)*Math.cos(el0)*d0, 1.6 + Math.sin(el0)*d0, -Math.cos(az0)*Math.cos(el0)*d0];
     const b = [Math.sin(az1)*Math.cos(el1)*d1, 1.6 + Math.sin(el1)*d1, -Math.cos(az1)*Math.cos(el1)*d1];
     linha(a, b, 0.0, 1.0, rnd() * 6.283, 0);
   }
-  enviar(bFios.pos, s.pos); enviar(bFios.ao, s.ao); enviar(bFios.fase, s.fase);
-})();
+  E.fios = criarBufs(['pos','ao','fase']); E.linhas = linhas;
+  enviar(E.fios.pos, f.pos); enviar(E.fios.ao, f.ao); enviar(E.fios.fase, f.fase);
+}
 
 function soltarGlitter(x, y, z){
   for(let i = 0; i < GLITTER_N; i++){
@@ -6905,11 +6925,35 @@ const FIGURAS = [
      antes e a nebulosa ir ate onde a pintura vai. Do azimute -23 ao +95;
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
-    de:206, ate:376, balanco:0.3, espelha:false, inteira:true },
-  { nome:'deusa',     tex:1, centro:[ 3.60, 2.70,  -6.4], tam:[2.6, 2.8],
-    de:420, ate:508, balanco:0.9, espelha:true },
-  { nome:'integra',   tex:2, centro:[ 0.55, 4.20,  -8.2], tam:[6.2, 6.2],
-    de:556, ate:594, balanco:0.35, espelha:false },
+    de:206, ate:376, balanco:0.3, espelha:false, inteira:true,
+    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09] },
+  /* A VERMELHA E A INTEGRA, PELO MESMO METODO -- 12/09: o quadro inteiro
+     do mesmo momento do recorte antigo (91 s e 152 s da animacao),
+     expandido no Magnific, ampliado 2x, so a beirada esmaecendo, o preto
+     virando noite, os dois tempos, e as particulas e os fios de cada uma.
+
+     A vermelha fica na margem, como o roteiro pede: setenta metros de
+     largura a quarenta, com o pe do plano na linha do horizonte -- a
+     praia de petalas do quadro dela fica logo acima da agua, e o reflexo
+     continua nascendo da linha d'agua. A integra, de frente, oitenta por
+     cinquenta a quarenta metros: as ondas dela abaixo do horizonte, o ceu
+     estrelado dela ate quarenta e tres graus. */
+  /* A VERMELHA VAI PARA O COSMOS -- 12/09. No planeta rosa ela ficava
+     poluida e o preto do quadro dela nao casava com o ceu pintado; a
+     direcao de arte a quis "do lado da deusa azul, mas nem tao do lado:
+     proxima". Azimute -78: a azul comeca em -23, o Sol pousa em -38 e a
+     beira direita do quadro dela para em -39 -- o Sol fica no vao entre
+     as duas, sem tocar nenhuma. Oitenta e quatro metros por cinquenta e
+     dois, a quarenta: 93 por 66 graus, o centro a dezoito graus de altura
+     (o corpo dela fica um pouco abaixo do centro do quadro), e o pe do
+     quadro abaixo do horizonte, onde a pintura ja e preta. Entra depois
+     que os planetas descem. Sem reflexo: nao ha agua no cosmos. */
+  { nome:'deusa',     tex:1, centro:[-39.1, 14.6, -8.3], tam:[42.0, 26.25],
+    de:226, ate:376, balanco:0.4, espelha:false, inteira:true,
+    elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09] },
+  { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[40.0, 25.0],
+    de:556, ate:594, balanco:0.3, espelha:false, inteira:true,
+    elipse:[0.50, 0.55, 0.18, 0.42], escuro:[0.0, 0.03] },
 ];
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
@@ -9017,7 +9061,8 @@ const uFi = n=>gl.getUniformLocation(progFigu,n);
 const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                centro:uFi('centro'), tamanho:uFi('tamanho'), espelho:uFi('espelho'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
-               presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira')};
+               presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira'),
+               elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -9122,7 +9167,8 @@ const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
             cor:gl.getAttribLocation(progPo,'aCor'),
             dado:gl.getAttribLocation(progPo,'aDado')};
 const uFio = n=>gl.getUniformLocation(progFio,n);
-const locFio = {mvp:uFio('mvp'), tempo:uFio('tempo'), presenca:uFio('presenca')};
+const locFio = {mvp:uFio('mvp'), tempo:uFio('tempo'), presenca:uFio('presenca'),
+                cor:uFio('cor'), corPulso:uFio('corPulso')};
 const aFio = {pos:gl.getAttribLocation(progFio,'aPos'), t:gl.getAttribLocation(progFio,'aT'),
               fase:gl.getAttribLocation(progFio,'aFase')};
 const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
@@ -10470,10 +10516,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
                 3:[0.85,0.54,0.66], 4:[0.82,0.69,0.53]};
     const ar = AR[cenaAtual] || AR[1];
 
-    const desenharFigura = (tex, cen, tam, pres, bal, esp, inteira) => {
+    const desenharFigura = (tex, cen, tam, pres, bal, esp, f) => {
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(locFi.figura, 7);
-      gl.uniform1f(locFi.inteira, inteira ? 1 : 0);
+      gl.uniform1f(locFi.inteira, f.inteira ? 1 : 0);
+      const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
+      gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
+      gl.uniform2f(locFi.escuro, es[0], es[1]);
+      gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
       gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
@@ -10500,11 +10550,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       for(const f of FIGURAS){
         const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
         if(pr < 0.004) continue;
-        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f.inteira);
+        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f);
         if(f.espelha && aguaPresenca > 0.004){
           // o reflexo nasce da linha d'agua, nao do pe da figura
           const c = [f.centro[0], NIVEL_AGUA * 2 - f.centro[1], f.centro[2]];
-          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true, f.inteira);
+          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true, f);
         }
       }
 
@@ -10935,46 +10985,46 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
-  // AS PARTICULAS DA DEUSA, enquanto ela esta no ceu (3:26 a 6:16).
-  {
-    const f = FIGURAS[0];
+  // AS PARTICULAS E OS FIOS de cada deusa, enquanto ela esta no ceu.
+  for(const E of ENFEITES){
+    const f = FIGURAS[E.fig];
     const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
-    if(pd > 0.004 && poeiraOn){
-      gl.enable(gl.BLEND);
-      somarLuz();
-      gl.depthMask(false);
-      gl.useProgram(progPo);
-      soltarAtributos();
-      mandarMvp(locPo.mvp, mvp);
-      gl.uniform1f(locPo.tempo, relogio);
-      gl.uniform1f(locPo.escalaPonto, escalaPonto * pd);
-      gl.uniform1f(locPo.sopro, 0.35);
-      gl.uniform1f(locPo.sentido, 1);
-      gl.uniform1f(locPo.fixo, 1.0);
-      ligar(aP.pos,bPontosDeusa.pos,3); ligar(aP.cor,bPontosDeusa.cor,3); ligar(aP.dado,bPontosDeusa.dado,2);
-      gl.drawArrays(gl.POINTS, 0, PONTOS_DEUSA_N);
-      gl.uniform1f(locPo.fixo, 0.0);
+    if(pd < 0.004 || !poeiraOn) continue;
+    gl.enable(gl.BLEND);
+    somarLuz();
+    gl.depthMask(false);
+    gl.useProgram(progPo);
+    soltarAtributos();
+    mandarMvp(locPo.mvp, mvp);
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto * pd);
+    gl.uniform1f(locPo.sopro, 0.35);
+    gl.uniform1f(locPo.sentido, 1);
+    gl.uniform1f(locPo.fixo, 1.0);
+    ligar(aP.pos,E.pontos.pos,3); ligar(aP.cor,E.pontos.cor,3); ligar(aP.dado,E.pontos.dado,2);
+    gl.drawArrays(gl.POINTS, 0, E.nPontos);
+    gl.uniform1f(locPo.fixo, 0.0);
 
-      // E OS FIOS, saindo da pintura. Tres passadas com um deslocamento de
-      // dois centimetros: linha de um pixel a dez metros e fina demais para
-      // somar; tres, lado a lado, viram um fio de luz com corpo.
-      gl.useProgram(progFio);
-      soltarAtributos();
-      gl.uniform1f(locFio.tempo, relogio);
-      gl.uniform1f(locFio.presenca, pd * 0.9);
-      ligar(aFio.pos,bFios.pos,3); ligar(aFio.t,bFios.ao,1); ligar(aFio.fase,bFios.fase,1);
-      // medido na bancada: com tres passadas a 0,55 os fios mal se liam;
-      // cinco passadas (cruz de dois centimetros) a 0,9 e um fio de luz
-      for(const [dx, dy] of [[0,0],[0.02,0],[-0.02,0],[0,0.02],[0,-0.02]]){
-        const m2 = new Float32Array(mvp);
-        m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
-        m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
-        mandarMvp(locFio.mvp, m2);
-        for(const [ini, n] of FIOS) gl.drawArrays(gl.LINE_STRIP, ini, n);
-      }
-      gl.depthMask(true);
-      gl.disable(gl.BLEND);
+    // E OS FIOS, saindo da pintura, na cor dela. Cinco passadas em cruz de
+    // dois centimetros: linha de um pixel a dez metros e fina demais para
+    // somar; cinco, lado a lado, viram um fio de luz com corpo.
+    gl.useProgram(progFio);
+    soltarAtributos();
+    gl.uniform1f(locFio.tempo, relogio);
+    gl.uniform1f(locFio.presenca, pd * 0.9);
+    gl.uniform3f(locFio.cor, E.fio[0], E.fio[1], E.fio[2]);
+    gl.uniform3f(locFio.corPulso, E.pulso[0], E.pulso[1], E.pulso[2]);
+    ligar(aFio.pos,E.fios.pos,3); ligar(aFio.t,E.fios.ao,1); ligar(aFio.fase,E.fios.fase,1);
+    const passadas = [[0,0],[0.02,0],[-0.02,0],[0,0.02],[0,-0.02]].slice(0, E.passadas);
+    for(const [dx, dy] of passadas){
+      const m2 = new Float32Array(mvp);
+      m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
+      m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
+      mandarMvp(locFio.mvp, m2);
+      for(const [ini, n] of E.linhas) gl.drawArrays(gl.LINE_STRIP, ini, n);
     }
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
   }
 }
 

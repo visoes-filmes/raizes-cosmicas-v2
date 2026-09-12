@@ -49,6 +49,48 @@ ESTANDE = os.environ.get("ESTANDE") == "1"
 
 
 class Servidor(SimpleHTTPRequestHandler):
+    # PEDIDOS POR TRECHO (Range) -- 11/09. O servidor de prateleira nao os
+    # atende, e sem eles um <video> nao consegue SALTAR no tempo: fica no
+    # zero por mais que se peca. Serve para a bancada extrair quadros da
+    # animacao da Odara. So entra em jogo quando o navegador pede Range.
+    def send_head(self):
+        faixa = self.headers.get("Range")
+        if not faixa or not faixa.startswith("bytes="):
+            return super().send_head()
+        caminho = self.translate_path(self.path)
+        if not os.path.isfile(caminho):
+            return super().send_head()
+        tamanho = os.path.getsize(caminho)
+        ini, _, fim = faixa[6:].partition("-")
+        ini = int(ini) if ini else 0
+        fim = int(fim) if fim else tamanho - 1
+        fim = min(fim, tamanho - 1)
+        if ini > fim:
+            self.send_error(416)
+            return None
+        f = open(caminho, "rb")
+        f.seek(ini)
+        self.send_response(206)
+        self.send_header("Content-Type", self.guess_type(caminho))
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Range", f"bytes {ini}-{fim}/{tamanho}")
+        self.send_header("Content-Length", str(fim - ini + 1))
+        self.end_headers()
+        self._trecho = fim - ini + 1
+        return f
+
+    def copyfile(self, origem, destino):
+        n = getattr(self, "_trecho", None)
+        if n is None:
+            return super().copyfile(origem, destino)
+        self._trecho = None
+        while n > 0:
+            pedaco = origem.read(min(65536, n))
+            if not pedaco:
+                break
+            destino.write(pedaco)
+            n -= len(pedaco)
+
     def do_POST(self):
         if not self.path.startswith("/_foto/"):
             self.send_error(404)

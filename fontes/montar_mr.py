@@ -112,8 +112,12 @@ mapa = {
     # continuada em volta e ceu sobre a cabeca. Em 2048 porque ela cobre
     # 106 graus do ceu: sao 19 pixels por grau, o que o Quest resolve.
     "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-ceu.jpg"), (2048, 1281), qualidade=88),
-    "__FIG_DEUSA__":     embutir(bem("figuras", "fig-deusa-vermelha.png"), (512,512), com_alfa=True),
-    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-deusa-integra.png"), (512,512), com_alfa=True),
+    # AS OUTRAS DUAS DEUSAS PELO MESMO CAMINHO (12/09): o quadro inteiro do
+    # mesmo momento da animacao, expandido e ampliado 2x no Magnific, em
+    # JPEG sem alfa; 3072 de largura porque cada uma cobre uns oitenta
+    # graus de ceu, e a ampliacao foi pedida para nao ficarem macias.
+    "__FIG_DEUSA__":     embutir(bem("figuras", "fig-vermelha-cosmos.jpg"), (3072, 1920), qualidade=86),
+    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-integra-ceu.jpg"),  (3072, 1920), qualidade=86),
     "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
         bem("audio", "trilha-loop.mp3")),

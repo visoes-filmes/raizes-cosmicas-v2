@@ -94,8 +94,21 @@ raizes-cosmicas-v2/
 │   │   ├── fig-galactica-ceu.jpg      O mesmo quadro EXPANDIDO no Magnific (pelo site, 11/09) a
 │   │   │                              2048 × 1280: nebulosa continuada em volta e céu sobre a
 │   │   │                              cabeça. Sem alfa; o alfa nasce no shader, da beirada e do preto.
-│   │   ├── fig-deusa-vermelha.png     A deusa vermelha (chave_23).
-│   │   ├── fig-deusa-integra.png      A deusa que integra tudo (t_072).
+│   │   ├── fig-deusa-vermelha.png     O recorte antigo da deusa vermelha (chave_23) — não é mais usado.
+│   │   ├── fig-vermelha-91.jpg        A deusa vermelha, o quadro inteiro aos 91 s da animação da Odara
+│   │   │                              (o MESMO momento do recorte antigo), 1280 × 714. fig-vermelha-quadro.jpg
+│   │   │                              é a mesma imagem com o nome de antes.
+│   │   ├── fig-vermelha-sem-chao.png  O mesmo quadro sem o chão: abaixo da linha do piso entrou céu
+│   │   │                              escuro costurado de retalhos do próprio quadro, e a neblina e a
+│   │   │                              barra do vestido dissolvem numa faixa irregular (12/09).
+│   │   ├── fig-vermelha-cosmos.jpg    A que a obra usa: o sem-chão EXPANDIDO no Magnific (pelo site) a
+│   │   │                              2048 × 1280, o facho de luz que ele inventou no alto removido, e
+│   │   │                              ampliado 2× (criativo, sutil, arte e ilustração): 4096 × 2560.
+│   │   ├── fig-deusa-integra.png      O recorte antigo da deusa que integra tudo (t_072) — não é mais usado.
+│   │   ├── fig-integra-quadro.jpg     O quadro inteiro aos 152 s da animação; fig-integra-recorte.jpg é
+│   │   │                              ele sem as margens de papel (1150 × 696).
+│   │   ├── fig-integra-ceu.jpg        A que a obra usa: o recorte expandido no Magnific a 2048 × 1280
+│   │   │                              com fundo escuro, e ampliado 2×: 4096 × 2560.
 │   │   └── fig-borboleta.png          A borboleta 88 (t_005).
 │   ├── texturas/
 │   │   ├── tex-raiz.png               A casca das raízes e do tronco.
@@ -239,13 +252,13 @@ trava a fila.
 | 2:50 | 1 | a borboleta sobe e o mundo se desintegra |
 | 3:00 | 2 | as estrelas acendem, da mais distante até o Sol |
 | 3:40 | 2 | os planetas descem e orbitam a pessoa |
+| 3:46 | 2 | a deusa vermelha entra, à esquerda do Sol, perto da galáctica |
 | 4:10 | 2 | eles se dispersam pelo céu e esperam |
 | 4:40 | 2 | os buracos negros aparecem |
 | 5:00 | 2 | o balé dos planetas não escolhidos |
 | 5:30 | 2 | **janela** — pegar e dimensionar um planeta |
 | 6:20 | 2 | entrar no planeta |
 | 6:30 | 3 | o planeta rosa; a água sobe até a cintura |
-| 7:05 | 3 | a deusa vermelha na margem, com reflexo |
 | 7:30 | 3 | **janela** — os seres, as pedras, a concha |
 | 8:25 | 3 | a mão gigante vem, e puxa |
 | 8:45 | 4 | o mundo de papel sobe, de baixo para cima |
@@ -291,7 +304,7 @@ const CENAS = {
 chamada de desenho aos 5:00): a cúpula da noite, 84 estrelas, o Sol com
 três cascas de corona, quatro planetas com halo (rosa, água, fogo, verde),
 sete asteroides, o buraco negro no chão, a deusa galáctica inteira ao
-fundo, os seres aquáticos (7 águas-vivas, 4 corais, 2 estrelas-do-mar —
+fundo (e desde 12/09 a deusa vermelha ao lado dela), os seres aquáticos (7 águas-vivas, 4 corais, 2 estrelas-do-mar —
 pedidos: "você esqueceu os seres aquáticos estranhos"), a neblina indo e
 vindo e 2 600 grãos de poeira. **Saíram em 11/09** a mão cósmica, a árvore
 de ícone, as conchas e o galho de frutos em neon ("estavam baixados e nunca
@@ -323,10 +336,38 @@ enquanto ela está no céu (3:26–6:16). **Luas** (11/09): água 2, fogo 1,
 verde 3 — esferas pequenas com a pele do asteroide, em órbitas inclinadas
 (`PLANETAS[i].luas`, `ondeLua`); o rosa fica sem, porque é o que se pega. E
 o rosa é **gasoso** (`gas: 1` → uniforme `gas` em `FS_ASTRO`): a borda cede
-sobre metade do disco, o corpo a 82%, e um segundo halo a 2,3 raios. As outras duas ainda são os recortes por luminância de
-`figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
-frames_frames_chave`) não estão mais nesta máquina — para refazê-las
-inteiras é preciso os quadros `chave_23` e `t_072` de novo.
+sobre metade do disco, o corpo a 82%, e um segundo halo a 2,3 raios.
+
+**As outras duas deusas passaram pelo mesmo método em 12/09** — "aproveite,
+faça a mesma técnica": o quadro inteiro, tirado da animação da Odara
+(`_fotos/animacao.mp4`, cópia local; os quadros-chave antigos não estão
+mais nesta máquina) **no mesmo momento dos recortes antigos** — a vermelha
+aos 91 s, a integra aos 152 s —, expandido no Magnific pelo site (a API de
+expansão ignora a proporção), ampliado 2×, e desenhado pelo mesmo ramo
+`inteira` do `FS_FIGU`: só o preto vira noite, a beirada esmaece, dois
+tempos, partículas e fios na cor de cada quadro (`ENFEITES`).
+
+**A vermelha mudou de cenário.** No planeta rosa ela ficava "bem poluída, e
+o fundo preto não dá certo" — o preto do quadro dela não casa com o céu
+pintado. Está no **cosmos**, "do lado da deusa azul, mas nem tão do lado:
+próxima": azimute −78°, 84 × 52 m a 40 m (93° × 66°), o centro a 18° de
+altura, de 3:46 a 6:16, sem reflexo. A galáctica começa em −23°, o Sol pousa
+em −38°, no vão entre as duas. **Antes de expandir, o chão saiu** ("ela está
+no planeta água... remova esse chão"): a primeira tentativa foi escurecer o
+piso na imagem já expandida, e sobrava um retângulo preto; a segunda foi o
+retoque do Magnific por máscara, que inventava um horizonte; o que ficou foi
+costurar céu escuro de retalhos do próprio quadro no lugar do piso, com uma
+dissolução irregular coluna a coluna (`fig-vermelha-sem-chao.png`), e só
+então expandir. O facho de luz que a expansão inventou sobre a cabeça foi
+subtraído (passa-alta na faixa de cima). Os fios dela são cinco troncos de
+ouro num cone pela metade (`abre: 0.55`, 80 partículas): o que sai dela são
+os fios das mãos, não uma tempestade. E os fios de todas ficaram curvas de
+verdade: todo ramo tem 40 pontos e o tremor fino tem 3 ciclos — com 13
+pontos e 5 ciclos era zigue-zague de relâmpago.
+
+**A integra** continua no cenário 4 (9:16–9:54), 80 × 50 m a 40 m, sobre o
+céu cósmico invertido; a composição ali está densa e ainda não foi julgada
+pela direção de arte.
 
 ### Os corpos e as peles
 
