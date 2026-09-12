@@ -4303,7 +4303,8 @@ void main(){
   float brilho = 0.20 + 0.80 * pulso;
   // a ponta perto da pessoa rareia, como a linha da pintura rareia
   brilho *= 1.0 - smoothstep(0.80, 1.0, vT);
-  vec3 cor = mix(vec3(0.45, 0.82, 1.00), vec3(0.85, 0.96, 1.00), pulso);
+  // azul como os veios da pintura: o pulso clareia sem chegar ao branco
+  vec3 cor = mix(vec3(0.30, 0.55, 1.00), vec3(0.62, 0.86, 1.00), pulso);
   gl_FragColor = vec4(cor * brilho * presenca, brilho * presenca);
 }`;
 
@@ -5400,6 +5401,7 @@ uniform float presenca, brilhoProprio;
 uniform float halo;          // 0 = o corpo; >0 = a luz que ele derrama
 uniform float iris;          // 0 = corpo comum; 1 = iridescente (o Sol)
 uniform float tempoIris;
+uniform float gas;           // 0 = borda nitida; 1 = gasoso, a borda some aos poucos
 uniform vec3 olhoPos;
 varying vec3 vN;
 varying vec2 vUV;
@@ -5506,7 +5508,13 @@ void main(){
      do limbo transforma escada em passagem, e custa uma linha. A nota
      reclama disso "principalmente do Sol", que e o mais claro e por isso o
      que mais mostra. */
-  gl_FragColor = vec4(c, presenca * smoothstep(0.0, 0.055, paraOlho));
+  /* GASOSO -- 11/09, o planeta rosa "mais gasoso, com as bordas menos
+     nitidas": a borda deixa de ser a ultima lasca e passa a ser metade do
+     disco cedendo aos poucos, e o corpo inteiro fica um pouco translucido.
+     O que sobra nitido e o miolo. */
+  float borda = mix(0.055, 0.62, gas);
+  float corpo = mix(1.0, 0.82, gas);
+  gl_FragColor = vec4(c, presenca * corpo * smoothstep(0.0, borda, paraOlho));
 }`;
 
 /* ═══════════ a bandeja assada ═══════════
@@ -6259,27 +6267,56 @@ const bPontosDeusa = criarBufs(['pos','cor','dado']);
   enviar(bPontosDeusa.pos, s.pos); enviar(bPontosDeusa.cor, s.cor); enviar(bPontosDeusa.dado, s.dado);
 })();
 
-/* AS CURVAS DOS FIOS. Cada uma parte de um ponto do plano da pintura (a
-   quarenta metros, no cone dela) e vem ate nove a dezesseis metros da
-   pessoa, com duas ondas de curvatura de ate tres metros pelo caminho. */
-const FIOS_N = 14, FIO_PONTOS = 48;
-const bFios = criarBufs(['pos','ao','fase']);   // "ao" longo do fio, 0 a 1
+/* AS CURVAS DOS FIOS, RAMIFICADAS -- 11/09, "como os da imagem: organicos,
+   azulados e mais ramificados". Catorze troncos partem do plano da
+   pintura (a quarenta metros, no cone dela) e vem ate nove a dezesseis
+   metros da pessoa; de cada tronco saem dois a quatro ramos, e de cada
+   ramo, as vezes, um raminho -- como o veio da pintura, que se abre. O
+   parametro "ao" (0 na pintura, 1 na ponta) continua do tronco para o
+   ramo, entao o pulso de luz entra nos ramos sem cortar. A curvatura tem
+   duas ondas largas e uma miuda: e a miuda que tira o arame. */
+const FIO_PONTOS = 40;
+const bFios = criarBufs(['pos','ao','fase']);
+const FIOS = [];                 // [inicio, quantos] de cada linha no buffer
 (function(){
   const rnd = prng(4747), s = {pos:[], ao:[], fase:[]};
-  for(let i = 0; i < FIOS_N; i++){
+  const curva = (a, b, u, k1, k2, k3, f1, f2, f3) => {
+    const w = Math.sin(u * 3.1416);
+    const c = w * (k1 * Math.sin(u * 6.283 + f1) + k2 * Math.sin(u * 12.566 + f2)) * 0.5
+            + w * k3 * Math.sin(u * 31.4 + f3);
+    return [a[0] + (b[0]-a[0])*u + c, a[1] + (b[1]-a[1])*u + c * 0.6, a[2] + (b[2]-a[2])*u + c * 0.3];
+  };
+  const linha = (a, b, ao0, ao1, fase, prof) => {
+    const k1 = (rnd() - 0.5) * 6.0 / (prof + 1), k2 = (rnd() - 0.5) * 4.0 / (prof + 1), k3 = 0.25 + rnd() * 0.35;
+    const f1 = rnd() * 6.283, f2 = rnd() * 6.283, f3 = rnd() * 6.283;
+    const n = Math.max(8, Math.round(FIO_PONTOS / (prof + 1)));
+    const inicio = s.ao.length, pontos = [];
+    for(let j = 0; j < n; j++){
+      const u = j / (n - 1), q = curva(a, b, u, k1, k2, k3, f1, f2, f3);
+      s.pos.push(q[0], q[1], q[2]); s.ao.push(ao0 + (ao1 - ao0) * u); s.fase.push(fase); pontos.push(q);
+    }
+    FIOS.push([inicio, n]);
+    if(prof >= 2) return;
+    // os ramos: saem de um ponto no meio, para um lado, mais curtos
+    const quantos = prof === 0 ? 2 + Math.floor(rnd() * 3) : (rnd() < 0.5 ? 1 : 0);
+    for(let r = 0; r < quantos; r++){
+      const u = 0.20 + rnd() * 0.60, j = Math.min(n - 1, Math.round(u * (n - 1)));
+      const de = pontos[j], comp = (0.25 + rnd() * 0.30) * Math.hypot(b[0]-a[0], b[1]-a[1], b[2]-a[2]) / (prof + 1);
+      const dir = [b[0]-a[0], b[1]-a[1], b[2]-a[2]], L = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+      const lado = [(rnd() - 0.5) * 2, (rnd() - 0.5) * 2, (rnd() - 0.5) * 2], LL = Math.hypot(lado[0], lado[1], lado[2]) || 1;
+      const ate = [de[0] + (dir[0]/L * 0.55 + lado[0]/LL * 0.85) * comp,
+                   de[1] + (dir[1]/L * 0.55 + lado[1]/LL * 0.85) * comp,
+                   de[2] + (dir[2]/L * 0.55 + lado[2]/LL * 0.85) * comp];
+      linha(de, ate, ao0 + (ao1 - ao0) * u, Math.min(1.0, ao0 + (ao1 - ao0) * (u + 0.35)), fase, prof + 1);
+    }
+  };
+  for(let i = 0; i < 14; i++){
     const az0 = 0.63 + (rnd() - 0.5) * 1.4, el0 = 0.06 + rnd() * 0.70;
     const az1 = az0 + (rnd() - 0.5) * 0.9, el1 = 0.02 + rnd() * 0.55;
     const d0 = 40.0, d1 = 9.0 + rnd() * 7.0;
     const a = [Math.sin(az0)*Math.cos(el0)*d0, 1.6 + Math.sin(el0)*d0, -Math.cos(az0)*Math.cos(el0)*d0];
     const b = [Math.sin(az1)*Math.cos(el1)*d1, 1.6 + Math.sin(el1)*d1, -Math.cos(az1)*Math.cos(el1)*d1];
-    const k1 = (rnd() - 0.5) * 6.0, k2 = (rnd() - 0.5) * 4.0, f1 = rnd() * 6.283, f2 = rnd() * 6.283;
-    const fase = rnd() * 6.283;
-    for(let j = 0; j < FIO_PONTOS; j++){
-      const u = j / (FIO_PONTOS - 1);
-      const curva = Math.sin(u * 3.1416) * (k1 * Math.sin(u * 6.283 + f1) + k2 * Math.sin(u * 12.566 + f2)) * 0.5;
-      s.pos.push(a[0] + (b[0]-a[0])*u + curva, a[1] + (b[1]-a[1])*u + curva * 0.6, a[2] + (b[2]-a[2])*u);
-      s.ao.push(u); s.fase.push(fase);
-    }
+    linha(a, b, 0.0, 1.0, rnd() * 6.283, 0);
   }
   enviar(bFios.pos, s.pos); enviar(bFios.ao, s.ao); enviar(bFios.fase, s.fase);
 })();
@@ -7087,12 +7124,29 @@ function atualizarSol(t){
 
    Agora cada um puxa para a sua propria familia, e a pele desenha dentro
    dela. */
+/* AS LUAS -- 11/09, "alguns planetas com pequenas luas ao redor". Cada
+   uma e uma esfera pequena, com a pele do asteroide, girando em volta do
+   planeta num raio de duas a tres vezes o dele, cada uma no seu periodo e
+   na sua inclinacao, e acesa pelo mesmo Sol. O rosa, que e o que a pessoa
+   pega, fica sem lua: lua em volta de coisa que se pega e coisa a mais na
+   mao. dist e raio sao multiplos do raio do planeta; per em segundos. */
 const PLANETAS = [
-  { nome:'rosa',    cor:[1.00, 0.62, 0.78], raio:0.235, achatar:1.00, pele:3, interativo:true  },
-  { nome:'agua',    cor:[0.50, 0.78, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false },
-  { nome:'fogo',    cor:[1.00, 0.60, 0.38], raio:0.185, achatar:1.06, pele:7, interativo:false },
-  { nome:'verde',   cor:[0.62, 1.00, 0.74], raio:0.215, achatar:0.90, pele:5, interativo:false },
+  { nome:'rosa',    cor:[1.00, 0.62, 0.78], raio:0.235, achatar:1.00, pele:3, interativo:true,  luas:[], gas:1.0 },
+  { nome:'agua',    cor:[0.50, 0.78, 1.00], raio:0.205, achatar:0.94, pele:6, interativo:false,
+    luas:[{raio:0.16, dist:2.2, per:16, inc:0.35, fase:0.0}, {raio:0.10, dist:3.0, per:27, inc:-0.6, fase:2.1}] },
+  { nome:'fogo',    cor:[1.00, 0.60, 0.38], raio:0.185, achatar:1.06, pele:7, interativo:false,
+    luas:[{raio:0.13, dist:2.4, per:12, inc:0.8, fase:4.0}] },
+  { nome:'verde',   cor:[0.62, 1.00, 0.74], raio:0.215, achatar:0.90, pele:5, interativo:false,
+    luas:[{raio:0.14, dist:2.1, per:19, inc:0.25, fase:1.0}, {raio:0.09, dist:2.7, per:31, inc:1.1, fase:3.3},
+          {raio:0.07, dist:3.4, per:44, inc:-0.3, fase:5.0}] },
 ];
+/* Onde esta a lua k do planeta i no instante: orbita circular inclinada em
+   volta do centro do planeta, no sentido e no periodo dela. */
+function ondeLua(pl, c, lua, t){
+  const a = t * 6.2831853 / lua.per + lua.fase, r = lua.dist * pl.raio;
+  const x = Math.cos(a) * r, z = Math.sin(a) * r;
+  return [c[0] + x, c[1] + z * Math.sin(lua.inc), c[2] + z * Math.cos(lua.inc)];
+}
 
 function rampa(a, b, x){
   const k = Math.max(0, Math.min(1, (x - a) / (b - a)));
@@ -8983,7 +9037,7 @@ const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
                 brilho:uAs('brilhoProprio'), halo:uAs('halo'),
-                iris:uAs('iris'), tempoIris:uAs('tempoIris'),
+                iris:uAs('iris'), tempoIris:uAs('tempoIris'), gas:uAs('gas'),
                 olhoPos:uAs('olhoPos')};
 const aAst = {pos: gl.getAttribLocation(progAstro,'aPos'),
               uv:  gl.getAttribLocation(progAstro,'aUV')};
@@ -9962,8 +10016,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          morta. A pele ja chega colorida, entao o proprio brilho e dela. */
       gl.uniform1f(locAst.brilho, 0.16);
       gl.uniform1f(locAst.halo, 0.0);
-      gl.depthMask(pr > 0.92);
+      gl.uniform1f(locAst.gas, pl.gas || 0.0);
+      /* o gasoso nao escreve profundidade: a borda translucida dele
+         recortaria o que passasse atras */
+      gl.depthMask(pr > 0.92 && !pl.gas);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locAst.gas, 0.0);
 
       // E cada um derrama a sua propria cor no ar em volta, de leve — uma
       // casca so, porque cinco coronas do tamanho da do Sol viravam sopa.
@@ -9974,10 +10032,33 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.raio, pl.raio * 1.6);
       gl.uniform1f(locAst.brilho, 0.30);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      if(pl.gas){   // o gasoso derrama mais longe: e gas, nao pedra
+        gl.uniform1f(locAst.raio, pl.raio * 2.3);
+        gl.uniform1f(locAst.brilho, 0.16);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      }
       gl.cullFace(gl.BACK);
       gl.uniform1f(locAst.halo, 0.0);
       gl.uniform1f(locAst.raio, pl.raio);
       sobrepor();
+
+      // AS LUAS DELE: pele de asteroide, acesas pelo Sol, sem halo
+      if(pl.luas.length){
+        gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[4]);
+        gl.uniform3f(locAst.cor, 0.86, 0.84, 0.92);
+        gl.uniform1f(locAst.achatar, 1.0);
+        gl.uniform1f(locAst.brilho, 0.10);
+        gl.depthMask(pr > 0.92);
+        for(let k=0;k<pl.luas.length;k++){
+          const lua = pl.luas[k], q = ondeLua(pl, c, lua, t);
+          gl.uniform3f(locAst.centro, q[0], q[1], q[2]);
+          gl.uniform1f(locAst.raio, lua.raio * pl.raio);
+          gl.uniform1f(locAst.giro, relogio * 0.2 + k);
+          gl.uniform3f(locAst.luzDe, SOL[0]-q[0], SOL[1]-q[1], SOL[2]-q[2]);
+          gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+        }
+        gl.depthMask(false);
+      }
     }
 
     /* O FUNDO DO PLANETA ROSA. Existe enquanto a agua existe: foi ela que
@@ -10884,7 +10965,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
         m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
         mandarMvp(locFio.mvp, m2);
-        for(let i = 0; i < FIOS_N; i++) gl.drawArrays(gl.LINE_STRIP, i * FIO_PONTOS, FIO_PONTOS);
+        for(const [ini, n] of FIOS) gl.drawArrays(gl.LINE_STRIP, ini, n);
       }
       gl.depthMask(true);
       gl.disable(gl.BLEND);

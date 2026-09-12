@@ -317,7 +317,13 @@ move noutro tempo, pedida em 11/09 como teste. E a pintura sai da pintura:
 entre 6 e 35 m no cone dela, e **14 fios de luz** (`progFio`, `LINE_STRIP`
 em cinco passadas de 2 cm) que nascem no plano dela e vêm até 9–16 m da
 pessoa, com um pulso correndo da pintura para fora a cada ~14 s — pedidos
-em 11/09 "para integrar mais". Só enquanto ela está no céu (3:26–6:16). As outras duas ainda são os recortes por luminância de
+em 11/09 "para integrar mais"; os fios são **ramificados** (14 troncos, 2–4
+ramos cada, às vezes um raminho) e azuis como os veios da pintura. Só
+enquanto ela está no céu (3:26–6:16). **Luas** (11/09): água 2, fogo 1,
+verde 3 — esferas pequenas com a pele do asteroide, em órbitas inclinadas
+(`PLANETAS[i].luas`, `ondeLua`); o rosa fica sem, porque é o que se pega. E
+o rosa é **gasoso** (`gas: 1` → uniforme `gas` em `FS_ASTRO`): a borda cede
+sobre metade do disco, o corpo a 82%, e um segundo halo a 2,3 raios. As outras duas ainda são os recortes por luminância de
 `figuras_odara.py`; os quadros de origem (`Desktop\Odara - Cosmos -
 frames_frames_chave`) não estão mais nesta máquina — para refazê-las
 inteiras é preciso os quadros `chave_23` e `t_072` de novo.
