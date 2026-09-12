@@ -623,7 +623,7 @@ técnica.
 ### A lâmpada da sala (12/09)
 
 A lâmpada do estande é uma Tuya RGBW (`LDV SMART+ CLA60`), falada pelo
-estúdio do v1 (`Downloads\claudeaizes-display`, `node estudio.mjs`, porta
+estúdio do v1 (`Downloads/claude/raizes-display`, `node estudio.mjs`, porta
 8600 — subir com `QUEST=<serial do cabo>` para ele não procurar o headset
 pela Wi-Fi). A ponte `fontes/luz-segue-cena.mjs` lê o cenário da obra pelo
 DevTools do Quest (`adb forward tcp:9222 localabstract:chrome_devtools_remote`)
