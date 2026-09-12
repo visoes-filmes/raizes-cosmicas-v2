@@ -303,7 +303,10 @@ const CENAS = {
 **O que há no cenário dos planetas** (inventário de 11/09, medido por
 chamada de desenho aos 5:00): a cúpula da noite, 84 estrelas, o Sol com
 três cascas de corona, quatro planetas com halo (rosa, água, fogo, verde),
-sete asteroides, o buraco negro no chão, a deusa galáctica inteira ao
+sete asteroides, o buraco negro no chão (**deitado** desde 12/09 — era um
+disco virado para a câmera, uma placa de pé no chão; agora é um disco no
+plano do piso, `deitado` em `VS_BOLHA`, e de longe é a elipse rasa de um
+poço), a deusa galáctica inteira ao
 fundo (e desde 12/09 a deusa vermelha ao lado dela), os seres aquáticos (7 águas-vivas, 4 corais, 2 estrelas-do-mar —
 pedidos: "você esqueceu os seres aquáticos estranhos"), a neblina indo e
 vindo e 2 600 grãos de poeira. **Saíram em 11/09** a mão cósmica, a árvore
@@ -431,13 +434,32 @@ O que responde, e como:
 | o casulo, a concha, o rizomar | o anel | sino |
 | o planeta rosa | **uma onda de luz que atravessa o disco** a partir do ponto tocado, em ~1 s (o mesmo `toque`, agora também no `FS_ASTRO` — até 12/09 o anel só existia no shader das superfícies, e o toque no planeta era só o sino) | sino |
 
-**O que a janela "pegar e dimensionar um planeta" (5:30) é hoje:** só isto —
-o rosa orbita ao alcance (0,95 m, à altura do peito), e o toque acende a onda
-e o sino. **Não há pegar nem redimensionar**: o rótulo está na partitura
-(`MOMENTOS`), o gesto nunca foi construído. O pinçar (`apertando`) já é lido
-das mãos e serve de gatilho, então agarrar e escalar é possível de fazer;
-depende de decisão da direção de arte. A entrada no planeta (6:20) é pelo
-relógio, para todo mundo.
+**Pegar e dimensionar o planeta rosa** (12/09, `rosaNaMao`, `seguirRosa`) —
+a janela das 5:30 existe de verdade agora:
+
+- **pegar**: pinçar (`selectstart` — nas mãos nuas o Quest lê o pinçar do
+  indicador com o polegar; no controle, o gatilho) com a mão a menos de um
+  palmo do rosa. Ele vai com a mão, sem saltar: o desvio entre a mão e o
+  centro no instante da pegada é guardado e mantido. Segue com atraso de
+  ~70 ms, que é o que lixa o tremor do rastreio.
+- **dimensionar**: com o rosa numa mão, pinçar com a outra perto dele. A
+  distância entre as mãos vira a régua (nunca menor que 15 cm ao começar):
+  afastar cresce, juntar encolhe, **da metade a 2,5×** (raio de 12 a 59 cm).
+  O tamanho escolhido fica — o toque, o pulso e os halos acompanham
+  (`raioDoRosa()`).
+- **soltar**: ele volta à órbita devagar (constante de tempo 2 s, ~6 s até
+  chegar). Um planeta largado no chão ou atirado longe nunca se perde, e
+  voltar devagar é soltar, não mola.
+- **na cara ele se dissolve**: entre um e dois raios do olho a presença cai
+  a zero. Medido na bancada, de dentro da casca de luz via-se a parede de
+  trás dela, facetada e chapada. É gás; atravessa-se, e volta ao afastar.
+- aos 6:18 a mão larga (o planeta se apaga), e o reinício (`rizomar`) zera
+  posição e tamanho. Relatos: `PEGOU-O-ROSA`, `SOLTOU-O-ROSA`.
+
+Só o rosa, como antes: é o único ao alcance. A entrada no planeta (6:20)
+continua pelo relógio, para todo mundo. **Nada disto foi tocado no Quest
+ainda** — o pinçar de mão nua e o que decide se o palmo de folga (10 cm)
+basta, e só o aparelho responde.
 
 E **a asa soa**: um sopro de ruído filtrado por batida, só a menos de cinco
 metros, caindo com o quadrado da distância.

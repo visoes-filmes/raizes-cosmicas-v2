@@ -4447,10 +4447,18 @@ attribute vec2 aXY;
 uniform mat4 mvp;
 uniform vec3 camDir, camCima, centro;
 uniform float raio;
+uniform float deitado;     // 1 = o disco fica no chao, e nao virado para a camera
 varying vec2 vXY;
 void main(){
   vXY = aXY;
-  vec3 p = centro + camDir * (aXY.x * raio) + camCima * (aXY.y * raio);
+  /* DEITADO -- 12/09, "o buraco tem que ficar deitado". Ele mora no chao,
+     e um disco virado para a camera de pe no chao e uma placa, nao um
+     buraco. Deitado, ele e um lugar: quem olha de cima ve o disco, quem
+     olha do lado ve a elipse rasa, como um poco. Os seres continuam
+     virados para quem olha. */
+  vec3 ex = mix(camDir,  vec3(1.0, 0.0, 0.0), deitado);
+  vec3 ey = mix(camCima, vec3(0.0, 0.0, 1.0), deitado);
+  vec3 p = centro + ex * (aXY.x * raio) + ey * (aXY.y * raio);
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_BOLHA = `
@@ -7240,7 +7248,10 @@ function anguloDoCeu(x){
 }
 
 /* Onde cada planeta esta no instante t. */
-function ondeEsta(i, t){
+function ondeEsta(i, t, cru){
+  // o rosa na mao, ou voltando dela, esta onde a mao o deixou -- salvo
+  // para quem pergunta pela orbita crua (e o proprio seguirRosa)
+  if(i === 0 && !cru && rosaNaMao.pos) return rosaNaMao.pos.slice();
   const p = PLANETAS[i], n = PLANETAS.length;
   const fase = i / n * Math.PI * 2;
 
@@ -7291,6 +7302,75 @@ function presencaSol(t){
      nasce no mesmo lugar e no mesmo intervalo. E uma coisa virando outra,
      e nao duas coisas. */
   return rampa(196, 202, t) * (1 - rampa(378, 392, t));
+}
+
+/* ═══════════ O ROSA NA MAO ═══════════
+   A janela das 5:30 diz "pegar e dimensionar um planeta", e ate 12/09 so
+   havia o toque. Agora:
+
+   PEGAR -- pincar (o gesto que o Quest le como selectstart; no controle, o
+   gatilho) com a mao a menos de um palmo do rosa segura o planeta: ele vai
+   com a mao, sem saltar, porque o desvio entre a mao e o centro no instante
+   da pegada e guardado e mantido.
+
+   DIMENSIONAR -- com o rosa numa mao, pincar com a OUTRA perto dele: a
+   distancia entre as maos passa a ser a regua. Afastar cresce, juntar
+   encolhe, da metade a duas vezes e meia. O tamanho escolhido FICA.
+
+   SOLTAR -- o planeta volta a orbita dele devagar, em uns seis segundos.
+   Um planeta largado no chao ou atirado longe nunca se perde, e voltar
+   devagar e soltar, nao mola. */
+const rosaNaMao = { por:-1, desvio:[0,0,0], pos:null, escala:1, escala0:1, dist0:0, escalando:false };
+function raioDoRosa(){ return PLANETAS[0].raio * rosaNaMao.escala; }
+function seguirRosa(dt){
+  const R = rosaNaMao;
+  // quando ele se apaga (6:18) a mao larga, mas o caminho de volta continua:
+  // zerar a posicao aqui faria um planeta meio transparente saltar
+  const vivo = presencaAstro(0, t) >= 0.3;
+  if(!vivo){ R.por = -1; R.escalando = false; }
+  const orb = ondeEsta(0, t, true);
+  const onde = R.pos || orb;
+  const perto = (m, folga) => {
+    const dx = m.x - onde[0], dy = m.y - onde[1], dz = m.z - onde[2];
+    return m.tem && dx*dx + dy*dy + dz*dz < Math.pow(raioDoRosa() + folga, 2);
+  };
+  if(R.por >= 0){
+    const m = MAOS[R.por];
+    if(!m.tem || !m.apertando){ R.por = -1; R.escalando = false; relato('SOLTOU-O-ROSA escala=' + R.escala.toFixed(2)); }
+    else {
+      // segue a mao com um atraso de uns 70 ms: e o que lixa o tremor do rastreio
+      const k = 1 - Math.exp(-14 * dt);
+      R.pos[0] += (m.x + R.desvio[0] - R.pos[0]) * k;
+      R.pos[1] += (m.y + R.desvio[1] - R.pos[1]) * k;
+      R.pos[2] += (m.z + R.desvio[2] - R.pos[2]) * k;
+      // a outra mao, pincando perto: a regua do tamanho
+      const o = MAOS[1 - R.por];
+      if(o.tem && o.apertando && (R.escalando || perto(o, 0.15))){
+        const d = Math.hypot(m.x - o.x, m.y - o.y, m.z - o.z);
+        // a regua nunca comeca menor que um palmo: maos que comecam juntas
+        // dobrariam o planeta com um dedo de movimento
+        if(!R.escalando){ R.escalando = true; R.dist0 = Math.max(0.15, d); R.escala0 = R.escala; }
+        else R.escala = Math.max(0.5, Math.min(2.5, R.escala0 * d / R.dist0));
+      } else R.escalando = false;
+      return;
+    }
+  }
+  // solto: alguem pinca perto dele?
+  if(vivo) for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
+    if(m.tem && m.apertando && perto(m, 0.10)){
+      R.por = i; R.pos = onde.slice();
+      R.desvio = [onde[0] - m.x, onde[1] - m.y, onde[2] - m.z];
+      relato('PEGOU-O-ROSA mao=' + i);
+      return;
+    }
+  }
+  // ninguem segura: volta para a orbita, devagar
+  if(R.pos){
+    const k = 1 - Math.exp(-0.5 * dt);
+    R.pos[0] += (orb[0] - R.pos[0]) * k; R.pos[1] += (orb[1] - R.pos[1]) * k; R.pos[2] += (orb[2] - R.pos[2]) * k;
+    if(Math.hypot(orb[0] - R.pos[0], orb[1] - R.pos[1], orb[2] - R.pos[2]) < 0.02) R.pos = null;
+  }
 }
 
 /* ═══════════ a barra da partitura ═══════════ */
@@ -7361,7 +7441,10 @@ function passo(){
   /* Um engasgo nao pode dar um salto na obra. Se a maquina travou meio
      segundo, e melhor a peca ter pausado meio segundo do que ter pulado
      meio segundo de narrativa. */
-  return Math.min(dt, 0.1);
+  /* E nunca negativo: um relogio que anda para tras (so a bancada faz isso)
+     vira ganho negativo nas suavizacoes, e o que era voltar devagar
+     explode para longe. */
+  return Math.max(0, Math.min(dt, 0.1));
 }
 let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
 let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
@@ -7550,12 +7633,12 @@ function alvosAgora(){
                            somEstranho(); relato('TOCOU-A-BORBOLETA'); } });
   if(presencaAstro(0, t) > 0.3){
     const q = ondeEsta(0, t);
-    lista.push({ id:'rosa', x:q[0], y:q[1], z:q[2], raio:0.36,
+    lista.push({ id:'rosa', x:q[0], y:q[1], z:q[2], raio:raioDoRosa() + 0.12,
                  /* O pulso nasce ONDE A MAO ENCOSTOU -- no ponto da superficie
                     mais perto dela --, e nao no centro: do centro, toda a
                     superficie esta a um raio, e a onda vira piscada. */
                  fazer(m){ const dx = m.x-q[0], dy = m.y-q[1], dz = m.z-q[2], L = Math.hypot(dx, dy, dz) || 1;
-                           const r = PLANETAS[0].raio;
+                           const r = raioDoRosa();
                            pulsarEm(q[0] + dx/L*r, q[1] + dy/L*r, q[2] + dz/L*r); sinoDoToque(4, 0.8); } });
   }
   if(casuloPresenca > 0.3)
@@ -7599,6 +7682,7 @@ function recomecarAViagem(){
      pessoa, e ela pode estar virada para outro lado. */
   mundoOrientado = false;
   tocouCasulo = 0; tocouConcha = 0;
+  rosaNaMao.por = -1; rosaNaMao.pos = null; rosaNaMao.escala = 1; rosaNaMao.escalando = false;
   agitacao = 0; nivelExtra = 0;
   cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
@@ -8346,10 +8430,11 @@ if(emTesteLocal){
   window.raizes = {
     /* UMA MAO DE MENTIRA, para a bancada: poe a mao 0 num ponto (ou tira,
        sem argumento). E so daqui que se testa toque sem headset. */
-    mao(x, y, z){
-      const m = MAOS[0];
-      if(x === undefined){ m.tem = false; return 'sem mao'; }
-      m.tem = true; m.x = +x; m.y = +y; m.z = +z; return [m.x, m.y, m.z];
+    mao(x, y, z, aperta, qual){
+      const m = MAOS[qual | 0];
+      if(x === undefined){ m.tem = false; m.apertando = false; return 'sem mao'; }
+      m.tem = true; m.x = +x; m.y = +y; m.z = +z; m.apertando = !!aperta;
+      return [m.x, m.y, m.z, m.apertando];
     },
     ir(segundos){
       /* SAIR DA ESPERA, se a obra ja acabou uma vez.
@@ -9081,7 +9166,7 @@ const uBo = n=>gl.getUniformLocation(progBolha,n);
 const locBo = {mvp:uBo('mvp'), camDir:uBo('camDir'), camCima:uBo('camCima'),
                centro:uBo('centro'), raio:uBo('raio'), tipo:uBo('tipo'),
                presenca:uBo('presenca'), tempo:uBo('tempo'), fase:uBo('fase'),
-               cor:uBo('cor')};
+               cor:uBo('cor'), deitado:uBo('deitado')};
 const aBo = {xy: gl.getAttribLocation(progBolha,'aXY')};
 
 const uFi = n=>gl.getUniformLocation(progFigu,n);
@@ -10077,14 +10162,22 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     // OS PLANETAS
     gl.uniform4f(locAst.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
     for(let i=0;i<PLANETAS.length;i++){
-      const pl = PLANETAS[i], pr = presencaAstro(i, t);
+      const pl = PLANETAS[i];
+      let pr = presencaAstro(i, t);
       if(pr < 0.004) continue;
-      const c = ondeEsta(i, t);
+      const c = ondeEsta(i, t), raio = i === 0 ? raioDoRosa() : pl.raio;
+      /* O ROSA NA CARA SE DISSOLVE. Com ele na mao, a pessoa pode puxa-lo
+         ate o rosto -- e de dentro da casca de luz o que se ve e a parede
+         de tras dela, facetada e chapada (medido na bancada, 12/09). Entre
+         um raio e dois do centro ele cede ate sumir: e gas, atravessa-se.
+         Afastando a mao, ele volta. */
+      if(i === 0) pr *= rampa(raio * 1.0, raio * 2.0, Math.hypot(olhoPos[0]-c[0], olhoPos[1]-c[1], olhoPos[2]-c[2]));
+      if(pr < 0.004) continue;
       gl.activeTexture(gl.TEXTURE5);
       gl.bindTexture(gl.TEXTURE_2D, PELES[pl.pele]);
       gl.uniform1i(locAst.pele, 5);
       gl.uniform3f(locAst.centro, c[0], c[1], c[2]);
-      gl.uniform1f(locAst.raio, pl.raio);
+      gl.uniform1f(locAst.raio, raio);
       gl.uniform1f(locAst.giro, relogio * (0.05 + i*0.017));
       gl.uniform1f(locAst.achatar, pl.achatar);
       gl.uniform3f(locAst.cor, pl.cor[0], pl.cor[1], pl.cor[2]);
@@ -10111,17 +10204,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.depthMask(false);
       gl.cullFace(gl.FRONT);           // a parede de tras: so em volta do corpo
       gl.uniform1f(locAst.halo, 1.0);
-      gl.uniform1f(locAst.raio, pl.raio * 1.6);
+      gl.uniform1f(locAst.raio, raio * 1.6);
       gl.uniform1f(locAst.brilho, 0.30);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       if(pl.gas){   // o gasoso derrama mais longe: e gas, nao pedra
-        gl.uniform1f(locAst.raio, pl.raio * (1.6 + 0.55 * pl.gas));
+        gl.uniform1f(locAst.raio, raio * (1.6 + 0.55 * pl.gas));
         gl.uniform1f(locAst.brilho, 0.12 * pl.gas);
         gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       }
       gl.cullFace(gl.BACK);
       gl.uniform1f(locAst.halo, 0.0);
-      gl.uniform1f(locAst.raio, pl.raio);
+      gl.uniform1f(locAst.raio, raio);
       sobrepor();
 
       // AS LUAS DELE: pele de asteroide, acesas pelo Sol, sem halo
@@ -10135,7 +10228,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         for(let k=0;k<pl.luas.length;k++){
           const lua = pl.luas[k], q = ondeLua(pl, c, lua, t);
           gl.uniform3f(locAst.centro, q[0], q[1], q[2]);
-          gl.uniform1f(locAst.raio, lua.raio * pl.raio);
+          gl.uniform1f(locAst.raio, lua.raio * raio);
           gl.uniform1f(locAst.giro, relogio * 0.2 + k);
           gl.uniform3f(locAst.luzDe, SOL[0]-q[0], SOL[1]-q[1], SOL[2]-q[2]);
           gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
@@ -10498,12 +10591,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform3f(locBo.cor, 0.78, 0.62, 1.0);
     if(buracoPresenca > 0.004){
       gl.uniform1f(locBo.presenca, buracoPresenca);
+      gl.uniform1f(locBo.deitado, 1.0);       // no chao, deitado
       for(const b of BURACOS){
         gl.uniform3f(locBo.centro, b.x, b.y, b.z);
         gl.uniform1f(locBo.raio, b.raio);
         gl.uniform1f(locBo.fase, b.fase);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
+      gl.uniform1f(locBo.deitado, 0.0);
     }
     // o buraco dentro da concha, menor e mais fundo
     if(conchaPresenca > 0.004){
@@ -11081,6 +11176,7 @@ function quadro(){
   contarQuadro();
   andarGlitter(dt);
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
+  seguirRosa(dt);
   if(neblinaOn) assarTinta();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
@@ -11143,6 +11239,7 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  seguirRosa(dt);
   andarGlitter(dt);
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
