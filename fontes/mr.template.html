@@ -4907,15 +4907,15 @@ void main(){
      preto de verdade deixa passar as estrelas, GRADUALMENTE -- de 0,012 a
      0,09 -- e tudo o que tem tinta fica. */
   if(inteira > 0.5){
+    /* GRADUACAO DE TRANSPARENCIA EM TODA A BORDA -- 11/09. Os quinze por
+       cento de cada lado cedem em graduacao para o fundo, nos quatro
+       lados, e os cantos cedem pelo produto (mais, como canto deve). A
+       pintura expandida ja termina escura nos lados e em cima, entao ali a
+       graduacao quase nao se ve; embaixo, onde o manto vai claro ate a
+       borda, e ela que impede a reta. Suave nas duas pontas (smoothstep):
+       nao ha onde o olho engatar. */
     vec2 d = min(vUV, 1.0 - vUV);
-    float beira = smoothstep(0.0, 0.02, min(d.x, d.y));
-    /* A BASE ESMAECE, e so ela -- medido na bancada em 11/09: nos outros
-       tres lados a pintura expandida ja termina em espaco escuro (degrau
-       de 0,03 a 0,06 entre pixels vizinhos na beira do plano), mas embaixo
-       o manto dela vai claro ate a borda do arquivo e o plano cortava numa
-       reta (degrau 0,12). Os dezoito por cento de baixo cedem em
-       graduacao, para o fundo. */
-    beira *= smoothstep(0.0, 0.18, 1.0 - vUV.y);
+    float beira = smoothstep(0.0, 0.15, d.x) * smoothstep(0.0, 0.15, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     float a = beira * smoothstep(0.012, 0.09, lum) * presenca;
     /* AS CORES DELA, E NAO UM DEGRAU ABAIXO -- 11/09, "equilibrar as cores
