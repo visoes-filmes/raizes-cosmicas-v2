@@ -60,9 +60,13 @@ const JANELAS = [
    primeira janela e nao voltava. Agora tudo vai pela cor: o matiz e o do
    cenario, e o escuro e o claro sao o VALOR dessa mesma cor. A lampada
    nunca sai do modo de cor. */
-const VALOR_OBRA   = 0.40;   // o escuro que a obra pede
+/* "TEM QUE TER COR" -- 12/09, olhando a lampada: a 40% de valor a cor
+   nao se lia, e a saturacao afrouxada na janela virava branco lavado.
+   Saturacao cheia sempre; o escuro a 60%. Se a camera nao achar as maos
+   com luz colorida a 100%, o que cede e o valor do escuro, nao a cor. */
+const VALOR_OBRA   = 0.60;   // o escuro da obra, ainda com cor
 const VALOR_JANELA = 1.00;   // o que a camera precisa para achar uma mao
-const SAT_JANELA   = 0.65;   // na janela a cor afrouxa um pouco: mais luz, mesmo matiz
+const SAT_JANELA   = 1.00;   // a cor nao afrouxa
 
 /* AS CORES, MEDIDAS -- 12/09, "a cor dominante de cada um, mais intensa".
    Medido na bancada em tres olhares por cenario (histograma de matiz dos
@@ -70,15 +74,17 @@ const SAT_JANELA   = 0.65;   // na janela a cor afrouxa um pouco: mais luz, mesm
    52-77%); cosmos 200-220 (o azul da galactica; vermelho e magenta atras);
    planeta rosa 320-340 (45-62%); papel 210-260 (o ceu cosmico invertido).
 
-   Tres dos quatro medem azul. Para a sala MUDAR a cada cenario, o cosmos
-   vai ao violeta do ceu cosmico e o papel ao ambar de vela -- as duas
-   assinaturas da regua da partitura --, e a floresta e o rosa ficam no
-   que se mediu. Saturacao cheia: o pedido e intensidade. */
+   Tres dos quatro medem azul. Para a sala MUDAR a cada cenario, olhando a
+   lampada em 12/09: a floresta e verde-turquesa ("falta um verde
+   turquesa"; a regua ja a chamava de verde-azulado), o cosmos e o violeta
+   do ceu cosmico, o rosa e o magenta medido, e o papel fica com o azul
+   medido -- o ambar de vela "nao combina". Saturacao cheia: o pedido e
+   intensidade. */
 const COR_DA_CENA = {
-  1: { matiz: 228, nome: 'azul-noite' },    // a floresta, medido
-  2: { matiz: 262, nome: 'violeta' },       // o cosmos, a assinatura (medido: azul 215)
-  3: { matiz: 335, nome: 'magenta' },       // o planeta rosa, medido
-  4: { matiz:  35, nome: 'ambar' },         // o mundo de papel, a assinatura (medido: azul-violeta 245)
+  1: { matiz: 170, nome: 'verde-turquesa' },  // a floresta: "falta um verde turquesa" (12/09); mede azul, mas e a floresta
+  2: { matiz: 262, nome: 'violeta' },         // o cosmos, a assinatura da regua (medido: azul 215)
+  3: { matiz: 335, nome: 'magenta' },         // o planeta rosa, medido
+  4: { matiz: 230, nome: 'azul' },            // o mundo de papel, o azul-violeta medido (o ambar "nao combina")
 };
 
 function hsvParaHex(h, s, v) {

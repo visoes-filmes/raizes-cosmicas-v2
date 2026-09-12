@@ -637,21 +637,22 @@ BRANCO, e ela ficava branca até o cenário seguinte. Agora tudo vai pela cor:
 o escuro e o claro são o *valor* da mesma cor, e ela nunca sai do modo de cor.
 
 **As cores, medidas** (histograma de matiz dos pixels com cor e luz, em três
-olhares por cenário na bancada) e o que a lâmpada faz — saturação cheia, o
-pedido é intensidade:
+olhares por cenário na bancada) e o que a lâmpada faz — **saturação cheia
+sempre** ("tem que ter cor", olhando a lâmpada em 12/09: a 40% e com a
+saturação afrouxada na janela, a cor não se lia):
 
-| cenário | medido | lâmpada | escuro (V 40%) | janela (S 65%, V 100%) |
+| cenário | medido | lâmpada | escuro (V 60%) | janela das mãos (V 100%) |
 |---|---|---|---|---|
-| 1 floresta | azul 220–240° (52–77%) | **azul-noite** 228° | `#001466` | `#597aff` |
-| 2 cosmos | azul 200–220° (a galáctica), vermelho e magenta atrás | **violeta** 262° — a assinatura da régua; o medido é azul, igual ao da floresta | `#250066` | `#9659ff` |
-| 3 planeta rosa | magenta 320–340° (45–62%) | **magenta** 335° | `#66002b` | `#ff599e` |
-| 4 papel | azul-violeta 210–260° (o céu cósmico invertido) | **âmbar** 35° — luz de vela sobre papel; o medido daria o terceiro azul | `#663c00` | `#ffba59` |
+| 1 floresta | azul 220–240° (52–77%) | **verde-turquesa** 170° — "falta um verde turquesa"; é a floresta, e a régua já a chamava de verde-azulado | `#009980` | `#00ffd5` |
+| 2 cosmos | azul 200–220° (a galáctica), vermelho e magenta atrás | **violeta** 262° — a assinatura da régua | `#380099` | `#5d00ff` |
+| 3 planeta rosa | magenta 320–340° (45–62%) | **magenta** 335° | `#990040` | `#ff006a` |
+| 4 papel | azul-violeta 210–260° (o céu cósmico invertido) | **azul** 230° — o medido; o âmbar de vela "não combina" | `#001999` | `#002aff` |
 
 Na espera do fim (depois dos 10:00) a sala volta ao azul da floresta, pronta
 para a próxima pessoa. As janelas de mão (1:50–2:50, 5:30–6:20, 7:30–8:25)
-sobem a luz a 100% com a cor afrouxada, para a câmera achar as mãos com o
-matiz ainda na sala — **se a luz colorida basta para o rastreio, só o Quest
-diz.**
+sobem a luz a 100% na mesma cor, para a câmera achar as mãos — **se luz
+colorida saturada basta para o rastreio, só o Quest diz**; se não bastar, o
+que cede é o valor do escuro, não a cor.
 
 ### Decidido, mas não construído
 
