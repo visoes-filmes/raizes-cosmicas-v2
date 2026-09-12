@@ -18,7 +18,7 @@
  * ANTES DE RODAR
  *   1. o estudio no ar          (raizes-display: node estudio.mjs)
  *   2. a ponte do DevTools      adb forward tcp:9222 localabstract:chrome_devtools_remote
- *   3. a obra aberta no headset servida de localhost
+ *   3. a obra aberta no headset -- pelo cabo (localhost:8765) ou a publicada
  *
  * USO
  *   node fontes/luz-segue-cena.mjs
@@ -52,21 +52,49 @@ const JANELAS = [
   { de: 330, ate: 380, o_que: 'pegar e dimensionar um planeta' },
   { de: 450, ate: 505, o_que: 'os seres, as pedras, a concha' },
 ];
-const BRILHO_OBRA   = 35;   // o escuro que a obra pede
-const BRILHO_JANELA = 85;   // o que a camera precisa para achar uma mao
+/* BRILHO E COR SAO UM COMANDO SO -- consertado em 12/09.
 
+   A lampada tem dois modos, "white" e "colour", e o brilho (dps 22) so vale
+   no branco: mandar brilho a trocava para BRANCO, e ela ficava branca ate a
+   proxima mudanca de cenario. Era por isso que a luz "perdia" o cenario na
+   primeira janela e nao voltava. Agora tudo vai pela cor: o matiz e o do
+   cenario, e o escuro e o claro sao o VALOR dessa mesma cor. A lampada
+   nunca sai do modo de cor. */
+const VALOR_OBRA   = 0.40;   // o escuro que a obra pede
+const VALOR_JANELA = 1.00;   // o que a camera precisa para achar uma mao
+const SAT_JANELA   = 0.65;   // na janela a cor afrouxa um pouco: mais luz, mesmo matiz
+
+/* AS CORES, MEDIDAS -- 12/09, "a cor dominante de cada um, mais intensa".
+   Medido na bancada em tres olhares por cenario (histograma de matiz dos
+   pixels com cor e luz): floresta 220-240 graus (a noite azul da pintura,
+   52-77%); cosmos 200-220 (o azul da galactica; vermelho e magenta atras);
+   planeta rosa 320-340 (45-62%); papel 210-260 (o ceu cosmico invertido).
+
+   Tres dos quatro medem azul. Para a sala MUDAR a cada cenario, o cosmos
+   vai ao violeta do ceu cosmico e o papel ao ambar de vela -- as duas
+   assinaturas da regua da partitura --, e a floresta e o rosa ficam no
+   que se mediu. Saturacao cheia: o pedido e intensidade. */
 const COR_DA_CENA = {
-  1: '#6fa0a8',   // a floresta — verde-azulado de agua parada
-  2: '#9a8cd0',   // o sistema solar — o violeta do ceu cosmico
-  3: '#d98aa8',   // o planeta rosa
-  4: '#d0b088',   // o mundo de papel — luz de vela sobre papel velho
+  1: { matiz: 228, nome: 'azul-noite' },    // a floresta, medido
+  2: { matiz: 262, nome: 'violeta' },       // o cosmos, a assinatura (medido: azul 215)
+  3: { matiz: 335, nome: 'magenta' },       // o planeta rosa, medido
+  4: { matiz:  35, nome: 'ambar' },         // o mundo de papel, a assinatura (medido: azul-violeta 245)
 };
+
+function hsvParaHex(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+                  : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return '#' + [r, g, b].map(q => Math.round((q + m) * 255).toString(16).padStart(2, '0')).join('');
+}
 
 async function abaDaObra() {
   const alvos = await (await fetch(`${CDP}/json`, { signal: AbortSignal.timeout(4000) })).json();
   for (const t of alvos) {
     if (t.type !== 'page' || !t.webSocketDebuggerUrl) continue;
-    if (!(t.url || '').includes('localhost:8765')) continue;
+    // a obra pelo cabo (localhost:8765) ou a publicada, que mora no aparelho
+    const url = t.url || '';
+    if (!url.includes('localhost:8765') && !url.includes('visoes-filmes.github.io/raizes-cosmicas-v2')) continue;
     // Ha abas de erro com a mesma URL: a boa e a que tem o controle.
     const ws = new WebSocket(t.webSocketDebuggerUrl);
     try { await new Promise((ok, ruim) => { ws.onopen = ok; ws.onerror = ruim; setTimeout(ruim, 4000); }); }
@@ -102,12 +130,6 @@ function paraSegundos(mmss) {
   return (m || 0) * 60 + (s || 0);
 }
 
-async function brilhar(v) {
-  const r = await fetch(`${ESTUDIO}/api/luz?acao=brilho&v=${v}`,
-                        { signal: AbortSignal.timeout(6000) });
-  return (await r.json())?.ok === true;
-}
-
 async function pintar(cor) {
   const r = await fetch(`${ESTUDIO}/api/luz?acao=cor&v=${encodeURIComponent(cor)}`,
                         { signal: AbortSignal.timeout(6000) });
@@ -115,7 +137,7 @@ async function pintar(cor) {
 }
 
 console.log('a luz segue a obra — Ctrl+C para parar');
-let ws = null, ultima = null, brilhoAgora = null;
+let ws = null, ultima = null;
 
 for (;;) {
   try {
@@ -128,21 +150,19 @@ for (;;) {
     const onde = await perguntar(ws, `window.raizes.onde()`);
     if (!onde) { try { ws.close(); } catch { /* nada */ } ws = null; continue; }
 
-    if (onde.cena !== ultima) {
-      const cor = COR_DA_CENA[onde.cena];
+    const segundos = paraSegundos(onde.tempo);
+    // na espera do fim a sala ja se prepara para a proxima pessoa: a floresta
+    const cena = segundos >= 600 ? 1 : onde.cena;
+    const janela = emJanela(segundos);
+    const chave = `${cena}/${janela ? 'janela' : 'escuro'}`;
+    if (chave !== ultima) {
+      const c = COR_DA_CENA[cena];
+      const cor = c && hsvParaHex(c.matiz, janela ? SAT_JANELA : 1.0, janela ? VALOR_JANELA : VALOR_OBRA);
       if (cor && await pintar(cor)) {
-        console.log(`  ${onde.tempo}  cenario ${onde.cena}  ->  ${cor}`);
-        ultima = onde.cena;
+        console.log(`  ${onde.tempo}  cenario ${cena}  ${c.nome}  ${cor}` +
+                    (janela ? `  — janela: ${janela.o_que}` : '  — o escuro da obra'));
+        ultima = chave;
       }
-    }
-
-    // A luz sobe nas janelas para a camera achar as maos, e volta a descer.
-    const janela = emJanela(paraSegundos(onde.tempo));
-    const querido = janela ? BRILHO_JANELA : BRILHO_OBRA;
-    if (querido !== brilhoAgora && await brilhar(querido)) {
-      console.log(`  ${onde.tempo}  luz ${querido}%` +
-                  (janela ? `  — janela: ${janela.o_que}` : '  — a obra volta ao escuro'));
-      brilhoAgora = querido;
     }
   } catch (e) {
     try { if (ws) ws.close(); } catch { /* nada */ }

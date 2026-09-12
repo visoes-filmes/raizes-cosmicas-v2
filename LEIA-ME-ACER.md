@@ -620,6 +620,39 @@ obra, e o `fontes/luz-segue-cena.mjs` já a faz seguir o cenário e subir nas
 três janelas de interação. Isso agora é escolha estética, não muleta
 técnica.
 
+### A lâmpada da sala (12/09)
+
+A lâmpada do estande é uma Tuya RGBW (`LDV SMART+ CLA60`), falada pelo
+estúdio do v1 (`Downloads\claudeaizes-display`, `node estudio.mjs`, porta
+8600 — subir com `QUEST=<serial do cabo>` para ele não procurar o headset
+pela Wi-Fi). A ponte `fontes/luz-segue-cena.mjs` lê o cenário da obra pelo
+DevTools do Quest (`adb forward tcp:9222 localabstract:chrome_devtools_remote`)
+e pinta a lâmpada. O `window.raizes.onde()` passou a existir **também na
+obra publicada** (só ele: leitura), porque no estande a obra mora no
+aparelho e vem do endereço publicado.
+
+**O defeito que a desligava do cenário:** a lâmpada tem dois modos, e o
+brilho (`dps 22`) só vale no branco. Subir o brilho na janela a trocava para
+BRANCO, e ela ficava branca até o cenário seguinte. Agora tudo vai pela cor:
+o escuro e o claro são o *valor* da mesma cor, e ela nunca sai do modo de cor.
+
+**As cores, medidas** (histograma de matiz dos pixels com cor e luz, em três
+olhares por cenário na bancada) e o que a lâmpada faz — saturação cheia, o
+pedido é intensidade:
+
+| cenário | medido | lâmpada | escuro (V 40%) | janela (S 65%, V 100%) |
+|---|---|---|---|---|
+| 1 floresta | azul 220–240° (52–77%) | **azul-noite** 228° | `#001466` | `#597aff` |
+| 2 cosmos | azul 200–220° (a galáctica), vermelho e magenta atrás | **violeta** 262° — a assinatura da régua; o medido é azul, igual ao da floresta | `#250066` | `#9659ff` |
+| 3 planeta rosa | magenta 320–340° (45–62%) | **magenta** 335° | `#66002b` | `#ff599e` |
+| 4 papel | azul-violeta 210–260° (o céu cósmico invertido) | **âmbar** 35° — luz de vela sobre papel; o medido daria o terceiro azul | `#663c00` | `#ffba59` |
+
+Na espera do fim (depois dos 10:00) a sala volta ao azul da floresta, pronta
+para a próxima pessoa. As janelas de mão (1:50–2:50, 5:30–6:20, 7:30–8:25)
+sobem a luz a 100% com a cor afrouxada, para a câmera achar as mãos com o
+matiz ainda na sala — **se a luz colorida basta para o rastreio, só o Quest
+diz.**
+
 ### Decidido, mas não construído
 
 - **As interações que faltam.** Pegar um planeta, tocar a mão gigante.

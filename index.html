@@ -8473,6 +8473,13 @@ if(emTesteLocal){
               seguirPartitura(0); return 'na espera'; }
   };
 }
+/* SO O onde() EXISTE TAMBEM NA OBRA PUBLICADA -- 12/09. E leitura pura:
+   diz em que cenario e em que segundo a obra esta, e e por ele que a
+   lampada da sala segue o cenario (fontes/luz-segue-cena.mjs, pelo
+   DevTools do Quest). Sem isto a luz so seguia a obra servida pelo cabo, e
+   no estande a obra mora no aparelho, carregada do endereco publicado. Os
+   saltos no tempo continuam so fora do publicado. */
+if(!emTesteLocal) window.raizes = { onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando}; } };
 
 const bReiniciar = document.getElementById('bReiniciar');
 const bParar     = document.getElementById('bParar');

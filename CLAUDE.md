@@ -210,8 +210,8 @@ Fora do arquivo:
 
 | onde | o quê |
 |---|---|
-| `window.raizes.ir(seg)` / `.cena(n)` | salta no tempo — existe em **qualquer endereço que não seja o publicado**, e não na obra publicada |
-| `node fontes/luz-segue-cena.mjs` | a lâmpada da sala segue o cenário, pelo estúdio do v1 |
+| `window.raizes.ir(seg)` / `.cena(n)` | salta no tempo — existe em **qualquer endereço que não seja o publicado**, e não na obra publicada. Só o `.onde()` (leitura) existe em todo lugar: é dele que a lâmpada lê o cenário |
+| `node fontes/luz-segue-cena.mjs` | a lâmpada da sala segue o cenário, pelo estúdio do v1 (cores e receita no `LEIA-ME-ACER.md`, "A lâmpada da sala") |
 
 ---
 
