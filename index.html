@@ -4917,6 +4917,13 @@ void main(){
   if(inteira > 0.5){
     vec2 d = min(vUV, 1.0 - vUV);
     float beira = smoothstep(0.0, 0.02, min(d.x, d.y));
+    /* A BASE ESMAECE, e so ela -- medido na bancada em 11/09: nos outros
+       tres lados a pintura expandida ja termina em espaco escuro (degrau
+       de 0,03 a 0,06 entre pixels vizinhos na beira do plano), mas embaixo
+       o manto dela vai claro ate a borda do arquivo e o plano cortava numa
+       reta (degrau 0,12). Os dezoito por cento de baixo cedem em
+       graduacao, para o fundo. */
+    beira *= smoothstep(0.0, 0.18, 1.0 - vUV.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     float a = beira * smoothstep(0.012, 0.09, lum) * presenca;
     /* AS CORES DELA, E NAO UM DEGRAU ABAIXO -- 11/09, "equilibrar as cores
