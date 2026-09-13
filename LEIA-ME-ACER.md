@@ -705,23 +705,20 @@ jeito que desenhei, é só pra entender". Então:
   baixo entre 8:45 e 9:16 (fundo primeiro), cedem no fecho. A **integra
   fica atrás**, a 40 m, emergindo das ondas — através dos portais vê-se ela.
 
-### A beira das pinturas é nuvem, e há uma nebulosa atrás (13/09)
+### A beira das pinturas é nuvem (13/09)
 
 "A graduação tá meio fake" — um degradê reto em volta de um retângulo é um
-retângulo. Duas coisas, nas três deusas (`FS_FIGU`, ramo `inteira`):
-
-- **a beira ondula**: um ruído de duas oitavas (`ruidoFig`, que anda com o
-  tempo) empurra o degradê para dentro e para fora — a pintura acaba como
-  nuvem acaba, e nunca no mesmo lugar. A largura é por figura
-  (`graduacao`: 0,15 nas duas do cosmos, 0,26 na integra; 0,38 foi tentado
-  e "não ficou boa" — largura não resolve, forma resolve).
-- **uma nebulosa atrás** (`progNuvemFig` = `VS_FIGU` + `FS_NUVEM_FIG`): um
-  quadro 1,6× maior que a pintura, de nuvem de ruído na cor do ar dela
-  (`nuvem` na tabela), somando luz: a nebulosa do quadro parece continuar
-  para fora da moldura, e a beira ondulada se perde nela em vez de se perder
-  no preto. Sobre a pintura ela existe a 45%, e aparece pelo preto do quadro.
-  Respira devagar. O verificador passou a casar programa por PAR de shaders,
-  porque o `VS_FIGU` serve aos dois.
+retângulo. Nas três deusas (`FS_FIGU`, ramo `inteira`) a **beira ondula**:
+um ruído de duas oitavas (`ruidoFig`, que anda com o tempo) **multiplica** a
+distância à borda — a pintura acaba como nuvem acaba, e nunca no mesmo
+lugar. Multiplica, não soma: somando, na própria borda a distância ficava
+positiva e a pintura acabava numa reta com alfa pela metade — a "laje" cinza
+que a direção de arte marcou. A largura é por figura (`graduacao`: 0,15 nas
+duas do cosmos, 0,26 na integra; 0,38 foi tentado e "não ficou boa"). Na
+integra o quase-preto também vira noite (`escuro` 0,02–0,10, como nas
+outras): sem isso as partes escuras da faixa expandida ficavam como
+fantasmas cinzentos. Uma nebulosa de ruído atrás de cada pintura foi tentada
+e saiu: no escuro do cenário lia como "formas cinza estranhas".
 
 ### O contorno dos corpos (12/09)
 

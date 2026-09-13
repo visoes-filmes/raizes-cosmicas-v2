@@ -4417,39 +4417,6 @@ void main(){
   gl_FragColor = vec4(cor * luz, luz * presenca);
 }`;
 
-/* ═══════════ A NEBULOSA ATRAS DA PINTURA ═══════════
-   13/09: "a graduacao poderia se misturar com efeitos, integrando a imagem
-   com o 3D, o ambiente". Atras de cada pintura inteira ha um quadro maior
-   (1,6 vezes) de nuvem de ruido, na cor do ar dela, que soma luz: a
-   nebulosa do quadro parece continuar para fora da moldura, e a beira
-   ondulada se perde nela em vez de se perder no preto. Dentro da moldura
-   a nuvem tambem existe, mais fraca -- aparece pelo preto do quadro, entre
-   as estrelas pintadas. Respira devagar (o ruido anda com o tempo). Usa o
-   mesmo vertice das figuras: gira para a pessoa, balanca junto. */
-const FS_NUVEM_FIG = `
-precision mediump float;
-uniform highp float tempo;
-uniform float presenca, miolo;   // miolo: fracao do quad que e a pintura (0,62)
-uniform vec3 cor;
-varying vec2 vUV;
-varying float vAltura;
-float hashN(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float ruidoN(vec2 p){
-  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
-  return mix(mix(hashN(i), hashN(i + vec2(1,0)), f.x), mix(hashN(i + vec2(0,1)), hashN(i + vec2(1,1)), f.x), f.y);
-}
-void main(){
-  vec2 q = vUV * 2.0 - 1.0;
-  vec2 fora = max(abs(q) - miolo, 0.0) / (1.0 - miolo);   // 0 na pintura, 1 na beira deste quad
-  float longe = length(fora);
-  float n = 0.50 * ruidoN(vUV * 3.5 + tempo * 0.011) + 0.32 * ruidoN(vUV * 8.0 - tempo * 0.017) + 0.18 * ruidoN(vUV * 17.0 + tempo * 0.03);
-  float nuvem = smoothstep(0.38, 0.78, n);
-  float dentro = 1.0 - smoothstep(0.0, 0.25, longe);      // sobre a pintura: mais fraca
-  float a = nuvem * (1.0 - smoothstep(0.15, 1.0, longe)) * mix(1.0, 0.45, dentro) * presenca;
-  if(a < 0.003) discard;
-  gl_FragColor = vec4(cor * a, a);
-}`;
-
 const VS_PO = `
 attribute vec3 aPos;     // x,z = onde a coluna fica; y = altura da coluna
 attribute vec3 aCor;
@@ -5128,7 +5095,12 @@ void main(){
        a pintura acaba como nuvem acaba, e nunca no mesmo lugar. */
     vec2 d = min(vUV, 1.0 - vUV);
     float ondula = 0.65 * ruidoFig(vUV * 3.0 + tempo * 0.012) + 0.35 * ruidoFig(vUV * 7.0 - tempo * 0.02);
-    d += (ondula - 0.5) * graduacao * 0.9;
+    /* O ruido MULTIPLICA a distancia a borda, nao soma: somando, na propria
+       borda a distancia ficava positiva e a pintura acabava numa reta com
+       alfa pela metade -- a "laje" cinza que a direcao de arte marcou em
+       13/09. Multiplicando, a borda e sempre zero; o que ondula e o
+       caminho ate ela. */
+    d *= 0.5 + ondula;
     float beira = smoothstep(0.0, graduacao, d.x) * smoothstep(0.0, graduacao, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     // "escuro" vem por figura: na galactica o preto vira noite entre 0,012
@@ -6008,7 +5980,6 @@ const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progFio  = programa(VS_FIO,  FS_FIO);
-const progNuvemFig = programa(VS_FIGU, FS_NUVEM_FIG);
 const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
 const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
@@ -7083,7 +7054,7 @@ const FIGURAS = [
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true,
-    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09], nuvem:[0.16, 0.30, 0.62] },
+    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09] },
   /* A VERMELHA E A INTEGRA, PELO MESMO METODO -- 12/09: o quadro inteiro
      do mesmo momento do recorte antigo (91 s e 152 s da animacao),
      expandido no Magnific, ampliado 2x, so a beirada esmaecendo, o preto
@@ -7107,7 +7078,7 @@ const FIGURAS = [
      que os planetas descem. Sem reflexo: nao ha agua no cosmos. */
   { nome:'deusa',     tex:1, centro:[-39.1, 14.6, -8.3], tam:[42.0, 26.25],
     de:226, ate:376, balanco:0.4, espelha:false, inteira:true,
-    elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09], nuvem:[0.50, 0.14, 0.20] },
+    elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09] },
   /* EXPANDIDA DE NOVO em 13/09 ("expande mais o cenario ao redor da imagem
      e faz a graduacao de novo"): de 2048 x 1280 para 2536 x 1584 no site,
      30 px de beira de papel cortados (2476 x 1524), ampliada 2x. O plano
@@ -7115,10 +7086,12 @@ const FIGURAS = [
      elipse do corpo vai para onde ele ficou no quadro novo, e a graduacao
      das bordas passa a 0,26 do quadro -- o dobro da das outras (0,38 foi
      tentado e "nao ficou boa": largura nao resolve, o que resolve e a
-     beira deixar de ser reta -- ver o ruido na beira e a nuvem atras). */
+     beira deixar de ser reta -- ver o ruido na beira). Uma nebulosa de
+     ruido atras de cada pintura foi tentada em 13/09 e saiu: no escuro do
+     cenario ela lia como "formas cinza estranhas". */
   { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
     de:556, ate:594, balanco:0.3, espelha:false, inteira:true,
-    elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.0, 0.03], graduacao:0.26, nuvem:[0.20, 0.26, 0.62] },
+    elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26 },
 ];
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
@@ -9369,11 +9342,6 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
                graduacao:uFi('graduacao')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
-const uNf = n=>gl.getUniformLocation(progNuvemFig,n);
-const locNf = {mvp:uNf('mvp'), olhoPos:uNf('olhoPos'), centro:uNf('centro'), tamanho:uNf('tamanho'),
-               espelho:uNf('espelho'), balanco:uNf('balanco'), tempo:uNf('tempo'),
-               presenca:uNf('presenca'), miolo:uNf('miolo'), cor:uNf('cor')};
-const aNf = {xy: gl.getAttribLocation(progNuvemFig,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
 const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
@@ -10883,32 +10851,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       for(const f of FIGURAS){
         const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
         if(pr < 0.004) continue;
-        if(f.inteira && f.nuvem){
-          // a nebulosa atras: soma luz, num quad 1/miolo vezes maior
-          somarLuz();
-          gl.useProgram(progNuvemFig);
-          soltarAtributos();
-          mandarMvp(locNf.mvp, mvp);
-          gl.uniform3f(locNf.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
-          gl.uniform1f(locNf.tempo, relogio);
-          gl.uniform1f(locNf.espelho, 0);
-          gl.uniform1f(locNf.balanco, f.balanco);
-          gl.uniform3f(locNf.centro, f.centro[0], f.centro[1], f.centro[2]);
-          gl.uniform2f(locNf.tamanho, f.tam[0] / 0.62, f.tam[1] / 0.62);
-          gl.uniform1f(locNf.miolo, 0.62);
-          gl.uniform3f(locNf.cor, f.nuvem[0], f.nuvem[1], f.nuvem[2]);
-          gl.uniform1f(locNf.presenca, pr * 0.55);
-          ligar(aNf.xy, bQ.xy, 2);
-          gl.drawArrays(gl.TRIANGLES, 0, 6);
-          sobrepor();
-          gl.useProgram(progFigu);
-          soltarAtributos();
-          mandarMvp(locFi.mvp, mvp);
-          gl.uniform3f(locFi.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
-          gl.uniform1f(locFi.tempo, relogio);
-          gl.uniform1f(locFi.corte, NIVEL_AGUA);
-          ligar(aFi.xy, bQ.xy, 2);
-        }
         desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f);
         if(f.espelha && aguaPresenca > 0.004){
           // o reflexo nasce da linha d'agua, nao do pe da figura
