@@ -197,7 +197,9 @@ def _semComentario(txt):
 # existir no shader dele. Como um programa e um par vertice/fragmento,
 # procura-se nos dois.
 for _vs, _fs in re.findall(r"programa\((VS_\w+),\s*(FS_\w+)\)", codigo):
-    _m = re.search(r"const\s+(\w+)\s*=\s*programa\(" + _vs + r"\s*,", codigo)
+    # pelo PAR, e nao so pelo vertice: um vertice pode servir a dois
+    # programas (o VS_FIGU serve a figura e a nuvem atras dela, 13/09)
+    _m = re.search(r"const\s+(\w+)\s*=\s*programa\(" + _vs + r"\s*,\s*" + _fs + r"\s*\)", codigo)
     if not _m:
         continue
     _prog = _m.group(1)
