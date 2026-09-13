@@ -4376,29 +4376,48 @@ void main(){
 }`;
 
 /* ═══════════ O CONTORNO DAS MAOS PELAS JUNTAS ═══════════
-   Cada osso e uma fita virada para o olho, com a largura do raio da junta
-   e as pontas esticadas em um raio: as bordas da fita coincidem com a
-   silhueta do dedo. A ponta de cada dedo ganha meio anel. So se acende a
-   beirada: o miolo e a mao de verdade, que a camera ja mostra. */
+   A mao e um CAMPO DE DISTANCIA na tela -- 13/09, "o design esta muito
+   geometrico". Antes cada osso era uma fita reta, e a mao saia de canos:
+   quinas nas juntas, degraus de largura, pontas quadradas. Agora cada osso
+   e uma capsula (raio da junta em cada ponta) projetada na tela, e a palma
+   uma capsula larga do pulso ao no do dedo medio; a uniao e SUAVE (smin),
+   entao dedo encontra palma numa curva, as pontas sao redondas e nao ha
+   linha nenhuma por dentro. O fio e a linha de distancia zero: a silhueta
+   da uniao, e so ela. Um quadrado por mao, o do retangulo dela na tela. */
+const OSSOS_POR_MAO = 21;
 const VS_MAO = `
-attribute vec3 aPos;
-attribute vec2 aQ;         // -1..1 na fita (x de lado) ou no disco (x, y)
-attribute float aTipo;     // 0 = fita, 1 = meio anel da ponta
-uniform mat4 mvp;
-varying vec2 vQ;
-varying float vTipo;
-void main(){ vQ = aQ; vTipo = aTipo; gl_Position = mvp * vec4(aPos, 1.0); }`;
+attribute vec2 aXY;
+uniform vec4 caixa;        // o retangulo da mao na tela, em ndc: x0 y0 x1 y1
+void main(){
+  gl_Position = vec4(mix(caixa.xy, caixa.zw, aXY * 0.5 + 0.5), 0.0, 1.0);
+}`;
 const FS_MAO = `
-precision mediump float;
+precision highp float;
+uniform vec4 ossos[21];    // x0 y0 x1 y1 em pixels
+uniform vec2 raios[21];    // raio em pixels em cada ponta
+uniform vec4 janela;       // a vista em pixels: x y largura altura
+uniform float macio;       // quanto a uniao arredonda, em pixels
 uniform vec3 cor;
 uniform float presenca;
-varying vec2 vQ;
-varying float vTipo;
+float capsula(vec2 p, vec4 o, vec2 r){
+  vec2 a = o.xy, b = o.zw, ab = b - a;
+  float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1.0), 0.0, 1.0);
+  return length(p - (a + ab * t)) - mix(r.x, r.y, t);
+}
+float smin(float a, float b, float k){
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
 void main(){
-  float k = vTipo < 0.5 ? abs(vQ.x) : length(vQ);
-  if(vTipo > 0.5 && (k > 1.0 || vQ.y < 0.0)) discard;
-  float borda = smoothstep(0.55, 0.90, k) * (1.0 - smoothstep(0.96, 1.0, k));
-  gl_FragColor = vec4(cor * borda, borda * presenca);
+  vec2 p = gl_FragCoord.xy;
+  float d = 1e5;
+  for(int i = 0; i < 21; i++) d = smin(d, capsula(p, ossos[i], raios[i]), macio);
+  // o fio na silhueta, e uma aura fraca para fora
+  float fio = exp(-pow(d / 2.2, 2.0));
+  float aura = 0.30 * exp(-pow(max(d, 0.0) / 9.0, 2.0)) * step(0.0, d);
+  float luz = min(1.0, fio + aura);
+  if(luz < 0.01) discard;
+  gl_FragColor = vec4(cor * luz, luz * presenca);
 }`;
 
 const VS_PO = `
@@ -8541,14 +8560,16 @@ if(emTesteLocal){
       poe(0, x, y, z, 0.022);
       // polegar, para o lado
       poe(1, x-0.025, y+0.02, z, 0.014); poe(2, x-0.055, y+0.045, z, 0.011); poe(3, x-0.075, y+0.07, z, 0.009); poe(4, x-0.088, y+0.088, z, 0.008);
-      const dedos = [[-0.028, 0.170], [-0.009, 0.185], [0.010, 0.178], [0.030, 0.155]];
+      // em leque, e cada dedo curvando um pouco para a frente (para -z)
+      const dedos = [[-0.030, 0.170, -0.25], [-0.010, 0.185, -0.08], [0.010, 0.178, 0.08], [0.030, 0.155, 0.28]];
       for(let d = 0; d < 4; d++){
-        const b = 5 + d*5, dx = dedos[d][0], alt = dedos[d][1];
-        poe(b,   x+dx*0.6, y+0.045, z, 0.013);            // metacarpo
-        poe(b+1, x+dx,     y+0.085, z, 0.011);            // no
-        poe(b+2, x+dx,     y+0.085+(alt-0.085)*0.40, z, 0.0095);
-        poe(b+3, x+dx,     y+0.085+(alt-0.085)*0.72, z, 0.0085);
-        poe(b+4, x+dx,     y+alt,   z, 0.0075);           // ponta
+        const b = 5 + d*5, dx = dedos[d][0], alt = dedos[d][1], leque = dedos[d][2];
+        const no = y + 0.085, comp = alt - 0.085;
+        poe(b,   x+dx*0.6, y+0.045, z, 0.013);                                         // metacarpo
+        poe(b+1, x+dx,     no,      z, 0.011);                                         // no
+        poe(b+2, x+dx+leque*comp*0.40, no+comp*0.40, z-0.010, 0.0095);
+        poe(b+3, x+dx+leque*comp*0.72, no+comp*0.70, z-0.028, 0.0085);
+        poe(b+4, x+dx+leque*comp*1.00, no+comp*0.95, z-0.048, 0.0075);                // ponta
       }
       m.tem = true; m.temJuntas = true; m.x = x; m.y = y + 0.17; m.z = z;
       return 'mao com juntas em ' + [x, y, z];
@@ -9455,9 +9476,9 @@ const locCt = {prof:uCt('prof'), paraProf:uCt('paraProf'), janela:uCt('janela'),
                escala:uCt('escala'), formato:uCt('formato'), cor:uCt('cor'), presenca:uCt('presenca')};
 const aCt = {xy:gl.getAttribLocation(progContorno,'aXY')};
 const uMao = n=>gl.getUniformLocation(progMao,n);
-const locMao = {mvp:uMao('mvp'), cor:uMao('cor'), presenca:uMao('presenca')};
-const aMao = {pos:gl.getAttribLocation(progMao,'aPos'), q:gl.getAttribLocation(progMao,'aQ'),
-              tipo:gl.getAttribLocation(progMao,'aTipo')};
+const locMao = {caixa:uMao('caixa'), ossos:uMao('ossos'), raios:uMao('raios'), janela:uMao('janela'),
+                macio:uMao('macio'), cor:uMao('cor'), presenca:uMao('presenca')};
+const aMao = {xy:gl.getAttribLocation(progMao,'aXY')};
 const aF = {centro:gl.getAttribLocation(progFig,'aCentro'),
             canto:gl.getAttribLocation(progFig,'aCanto'),
             dado:gl.getAttribLocation(progFig,'aDado'),
@@ -11367,65 +11388,81 @@ function desenharContornoProfundidade(prof, vp, formato){
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
 }
 
-/* O CONTORNO DAS MAOS PELAS JUNTAS. Os ossos que fazem silhueta: o polegar
-   inteiro, os dois lados da palma (do pulso ao no do indicador e ao do
-   mindinho) e os quatro dedos a partir dos nos. Os metacarpos do meio e
-   do anular ficam de fora: correm por dentro da palma, e por dentro nao
-   ha borda. Sem alocar por quadro: um Float32Array de uma vez. */
-const OSSOS_MAO = [[0,1],[1,2],[2,3],[3,4], [0,5],[0,20],
+/* O CONTORNO DAS MAOS. As capsulas: o polegar inteiro, os quatro dedos
+   do metacarpo a ponta, e a palma -- do pulso ao no do medio, com metade
+   da distancia entre o no do indicador e o do mindinho de raio. Tudo
+   projetado para a tela aqui, sem alocar por quadro. Sem teste de
+   profundidade: e um fio por cima, e a mao de verdade e sempre o que esta
+   mais perto. */
+const OSSOS_MAO = [[0,1],[1,2],[2,3],[3,4],
                    [5,6],[6,7],[7,8],[8,9], [10,11],[11,12],[12,13],[13,14],
                    [15,16],[16,17],[17,18],[18,19], [20,21],[21,22],[22,23],[23,24]];
-const PONTAS_MAO = [[3,4],[8,9],[13,14],[18,19],[23,24]];
-const MAO_VERTICES = 2 * (OSSOS_MAO.length + PONTAS_MAO.length) * 6;
-const maoDados = new Float32Array(MAO_VERTICES * 6);
-const bMao = criarBufs(['tudo']);
-function desenharContornoMaos(mvp, olho){
-  let k = 0;
-  const pos = (m, j) => [m.juntas[j*16+12], m.juntas[j*16+13], m.juntas[j*16+14]];
-  const poe = (p, qx, qy, tipo) => { maoDados[k++] = p[0]; maoDados[k++] = p[1]; maoDados[k++] = p[2]; maoDados[k++] = qx; maoDados[k++] = qy; maoDados[k++] = tipo; };
-  const quad = (a, b, c, d, tipo) => { poe(a[0], a[1], a[2], tipo); poe(b[0], b[1], b[2], tipo); poe(c[0], c[1], c[2], tipo);
-                                       poe(a[0], a[1], a[2], tipo); poe(c[0], c[1], c[2], tipo); poe(d[0], d[1], d[2], tipo); };
+const ossosTela = new Float32Array(OSSOS_POR_MAO * 4), raiosTela = new Float32Array(OSSOS_POR_MAO * 2);
+const juntaTela = new Float32Array(25 * 3);     // x, y em pixels e o w do recorte
+function desenharContornoMaos(mvp, vp, escalaPonto){
+  let desenhou = false;
   for(const m of MAOS){
     if(!m.tem || !m.temJuntas) continue;
-    for(const [i, j] of OSSOS_MAO){
-      const a = pos(m, i), b = pos(m, j), ra = m.raios[i] || 0.01, rb = m.raios[j] || 0.01;
-      let dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2]; const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
-      const ox = olho[0] - (a[0]+b[0])/2, oy = olho[1] - (a[1]+b[1])/2, oz = olho[2] - (a[2]+b[2])/2;
-      // o lado da fita: perpendicular ao osso e a linha do olho
-      let sx = dy*oz - dz*oy, sy = dz*ox - dx*oz, sz = dx*oy - dy*ox; const S = Math.hypot(sx, sy, sz) || 1; sx /= S; sy /= S; sz /= S;
-      const a0 = [a[0]-dx*ra, a[1]-dy*ra, a[2]-dz*ra], b0 = [b[0]+dx*rb, b[1]+dy*rb, b[2]+dz*rb];
-      quad([[a0[0]-sx*ra, a0[1]-sy*ra, a0[2]-sz*ra], -1, 0], [[b0[0]-sx*rb, b0[1]-sy*rb, b0[2]-sz*rb], -1, 1],
-           [[b0[0]+sx*rb, b0[1]+sy*rb, b0[2]+sz*rb],  1, 1], [[a0[0]+sx*ra, a0[1]+sy*ra, a0[2]+sz*ra],  1, 0], 0);
+    // as juntas na tela
+    let fora = false, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for(let j = 0; j < 25; j++){
+      const px = m.juntas[j*16+12], py = m.juntas[j*16+13], pz = m.juntas[j*16+14];
+      const w = mvp[3]*px + mvp[7]*py + mvp[11]*pz + mvp[15];
+      if(w < 0.05){ fora = true; break; }
+      const cx = (mvp[0]*px + mvp[4]*py + mvp[8]*pz + mvp[12]) / w;
+      const cy = (mvp[1]*px + mvp[5]*py + mvp[9]*pz + mvp[13]) / w;
+      juntaTela[j*3] = vp.x + (cx * 0.5 + 0.5) * vp.width;
+      juntaTela[j*3+1] = vp.y + (cy * 0.5 + 0.5) * vp.height;
+      juntaTela[j*3+2] = w;
     }
-    for(const [i, j] of PONTAS_MAO){
-      const a = pos(m, i), b = pos(m, j), r = m.raios[j] || 0.009;
-      let dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2]; const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
-      const ox = olho[0]-b[0], oy = olho[1]-b[1], oz = olho[2]-b[2];
-      let sx = dy*oz - dz*oy, sy = dz*ox - dx*oz, sz = dx*oy - dy*ox; const S = Math.hypot(sx, sy, sz) || 1; sx /= S; sy /= S; sz /= S;
-      quad([[b[0]-sx*r-dx*r, b[1]-sy*r-dy*r, b[2]-sz*r-dz*r], -1, -1], [[b[0]-sx*r+dx*r, b[1]-sy*r+dy*r, b[2]-sz*r+dz*r], -1, 1],
-           [[b[0]+sx*r+dx*r, b[1]+sy*r+dy*r, b[2]+sz*r+dz*r],  1,  1], [[b[0]+sx*r-dx*r, b[1]+sy*r-dy*r, b[2]+sz*r-dz*r],  1, -1], 1);
+    if(fora) continue;
+    const rpx = (j) => (m.raios[j] || 0.01) * escalaPonto / juntaTela[j*3+2];
+    let k = 0;
+    for(const [a, b] of OSSOS_MAO){
+      ossosTela[k*4] = juntaTela[a*3]; ossosTela[k*4+1] = juntaTela[a*3+1];
+      ossosTela[k*4+2] = juntaTela[b*3]; ossosTela[k*4+3] = juntaTela[b*3+1];
+      raiosTela[k*2] = rpx(a); raiosTela[k*2+1] = rpx(b); k++;
     }
+    // a palma: do pulso ao no do medio, larga como a distancia entre os nos das pontas
+    const largura = 0.5 * Math.hypot(juntaTela[6*3] - juntaTela[21*3], juntaTela[6*3+1] - juntaTela[21*3+1]);
+    ossosTela[k*4] = juntaTela[0]; ossosTela[k*4+1] = juntaTela[1];
+    ossosTela[k*4+2] = juntaTela[11*3]; ossosTela[k*4+3] = juntaTela[11*3+1];
+    raiosTela[k*2] = Math.max(largura * 0.85, rpx(0)); raiosTela[k*2+1] = largura; k++;
+    // o retangulo da mao na tela, com folga para o raio e a aura
+    let rMax = 0;
+    for(let i = 0; i < OSSOS_POR_MAO; i++){
+      rMax = Math.max(rMax, raiosTela[i*2], raiosTela[i*2+1]);
+      x0 = Math.min(x0, ossosTela[i*4], ossosTela[i*4+2]); x1 = Math.max(x1, ossosTela[i*4], ossosTela[i*4+2]);
+      y0 = Math.min(y0, ossosTela[i*4+1], ossosTela[i*4+3]); y1 = Math.max(y1, ossosTela[i*4+1], ossosTela[i*4+3]);
+    }
+    const folga = rMax + 24;
+    x0 -= folga; y0 -= folga; x1 += folga; y1 += folga;
+    if(x1 < vp.x || x0 > vp.x + vp.width || y1 < vp.y || y0 > vp.y + vp.height) continue;
+    if(!desenhou){
+      desenhou = true;
+      gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+      gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
+      gl.useProgram(progMao); soltarAtributos();
+      const c = corDoContorno();
+      gl.uniform3f(locMao.cor, c[0], c[1], c[2]);
+      gl.uniform1f(locMao.presenca, 0.9);
+      gl.uniform4f(locMao.janela, vp.x, vp.y, vp.width, vp.height);
+      ligar(aMao.xy, bQ.xy, 2);
+    }
+    gl.uniform4fv(locMao.ossos, ossosTela);
+    gl.uniform2fv(locMao.raios, raiosTela);
+    // a uniao arredonda com um centimetro e meio, medido na distancia media da mao
+    gl.uniform1f(locMao.macio, 0.015 * escalaPonto / juntaTela[0*3+2]);
+    gl.uniform4f(locMao.caixa, (x0 - vp.x) / vp.width * 2 - 1, (y0 - vp.y) / vp.height * 2 - 1,
+                               (x1 - vp.x) / vp.width * 2 - 1, (y1 - vp.y) / vp.height * 2 - 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
-  if(k === 0) return;
-  gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
-  gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
-  gl.useProgram(progMao); soltarAtributos();
-  mandarMvp(locMao.mvp, mvp);
-  const c = corDoContorno();
-  gl.uniform3f(locMao.cor, c[0], c[1], c[2]);
-  gl.uniform1f(locMao.presenca, 0.9);
-  gl.bindBuffer(gl.ARRAY_BUFFER, bMao.tudo);
-  gl.bufferData(gl.ARRAY_BUFFER, maoDados.subarray(0, k), gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(aMao.pos);  gl.vertexAttribPointer(aMao.pos,  3, gl.FLOAT, false, 24, 0);
-  gl.enableVertexAttribArray(aMao.q);    gl.vertexAttribPointer(aMao.q,    2, gl.FLOAT, false, 24, 12);
-  gl.enableVertexAttribArray(aMao.tipo); gl.vertexAttribPointer(aMao.tipo, 1, gl.FLOAT, false, 24, 20);
-  gl.drawArrays(gl.TRIANGLES, 0, k / 6);
-  gl.depthMask(true); gl.disable(gl.BLEND);
+  if(desenhou){ gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND); }
 }
 
 /* O CONTORNO, numa vista: pela profundidade quando o aparelho a da; pelas
    juntas das maos quando nao. Nunca os dois: seria contorno em dobro. */
-function desenharContorno(vista, vp, mvp, olho, profFalsa){
+function desenharContorno(vista, vp, mvp, escalaPonto, profFalsa){
   let prof = profFalsa || null, formato = profFalsa ? 'luminance-alpha' : null;
   if(!prof && temProfundidade && ligacaoXR && vista){
     try{ prof = ligacaoXR.getDepthInformation(vista); formato = sessao.depthDataFormat; }
@@ -11436,7 +11473,7 @@ function desenharContorno(vista, vp, mvp, olho, profFalsa){
     }
   }
   if(prof){ desenharContornoProfundidade(prof, vp, formato); return; }
-  if(CONTORNO_MAOS) desenharContornoMaos(mvp, olho);
+  if(CONTORNO_MAOS) desenharContornoMaos(mvp, vp, escalaPonto);
 }
 
 const eY = document.getElementById('vYaw');
@@ -11474,9 +11511,7 @@ function quadro(){
   const mvpTela = multiplicar(proj, vis);
   desenharCena(mvpTela, vis, false, 0.5*cv.height*proj[5]);
   // na tela so ha contorno se a bancada puser juntas ou um mapa falso
-  desenharContorno(null, {x:0, y:0, width:cv.width, height:cv.height}, mvpTela,
-                   [-(vis[0]*vis[12] + vis[1]*vis[13] + vis[2]*vis[14]), -(vis[4]*vis[12] + vis[5]*vis[13] + vis[6]*vis[14]), -(vis[8]*vis[12] + vis[9]*vis[13] + vis[10]*vis[14])],
-                   profundidadeFalsa);
+  desenharContorno(null, {x:0, y:0, width:cv.width, height:cv.height}, mvpTela, 0.5*cv.height*proj[5], profundidadeFalsa);
   eY.textContent = (((Math.round(yaw*180/Math.PI)%360)+360)%360)+'°';
   requestAnimationFrame(quadro);
 }
@@ -11565,8 +11600,7 @@ function quadroXR(t, frame){
     const pj = Array.from(vista.projectionMatrix);
     const mvpVista = multiplicar(pj, vis);
     desenharCena(mvpVista, vis, true, 0.5*vp.height*pj[5]);
-    const o = vista.transform.position;
-    desenharContorno(vista, vp, mvpVista, [o.x, o.y, o.z], null);
+    desenharContorno(vista, vp, mvpVista, 0.5*vp.height*pj[5], null);
   }
 }
 quadro();

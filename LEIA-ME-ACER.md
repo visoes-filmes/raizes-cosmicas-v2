@@ -673,10 +673,16 @@ mesmo tempo (`desenharContorno`):
   <largura>x<altura> <formato>` do próximo teste pelo cabo diz. Se não der,
   a sessão abre igual (é opcional) e entra a segunda fonte.
 - **Pelas juntas** (`CONTORNO_MAOS`, `FS_MAO`): `frame.fillPoses` enche as
-  25 juntas de cada mão sem alocar por quadro; cada osso que faz silhueta
-  (polegar, os dois lados da palma, os quatro dedos a partir dos nós) vira
-  uma fita virada para o olho com a largura do raio da junta, e só a
-  beirada acende; as pontas ganham meio anel. Só as mãos de quem usa.
+  25 juntas de cada mão sem alocar por quadro. A mão é um **campo de
+  distância na tela** (13/09, "o design está muito geométrico" — a versão
+  de fitas retas por osso saía de canos): cada osso é uma cápsula projetada
+  para a tela com o raio da junta em cada ponta, a palma uma cápsula larga
+  do pulso ao nó do médio, e a união é suave (`smin`, 1,5 cm) — dedo
+  encontra palma numa curva, as pontas são redondas, nada por dentro. O fio
+  é a linha de distância zero, a silhueta da união, com uma aura fraca para
+  fora. Um quadrado por mão (o retângulo dela na tela), 21 cápsulas por
+  pixel, `highp`. Só as mãos de quem usa; sem teste de profundidade — é um
+  fio por cima, e a mão de verdade é sempre o que está mais perto.
 
 Na bancada: `raizes.maoJuntas(x, y, z, qual)` põe uma mão com juntas de
 mentira e `raizes.profundidade(true)` um mapa de profundidade de mentira
