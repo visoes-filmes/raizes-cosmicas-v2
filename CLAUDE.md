@@ -205,7 +205,7 @@ Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
 | `SER_NO_CEU` | `true` | o ser camuflado no céu — **separado pelo mesmo motivo**: estava atrás do interruptor do chão, e por isso ninguém nunca o viu |
 | `OBJETOS_NO_CHAO` | `false` | grama, folhas, trevo e soja como nuvem de pontos |
 | `ARVORE_MAE` | `1` | 1 é a de sempre; 2 é a árvore da vida, com a raiz como espelho da copa |
-| `PAPEL_NO_CENARIO` | `false` | as nove camadas de papel do cenário 4 — desligadas em 13/09 ("estão tampando a deusa"); o recorte delas vai ser revisto com a direção de arte |
+| `PAPEL_NO_CENARIO` | `true` | o teatro de papel do cenário 4: as ondas do quadro de 186 s cortadas em cinco camadas com os portais vazados (`fontes/teatro_de_papel.py`) — os planos com borda rasgada saíram em 13/09 |
 | `CONTORNO_PROFUNDIDADE` | `true` | o fio de luz em volta de qualquer corpo que entre na visão (o próprio, o dos outros), pelo mapa de profundidade do Quest (`depth-sensing`) |
 | `CONTORNO_MAOS` | `true` | o contorno das mãos pelas juntas rastreadas — só quando o mapa de profundidade não vem |
 

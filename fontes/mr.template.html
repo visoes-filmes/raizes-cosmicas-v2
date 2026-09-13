@@ -529,13 +529,11 @@ const COGUMELOS_NO_CHAO  = true;
    de quem usa, para quando o mapa nao vier. */
 const CONTORNO_PROFUNDIDADE = true;
 const CONTORNO_MAOS         = true;
-/* AS CAMADAS DE PAPEL DO CENARIO 4 -- desligadas em 13/09: "estao tampando
-   a deusa... acho que voce nao entendeu ainda as imagens, como e que
-   recorta elas; por enquanto retire". Na animacao elas sao um teatro de
-   ondas de papel com portais, em camadas; aqui viraram planos com borda
-   rasgada, e nao e isso. Voltam quando a direcao de arte explicar o
-   recorte. O codigo fica. */
-const PAPEL_NO_CENARIO      = false;
+/* O TEATRO DE PAPEL DO CENARIO 4. Em 13/09 os planos com borda rasgada
+   sairam ("estao tampando a deusa... voce nao entendeu ainda as imagens,
+   como e que recorta elas") e entrou o teatro: as ondas do proprio quadro,
+   cortadas em camadas, com os portais vazados. */
+const PAPEL_NO_CENARIO      = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -5414,83 +5412,38 @@ void main(){
   gl_FragColor = vec4(cor, a);
 }`;
 
-/* ═══════════ AS CAMADAS DE PAPEL ═══════════
-   O cenario 4. Formas recortadas, uma atras da outra, flutuando no cosmos.
-
-   O que faz isto funcionar nao e o desenho, e a PARALAXE: cada camada esta
-   a uma distancia diferente, entao mover a cabeca as desloca umas em
-   relacao as outras, e o espaco aparece sozinho. E a coisa mais barata que
-   se pode fazer num headset — planos e uma textura — e uma das que mais
-   convence, porque a profundidade nao esta desenhada, esta acontecendo.
-
-   O RECORTE nao vem da imagem: e feito aqui, por uma borda rasgada gerada
-   na hora. Assim cada camada tem uma silhueta propria, e nenhuma repete a
-   da outra — que e o que denunciaria que sao a mesma imagem varias vezes. */
-const VS_PAPEL = `
-attribute vec2 aXY;              // -1..1 no plano da camada
+/* ═══════════ O TEATRO DE PAPEL ═══════════
+   O cenario 4. Na animacao da Odara (179-189 s) e um teatro de ondas de
+   papel recortado, em camadas, com portais escuros -- e era isso que as
+   marcacoes da direcao de arte em 13/09 diziam: "essas marcacoes coloridas
+   e onde voce tem que cortar, e sao as camadas". Cada camada e uma FAIXA
+   do proprio quadro (fontes/teatro_de_papel.py corta), num plano a uma
+   distancia diferente: mover a cabeca desloca uma sobre a outra, e o
+   espaco aparece sozinho -- e o pop-up. O corte nao e inventado: a beira e
+   a que esta pintada, e os portais sao buracos de verdade. A cor e a
+   mascara vem em duas texturas (JPEG para a cor, PNG so para o alfa). */
+const VS_TEATRO = `
+attribute vec2 aXY;
 uniform mat4 mvp;
-uniform vec3 olhoPos;
 uniform vec3 centro;
-uniform vec2 tamanho;
-uniform float subir;             // 0 = ainda embaixo, 1 = no lugar
-varying vec2 vXY;
+uniform vec2 tamanho;      // meia-largura, meia-altura, em metros
+uniform vec2 faixa;        // v0, v1 da faixa no atlas
+uniform float subir;       // 0 = ainda embaixo, 1 = no lugar
+varying vec2 vUV;
 void main(){
-  vXY = aXY;
-  /* Mesmo giro cilindrico das figuras. Camada de papel recortado e
-     cenario de teatro: fica em pe. Encarando a camera inteira, ao olhar
-     para cima as sete camadas deitavam juntas e o empilhamento — que e
-     a coisa toda — desmanchava. */
-  vec3 paraMim = olhoPos - centro;
-  paraMim.y = 0.0;
-  float dist = length(paraMim);
-  vec3 frente = dist > 0.0005 ? paraMim / dist : vec3(0.0, 0.0, 1.0);
-  vec3 lado = vec3(frente.z, 0.0, -frente.x);
-  vec3 p = centro + lado * (aXY.x * tamanho.x) + vec3(0.0, aXY.y * tamanho.y, 0.0);
-  // Sobe de baixo para cima ao aparecer, sem nunca saltar.
-  p.y -= (1.0 - subir) * 4.2;
+  vUV = vec2(aXY.x * 0.5 + 0.5, mix(faixa.y, faixa.x, aXY.y * 0.5 + 0.5));
+  vec3 p = centro + vec3(aXY.x * tamanho.x, aXY.y * tamanho.y - (1.0 - subir) * 8.0, 0.0);
   gl_Position = mvp * vec4(p, 1.0);
 }`;
-const FS_PAPEL = `
+const FS_TEATRO = `
 precision mediump float;
-uniform sampler2D papel;
-uniform vec2 recorte;            // de onde na imagem esta camada tira o desenho
-uniform float presenca, semente, tempo;
-varying vec2 vXY;
-
-// ruido de valor, o mesmo da bandeja: barato e sem direcao propria
-float h21(vec2 p){
-  p = fract(p * 0.3183099 + vec2(0.71, 0.113));
-  p *= 17.0;
-  return fract(p.x * p.y * (p.x + p.y));
-}
-float ruidoP(vec2 p){
-  vec2 i = floor(p), f = fract(p);
-  f = f*f*(3.0-2.0*f);
-  return mix(mix(h21(i), h21(i+vec2(1,0)), f.x),
-             mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y);
-}
-
+uniform sampler2D cor, mascara;
+uniform float presenca;
+varying vec2 vUV;
 void main(){
-  vec2 uv = recorte + (vXY * 0.5 + 0.5) * vec2(0.42, 0.34);
-  vec3 c = texture2D(papel, uv).rgb;
-
-  /* A BORDA RASGADA. A altura em que a camada acaba varia ao longo dela,
-     por ruido — como papel rasgado a mao, que nunca tem corte reto. Duas
-     escalas: uma grande para o rasgo, uma pequena para a fibra. */
-  float x = vXY.x * 1.6 + semente;
-  float rasgo = ruidoP(vec2(x, semente)) * 0.5
-              + ruidoP(vec2(x * 3.7, semente + 5.0)) * 0.16;
-  float alto = 0.34 + rasgo * 0.9;
-  float dentro = smoothstep(alto + 0.05, alto - 0.05, vXY.y);
-
-  // as laterais tambem se desfazem, para a camada nao ter quina
-  dentro *= smoothstep(1.0, 0.72, abs(vXY.x));
-  // e embaixo ela funde no que vem atras
-  dentro *= smoothstep(-1.0, -0.55, vXY.y);
-
-  float a = dentro * presenca;
+  float a = texture2D(mascara, vUV).r * presenca;
   if(a < 0.004) discard;
-  gl_FragColor = vec4(c, a);
+  gl_FragColor = vec4(texture2D(cor, vUV).rgb, a);
 }`;
 
 /* ═══════════ OS ASTROS ═══════════
@@ -5996,7 +5949,7 @@ const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
 const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
-const progPapel = programa(VS_PAPEL, FS_PAPEL);
+const progTeatro = programa(VS_TEATRO, FS_TEATRO);
 const progAgua  = programa(VS_AGUA,  FS_AGUA);
 const progFigu  = programa(VS_FIGU,  FS_FIGU);
 const progBolha = programa(VS_BOLHA, FS_BOLHA);
@@ -6533,7 +6486,7 @@ subirEsporos(semearEsporos(71));   // depois de BASES existir
    Por isso o botao so libera quando as onze chegam. E se alguma falhar,
    isso APARECE: falha silenciosa num cenario escuro passa despercebida ate
    alguem reparar que esta faltando uma coisa, e ai ja e no dia. */
-const TEX_TOTAL = 17;
+const TEX_TOTAL = 18;
 let texProntas = 0, texFalhas = [];
 function relatarTex(){
   const e = document.getElementById('vTex');
@@ -6770,7 +6723,7 @@ const PELES = [
   novaTex([40,55,95]),    // 6  planeta agua — azul profundo com o olho
   novaTex([120,50,25]),   // 7  planeta fogo — veias de lava
 ];
-const texPapel = novaTex([20,18,30]);
+const texTeatroCor = novaTex([20,18,30]), texTeatroMascara = novaTex([0,0,0]);   // a mascara nasce preta: invisivel ate chegar
 /* As quatro figuras recortadas. Vao com alfa, entao a textura e RGBA. */
 const FIGS = [novaTexAlfa(), novaTexAlfa(), novaTexAlfa(), novaTexAlfa()];
 const texPano = CEUS[0];
@@ -6787,7 +6740,11 @@ carregar(PELES[4], '__PELE_ASTEROIDE__');
 carregar(PELES[5], '__PELE_VERDE__');
 carregar(PELES[6], '__PELE_AGUA__');
 carregar(PELES[7], '__PELE_FOGO__');
-carregar(texPapel, '__TEX_PAPEL__');
+/* As duas pelo carregarAlfa: o atlas nao e potencia de dois (2560 x 1220),
+   e em WebGL 1 textura assim nao pode ter mipmap nem repetir -- o carregar
+   comum gerava mipmap, a textura ficava incompleta e o teatro saia PRETO. */
+carregarAlfa(texTeatroCor, '__PAPEL_COR__');
+carregarAlfa(texTeatroMascara, '__PAPEL_MASCARA__');
 carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
 carregarAlfa(FIGS[1], '__FIG_DEUSA__');
 carregarAlfa(FIGS[2], '__FIG_INTEGRA__');
@@ -7177,59 +7134,30 @@ const PEDRAS = [];
   }
 })();
 
-/* ═══════════ AS CAMADAS — onde cada uma fica ═══════════
-   Sete, do fundo para a frente. Quanto mais longe, maior e mais escura —
-   que e como o ar se comporta. A mais proxima esta a 1,6 m, fora do
-   alcance da mao mas dentro do campo de visao inteiro. */
-/* AS CAMADAS VAO PARA O INFINITO.
+/* ═══════════ O TEATRO — onde cada camada fica ═══════════
+   Cinco faixas do quadro de 186 s ampliado (2560 x 1424), do fundo para a
+   frente, geradas por fontes/teatro_de_papel.py (v0/v1 no atlas; topo e
+   altura em pixels do quadro). O quadro vira mundo por uma regua so: a
+   abertura da caixa (1490 px) sao 60 graus, entao cada pixel vale
+   d * tan(60/1490 graus) a distancia d; o chao do teatro (a linha branca,
+   1098 px) fica a 8 graus abaixo do horizonte. As distancias vao de 12 a
+   22 m: a paralaxe de quem anda um metro e de 2,6 a 4,8 graus -- as
+   camadas deslizam, nao saltam. A deusa integra fica atras, a 40 m. */
+const CAMADAS_TEATRO = [
+  { nome:'vermelho', v0:0.0000, v1:0.3205, topo:637,  altura:391, dist:22.0 },
+  { nome:'turquesa', v0:0.3205, v1:0.5369, topo:801,  altura:264, dist:19.0 },
+  { nome:'roxo',     v0:0.5369, v1:0.7098, topo:909,  altura:211, dist:16.5 },
+  { nome:'azul',     v0:0.7098, v1:0.8762, topo:952,  altura:203, dist:14.0 },
+  { nome:'amarelo',  v0:0.8762, v1:1.0000, topo:1005, altura:151, dist:12.0 },
+];
+const TEATRO_PX = Math.tan(60 / 1490 * Math.PI / 180);   // metros por pixel, por metro de distancia
+const TEATRO_CHAO_PX = 1098, TEATRO_CHAO_ANG = -8 * Math.PI / 180;
 
-   A nota: "o papel cortado nao funcionou e a qualidade ficou muito ruim.
-   tente de novo e tem que ficar bem mais distante la na regiao do
-   infinito". As duas coisas tem a MESMA causa.
-
-   Elas comecavam a 1,6 m -- ao alcance do braco -- e a essa distancia um
-   plano de um metro com textura de aquarela mostra cada pixel dela: a
-   qualidade "ruim" era a imagem ampliada, o mesmo defeito do ceu. E perto
-   assim a paralaxe entre camadas fica violenta: mover a cabeca meio metro
-   desloca a primeira camada mais que a ultima inteira, e o empilhamento --
-   que e a coisa toda -- desmonta.
-
-   Agora a mais proxima esta a 6 m e a mais distante a 26, e todas crescem
-   junto para manter o tamanho aparente. A doze metros a mesma textura tem
-   quatro vezes mais pixels por grau, e a paralaxe volta a ser suave: as
-   camadas deslizam umas sobre as outras em vez de saltarem.
-
-   E sao NOVE em vez de sete, porque com mais distancia sobra espaco entre
-   elas -- e camada de papel recortado e como veu: quanto mais, mais fundo. */
-const CAMADAS = [];
-(function(){
-  const r = prng(707);
-  for(let i=0;i<9;i++){
-    const k = i / 8;
-    const d = 6.0 + k * 20.0;
-    CAMADAS.push({
-      dist:   d,
-      altura: 1.4 + r() * 3.2,
-      lado:   (r() - 0.5) * 2.2 * (0.6 + k),
-      // cresce com a distancia: o tamanho aparente fica igual, e o que muda
-      // e so o quanto ela se desloca quando a pessoa anda
-      escala: (1.0 + k * 1.9) * (d / 3.4),
-      recorte:[0.03 + r() * 0.52, 0.03 + r() * 0.60],
-      semente: r() * 40,
-      atraso: i * 0.048,
-    });
-  }
-})();
-
-/* Quanto o mundo de papel ja subiu. Ele nao aparece: vai surgindo de baixo
-   para cima, devagar, enquanto a experiencia se encaminha para o fim. As
-   camadas do fundo sobem primeiro, as da frente depois — o atraso e o que
-   faz o conjunto parecer um lugar se levantando, e nao uma imagem
+/* Quanto o teatro ja subiu. Ele nao aparece: vem de baixo, devagar, as
+   camadas do fundo primeiro -- e um lugar se levantando, nao uma imagem
    deslizando. */
-function subidaPapel(i, t){
-  const c = CAMADAS[i];
-  return rampa(525 + c.atraso * 22, 560 + c.atraso * 22, t)
-       * (1 - rampa(592, 600, t));
+function subidaTeatro(i, t){
+  return rampa(525 + i * 4, 556 + i * 4, t) * (1 - rampa(592, 600, t));
 }
 
 /* ═══════════ OS ASTROS — a coreografia ═══════════
@@ -9374,12 +9302,10 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                giroCeu:uAg('giroCeu')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
-const uPa = n=>gl.getUniformLocation(progPapel,n);
-const locPa = {mvp:uPa('mvp'), olhoPos:uPa('olhoPos'),
-               centro:uPa('centro'), tamanho:uPa('tamanho'), subir:uPa('subir'),
-               papel:uPa('papel'), recorte:uPa('recorte'),
-               presenca:uPa('presenca'), semente:uPa('semente'), tempo:uPa('tempo')};
-const aPa = {xy: gl.getAttribLocation(progPapel,'aXY')};
+const uTe = n=>gl.getUniformLocation(progTeatro,n);
+const locTe = {mvp:uTe('mvp'), centro:uTe('centro'), tamanho:uTe('tamanho'), faixa:uTe('faixa'),
+               subir:uTe('subir'), cor:uTe('cor'), mascara:uTe('mascara'), presenca:uTe('presenca')};
+const aTe = {xy: gl.getAttribLocation(progTeatro,'aXY')};
 
 const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 giro:uAs('giro'), achatar:uAs('achatar'), pele:uAs('pele'),
@@ -11173,37 +11099,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
-  /* 2c) AS CAMADAS DE PAPEL. Do fundo para a frente, que e obrigatorio:
-     elas nao escrevem profundidade (sao recortes com alfa macio, e escrever
-     profundidade cortaria a franja de quem vem atras), entao a ordem de
-     desenho E a ordem de profundidade. Desenhar de tras para frente e o
-     unico jeito de a de frente cobrir a de tras. */
-  /* O papel tambem cede no fecho. Ele era a unica coisa que continuava
-     inteira enquanto o mundo se apagava, e por isso a frase nascia em cima
-     dele em vez de no escuro. */
+  /* 2c) O TEATRO DE PAPEL. Do fundo para a frente, que e obrigatorio: as
+     camadas nao escrevem profundidade (sao recortes com alfa macio), entao
+     a ordem de desenho E a ordem de profundidade. Cede no fecho como tudo. */
   if(PAPEL_NO_CENARIO && (cenaAtual === 4 || t > 520) && fecho < 0.97){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
     gl.disable(gl.CULL_FACE);
-    gl.useProgram(progPapel);
+    gl.useProgram(progTeatro);
     soltarAtributos();
-    mandarMvp(locPa.mvp, mvp);
-    gl.uniform3f(locPa.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
-    gl.uniform1f(locPa.tempo, relogio);
-    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, texPapel);
-    gl.uniform1i(locPa.papel, 6);
-    ligar(aPa.xy, bQ.xy, 2);
-    for(let i = CAMADAS.length - 1; i >= 0; i--){
-      const c = CAMADAS[i], sb = subidaPapel(i, t);
+    mandarMvp(locTe.mvp, mvp);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, texTeatroCor);
+    gl.uniform1i(locTe.cor, 6);
+    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, texTeatroMascara);
+    gl.uniform1i(locTe.mascara, 7);
+    ligar(aTe.xy, bQ.xy, 2);
+    for(let i = 0; i < CAMADAS_TEATRO.length; i++){
+      const c = CAMADAS_TEATRO[i], sb = subidaTeatro(i, t);
       if(sb < 0.004) continue;
-      gl.uniform3f(locPa.centro, c.lado * c.dist * 0.4, c.altura, -c.dist);
-      gl.uniform2f(locPa.tamanho, 1.15 * c.escala, 0.82 * c.escala);
-      gl.uniform2f(locPa.recorte, c.recorte[0], c.recorte[1]);
-      gl.uniform1f(locPa.semente, c.semente);
-      gl.uniform1f(locPa.subir, sb);
-      // as do fundo sao mais apagadas: e assim que o ar se comporta
-      gl.uniform1f(locPa.presenca, sb * (0.95 - i * 0.075) * (1 - fecho));
+      const px = c.dist * TEATRO_PX;                       // um pixel do quadro, em metros, a esta distancia
+      const yc = c.topo + c.altura * 0.5;
+      gl.uniform3f(locTe.centro, 0, 1.6 + c.dist * Math.tan(TEATRO_CHAO_ANG) + (TEATRO_CHAO_PX - yc) * px, -c.dist);
+      gl.uniform2f(locTe.tamanho, 1280 * px, c.altura * 0.5 * px);
+      gl.uniform2f(locTe.faixa, c.v0, c.v1);
+      gl.uniform1f(locTe.subir, sb);
+      gl.uniform1f(locTe.presenca, sb * (1 - fecho));
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.depthMask(true);

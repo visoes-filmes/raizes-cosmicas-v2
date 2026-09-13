@@ -119,7 +119,13 @@ raizes-cosmicas-v2/
 │   │   ├── tex-raiz.png               A casca das raízes e do tronco.
 │   │   ├── tex-marmore.png            Mármore, ladrilha sem emenda.
 │   │   ├── tex-agua.png               Água, ladrilha sem emenda.
-│   │   ├── tex-papel.png              O papel recortado do cenário 4.
+│   │   ├── tex-papel.png              O recorte antigo do papel do cenário 4 — não é mais usado.
+│   │   ├── papel-teatro-2x.jpg        O quadro de 186 s da animação da Odara (o teatro de ondas de
+│   │   │                              papel com portais), ampliado 2× no Magnific: 2560 × 1424.
+│   │   ├── papel-teatro-cortes.json   Os cortes: uma linha por camada, das marcações da direção de
+│   │   │                              arte (13/09), em pixels do quadro 2×.
+│   │   ├── papel-teatro-cor.jpg       O atlas de cor das cinco camadas (faixas empilhadas), e
+│   │   ├── papel-teatro-mascara.png   o alfa delas — gerados por fontes/teatro_de_papel.py.
 │   │   ├── tex-galaxia.png            Sobrando, não está ligada.
 │   │   ├── tex-ornamento.png          Sobrando, não está ligada.
 │   │   └── tex-planeta.png            Sobrando, não está ligada.
@@ -653,6 +659,32 @@ para a próxima pessoa. As janelas de mão (1:50–2:50, 5:30–6:20, 7:30–8:2
 sobem a luz a 100% na mesma cor, para a câmera achar as mãos — **se luz
 colorida saturada basta para o rastreio, só o Quest diz**; se não bastar, o
 que cede é o valor do escuro, não a cor.
+
+### O teatro de papel do cenário 4 (13/09)
+
+Os planos com borda rasgada saíram: "estão tampando a deusa... acho que você
+não entendeu ainda as imagens, como é que recorta elas". A direção de arte
+desenhou sobre o quadro de 186 s da animação (o teatro de ondas de papel com
+portais) uma linha colorida por camada — "essas marcações coloridas é onde
+você tem que cortar, e são as camadas" — e avisou: "não é pra cortar do
+jeito que desenhei, é só pra entender". Então:
+
+- `fontes/teatro_de_papel.py` corta o quadro (ampliado 2×) em **cinco
+  faixas**, do fundo para a frente (vermelho, turquesa, roxo, azul, amarelo):
+  cada uma vai da linha dela, suavizada, até a linha da camada da frente
+  (mais 80 px que esmaecem — é o que a paralaxe revela), e acaba no chão do
+  teatro (a linha branca, reta). A beira de verdade é a pintada: o **preto do
+  quadro vira transparência** (céu acima dos arcos, e os **portais** viram
+  buracos). As paredes marmorizadas da caixa ficam de fora.
+- Sai um atlas de cor (JPEG) e uma máscara (PNG), carregados **sem mipmap**
+  (2560 × 1220 não é potência de dois; com mipmap a textura fica incompleta e
+  o teatro sai preto — aconteceu).
+- Na obra (`CAMADAS_TEATRO`, `progTeatro`): cinco planos de 12 a 22 m, um
+  pixel do quadro valendo `d·tan(60°/1490 px)` — a abertura da caixa são 60°
+  — e o chão do teatro 8° abaixo do horizonte. A paralaxe de quem anda um
+  metro é de 2,6° a 4,8°: as camadas deslizam umas sobre as outras. Sobem de
+  baixo entre 8:45 e 9:16 (fundo primeiro), cedem no fecho. A **integra
+  fica atrás**, a 40 m, emergindo das ondas — através dos portais vê-se ela.
 
 ### O contorno dos corpos (12/09)
 
