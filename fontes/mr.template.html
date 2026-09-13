@@ -5429,21 +5429,34 @@ uniform vec3 centro;
 uniform vec2 tamanho;      // meia-largura, meia-altura, em metros
 uniform vec2 faixa;        // v0, v1 da faixa no atlas
 uniform float subir;       // 0 = ainda embaixo, 1 = no lugar
+uniform float tempo, fase, folego;   // o balanco de papel no ar: amplitude em metros
 varying vec2 vUV;
 void main(){
   vUV = vec2(aXY.x * 0.5 + 0.5, mix(faixa.y, faixa.x, aXY.y * 0.5 + 0.5));
-  vec3 p = centro + vec3(aXY.x * tamanho.x, aXY.y * tamanho.y - (1.0 - subir) * 8.0, 0.0);
+  /* PAPEL NO AR -- 13/09, "tem que parecer que a imagem esta dentro do
+     espaco". Cada camada respira num ritmo proprio, um nada: e o que
+     separa uma folha pendurada de uma imagem colada. */
+  vec2 balanco = folego * vec2(sin(tempo * 0.27 + fase), sin(tempo * 0.35 + fase * 1.7));
+  vec3 p = centro + vec3(aXY.x * tamanho.x + balanco.x, aXY.y * tamanho.y + balanco.y - (1.0 - subir) * 8.0, 0.0);
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_TEATRO = `
 precision mediump float;
 uniform sampler2D cor, mascara;
 uniform float presenca;
+uniform vec3 ar;           // a cor do ar do cenario
+uniform float bruma;       // quanto o ar entre a pessoa e a camada a esmaece: mais no fundo
 varying vec2 vUV;
 void main(){
   float a = texture2D(mascara, vUV).r * presenca;
   if(a < 0.004) discard;
-  gl_FragColor = vec4(texture2D(cor, vUV).rgb, a);
+  /* A BRUMA -- e o ar que faz a camada pertencer ao lugar: quanto mais
+     longe, mais a cor cede ao ar do cenario e escurece, como tudo o que
+     esta longe numa sala escura. Sem isto as cinco folhas eram uma so
+     imagem, colada. */
+  vec3 c = texture2D(cor, vUV).rgb;
+  c = mix(c, ar * 0.55, bruma) * (1.0 - 0.25 * bruma);
+  gl_FragColor = vec4(c, a);
 }`;
 
 /* ═══════════ OS ASTROS ═══════════
@@ -7143,12 +7156,15 @@ const PEDRAS = [];
    1098 px) fica a 8 graus abaixo do horizonte. As distancias vao de 12 a
    22 m: a paralaxe de quem anda um metro e de 2,6 a 4,8 graus -- as
    camadas deslizam, nao saltam. A deusa integra fica atras, a 40 m. */
+const AR_DA_CENA = {1:[0.44,0.63,0.66], 2:[0.60,0.55,0.82],
+                    3:[0.85,0.54,0.66], 4:[0.52,0.56,0.85]};
+const AR_DO_TEATRO = AR_DA_CENA[4];
 const CAMADAS_TEATRO = [
-  { nome:'vermelho', v0:0.0000, v1:0.3205, topo:637,  altura:391, dist:22.0 },
-  { nome:'turquesa', v0:0.3205, v1:0.5369, topo:801,  altura:264, dist:19.0 },
-  { nome:'roxo',     v0:0.5369, v1:0.7098, topo:909,  altura:211, dist:16.5 },
-  { nome:'azul',     v0:0.7098, v1:0.8762, topo:952,  altura:203, dist:14.0 },
-  { nome:'amarelo',  v0:0.8762, v1:1.0000, topo:1005, altura:151, dist:12.0 },
+  { nome:'vermelho', v0:0.0000, v1:0.3153, topo:637,  altura:321, dist:22.0, bruma:0.42 },
+  { nome:'turquesa', v0:0.3153, v1:0.5059, topo:801,  altura:194, dist:19.0, bruma:0.34 },
+  { nome:'roxo',     v0:0.5059, v1:0.6454, topo:909,  altura:142, dist:16.5, bruma:0.26 },
+  { nome:'azul',     v0:0.6454, v1:0.8487, topo:952,  altura:207, dist:14.0, bruma:0.18 },
+  { nome:'amarelo',  v0:0.8487, v1:1.0000, topo:1005, altura:154, dist:12.0, bruma:0.12 },
 ];
 const TEATRO_PX = Math.tan(60 / 1490 * Math.PI / 180);   // metros por pixel, por metro de distancia
 const TEATRO_CHAO_PX = 1098, TEATRO_CHAO_ANG = -8 * Math.PI / 180;
@@ -9304,7 +9320,8 @@ const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
 const uTe = n=>gl.getUniformLocation(progTeatro,n);
 const locTe = {mvp:uTe('mvp'), centro:uTe('centro'), tamanho:uTe('tamanho'), faixa:uTe('faixa'),
-               subir:uTe('subir'), cor:uTe('cor'), mascara:uTe('mascara'), presenca:uTe('presenca')};
+               subir:uTe('subir'), cor:uTe('cor'), mascara:uTe('mascara'), presenca:uTe('presenca'),
+               tempo:uTe('tempo'), fase:uTe('fase'), folego:uTe('folego'), ar:uTe('ar'), bruma:uTe('bruma')};
 const aTe = {xy: gl.getAttribLocation(progTeatro,'aXY')};
 
 const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
@@ -10760,9 +10777,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* A COR DO AR DE CADA CENARIO. Sao as mesmas da regua da partitura e
        as mesmas que a lampada da sala usa: a figura, a barra e a luz real
        do estande passam a concordar sobre em que lugar a obra esta. */
-    const AR = {1:[0.44,0.63,0.66], 2:[0.60,0.55,0.82],
-                3:[0.85,0.54,0.66], 4:[0.82,0.69,0.53]};
-    const ar = AR[cenaAtual] || AR[1];
+    /* O 4 era ambar (luz de vela sobre papel); desde 12/09 a lampada e o
+       contorno dizem que o cenario 4 e AZUL, e o ar acompanha. */
+    const ar = AR_DA_CENA[cenaAtual] || AR_DA_CENA[1];
 
     const desenharFigura = (tex, cen, tam, pres, bal, esp, f) => {
       gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -11115,6 +11132,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, texTeatroMascara);
     gl.uniform1i(locTe.mascara, 7);
     ligar(aTe.xy, bQ.xy, 2);
+    gl.uniform1f(locTe.tempo, relogio);
+    gl.uniform3f(locTe.ar, AR_DO_TEATRO[0], AR_DO_TEATRO[1], AR_DO_TEATRO[2]);
     for(let i = 0; i < CAMADAS_TEATRO.length; i++){
       const c = CAMADAS_TEATRO[i], sb = subidaTeatro(i, t);
       if(sb < 0.004) continue;
@@ -11124,6 +11143,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform2f(locTe.tamanho, 1280 * px, c.altura * 0.5 * px);
       gl.uniform2f(locTe.faixa, c.v0, c.v1);
       gl.uniform1f(locTe.subir, sb);
+      gl.uniform1f(locTe.fase, i * 1.9);
+      gl.uniform1f(locTe.folego, 0.003 * c.dist);          // um decimo de grau, de qualquer distancia
+      gl.uniform1f(locTe.bruma, c.bruma);
       gl.uniform1f(locTe.presenca, sb * (1 - fecho));
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }

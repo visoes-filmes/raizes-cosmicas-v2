@@ -113,7 +113,9 @@ raizes-cosmicas-v2/
 │   │   ├── fig-integra-quadro.jpg     O quadro inteiro aos 152 s da animação; fig-integra-recorte.jpg é
 │   │   │                              ele sem as margens de papel (1150 × 696).
 │   │   ├── fig-integra-ceu.jpg        A que a obra usa: o recorte expandido no Magnific a 2048 × 1280
-│   │   │                              com fundo escuro, e ampliado 2×: 4096 × 2560.
+│   │   │                              com fundo escuro, ampliado 2× (4096 × 2560) e, em 13/09, SEM os
+│   │   │                              três beija-flores (retoque do Magnific: apagar, e o céu refeito
+│   │   │                              à esquerda). fig-integra-ceu-beija-flores.jpg é a versão com eles.
 │   │   └── fig-borboleta.png          A borboleta 88 (t_005).
 │   ├── texturas/
 │   │   ├── tex-raiz.png               A casca das raízes e do tronco.
@@ -679,6 +681,14 @@ jeito que desenhei, é só pra entender". Então:
 - Sai um atlas de cor (JPEG) e uma máscara (PNG), carregados **sem mipmap**
   (2560 × 1220 não é potência de dois; com mipmap a textura fica incompleta e
   o teatro sai preto — aconteceu).
+- **Integrar** (13/09, "parece separada do cenário; tem que parecer que a
+  imagem está dentro do espaço"): cada camada cede à **bruma** — mistura com
+  a cor do ar do cenário e escurece, mais no fundo (0,12 na frente, 0,42
+  atrás); as laterais se desfazem em 160 px em vez de acabar numa reta; cada
+  folha **respira** um décimo de grau num ritmo próprio; e a faixa de cada
+  camada só continua 10 px abaixo da linha da frente — com 80 px, a de trás
+  carregava uma cópia do alto da da frente, que aparecia pelos portais
+  ("essas falhas assim não podem existir").
 - Na obra (`CAMADAS_TEATRO`, `progTeatro`): cinco planos de 12 a 22 m, um
   pixel do quadro valendo `d·tan(60°/1490 px)` — a abertura da caixa são 60°
   — e o chão do teatro 8° abaixo do horizonte. A paralaxe de quem anda um

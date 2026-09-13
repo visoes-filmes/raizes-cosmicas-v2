@@ -98,8 +98,8 @@ mapa = {
     "__PELE_FOGO__":      embutir(bem("peles", "pele-fogo.jpg"),      (1024, 512), qualidade=86),
     "__TEX_AGUA__":     embutir(bem("texturas", "tex-agua.png"),
                                 (512, 512), qualidade=86),
-    "__PAPEL_COR__":     embutir(bem("texturas", "papel-teatro-cor.jpg"), (2560, 1220), qualidade=86),
-    "__PAPEL_MASCARA__": embutir(bem("texturas", "papel-teatro-mascara.png"), (2560, 1220), com_alfa=True),
+    "__PAPEL_COR__":     embutir(bem("texturas", "papel-teatro-cor.jpg"), (2560, 1018), qualidade=86),
+    "__PAPEL_MASCARA__": embutir(bem("texturas", "papel-teatro-mascara.png"), (2560, 1018), com_alfa=True),
     # A PELE DA ASA DA BORBOLETA: sai de dentro do GLB na conversao (o
     # conversor a escreve aqui). 512 e potencia de dois: repete e tem mipmap.
     "__TEX_ASA_MORPHO__": embutir(bem("texturas", "tex-asa-morpho.png"), (512, 512), qualidade=90),

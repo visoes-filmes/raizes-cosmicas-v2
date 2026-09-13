@@ -35,8 +35,12 @@ CORTES = os.path.join(TEX, "papel-teatro-cortes.json")
 ORDEM = ["vermelho", "turquesa", "roxo", "azul", "amarelo"]   # do fundo para a frente
 CHAO = "branco"                                               # a beira de baixo de todas
 ABERTURA = (540, 2030)        # a abertura da caixa, em x (2x): fora dela e parede
-FOLGA_BAIXO = 80              # quanto a faixa continua abaixo da linha da frente
-ESMAECE = 70                  # e em quantos pixels ela some ali
+FOLGA_BAIXO = 10              # quanto a faixa continua abaixo da linha da frente
+ESMAECE = 12                  # e em quantos pixels ela some ali
+# (era 80 + 70: a faixa de tras carregava uma copia do alto da faixa da
+#  frente, e essa copia aparecia pelos portais e nas beiradas -- "essas
+#  falhas assim nao podem existir", 13/09. Agora cada pedaco da pintura
+#  existe numa camada so; o que a paralaxe abre entre elas e ar.)
 
 
 def suave(y, k):
@@ -87,8 +91,8 @@ def main():
         # alfa: 1 abaixo do corte (3 px de macio). Abaixo da beira da frente a
         # faixa continua um pouco e esmaece -- e o que a paralaxe revela --,
         # mas no chao do teatro ela acaba: o piso nao e papel
-        folga = np.where(coberta, FOLGA_BAIXO, 6.0)[None, :]
-        esmaece = np.where(coberta, ESMAECE, 14.0)[None, :]
+        folga = np.where(coberta, FOLGA_BAIXO, 10.0)[None, :]
+        esmaece = np.where(coberta, ESMAECE, 60.0)[None, :]
         a = np.clip((yy - t + 1.5) / 3.0, 0, 1)
         a *= 1.0 - np.clip((yy - (b + folga - esmaece)) / esmaece, 0, 1)
         # so onde a camada existe, com 24 px de macio nas pontas do trecho
@@ -96,8 +100,10 @@ def main():
         if len(xe):
             x0, x1 = xe.min(), xe.max()
             a *= np.clip((xx - x0) / 24.0, 0, 1) * np.clip((x1 - xx) / 24.0, 0, 1)
-        # a abertura da caixa: as paredes ficam de fora
-        a *= np.clip((xx - ABERTURA[0]) / 20.0, 0, 1) * np.clip((ABERTURA[1] - xx) / 20.0, 0, 1)
+        # a abertura da caixa: as paredes ficam de fora, e o teatro se
+        # desfaz devagar nas laterais -- sem isso ele acaba numa reta
+        # vertical e le como imagem colada no cenario (13/09)
+        a *= np.clip((xx - ABERTURA[0]) / 160.0, 0, 1) * np.clip((ABERTURA[1] - xx) / 160.0, 0, 1)
         # os portais: o preto de verdade vira buraco (as estrelas ja foram
         # borradas, entao nao sobram pontos soltos)
         a *= np.clip((lum - 0.05) / 0.09, 0, 1)
