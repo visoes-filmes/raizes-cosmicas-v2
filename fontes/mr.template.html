@@ -6427,7 +6427,7 @@ const FIO_PONTOS = 40;
 const ENFEITES = [
   { fig:0, az:0.63, cores:[[0.40,0.82,1.00],[0.80,0.95,1.00]], fio:[0.30,0.55,1.00], pulso:[0.62,0.86,1.00], troncos:14, passadas:5, abre:1.0, pontos:160 },
   { fig:1, az:-1.361, cores:[[1.00,0.36,0.30],[1.00,0.80,0.42]], fio:[1.00,0.72,0.30], pulso:[1.00,0.92,0.68], troncos:5, passadas:3, abre:0.55, pontos:80 },
-  { fig:2, az:-0.070, cores:[[1.00,0.94,0.78],[0.40,0.92,0.86]], fio:[0.92,0.86,0.66], pulso:[1.00,1.00,0.90], troncos:8, passadas:3, abre:1.0, pontos:160 },
+  { fig:2, az:-0.070, cores:[[1.00,0.94,0.78],[0.40,0.92,0.86]], fio:[0.92,0.86,0.66], pulso:[1.00,1.00,0.90], troncos:8, passadas:3, abre:1.0, pontos:160, bolhas:false },
 ];
 for(let e = 0; e < ENFEITES.length; e++){
   const E = ENFEITES[e], rnd = prng(3131 + e * 101);
@@ -6440,7 +6440,9 @@ for(let e = 0; e < ENFEITES.length; e++){
     s.pos.push(Math.sin(az) * Math.cos(el) * d, 1.6 + Math.sin(el) * d, -Math.cos(az) * Math.cos(el) * d);
     const c = rnd() < 0.3 ? E.cores[1] : E.cores[0];
     s.cor.push(c[0], c[1], c[2]);
-    const bolha = rnd() < 0.12;
+    // as bolhas -- uns poucos graos grandes -- sao da pintura da galactica;
+    // na integra "essas particulas brancas grandes nao funcionam" (13/09)
+    const bolha = E.bolhas !== false && rnd() < 0.12;
     s.dado.push(rnd(), bolha ? 0.14 + rnd() * 0.16 : 0.035 + rnd() * 0.06);
   }
   E.nPontos = E.pontos; E.pontos = criarBufs(['pos','cor','dado']);
