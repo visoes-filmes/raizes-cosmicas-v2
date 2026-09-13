@@ -5008,6 +5008,7 @@ uniform highp float tempo;      // highp: e highp no vertice, e precisao diferen
 uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasce aqui
 uniform vec4 elipse;            // o corpo dela no quadro: centro (xy) e raios (zw), em uv
 uniform vec2 escuro;            // de que luminancia a que luminancia o preto vira noite
+uniform float graduacao;        // a largura da graduacao das bordas, em fracao do quadro
 uniform float mergulho;         // quantos metros abaixo da linha d'agua o reflexo ainda existe
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
@@ -5079,7 +5080,7 @@ void main(){
        borda, e ela que impede a reta. Suave nas duas pontas (smoothstep):
        nao ha onde o olho engatar. */
     vec2 d = min(vUV, 1.0 - vUV);
-    float beira = smoothstep(0.0, 0.15, d.x) * smoothstep(0.0, 0.15, d.y);
+    float beira = smoothstep(0.0, graduacao, d.x) * smoothstep(0.0, graduacao, d.y);
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     // "escuro" vem por figura: na galactica o preto vira noite entre 0,012
     // e 0,09; na integra, cuja noite e azul e tem ondas, so o preto puro
@@ -7055,9 +7056,15 @@ const FIGURAS = [
   { nome:'deusa',     tex:1, centro:[-39.1, 14.6, -8.3], tam:[42.0, 26.25],
     de:226, ate:376, balanco:0.4, espelha:false, inteira:true,
     elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09] },
-  { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[40.0, 25.0],
+  /* EXPANDIDA DE NOVO em 13/09 ("expande mais o cenario ao redor da imagem
+     e faz a graduacao de novo"): de 2048 x 1280 para 2536 x 1584 no site,
+     30 px de beira de papel cortados (2476 x 1524), ampliada 2x. O plano
+     cresce junto (x1,21 e x1,19) para o corpo ficar do mesmo tamanho, a
+     elipse do corpo vai para onde ele ficou no quadro novo, e a graduacao
+     das bordas passa a 0,26 do quadro -- o dobro da das outras. */
+  { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
     de:556, ate:594, balanco:0.3, espelha:false, inteira:true,
-    elipse:[0.50, 0.55, 0.18, 0.42], escuro:[0.0, 0.03] },
+    elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.0, 0.03], graduacao:0.26 },
 ];
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
@@ -9305,7 +9312,8 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                centro:uFi('centro'), tamanho:uFi('tamanho'), espelho:uFi('espelho'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
                presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira'),
-               elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho')};
+               elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
+               graduacao:uFi('graduacao')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -10788,6 +10796,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
       gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
       gl.uniform2f(locFi.escuro, es[0], es[1]);
+      gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
       gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);

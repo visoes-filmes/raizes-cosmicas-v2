@@ -112,10 +112,12 @@ raizes-cosmicas-v2/
 │   │   ├── fig-deusa-integra.png      O recorte antigo da deusa que integra tudo (t_072) — não é mais usado.
 │   │   ├── fig-integra-quadro.jpg     O quadro inteiro aos 152 s da animação; fig-integra-recorte.jpg é
 │   │   │                              ele sem as margens de papel (1150 × 696).
-│   │   ├── fig-integra-ceu.jpg        A que a obra usa: o recorte expandido no Magnific a 2048 × 1280
-│   │   │                              com fundo escuro, ampliado 2× (4096 × 2560) e, em 13/09, SEM os
-│   │   │                              três beija-flores (retoque do Magnific: apagar, e o céu refeito
-│   │   │                              à esquerda). fig-integra-ceu-beija-flores.jpg é a versão com eles.
+│   │   ├── fig-integra-ceu.jpg        A que a obra usa (13/09): o recorte expandido a 2048 × 1280, SEM
+│   │   │                              os três beija-flores (retoque por máscaras justas — a primeira
+│   │   │                              tentativa refez a asa esquerda), expandido DE NOVO no site a
+│   │   │                              2536 × 1584 (mais céu e ondas em volta), 30 px de beira de papel
+│   │   │                              cortados, e ampliado 2×: 4952 × 3048, embutido a 3072 × 1891.
+│   │   │                              fig-integra-ceu-beija-flores.jpg é a versão anterior, com eles.
 │   │   └── fig-borboleta.png          A borboleta 88 (t_005).
 │   ├── texturas/
 │   │   ├── tex-raiz.png               A casca das raízes e do tronco.

@@ -117,7 +117,7 @@ mapa = {
     # JPEG sem alfa; 3072 de largura porque cada uma cobre uns oitenta
     # graus de ceu, e a ampliacao foi pedida para nao ficarem macias.
     "__FIG_DEUSA__":     embutir(bem("figuras", "fig-vermelha-cosmos.jpg"), (3072, 1920), qualidade=86),
-    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-integra-ceu.jpg"),  (3072, 1920), qualidade=86),
+    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-integra-ceu.jpg"),  (3072, 1891), qualidade=86),
     "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
         bem("audio", "trilha-loop.mp3")),
