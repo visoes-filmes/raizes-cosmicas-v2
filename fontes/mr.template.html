@@ -529,6 +529,13 @@ const COGUMELOS_NO_CHAO  = true;
    de quem usa, para quando o mapa nao vier. */
 const CONTORNO_PROFUNDIDADE = true;
 const CONTORNO_MAOS         = true;
+/* AS CAMADAS DE PAPEL DO CENARIO 4 -- desligadas em 13/09: "estao tampando
+   a deusa... acho que voce nao entendeu ainda as imagens, como e que
+   recorta elas; por enquanto retire". Na animacao elas sao um teatro de
+   ondas de papel com portais, em camadas; aqui viraram planos com borda
+   rasgada, e nao e isso. Voltam quando a direcao de arte explicar o
+   recorte. O codigo fica. */
+const PAPEL_NO_CENARIO      = false;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -11174,7 +11181,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   /* O papel tambem cede no fecho. Ele era a unica coisa que continuava
      inteira enquanto o mundo se apagava, e por isso a frase nascia em cima
      dele em vez de no escuro. */
-  if((cenaAtual === 4 || t > 520) && fecho < 0.97){
+  if(PAPEL_NO_CENARIO && (cenaAtual === 4 || t > 520) && fecho < 0.97){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
