@@ -674,7 +674,9 @@ jeito que desenhei, é só pra entender". Então:
 - `fontes/teatro_de_papel.py` corta o quadro (ampliado 2×) em **cinco
   faixas**, do fundo para a frente (vermelho, turquesa, roxo, azul, amarelo):
   cada uma vai da linha dela até a linha da camada da frente (mais 10 px que
-  esmaecem), e acaba no chão do teatro (a linha branca, reta). **As linhas
+  esmaecem). **Não há chão** ("estamos no espaço", 13/09): abaixo da última
+  crista as ondas se dissolvem no escuro numa beira ondulada e macia (90 px),
+  antes do reflexo de luz do piso pintado — a mesma dissolução das deusas. **As linhas
   não são os traços**: cada traço virou um corredor de 34 px, e uma
   programação dinâmica costurou dentro dele o caminho que mais segue a beira
   clara pintada de cada arco (claro embaixo, escuro em cima), com passo de

@@ -72,7 +72,13 @@ def main():
     # o chao vale em toda a largura: fora do trecho, a media
     chao = linhas[CHAO].copy()
     chao[np.isnan(chao)] = np.nanmean(chao)
-    chao = suave(chao, 151)          # o chao e reto: a covinha do traco e o reflexo da luz, nao papel
+    chao = suave(chao, 151)          # a linha do chao do teatro, reta
+    # NAO HA CHAO: "estamos no espaco" (13/09). As ondas nao pousam em piso
+    # nenhum -- abaixo da ultima crista elas se dissolvem no escuro, numa
+    # beira ondulada e macia, antes de chegar ao reflexo de luz do piso
+    # pintado. E a mesma dissolucao das deusas.
+    xs_ = np.arange(W)
+    chao = chao - 34 + 22 * np.sin(xs_ * 0.021) + 12 * np.sin(xs_ * 0.061 + 1.3)
 
     lum = np.asarray(im.convert("L").filter(ImageFilter.GaussianBlur(2))).astype(float) / 255.0
     yy = np.arange(H)[:, None].astype(float)
@@ -95,8 +101,8 @@ def main():
         # alfa: 1 abaixo do corte (3 px de macio). Abaixo da beira da frente a
         # faixa continua um pouco e esmaece -- e o que a paralaxe revela --,
         # mas no chao do teatro ela acaba: o piso nao e papel
-        folga = np.where(coberta, FOLGA_BAIXO, 10.0)[None, :]
-        esmaece = np.where(coberta, ESMAECE, 60.0)[None, :]
+        folga = np.where(coberta, FOLGA_BAIXO, 0.0)[None, :]
+        esmaece = np.where(coberta, ESMAECE, 90.0)[None, :]
         a = np.clip((yy - t + 1.5) / 3.0, 0, 1)
         a *= 1.0 - np.clip((yy - (b + folga - esmaece)) / esmaece, 0, 1)
         # so onde a camada existe, com 24 px de macio nas pontas do trecho
