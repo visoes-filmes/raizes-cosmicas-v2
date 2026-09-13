@@ -6,11 +6,15 @@
 Entra o quadro de 186 s da animacao da Odara ampliado 2x no Magnific
 (assets/texturas/papel-teatro-2x.jpg, 2560 x 1424) e os CORTES
 (assets/texturas/papel-teatro-cortes.json): uma linha por camada, y por
-coluna, tirada das marcacoes que a direcao de arte desenhou sobre o quadro
+coluna. Nasceu das marcacoes que a direcao de arte desenhou sobre o quadro
 em 13/09 -- "essas marcacoes coloridas e onde voce tem que cortar, e sao as
-camadas" (e "nao e para cortar do jeito que desenhei, e so para entender":
-por isso a linha e suavizada, e o que decide a beira de verdade e o preto do
-proprio quadro, que vira transparencia).
+camadas" (e "nao e para cortar do jeito que desenhei, e so para entender") --
+e depois foi COSTURADA a beira pintada: uma programacao dinamica procura,
+num corredor de 34 px em volta do traco, o caminho que mais passa pela linha
+clara da beira de cada arco (claro embaixo, escuro em cima), com passo de no
+maximo 2 px por coluna, para nao se perder em estrela. Onde a pintura e
+nevoa sem beira, o corte fica onde o traco estava, e nao se ve. O preto do
+proprio quadro vira transparencia (ceu e portais).
 
 Saem:
   assets/texturas/papel-teatro-cor.jpg      a cor, faixas empilhadas (atlas)
@@ -62,7 +66,7 @@ def main():
         y = np.full(W, np.nan)
         x0, x1 = int(xs.min()), int(xs.max())
         cols = np.arange(x0, x1 + 1)
-        y[x0:x1 + 1] = suave(np.interp(cols, xs, ys), 41)
+        y[x0:x1 + 1] = suave(np.interp(cols, xs, ys), 41 if nome == CHAO else 9)
         linhas[nome] = y
 
     # o chao vale em toda a largura: fora do trecho, a media

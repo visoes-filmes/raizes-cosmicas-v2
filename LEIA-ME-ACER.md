@@ -673,11 +673,16 @@ jeito que desenhei, é só pra entender". Então:
 
 - `fontes/teatro_de_papel.py` corta o quadro (ampliado 2×) em **cinco
   faixas**, do fundo para a frente (vermelho, turquesa, roxo, azul, amarelo):
-  cada uma vai da linha dela, suavizada, até a linha da camada da frente
-  (mais 80 px que esmaecem — é o que a paralaxe revela), e acaba no chão do
-  teatro (a linha branca, reta). A beira de verdade é a pintada: o **preto do
-  quadro vira transparência** (céu acima dos arcos, e os **portais** viram
-  buracos). As paredes marmorizadas da caixa ficam de fora.
+  cada uma vai da linha dela até a linha da camada da frente (mais 10 px que
+  esmaecem), e acaba no chão do teatro (a linha branca, reta). **As linhas
+  não são os traços**: cada traço virou um corredor de 34 px, e uma
+  programação dinâmica costurou dentro dele o caminho que mais segue a beira
+  clara pintada de cada arco (claro embaixo, escuro em cima), com passo de
+  no máximo 2 px por coluna — as tentativas de "grudar" coluna a coluna
+  saíam serra, presas nas estrelas. Onde a pintura é névoa sem beira, o
+  corte fica onde o traço estava, e não se vê. O **preto do quadro vira
+  transparência** (céu acima dos arcos, e os **portais** viram buracos). As
+  paredes marmorizadas da caixa ficam de fora.
 - Sai um atlas de cor (JPEG) e uma máscara (PNG), carregados **sem mipmap**
   (2560 × 1220 não é potência de dois; com mipmap a textura fica incompleta e
   o teatro sai preto — aconteceu).
