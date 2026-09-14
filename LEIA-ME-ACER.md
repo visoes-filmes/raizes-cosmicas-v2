@@ -790,7 +790,23 @@ aparelho**. **As águas-vivas são 14 e nadam** (`nadar` no `VS_SOLIDA`):
 uma volta de 24 s por bicho, cada um no seu ponto dela pela fase — quatro
 impulsos de subida na primeira metade (o sino contrai a cada um, os
 vértices recuando pela normal) e o afundar lento na segunda; 90 cm de
-curso. O ser do céu passou a ficar
+curso. **E são da cor do céu**: a matéria 11 do `FS_SOLIDA` (que era a
+noite azul do ser) virou o rosa da pintura, entre o rosa fundo e o
+rosa-claro, com os pontos brancos e um gume claro na beira.
+
+**A água ressoa onde a mão toca** ("quando toca, ela ressoa delicadamente e
+se move?"). Antes a interação era só global: o corpo mexendo aumentava as
+ondas e a cor e subia o nível (`agitacao`). Agora, além disso, uma mão na
+altura da lâmina (±12 cm) que se deslocou 6 cm abre um anel onde está
+(`ressoarAgua`, no máximo um por mão a cada 0,8 s; mão parada na água não
+faz onda): no `VS_AGUA` a frente anda a 0,8 m/s com cristas de 40 cm, 3 cm
+de altura no começo, morrendo em 4 s e caindo com a distância, e o
+`FS_AGUA` acende os anéis em rosa-claro (`vAnel`). Para isso **a lâmina
+virou malha**: era um quadrado de seis vértices desde sempre — as "quatro
+ondas" do vértice só mexiam as quatro pontas de um plano de 19 m —; agora
+são 96 × 96 células, mais densas no meio (potência 1,6: uns 8 cm a um
+metro do centro, 30 na borda), 18 mil triângulos. Na tela só se vê com a
+mão de mentira da bancada (`raizes.mao`). O ser do céu passou a ficar
 **de frente** (meia volta no giro: com 0,62 eram a nuca e as escápulas) e
 no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
 dele); nos outros cenários segue como era.

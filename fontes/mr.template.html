@@ -3229,7 +3229,7 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
      8  ceu estrelado -- as arvores que nao sao a mae
      9  os seres aquaticos -- agua com luz dentro
     10  neon -- os modelos que nunca tinham entrado
-    11  o ser do ceu -- pele de noite estrelada, meio translucido
+    11  as aguas-vivas -- o rosa do ceu, meio translucidas (era o ser)
     12  alga de neon rosa, no fundo da agua
     13  camuflagem -- a pele mostra o ceu que estaria atras
     17  a floresta do retorno inverso -- a pele de noite da 8, com um fio
@@ -3457,11 +3457,17 @@ void main(){
        contra o ceu do planeta rosa, que e claro. A mesma noite que na
        arvore le como casca escura aqui le como VULTO PRETO -- foi o que
        apareceu na primeira tentativa. */
-    c = noiteDeDentro(vMundo * 1.7) * 2.4 + vec3(0.055, 0.062, 0.105);
-    estrelas = estrelasEm(vMundo, n, 15.0, 0.34, 0.16, 1.70)
-             + estrelasEm(vMundo, n, 38.0, 0.30, 0.19, 0.85);
-    // um gume de agua na beirada, que e o que diz "isto tem parede"
-    c += vec3(0.16, 0.34, 0.50) * pow(raspaoC, 1.8);
+    /* DA COR DO CEU -- 14/09, "prefiro que as aguas-vivas sejam da cor do
+       ceu". Hoje a materia 11 e so delas (o ser passou a camuflagem, 13).
+       A noite azul saiu: o corpo e o rosa da pintura do ceu, entre o rosa
+       fundo e o rosa-claro pelo mesmo veu de rugas, com os pontos brancos
+       que a pintura tem, e um gume rosa-claro na beirada -- que e o que
+       diz "isto tem parede". */
+    float veuV = rugas(vMundo * 1.7 + 11.3);
+    c = mix(vec3(0.66, 0.26, 0.42), vec3(0.98, 0.70, 0.80), veuV);
+    estrelas = (estrelasEm(vMundo, n, 15.0, 0.34, 0.16, 1.70)
+             + estrelasEm(vMundo, n, 38.0, 0.30, 0.19, 0.85)) * 0.6;
+    c += vec3(1.00, 0.78, 0.86) * pow(raspaoC, 1.8) * 0.45;
   } else if(materia > 9.5 && materia < 10.5){
     /* NEON.
 
@@ -5414,8 +5420,12 @@ attribute vec2 aXY;
 uniform mat4 mvp;
 uniform vec2 centro;
 uniform float nivel, largura, tempo, agitacao;
+/* ONDE A MAO TOCOU: x, z e a idade do toque em segundos, uma por mao.
+   Idade grande e toque nenhum. */
+uniform vec3 toque[2];
 varying vec3 vMundo;
 varying float vOnda;
+varying float vAnel;      // so os aneis do toque: o fragmento os acende
 void main(){
   vec3 p = vec3(centro.x + aXY.x * largura, nivel, centro.y + aXY.y * largura);
 
@@ -5437,6 +5447,24 @@ void main(){
           + sin((p.x+p.z)*2.60 + tempo*0.83) * 0.013
           + sin((p.x-p.z)*3.90 - tempo*0.61) * 0.008;
   o *= 1.0 + agitacao * 2.6;
+  /* A AGUA RESSOA ONDE A MAO TOCA -- 14/09, "quando toca ela ressoa
+     delicadamente e se move". Da mao abrem-se aneis: uma frente que anda a
+     oitenta centimetros por segundo, com cristas de quarenta centimetros
+     dentro dela, tres centimetros de altura no comeco e morrendo em uns
+     quatro segundos -- e caindo com a distancia, como onda de verdade. A
+     cor acompanha sozinha: o fragmento ja pinta as cristas (vOnda). */
+  float anel = 0.0;
+  for(int i = 0; i < 2; i++){
+    float idade = toque[i].z;
+    if(idade < 4.5){
+      float r = length(p.xz - toque[i].xy);
+      float frente = 0.12 + idade * 0.8;
+      anel += sin((r - frente) * 15.0) * exp(-pow((r - frente) / 0.32, 2.0))
+            * exp(-idade * 0.65) * 0.030 / (1.0 + r * 1.2);
+    }
+  }
+  o += anel;
+  vAnel = anel;
   p.y += o;
 
   vOnda = o;
@@ -5454,6 +5482,7 @@ uniform float giroCeu;               // e a mesma volta: reflexo tem que bater
 uniform float agitacao;              // quanto a pessoa esta mexendo a agua
 uniform float furacao;               // 0 no meio da cena, 1 no fim dela
 varying float vOnda;
+varying float vAnel;
 varying vec3 vMundo;
 const float PI  = 3.14159265359;
 const float PI2 = 6.28318530718;
@@ -5569,6 +5598,8 @@ void main(){
 
   float crista = smoothstep(0.030, 0.052, length(onda));
   cor = mix(cor, vec3(0.93, 0.95, 0.99), crista * 0.42);
+  // e os aneis do toque acendem, rosa-claro: e o "ressoa" que se ve
+  cor = mix(cor, vec3(0.99, 0.90, 0.95), smoothstep(0.004, 0.016, abs(vAnel)) * 0.65);
 
   /* A COR RESPONDE AO CORPO.
 
@@ -6341,6 +6372,29 @@ let nMata = 0;
 const enviarDepois = [];
 /* um quadrado de -1 a 1, servindo a todas as camadas */
 enviarDepois.push(()=>enviar(bQ.xy, [-1,-1, 1,-1, -1,1, 1,-1, 1,1, -1,1]));
+/* A LAMINA D'AGUA E UMA MALHA, e nao um quadrado -- 14/09. O VS_AGUA
+   ondulava a superficie desde 11/09, mas a lamina tinha seis vertices: o
+   que ondulava eram as quatro pontas de um plano de dezenove metros, e o
+   meio, onde a pessoa esta, ficava reto. Para a agua RESSOAR onde a mao
+   toca (aneis de meio metro) a malha tem de ter vertices ali.
+
+   Noventa e seis por noventa e seis, e MAIS DENSA NO MEIO: a coordenada
+   vai a potencia 1,6, entao a um metro do centro as celulas tem uns oito
+   centimetros e na borda uns trinta. A lamina acompanha a pessoa em xz,
+   entao o meio denso e sempre onde ela esta. Dezoito mil triangulos, e o
+   fragmento e o mesmo de antes. */
+const bAgua = criarBufs(['xy']);
+let nAguaVert = 0;
+enviarDepois.push(()=>{
+  const N = 96, xy = [];
+  const eixo = (i) => { const u = i / N * 2 - 1; return Math.sign(u) * Math.pow(Math.abs(u), 1.6); };
+  for(let j=0;j<N;j++) for(let i=0;i<N;i++){
+    const x0 = eixo(i), x1 = eixo(i+1), y0 = eixo(j), y1 = eixo(j+1);
+    xy.push(x0,y0, x1,y0, x0,y1,  x1,y0, x1,y1, x0,y1);
+  }
+  enviar(bAgua.xy, xy);
+  nAguaVert = xy.length / 2;
+});
 (function(){
   const e = montarEsfera(14, 22);
   enviarDepois.push(()=>{
@@ -7812,6 +7866,31 @@ function seguirBuracoFinal(t){
   buracoFinal.presenca = k * (1 - rampa(530, 540, t));
   buracoFinal.raio = 0.35 + k * k * 7.5;
 }
+/* O TOQUE NA AGUA. Uma mao na altura da lamina (um palmo para cima ou
+   para baixo) que se deslocou seis centimetros desde o ultimo anel abre um
+   anel novo onde esta; mao parada dentro da agua nao faz onda, como na
+   agua de verdade. No maximo um anel por mao a cada 0,8 s -- a mao que
+   passeia pela agua deixa um rastro de aneis, e nao um zumbido.
+   TOQUE_AGUA_PLANO e a copia achatada que vai ao shader, sem alocar por
+   quadro. */
+const TOQUE_AGUA = [[0, 0, 99], [0, 0, 99]];
+const TOQUE_AGUA_PLANO = new Float32Array([0, 0, 99, 0, 0, 99]);
+const ULTIMO_ANEL = [[9, 9], [9, 9]];
+function ressoarAgua(dt){
+  const lamina = NIVEL_AGUA + nivelExtra;
+  for(let i = 0; i < 2; i++){
+    const tq = TOQUE_AGUA[i];
+    tq[2] += dt;
+    const m = MAOS[i];
+    if(m.tem && aguaPresenca > 0.5 && Math.abs(m.y - lamina) < 0.12 && tq[2] > 0.8
+       && Math.hypot(m.x - ULTIMO_ANEL[i][0], m.z - ULTIMO_ANEL[i][1]) > 0.06){
+      tq[0] = m.x; tq[1] = m.z; tq[2] = 0;
+      ULTIMO_ANEL[i][0] = m.x; ULTIMO_ANEL[i][1] = m.z;
+    }
+    TOQUE_AGUA_PLANO[i*3] = tq[0]; TOQUE_AGUA_PLANO[i*3+1] = tq[1]; TOQUE_AGUA_PLANO[i*3+2] = tq[2];
+  }
+}
+
 let ondeEstavaAMao = [0,0,0,0,0,0], ondeEstavaACabeca = [0,0,0];
 function medirAgitacao(dt, olhoPos){
   let mexeu = 0;
@@ -9543,7 +9622,7 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca'),
                agitacao:uAg('agitacao'), furacao:uAg('furacao'),
-               giroCeu:uAg('giroCeu')};
+               giroCeu:uAg('giroCeu'), toque:uAg('toque[0]')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
 const uTe = n=>gl.getUniformLocation(progTeatro,n);
@@ -10713,7 +10792,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       }
       for(const r of bFundo) porMalha(r.b, r.n, 9.0);      // no chao: agua com luz dentro
       gl.uniform1f(locSo.nadar, 1.0);
-      for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: noite estrelada, e nadando
+      for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: o rosa do ceu, e nadando
       gl.uniform1f(locSo.nadar, 0.0);
       /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
          uniforme porque ela nao esta plantada onde nasceu -- e o unico
@@ -10924,8 +11003,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locAg.giroCeu, anguloDoCeu(t));
     gl.uniform1f(locAg.inicio, degradeIni);
     gl.uniform1f(locAg.fim, degradeFim);
-    ligar(aAg.xy, bQ.xy, 2);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.uniform3fv(locAg.toque, TOQUE_AGUA_PLANO);
+    ligar(aAg.xy, bAgua.xy, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, nAguaVert);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
@@ -11659,6 +11739,7 @@ function quadro(){
   contarQuadro();
   andarGlitter(dt);
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
+  ressoarAgua(dt);
   seguirRosa(dt);
   if(neblinaOn) assarTinta();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -11725,6 +11806,7 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  ressoarAgua(dt);
   seguirRosa(dt);
   andarGlitter(dt);
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
