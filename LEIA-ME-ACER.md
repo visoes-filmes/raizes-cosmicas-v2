@@ -293,7 +293,7 @@ const CENAS = {
   1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72, inverter:0 },
   2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58, inverter:0 },
   3: { ceu:2, tinta:0.92, neblina:0.16, ... ini:0.30, fim:0.86, inverter:0 },
-  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:0.10, fim:0.55, inverter:1 },
+  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:-1.0, fim:-0.5, inverter:1 },
 };
 ```
 
@@ -311,6 +311,18 @@ const CENAS = {
   era uma caixa. O céu é
   cheio no teto e some ao descer. No cenário 3 ele só começa a 0,84 m,
   porque a água tapa o resto.
+
+  > **O cenário 4 é céu inteiro** desde 13/09: `ini` e `fim` negativos, os
+  > dois abaixo do horizonte, e a cúpula fica opaca na volta toda. É o
+  > único cenário **sem a sala** — "tem que ser todo um céu escuro; está
+  > parecendo uma mancha cinza". Com o degradê de antes (9° a 50°) a
+  > pintura escura ficava meio transparente sobre a sala na altura dos
+  > olhos, e escuro sobre a sala não lê como céu, lê como mancha. Em cima
+  > a pintura invertida, embaixo a noite; a integra e o teatro ficam
+  > dentro do céu, e não na frente da sala. No computador o que está
+  > fora da cúpula aparece cinza (é o passthrough de mentira); no headset
+  > era a sala de verdade — e agora não é mais nada, porque estamos no
+  > espaço.
 - `inverter` — o cenário 4 lê o céu **de cabeça para baixo**. É o que faz a
   floresta do primeiro cenário reaparecer sob os pés no último, sem custar
   uma imagem nova.
