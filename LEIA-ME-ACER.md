@@ -817,11 +817,19 @@ Da capa de *Forma Fluida* (Amelia Toledo), mostrada pela direção de arte:
 bolhas de vidro soprado empilhadas — um sino grande embaixo, uma pequena,
 uma média com um bico — com cacos de cristal iridescente dentro. "Você
 consegue fazer um ser desse jeito?" Está no planeta rosa, à frente-direita,
-a 2 m, flutuando sobre a água (`SER_VIDRO`, base a 1,05 m, 1,07 m de altura,
-respira 5 cm), das 6:48 às 8:28 (`vidroPresenca`). Duas malhas
-(`montarSerDeVidro`): **as bolhas** — elipsoides, desenhadas em duas
-demãos (parede de trás e da frente, que é o que dá espessura) com a
-matéria **18**: o céu atrás lido na direção desviada pela normal (refração
+em volta de um ponto a 2 m (`SER_VIDRO`), **andando devagar** como bolha ao
+vento (`ondeVidro`: três senos primos, 0,6 m em xz e 0,15 m em y, nunca a
+menos de 1,4 m do meio), das 6:48 às 8:28 (`vidroPresenca`). Duas malhas
+(`montarSerDeVidro`): **o corpo** — depois de "existe uma forma entre as
+esferas que você não está capturando, como um funil; o biquinho para cima;
+não tão simétricas, mais fluidas, como bolha de sabão" (14/09), não são
+esferas: é **um perfil só**, do pé ao bico, por spline (Catmull-Rom) e
+revolvido — os funis são a curva estreitando e abrindo, o bico é o fim
+dela —, com a revolução **irregular** (três ondulações lentas no raio, em
+volta: nenhuma seção é círculo) e **ondulando no vértice** (`bolha` no
+`VS_SOLIDA`: cada vértice anda pela normal por três ondas lentas, 2,4 cm;
+os cacos um terço disso). Desenhado em duas demãos (parede de trás e da
+frente, que é o que dá espessura) com a matéria **18**: o céu atrás lido na direção desviada pela normal (refração
 de mentira), o arco-íris de película de esguelha e um fio branco na beira;
 alfa quase nada de frente e denso de esguelha. **Os cacos** — 110 polígonos
 irregulares de 5 a 7 lados sorteados dentro das bolhas, cada um um leque
