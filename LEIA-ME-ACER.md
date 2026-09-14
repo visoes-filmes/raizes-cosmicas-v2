@@ -755,6 +755,22 @@ Só as árvores — nem pedras, grama ou folhagem. Matéria **17** no
 beira, no ouro pálido das raízes pintadas no céu, porque a onze metros
 contra a pintura elas são silhueta. Visto só na bancada.
 
+### A integra se mexe (14/09)
+
+"Uma sensação de movimento no corpo, principalmente na região central, que
+parece um líquido escorrendo da boca da deusa; as asas batendo
+ligeiramente; sutil, até o cenário acabar." Duas leituras a mais da mesma
+pintura no `FS_FIGU` (ramo `inteira`), por figura — `fluxo` e `asas` na
+`FIGURAS`, medidos no arquivo da integra: **o líquido** é um funil da boca
+para baixo (alarga com o vestido) onde a leitura ondula em ondas curtas que
+correm para baixo, devagar (5 milésimos do quadro), com um brilho de 10 %
+descendo junto; **as asas** dobram em volta da própria raiz, fechando até
+5 % num ciclo de 4 s com pausa (seno ao cubo: bate e descansa), e a ponta
+sobe um pouco ao fechar. Ela **surge inteira**, num esmaecer de 9 s a partir
+de 9:16 (`de:556`), depois de o teatro subir camada por camada (8:45–9:20);
+some entre 9:45 e 9:54. Medido na bancada: o líquido é a região que mais se
+move, as asas a metade disso, o fundo um quarto.
+
 ### O contorno dos corpos (12/09)
 
 Pedido: "contorno para as mãos e demais partes do corpo que entrarem na

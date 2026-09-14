@@ -5038,6 +5038,12 @@ uniform float inteira;          // 1 = pintura inteira, sem recorte: o alfa nasc
 uniform vec4 elipse;            // o corpo dela no quadro: centro (xy) e raios (zw), em uv
 uniform vec2 escuro;            // de que luminancia a que luminancia o preto vira noite
 uniform float graduacao;        // a largura da graduacao das bordas, em fracao do quadro
+/* O QUE SE MEXE NA PINTURA (so a integra, por enquanto), em uv do quadro:
+   fluxo = o funil do liquido: x do eixo, y da boca, meia-largura na boca,
+           quanto alarga por unidade de y (zero na largura = nao ha fluxo);
+   asas  = raiz da asa esquerda (x), raiz da direita (x), y do meio das
+           asas, meia-altura delas (zero na altura = nao ha asas). */
+uniform vec4 fluxo, asas;
 /* Ruido de valor, duas oitavas: e o que faz a beira da pintura ondular em
    vez de terminar numa reta. Barato -- oito leituras de hash. */
 float ruidoFig(vec2 p){
@@ -5064,6 +5070,7 @@ void main(){
      78% da largura). Onde o fundo se mexe e ela nao, o olho le que ela
      esta noutro tempo. E o teste que a direcao de arte pediu. */
   vec2 uv = vUV;
+  float liq = 0.0;          // quanto deste pixel esta no liquido que escorre
   if(inteira > 0.5){
     // a elipse do corpo vem por figura: cada quadro tem a sua no seu lugar
     vec2 dc = (uv - elipse.xy) / elipse.zw;
@@ -5073,8 +5080,45 @@ void main(){
     float respira = 1.0 + 0.005 * sin(tempo * 0.25);
     vec2 corpo = elipse.xy + (uv - elipse.xy) / respira;
     uv = mix(fundo, corpo, figura);
+
+    /* A INTEGRA SE MEXE -- 14/09: "uma sensacao de movimento no corpo,
+       principalmente na regiao central, que parece um liquido escorrendo
+       da boca da deusa; as asas batendo ligeiramente; uma coisa sutil, em
+       animacao ate o cenario acabar". Duas leituras a mais da mesma
+       pintura, e nenhuma tinta nova.
+
+       O LIQUIDO: da boca para baixo, num funil que alarga com o vestido,
+       a leitura ondula -- ondas curtas que CORREM para baixo (o seno anda
+       com o tempo no sentido do y, devagar: liquido espesso) e um balanco
+       lateral mais fino. Cinco milesimos do quadro: e escorrer, nao
+       tremer. E a luz acompanha: um brilho de dez por cento desce junto
+       com as ondas, la embaixo, depois de ler a cor.
+
+       AS ASAS: cada uma dobra em volta da propria raiz (onde encosta no
+       corpo), fechando ate cinco por cento num ciclo de quatro segundos
+       com pausa -- o seno elevado ao cubo bate e descansa, e e isso que le
+       como batida e nao como tremor. Ao fechar, a ponta sobe um pouco. */
+    if(fluxo.z > 0.0){
+      float desce = smoothstep(0.0, 0.06, uv.y - fluxo.y);
+      float meia = fluxo.z + fluxo.w * max(uv.y - fluxo.y, 0.0);
+      liq = desce * (1.0 - smoothstep(meia * 0.6, meia, abs(uv.x - fluxo.x)));
+      uv.y += liq * 0.005 * sin(uv.y * 38.0 - tempo * 0.9 + uv.x * 9.0);
+      uv.x += liq * 0.0025 * sin(uv.y * 23.0 - tempo * 0.9);
+    }
+    if(asas.w > 0.0){
+      float bate = 0.05 * pow(0.5 + 0.5 * sin(tempo * 1.5), 3.0);
+      float alturaAsa = 1.0 - smoothstep(asas.w * 0.7, asas.w * 1.3, abs(uv.y - asas.z));
+      float dl = asas.x - uv.x, dr = uv.x - asas.y;       // para fora da raiz, em cada lado
+      float pesoL = smoothstep(0.0, 0.03, dl) * alturaAsa;
+      float pesoR = smoothstep(0.0, 0.03, dr) * alturaAsa;
+      uv.x -= dl * bate * pesoL;
+      uv.x += dr * bate * pesoR;
+      uv.y += (dl * pesoL + dr * pesoR) * bate * 0.5;
+    }
   }
   vec4 c = texture2D(figura, uv);
+  // a luz que escorre com o liquido: fraca, e so onde ele corre
+  c.rgb *= 1.0 + liq * 0.10 * sin(uv.y * 30.0 - tempo * 0.8);
 
   /* A PINTURA INTEIRA -- direcao de arte, 11/09: "a imagem nao foi
      preservada; eu so pedi para esmaecer as bordas". O recorte por
@@ -7126,7 +7170,11 @@ const FIGURAS = [
      cenario ela lia como "formas cinza estranhas". */
   { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
     de:556, ate:594, balanco:0.3, espelha:false, inteira:true,
-    elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26 },
+    elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26,
+    /* medido no arquivo: a boca em (0,502, 0,405); o vestido alarga de 0,02
+       de meia-largura na boca a 0,09 no pe; as asas encostam no corpo em
+       0,465 e 0,535 e vao de 0,28 a 0,55 de altura */
+    fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135] },
 ];
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
@@ -9380,7 +9428,7 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
                presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira'),
                elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
-               graduacao:uFi('graduacao')};
+               graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -10865,6 +10913,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
       gl.uniform2f(locFi.escuro, es[0], es[1]);
       gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
+      const fl = f.fluxo || [0, 0, 0, 0], as = f.asas || [0, 0, 0, 0];
+      gl.uniform4f(locFi.fluxo, fl[0], fl[1], fl[2], fl[3]);
+      gl.uniform4f(locFi.asas, as[0], as[1], as[2], as[3]);
       gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
