@@ -2390,123 +2390,19 @@ function prepararPedras(){
   nPedrasIdx = m.idx.length;
 }
 
-/* ═══════════ AS RAIZES DO RETORNO INVERSO ═══════════
+/* ═══════════ O FORRO DO RETORNO INVERSO ═══════════
 
-   O ultimo movimento da obra, dos 8:48 em diante: raizes descem do alto e
-   ficam penduradas em volta de quem olha. Ate 13/09 era a floresta inteira
-   do cenario 1 espelhada no forro -- doze arvores de cabeca para baixo,
-   com galho para todo lado, e contra o ceu escuro do cenario 4 elas
-   viravam um emaranhado de vultos: "as arvores estao confusas". Arvore de
-   cabeca para baixo nao le como raiz; le como arvore de cabeca para baixo.
-
-   Raiz tem outra gramatica. Poucas. Cada uma e um fio grosso no alto que
-   afina ate a ponta, curvando devagar; os ramos saem em angulo fechado e
-   tornam a cair, porque a gravidade puxa tudo para o mesmo lado; e no
-   trecho de baixo ha pelos finos. Sete, em volta da pessoa e fora da area
-   caminhavel, com a frente livre: a frente e do teatro e da deusa.
-
-   Sao geradas JA PENDURADAS, do forro para baixo, e o crescimento e so
-   alfa (brota em zero): a raiz aparece de cima para baixo, a ponta por
-   ultimo. A floresta virada usava o espelho do VS_SOLIDA com brota, e o
-   brota comprime a frente de crescimento contra o forro -- numa arvore
-   inteira isso passa, num fio de raiz virava uma fita amassada descendo.
-   O nome nao e "raizes" porque no codigo raizes e a floresta
-   (subirRaizes, bR): o que se chama aqui e o que acontece, o retorno. */
-const RETORNO_RAIZES = 7;      // quantas; zero tira o retorno inverso
-/* DE ONDE PENDEM: bem acima do forro. No cenario 4 nao ha sala -- e ceu
-   na volta toda -- e uma raiz que sai de 3,15 m sai do nada, na altura de
-   um teto que nao se ve. De 4,2 m ela vem de cima do ceu pintado, e o
-   comeco dela ainda se dissolve nele (ver a borda, abaixo). */
-const RETORNO_TETO = 4.2;
-let bRetorno = null, nRetornoIdx = 0;
-function prepararRetorno(){
-  if(RETORNO_RAIZES <= 0) return;
-  const rnd = prng(4413);
-  const s = {pos:[], nor:[], uv:[], alt:[], fase:[], idx:[]};
-  /* O tuboAoLongo anota as pontas finas em PONTAS, que e de onde a
-     folhagem do cenario 1 nasce. Raiz nao tem folha: guarda-se a lista e
-     devolve-se como estava. */
-  const pontasDaMata = PONTAS; PONTAS = [];
-
-  /* UM FIO. Uma linha que vagueia de leve, com uma curva lenta escolhida
-     uma vez (o seno de u, que e zero nas duas pontas: a curva nao mexe em
-     de onde sai nem em para onde vai) e a gravidade puxando de volta ao
-     prumo, para baixo. O raio afina com
-     expoente menor que um: grossa por mais tempo, fina so no fim, que e
-     como raiz afina. altBase e onde a frente de crescimento esta quando
-     este fio comeca; a ponta chega a 1 junto com a ponta da raiz inteira,
-     entao tudo termina de descer ao mesmo tempo. */
-  function fio(origem, dir, comp, r0, r1, n, fase, altBase, lados){
-    const curva = [rnd() - 0.5, 0, rnd() - 0.5];
-    const pontos = [origem.slice()], raios = [];
-    let d = dir.slice(), q = origem.slice();
-    for(let i = 0; i <= n; i++){
-      const u = i / n;
-      raios.push(r1 + (r0 - r1) * Math.pow(1 - u, 0.85));
-      if(i === n) break;
-      const arco = Math.sin(u * Math.PI) * 0.12;
-      d = norm([ d[0] + (rnd() - 0.5) * 0.16 + curva[0] * arco,
-                 d[1] - 0.10,
-                 d[2] + (rnd() - 0.5) * 0.16 + curva[2] * arco ]);
-      q = [q[0] + d[0] * comp / n, q[1] + d[1] * comp / n, q[2] + d[2] * comp / n];
-      pontos.push(q.slice());
-    }
-    tuboAoLongo(s, pontos, raios, fase, altBase, 1.0, lados);
-    return pontos;
-  }
-  /* UM RAMO sai do fio pai na fracao u, em angulo fechado (28 a 50 graus)
-     e para um lado qualquer; a gravidade do fio o traz de volta para
-     baixo. A altura de crescimento continua a do pai naquele ponto. */
-  function ramo(pai, altPai, u, comp, r0, r1, n, fase, lados){
-    const i = Math.min(pai.length - 2, Math.floor(u * (pai.length - 1)));
-    const dF = norm(sub(pai[i + 1], pai[i]));
-    const lado = norm(cruz(dF, [rnd() - 0.5, rnd() - 0.5, rnd() - 0.5]));
-    const abre = Math.tan((28 + rnd() * 22) * Math.PI / 180);
-    const nd = norm([dF[0] + lado[0] * abre, dF[1] + lado[1] * abre, dF[2] + lado[2] * abre]);
-    const altAqui = altPai + (1 - altPai) * u;
-    return [fio(pai[i], nd, comp, r0, r1, n, fase, altAqui, lados), altAqui];
-  }
-  for(let k = 0; k < RETORNO_RAIZES; k++){
-    /* EM VOLTA, E NUNCA NA FRENTE. Os noventa graus da frente sao do
-       teatro e da deusa integra; as raizes se repartem pelos outros
-       duzentos e setenta, a 2,3-3,3 m do centro -- fora do passo, e perto
-       o bastante para se ver a casca. */
-    const az = (45 + k * 270 / Math.max(1, RETORNO_RAIZES - 1) + (rnd() - 0.5) * 16) * Math.PI / 180;
-    const dist = 2.3 + rnd() * 1.0;
-    const base = [Math.sin(az) * dist, RETORNO_TETO, -Math.cos(az) * dist];
-    const comp = 2.7 + rnd() * 0.9;              // ate 0,6-1,5 m do chao
-    const r0 = 0.13 + rnd() * 0.06;                // no alto; a ponta tem 1,2 cm
-    const fase = k * 1.7;
-    const eixo = norm([(rnd() - 0.5) * 0.35, -1, (rnd() - 0.5) * 0.35]);
-    const tronco = fio(base, eixo, comp, r0, 0.012, 14, fase, 0, 12);
-    // dois ramos -- um no terco de cima, um no meio -- e cada um com um filho
-    for(let b = 0; b < 2; b++){
-      const u = 0.22 + b * 0.28 + rnd() * 0.12;
-      const [r, altR] = ramo(tronco, 0, u, comp * (1 - u) * (0.55 + rnd() * 0.25),
-                             r0 * (0.45 - 0.10 * b), 0.010, 10, fase, 10);
-      const v = 0.35 + rnd() * 0.30;
-      ramo(r, altR, v, comp * (1 - u) * (1 - v) * 0.55, r0 * 0.20, 0.008, 8, fase, 8);
-    }
-    // e os pelos: finos, curtos, so no trecho de baixo
-    for(let h = 0; h < 4; h++)
-      ramo(tronco, 0, 0.45 + rnd() * 0.45, 0.22 + rnd() * 0.28, 0.022, 0.006, 6, fase + h, 6);
-  }
-  PONTAS = pontasDaMata;
-
-  /* A BORDA DISSOLVE O COMECO. aBorda multiplica o alfa: zero no forro,
-     subindo a um ao longo dos primeiros setenta centimetros. A raiz nao
-     tem um corte reto onde entra no ceu -- ela vem de dentro dele. */
-  const borda = [];
-  for(let i = 1; i < s.pos.length; i += 3) borda.push(Math.min(1, (RETORNO_TETO - s.pos[i]) / 0.7));
-
-  bRetorno = criarBufs(['pos','nor','alt','fase','borda','idx']);
-  enviar(bRetorno.pos, s.pos); enviar(bRetorno.nor, s.nor);
-  enviar(bRetorno.alt, s.alt); enviar(bRetorno.fase, s.fase);
-  enviar(bRetorno.borda, borda);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bRetorno.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(s.idx), gl.STATIC_DRAW);
-  nRetornoIdx = s.idx.length;
-}
+   De onde a floresta do comeco pende no ultimo cenario. "As mesmas
+   arvores do primeiro cenario, de cabeca para baixo, vindo de cima em
+   direcao a cabeca da pessoa -- mas alto: a pessoa olha para cima e ve uma
+   floresta, nao tao perto dela" (14/09). A floresta tem 7,2 m na arvore
+   mais alta; pendurada a 11,2 m, a copa mais baixa para a 4 m do chao, dois
+   metros e meio acima dos olhos. Ate 13/09 o forro era o da sala (3,15 m):
+   as copas passavam pelo chao e os troncos cruzavam o olhar de todo lado, e
+   contra o ceu inteiro do cenario 4 era um emaranhado -- "as arvores
+   estao confusas". Sete raizes em malha propria foram tentadas no lugar em
+   14/09 e sairam no mesmo dia: "e so as arvores mesmo". */
+const RETORNO_TETO = 11.2;
 
 function prepararSolo(){
   const t = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
@@ -3282,8 +3178,8 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
     11  o ser do ceu -- pele de noite estrelada, meio translucido
     12  alga de neon rosa, no fundo da agua
     13  camuflagem -- a pele mostra o ceu que estaria atras
-    17  as raizes do retorno inverso -- a pele de noite da 8, com um fio
-        de luz na beira e a seiva descendo
+    17  a floresta do retorno inverso -- a pele de noite da 8, com um fio
+        de luz na beira, porque la em cima ela e silhueta contra o ceu
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -3567,13 +3463,6 @@ void main(){
        primeira grandeza mede um centimetro e a poeira meio. */
     estrelas = estrelasEm(vMundo, n, 13.0, 0.55, 0.13, 1.70)
              + estrelasEm(vMundo, n, 34.0, 0.45, 0.16, 0.70);
-    /* 17 -- AS RAIZES DO RETORNO: o corpo e terra com a noite por dentro,
-       e nao so noite. Pele de noite pura contra o ceu de noite e vulto
-       sobre vulto, e foi assim que as arvores viradas viraram confusao. Um
-       marrom escuro por cima, com a noite e metade das estrelas vazando,
-       da corpo -- e a luz na beira (la embaixo, depois da luz) da o
-       cilindro. */
-    if(materia > 16.5){ c = mix(c, vec3(0.34, 0.29, 0.21), 0.70); estrelas *= 0.5; }
     /* E CASCA CONTINUA SENDO CASCA.
 
        As arranhaduras eram da aquarela, que era so da mae. Com as doze
@@ -3937,7 +3826,7 @@ void main(){
      amostrado ja vem com a luz que tem -- sombrear por cima poria uma
      segunda iluminacao sobre a primeira, e a mancha escura no meio do
      corpo seria justamente o que denuncia o bicho. */
-  if(materia > 16.5)                      piso = 0.56;   // as raizes do retorno
+  if(materia > 16.5)                      piso = 0.38;   // a floresta virada: como a 8
   else if(materia > 15.5)                 piso = 0.90;   // as folhas: acesas
   /* A MAE SOMBREIA COMO AS OUTRAS -- e a mesma casca, e sombra diferente
      seria justamente o que denunciaria que sao duas materias. */
@@ -3971,27 +3860,13 @@ void main(){
   float luz = piso + (1.0 - piso) * max(dot(n, normalize(vec3(0.3, 0.9, 0.3))), 0.0);
   c *= luz;
 
-  /* AS RAIZES DO RETORNO: um fio de luz na beira, e a seiva DESCENDO.
-
-     Depois da luz, porque nao e luz do sol: e o ceu atras da raiz vazando
-     pela beirada, e ceu nao tem lado. Pele de noite contra ceu de noite e
-     vulto sobre vulto -- foi assim que as arvores viradas viraram
-     confusao; o fio na beira e o que separa a raiz do fundo e diz que ela
-     e um cilindro, e nao um recorte.
-
-     E a seiva vai para BAIXO, ao contrario da mae: e o retorno. Faixa
-     estreita (expoente oito), 1,1 m de comprimento a 18 cm por segundo --
-     o mesmo passo lento da seiva que sobe. */
-  /* NO OURO PALIDO DAS RAIZES PINTADAS. O ceu cosmico tem raizes -- os
-     filamentos amarelados entre as nebulosas --, e estas descem dele: a
-     mesma cor na beira e na seiva e o que diz que sao as mesmas raizes,
-     agora em corpo. Azul aqui se perdia no azul de tudo. */
-  if(materia > 16.5){
-    c += vec3(0.85, 0.80, 0.52) * pow(raspaoC, 3.0) * 0.60;
-    float desce = fract(-vMundo.y * 0.9 - tempo * 0.16);
-    float onda = pow(1.0 - abs(desce * 2.0 - 1.0), 8.0);
-    c += vec3(0.98, 0.90, 0.60) * onda * 0.35;
-  }
+  /* A FLORESTA VIRADA TEM UM FIO DE LUZ NA BEIRA. Depois da luz, porque
+     nao e luz do sol: e o ceu atras dela vazando pela beirada, e ceu nao
+     tem lado. A onze metros, contra a pintura, ela e silhueta -- e pele de
+     noite contra ceu de noite e vulto sobre vulto, que foi o que a fez
+     confusa. O fio separa cada galho do fundo e diz que ele e cilindro.
+     No ouro palido das raizes pintadas no ceu, que e de onde ela pende. */
+  if(materia > 16.5) c += vec3(0.85, 0.80, 0.52) * pow(raspaoC, 3.0) * 0.65;
 
   /* A CRISALIDA REBATE NO QUE ESTA EM VOLTA.
 
@@ -4236,7 +4111,6 @@ uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
 uniform float giroCeu;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
-uniform float inverter;     // 1 vira o ceu de cabeca para baixo (cenario 4)
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
 uniform float aspectoCeu;   // largura/altura da pintura em uso
 
@@ -4257,10 +4131,6 @@ void main(){
   // desse luz de cima, o olho reconstruiria a caixa na hora. Sem isso,
   // uma sala e uma esfera são indistinguíveis pra quem está no centro.
   vec3 dir = normalize(vPos);   // a cupula ja e centrada em quem olha
-  // Inverter e espelhar a direcao vertical: o mesmo ceu passa a ser lido de
-  // cabeca para baixo, e a floresta do primeiro cenario reaparece sob os pes
-  // no ultimo. Custa uma multiplicacao, nao uma imagem nova.
-  dir.y = mix(dir.y, -dir.y, inverter);
 
   /* A PINTURA COBRINDO O CEU INTEIRO, SEM DISTORCER.
 
@@ -4298,17 +4168,26 @@ void main(){
      lateral, e ele depende so da proporcao: uma pintura quadrada nao perde
      nada, 4:3 aproveita 75% da largura, 16:9 aproveita 56%, 2:1 metade.
 
-     Nao ha emenda: o disco e continuo. O unico ponto singular e o nadir,
-     que fica debaixo do piso e nunca e desenhado -- a graduacao ja o
-     apagou muito antes. */
+     Nao ha emenda: o disco e continuo, e no horizonte ele se espelha (a
+     conta esta logo abaixo) -- entao nao ha ponto singular nenhum. */
   vec3 d = dir;
   float cg = cos(giroCeu), sg = sin(giroCeu);
   d = vec3(d.x*cg - d.z*sg, d.y, d.x*sg + d.z*cg);
 
   /* r = 2.tan(t/2) escrito como 2.sen/(1+cos): a mesma conta sem chamar
-     acos nem tan, e sem o buraco em t = 0. O teto no denominador segura o
-     nadir, onde a projecao vai a infinito. */
-  vec2 plano = vec2(d.x, -d.z) * (2.0 / (1.0 + max(d.y, -0.94)));
+     acos nem tan, e sem o buraco em t = 0.
+
+     E A PINTURA SE ESPELHA NO HORIZONTE: |d.y|, e nao d.y. Acima e abaixo
+     a mesma pintura, com o centro no zenite e no nadir -- e o horizonte
+     nao e emenda, porque os dois lados chegam nele pelo mesmo pixel (r = 2
+     dos dois lados). Nos cenarios 1 a 3 o que esta abaixo do horizonte e
+     transparente e isto nao se ve. No cenario 4, que e ceu inteiro, e o
+     que faz o alto ser ceu: ate 14/09 o cenario lia o ceu "de cabeca para
+     baixo" (um uniforme inverter) para por a pintura sob os pes, e o que
+     sobrava em cima era a beirada da pintura esticada pelo clamp -- riscos.
+     Com o espelho a pintura esta dos dois lados, e o inverter deixou de
+     existir. Sem o nadir no denominador, nao ha mais infinito a segurar. */
+  vec2 plano = vec2(d.x, -d.z) * (2.0 / (1.0 + abs(d.y)));
   vec2 meia = vec2(CEU_HORIZONTE * aspectoCeu, CEU_HORIZONTE);
   vec2 st = clamp(plano / (2.0 * meia) + 0.5, 0.0, 1.0);
 
@@ -6464,7 +6343,6 @@ for(const f of enviarDepois) f();
    mil pontos subiam para a placa a cada abertura sem nada desenhar. */
 if(RAIZES_NOS_ASTROS) prepararRaizesDosAstros();
 prepararEstrelas();
-prepararRetorno();
 montarCrisalida();
 semearMontanhas();
 prepararAlienigena();
@@ -7008,20 +6886,20 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
    ela E a nuvem cosmica do comeco, a mesma marmorizacao --, so que aqui vai
    e vem: o vaivem esta na partitura (nuvemVaiEVem). */
 const CENAS = {
-  1: { ceu:3, ceuB:3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
-       poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72, inverter:0 },
-  2: { ceu:2, ceuB:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
-       poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58, inverter:0 },
-  3: { ceu:2, ceuB:2, tinta:0.92, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
+  1: { ceu:3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
+       poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72 },
+  2: { ceu:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
+       poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58 },
+  3: { ceu:2, tinta:0.92, neblina:0.16, marmore:0.98, leite:0.20,
+       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86 },
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
      com a sala e virava mancha. Com inicio e fim abaixo do horizonte a
      cupula e opaca na volta inteira: em cima a pintura invertida, embaixo a
      noite. E o unico cenario sem a sala: estamos no espaco. */
-  4: { ceu:1, ceuB:0, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
-       poeira:2000, sopro:0.8, raizes:0, ini:-1.0, fim:-0.5, inverter:1 },
+  4: { ceu:1, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
+       poeira:2000, sopro:0.8, raizes:0, ini:-1.0, fim:-0.5 },
 };
 
 function cenaEm(t){
@@ -7645,7 +7523,7 @@ function montarRegua(){
     const a = CENAS[c2];
     tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
     sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
-    inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
+    quantosPo=a.poeira; raizesOn=a.raizes>0.5;
     pinta();
   });
 }
@@ -7703,7 +7581,7 @@ let emXR = false, janelaContada = false;
 /* O relogio da obra, separado do relogio da animacao. O "relogio" corre
    sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
    da partitura, que pode ser pausado e arrastado enquanto se trabalha. */
-let t = 0, andando = false, cenaAtual = 1, misturaCeu = 0, inverterCeu = 0;
+let t = 0, andando = false, cenaAtual = 1, misturaCeu = 0;
 /* O primeiro minuto tem dois movimentos proprios, e a partitura conduz os
    dois: a poeira CAI enquanto as estrelas chegam, e a floresta NASCE de
    onde elas tocam. Fora desse trecho a poeira volta a ser ambiente. */
@@ -8171,17 +8049,16 @@ function seguirPartitura(dt){
      de cima e ao contrario -- e o que desce e raiz, que e o que estava
      embaixo no comeco.
 
-     ELE NAO E MAIS A FLORESTA DO CHAO VIRADA. Foi ate 13/09, e por dois
-     motivos deixou de ser: com a mata dos outros cenarios em trinta por
-     cento as duas ficavam em quadro e liam como espelho; e com o ceu
-     inteiro do cenario 4, doze arvores de cabeca para baixo contra o
-     escuro eram um emaranhado -- "as arvores estao confusas". Agora sao
-     raizes de verdade, em malha propria (prepararRetorno).
+     E A FLORESTA DO CHAO VIRADA, la no alto (RETORNO_TETO). Enquanto a
+     mata dos outros cenarios esteve em trinta por cento, as duas ficavam
+     em quadro e liam como espelho -- por isso ela esta em zero. E enquanto
+     o forro foi o da sala, as copas passavam pelo chao e os troncos
+     cruzavam o olhar: "as arvores estao confusas" (13/09). Agora pende de
+     onze metros: olha-se para cima e ha uma floresta, longe.
 
      E ACABA DE DESCER AOS 9:36, nao aos 9:46: o fecho comeca aos 9:45, e
-     uma raiz que so termina de chegar quando tudo ja esta se apagando
-     nunca e vista inteira. Nove segundos penduradas, e depois vao com o
-     resto. */
+     uma arvore que so termina de chegar quando tudo ja esta se apagando
+     nunca e vista inteira. */
   retornoInverso = (c === 4) ? rampa(528, 576, t) : 0;
 
   nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
@@ -8236,7 +8113,6 @@ function seguirPartitura(dt){
   sopro      = aproximar(sopro, a.sopro, p);
   degradeIni = aproximar(degradeIni, a.ini, p);
   degradeFim = aproximar(degradeFim, a.fim, p);
-  inverterCeu= aproximar(inverterCeu, a.inverter, p);
   const alvoPoeira = (!POEIRA_NA_FLORESTA && c === 1) ? 0 : a.poeira;
   quantosPo  = Math.round(dt > 0 ? aproximar(quantosPo, alvoPoeira, p) : alvoPoeira);
   raizesOn   = a.raizes > 0.5;
@@ -8753,7 +8629,7 @@ if(emTesteLocal){
       const a = CENAS[c];
       tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
       sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
-      inverterCeu=a.inverter; quantosPo=a.poeira; raizesOn=a.raizes>0.5;
+      quantosPo=a.poeira; raizesOn=a.raizes>0.5;
       /* Saltar tem que acertar TAMBEM o que a partitura calcula por quadro
          -- crescimento, presencas, agua. Sem isto, num navegador que limita
          os quadros o salto muda o relogio e nao muda a cena, e se conclui
@@ -9320,7 +9196,7 @@ function desenharAMata(){
 }
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
-             mistura:uS('mistura'), inverter:uS('inverter'), tinta:uS('tinta'),
+             mistura:uS('mistura'), tinta:uS('tinta'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
               altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim'),
               giroCeu:uS('giroCeu'), aspecto:uS('aspectoCeu')};
@@ -9753,7 +9629,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.inicio, degradeIni);
     gl.uniform1f(locS.fim, degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
-    gl.uniform1f(locS.inverter, inverterCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
     /* A proporcao e a do ceu que esta na frente. Na travessia os dois
        convivem, mas as tres pinturas da obra tem a mesma forma -- se um dia
@@ -10144,13 +10019,24 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.depthMask(true);
   }
 
-  /* O RETORNO INVERSO: as raizes, em bloco proprio. O mesmo programa das
-     arvores, sem virada e sem brota: a malha ja pende do forro, e o
-     crescimento e so o alfa descendo pelo fio. Nao escrevem profundidade:
-     sao translucidas no comeco (a borda) e ficam a menos de quatro metros
-     de tudo o que vem depois, que e o que passaria por tras delas. Cedem
-     no fecho como o resto: "tudo se desmancha". */
-  if(nRetornoIdx > 0 && retornoInverso > 0.004 && fecho < 0.995){
+  /* O RETORNO INVERSO. A MESMA floresta do comeco, de cabeca para baixo:
+     a mesma malha (bR), com a virada do VS_SOLIDA ligada e o forro em
+     RETORNO_TETO, la no alto -- e o brota faz o crescimento DESCER, das
+     raizes para as copas, em direcao a cabeca de quem olha.
+
+     Que seja a mesma e o ponto, e nao economia: do primeiro cenario ao
+     quarto a obra so se afasta -- a floresta vira estrela, estrela vira
+     planeta, planeta vira agua. Aqui ela RETORNA, pelo lado de cima e ao
+     contrario. Outra floresta seria outra coisa acontecendo (as raizes de
+     malha propria de 14/09 eram isso, e sairam); esta e a do comeco
+     voltando, e e disso que o fim e feito.
+
+     So as arvores: nem pedras, nem grama, nem folhagem -- "e so as arvores
+     mesmo". Bloco proprio porque a mata do chao esta em zero aqui (e por
+     isso o retorno le como retorno e nao como espelho). Nao escreve
+     profundidade: pele de noite meio translucida, e nada passa por tras
+     dela a onze metros. Cede no fecho como o resto. */
+  if(MATA_SOLIDA && nIdxR > 0 && retornoInverso > 0.004 && fecho < 0.995){
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.enable(gl.BLEND);
@@ -10158,26 +10044,28 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.depthMask(false);
     gl.useProgram(progSolida);
     soltarAtributos();
+    bordaCheia();
     mandarMvp(locSo.mvp, mvp);
     gl.uniform1f(locSo.tempo, relogio);
     gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
     gl.uniform1f(locSo.materia, 17.0);
-    gl.uniform1f(locSo.inverte, 0.0);
-    gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.inverte, 1.0);
+    gl.uniform3f(locSo.desloca, 0, RETORNO_TETO, 0);
     gl.uniform1f(locSo.crescimento, retornoInverso);
     gl.uniform1f(locSo.presenca, retornoInverso * (1 - fecho));
     gl.uniform1f(locSo.escalaObj, 1.0);
     gl.uniform1f(locSo.inflar, 0.0);
-    gl.uniform1f(locSo.brota, 0.0);     // pendurada: so o alfa cresce
-    gl.uniform1f(locSo.balanca, 1.0);   // a ponta oscila, a base nao
+    gl.uniform1f(locSo.brota, 1.0);     // colada no forro por nascer, e desce
+    gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.ondula, 0.0);
     gl.uniform4f(locSo.luzCasulo, 0, 0, 0, 0);
     gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
-    ligar(aSo.pos, bRetorno.pos, 3); ligar(aSo.nor, bRetorno.nor, 3);
-    ligar(aSo.alt, bRetorno.alt, 1); ligar(aSo.fase, bRetorno.fase, 1);
-    ligar(aSo.borda, bRetorno.borda, 1);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bRetorno.idx);
-    gl.drawElements(gl.TRIANGLES, nRetornoIdx, gl.UNSIGNED_SHORT, 0);
+    ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
+    ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+    gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+    gl.uniform1f(locSo.inverte, 0.0);
+    gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.depthMask(true);
     gl.disable(gl.CULL_FACE);
     gl.disable(gl.BLEND);

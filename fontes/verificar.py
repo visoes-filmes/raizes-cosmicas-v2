@@ -15,7 +15,10 @@ CARREGAR a pagina — quando ja custaram uma viagem ao navegador:
      entre shaders, cada um e um programa fechado;
   5. chaves desequilibradas dentro de um shader;
   6. uniforme declarado e nunca buscado, que nao quebra nada e por isso
-     passa despercebido.
+     passa despercebido;
+  7. erro de sintaxe no JavaScript -- uma linha duplicada por um remendo
+     (14/09) deixou um "if(" a mais, e a obra morreu ao carregar sem que
+     nada aqui reclamasse. O node confere em um segundo, se existir.
 
 Rodar isto custa um segundo. Cada um destes ja aconteceu aqui.
 """
@@ -238,6 +241,21 @@ for _vs, _fs in re.findall(r"programa\((VS_\w+),\s*(FS_\w+)\)", codigo):
                         + " compartilha declaracao entre eles")
 
 
+# ── 8. sintaxe do JavaScript, pelo node ──────────────────────────────
+# Cada <script> vai para um arquivo e passa por "node --check". Sem node
+# na maquina, pula em silencio: e conferencia extra, nao condicao.
+import shutil
+import subprocess
+import tempfile
+if shutil.which("node"):
+    for _i, _sc in enumerate(re.findall(r"<script>([\s\S]*?)</script>", fonte)):
+        _tmp = os.path.join(tempfile.gettempdir(), "verificar_%d.js" % _i)
+        io.open(_tmp, "w", encoding="utf-8").write(_sc)
+        _r = subprocess.run(["node", "--check", _tmp], capture_output=True, text=True)
+        if _r.returncode:
+            _erro = [ln for ln in _r.stderr.splitlines() if "Error" in ln or _tmp in ln]
+            problemas.append("SINTAXE no script " + str(_i + 1) + ": "
+                             + " | ".join(_erro[:2]).replace(_tmp, "script"))
 
 print("shaders: " + str(len(blocos)) + "   linhas: " + str(len(fonte.splitlines())))
 if problemas:

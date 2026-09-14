@@ -290,10 +290,10 @@ misturam. É por isso que não há corte em lugar nenhum da obra.
 
 ```js
 const CENAS = {
-  1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72, inverter:0 },
-  2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58, inverter:0 },
-  3: { ceu:2, tinta:0.92, neblina:0.16, ... ini:0.30, fim:0.86, inverter:0 },
-  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:-1.0, fim:-0.5, inverter:1 },
+  1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72 },
+  2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58 },
+  3: { ceu:2, tinta:0.92, neblina:0.16, ... ini:0.30, fim:0.86 },
+  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:-1.0, fim:-0.5 },
 };
 ```
 
@@ -323,9 +323,14 @@ const CENAS = {
   > fora da cúpula aparece cinza (é o passthrough de mentira); no headset
   > era a sala de verdade — e agora não é mais nada, porque estamos no
   > espaço.
-- `inverter` — o cenário 4 lê o céu **de cabeça para baixo**. É o que faz a
-  floresta do primeiro cenário reaparecer sob os pés no último, sem custar
-  uma imagem nova.
+- **A pintura se espelha no horizonte** (14/09): a estereográfica usa
+  `|d.y|`, então acima e abaixo do horizonte há a mesma pintura, com o
+  centro no zênite e no nadir — e o horizonte não é emenda, porque os dois
+  lados chegam nele pelo mesmo pixel. Nos cenários 1–3 não se vê (abaixo é
+  transparente); no 4, que é céu inteiro, é o que faz o alto ser céu. Havia
+  um `inverter` que lia o céu de cabeça para baixo no cenário 4 para pôr a
+  pintura sob os pés — e o que sobrava em cima era a beirada da pintura
+  esticada, em riscos. Saiu.
 
 **O que há no cenário dos planetas** (inventário de 11/09, medido por
 chamada de desenho aos 5:00): a cúpula da noite, 84 estrelas, o Sol com
@@ -732,26 +737,23 @@ outras): sem isso as partes escuras da faixa expandida ficavam como
 fantasmas cinzentos. Uma nebulosa de ruído atrás de cada pintura foi tentada
 e saiu: no escuro do cenário lia como "formas cinza estranhas".
 
-### As raízes do retorno inverso (14/09)
+### O retorno inverso: a floresta do começo, lá no alto (14/09)
 
-"As árvores estão confusas." O retorno inverso (8:48 em diante) era a
-floresta inteira do cenário 1 espelhada no forro — doze árvores de cabeça
-para baixo, com galho para todo lado —, e contra o céu inteiro do cenário 4
-elas viravam um emaranhado de vultos. Árvore de cabeça para baixo não lê
-como raiz. Agora são **sete raízes em malha própria** (`prepararRetorno`,
-`RETORNO_RAIZES`, `RETORNO_TETO`): cada uma um fio grosso no alto que afina
-até a ponta, dois ramos em ângulo fechado que tornam a cair, pelos finos no
-trecho de baixo. Pendem de 4,2 m (de cima do céu pintado, não do teto da
-sala, que não existe mais nesse cenário), a 2,3–3,3 m de quem olha — fora do
-passo — e **nunca na frente**: os 90° da frente são do teatro e da deusa.
-Descem dos 8:48 aos 9:36 (antes acabava aos 9:46, com o fecho já começado)
-e vão com o resto no fecho. São geradas já penduradas e o crescimento é só
-alfa (`brota` 0): o espelho com `brota` comprimia a frente de crescimento
-contra o forro, e num fio de raiz isso era uma fita amassada descendo.
-Matéria **17** no `FS_SOLIDA`: corpo de terra escura com a noite por dentro,
-e **um fio de luz na beira e a seiva descendo no ouro pálido das raízes
-pintadas no céu** — são as mesmas raízes, agora em corpo. `RETORNO_RAIZES =
-0` tira o retorno inteiro. Visto só na bancada; nada conferido no aparelho.
+"As árvores estão confusas" (13/09) → sete raízes em malha própria foram
+tentadas e saíram no mesmo dia: **"você tem que reproduzir as mesmas
+árvores do primeiro cenário, e é só as árvores mesmo; vindo de cabeça para
+baixo, de cima, crescendo em direção à cabeça da pessoa — mas alto: a pessoa
+olha para cima e vê uma floresta, não tão perto dela."** Então o retorno é
+a **mesma malha da mata** (`bR`, a mãe e as onze), com a virada do
+`VS_SOLIDA` e o forro em `RETORNO_TETO = 11,2 m`: a árvore mais alta tem
+7,2 m, e a copa mais baixa para a 4 m do chão — dois metros e meio acima
+dos olhos. O `brota` faz o crescimento descer, das raízes para as copas, dos
+8:48 aos 9:36; some com o resto no fecho. O que ficava confuso era o forro
+da sala (3,15 m): as copas passavam pelo chão e os troncos cruzavam o olhar.
+Só as árvores — nem pedras, grama ou folhagem. Matéria **17** no
+`FS_SOLIDA`: a mesma pele de noite das árvores (8) com um fio de luz na
+beira, no ouro pálido das raízes pintadas no céu, porque a onze metros
+contra a pintura elas são silhueta. Visto só na bancada.
 
 ### O contorno dos corpos (12/09)
 
