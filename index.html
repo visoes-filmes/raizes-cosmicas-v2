@@ -2208,10 +2208,16 @@ function montarHorizonteSolido(){
     plantarMalha(m, 'pedra-' + (4 + i%4), [Math.sin(ang)*d, -0.12, -Math.cos(ang)*d],
                  0.5 + rnd()*0.7, rnd()*6.28, 0);
   }
-  for(let i=0;i<6;i++){                    // as raizes no ceu
+  /* AS SEIS ALGAS QUE ERAM "RAIZES NO CEU" DESCERAM PARA A AGUA -- 14/09,
+     "tem plantas de superficie flutuando; coloque debaixo da agua". Ficavam
+     a 2,6-5 m de altura, e o que se via era alga voando. Agora tem o pe
+     um palmo abaixo do fundo e no maximo 0,9 m de altura: ficam inteiras
+     sob a lamina (NIVEL_AGUA, 0,95). Continuam no anel de fora, entre as
+     porcoes de terra e o horizonte. */
+  for(let i=0;i<6;i++){                    // as algas de fora, sob a agua
     const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
-    const base = [Math.sin(ang)*d, 2.6 + rnd()*2.4, -Math.cos(ang)*d];
-    const esc = 0.6 + rnd()*0.9, giro = rnd()*6.28, fase = rnd()*6.283;
+    const base = [Math.sin(ang)*d, -0.1, -Math.cos(ang)*d];
+    const esc = 0.5 + rnd()*0.4, giro = rnd()*6.28, fase = rnd()*6.283;
     const alga = i%2 ? ['alga-a-', 22] : ['alga-c-', 16];
     for(let k=0;k<alga[1];k++) plantarMalha(r, alga[0] + k, base, esc, giro, fase);
   }
@@ -4122,7 +4128,7 @@ const FS_SALA = `
 precision highp float;
 uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
-uniform float longe;        // quanto o alto do ceu recua para a noite (por cenario)
+uniform float longe;        // estrelas finas sobre a pintura, por cenario (o planeta rosa)
 uniform float giroCeu;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
@@ -4241,11 +4247,13 @@ void main(){
      cupula (sao sessenta metros, e ela acompanha a cabeca -- nao ha
      paralaxe que a denuncie): e o que se ve nele, e sao duas coisas.
 
-     MENOS LUZ, E UM DEGRADE SEM BEIRA: a pintura escurece para o
-     horizonte e se abre para o zenite, numa passagem que atravessa o ceu
-     inteiro -- qualquer beira visivel desenha a cupula, e cupula com
-     beira e lona a dez metros (uma faixa de noite so no horizonte foi
-     tentada e virou justamente isso: um disco rosa com borda).
+     UMA GRADUACAO BEM LONGA, da transparencia ate o ceu: e o par
+     inicio/fim de sempre (grad, logo abaixo), so que no planeta rosa ele
+     vai do horizonte (0) ate 0,85 -- "pode ter mais rosa para baixo, bem
+     pouco, na linha do horizonte, em volta do cenario; uma graduacao bem
+     longa" (14/09). Escurecer a pintura para o horizonte foi tentado antes
+     e saiu: com beira vira disco rosa com borda, e sem beira tirava
+     justamente o rosa de baixo que ela pediu.
 
      E PONTOS SOBRE A MANCHA: estrelas finas, uma por celula de um hash no
      plano da projecao, com brilho e posicao sorteados. Ponto nitido sobre
@@ -4255,8 +4263,6 @@ void main(){
      tem as suas.
 
      Por cenario: no planeta rosa longe = 0,8; nos outros, zero. */
-  float baixo = 1.0 - smoothstep(0.0, 0.9, clamp(dir.y, 0.0, 1.0));
-  arte = mix(arte, vec3(0.020, 0.019, 0.041) + arte * 0.30, baixo * longe * 0.7);
   if(longe > 0.002){
     vec2 cel = floor(plano * 28.0);
     vec2 sorte = vec2(fract(sin(dot(cel, vec2(127.1, 311.7))) * 43758.5453),
@@ -6982,20 +6988,18 @@ const CENAS = {
        poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72 },
   2: { ceu:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
        poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58 },
-  /* O CEU DO PLANETA ROSA RECUA -- 14/09, "o fundo esta muito proximo do
-     teto, da cabeca; tem que botar mais distante". Tres coisas, e nenhuma
-     e a distancia da cupula (sao 60 m): a TINTA cai de 0,92 para 0,50,
-     porque pintura clara e uniforme sobre a cabeca le como forro aceso e
-     com mais noite no meio ela vira ceu; ela escurece para o horizonte
-     num degrade sem beira e ha estrelas finas sobre ela (longe, no
-     FS_SALA); e o degrade FECHA MAIS
-     CEDO (fim 0,60, 37 graus, em vez de 0,86, 59 graus): entre o alto das
-     paredes e os 59 graus a pintura ficava meio transparente sobre o forro
-     de verdade, e o que se ve atraves da pintura e o forro -- entao a
-     pintura ficava NELE. Opaca logo acima das paredes, ela nao pertence a
-     sala. So o aparelho confirma esta ultima parte. */
-  3: { ceu:2, tinta:0.50, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.60, longe:0.80 },
+  /* O CEU DO PLANETA ROSA -- 14/09, "o fundo esta muito proximo do teto,
+     da cabeca; tem que botar mais distante", e depois: "a graduacao esta
+     muito ruim; tem que ser bem maior, da parte transparente ate virar o
+     ceu; e pode ter mais rosa para baixo, bem pouco, na linha do
+     horizonte, em volta do cenario". Entao a graduacao vai do horizonte
+     (ini 0) ate 0,85 (58 graus): rosa quase nada embaixo, subindo devagar,
+     ceu inteiro so bem em cima. A TINTA cai de 0,92 para 0,60 (mais noite
+     no meio do rosa: pintura clara e uniforme sobre a cabeca le como forro
+     aceso) e ha estrelas finas sobre ela (longe, no FS_SALA). Fechar a
+     cupula cedo (fim 0,60) foi tentado e era o contrario do pedido. */
+  3: { ceu:2, tinta:0.60, neblina:0.16, marmore:0.98, leite:0.20,
+       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.85, longe:0.80 },
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
@@ -10663,7 +10667,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.escalaTinta, 0.055);
         porMalha(bHorizPedra, nHorizPedraIdx, 1.0);
         gl.uniform1f(locSo.escalaTinta, 1.0);
-        // e as raizes do ceu sao materia viva, nao pedra
+        // e as algas de fora sao materia viva, nao pedra
         if(bHorizRaiz && nHorizRaizIdx) porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
