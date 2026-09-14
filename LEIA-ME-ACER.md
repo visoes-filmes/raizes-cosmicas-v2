@@ -773,7 +773,14 @@ tentados no mesmo dia e saíram: era o contrário do pedido. **As seis algas
 que flutuavam a 2,6–5 m ("raízes no céu") desceram para debaixo da água**
 ("tem plantas de superfície flutuando; coloque debaixo da água"): pé um
 palmo abaixo do fundo, no máximo 0,9 m — inteiras sob a lâmina de 0,95. Só
-as águas-vivas ficam em cima. O ser do céu passou a ficar
+as águas-vivas ficam em cima. **A concha saiu da água e cresceu** ("tem
+que aumentar, tudo ficando fora da água"): o disco achatado com o buraco
+negro dentro vai de raio 0,46 a 0,70, flutua com a barriga a um dedo da
+superfície (centro a 1,15 m) e recuou de 1,4 para 1,7 m do meio, porque com
+esse tamanho a beira entrava na área caminhável; a malha da concha dentro
+dele vai a 45 cm e o raio do toque a 0,75. **A estrela-do-mar é grande**
+(60–75 cm, era 20–28) e **as algas foram multiplicadas** (5 de cada tipo em
+vez de 3, e 11 de neon em vez de 7). O ser do céu passou a ficar
 **de frente** (meia volta no giro: com 0,62 eram a nuca e as escápulas) e
 no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
 dele); nos outros cenários segue como era.

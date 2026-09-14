@@ -2126,15 +2126,20 @@ function montarFundoDoMar(){
 
   // 1) O CHAO: alga, coral, concha e a estrela-do-mar
   const f = vazio();
-  emAnel(f, 3, 'alga-a-', 22, 0.30, 0.52, 0, 0);
-  emAnel(f, 3, 'alga-b-',  8, 0.26, 0.44, 0, 0);
-  emAnel(f, 3, 'alga-c-', 16, 0.28, 0.48, 0, 0);
+  /* CINCO DE CADA, e nao tres -- 14/09, "tem umas algas que podem ser
+     multiplicadas harmoniosamente". O emAnel reparte cada tipo pela volta
+     inteira, com um desvio de meio radiano: os tres tipos se entremeiam
+     sem ficar em fila. */
+  emAnel(f, 5, 'alga-a-', 22, 0.30, 0.52, 0, 0);
+  emAnel(f, 5, 'alga-b-',  8, 0.26, 0.44, 0, 0);
+  emAnel(f, 5, 'alga-c-', 16, 0.28, 0.48, 0, 0);
   emAnel(f, 3, 'coral-',  47, 0.22, 0.38, 0, 0);
   emAnel(f, 2, 'conchas-', 6, 0.16, 0.26, 0, 0);
   /* A ESTRELA-DO-MAR NO CHAO, e uma so: ela entra inteira, sem simplificar
      -- e uma chapa fina e a grade a rasga --, e inteira custa vinte e dois
      mil triangulos, dez vezes o que custa uma agua-viva. */
-  emAnel(f, 1, 'estrela-mar-', 1, 0.20, 0.28, 0, 0);
+  // GRANDE -- 14/09, "a estrela tem que ser grande": de 20-28 cm para 60-75
+  emAnel(f, 1, 'estrela-mar-', 1, 0.60, 0.75, 0, 0);
   /* OS TRES DO SKETCHFAB -- 11/09, "esses aqui abaixo adicione ao oceano":
      a planta de fantasia (3Dahlgren), a planta alienigena (ScyBTC) e os
      cogumelos (Duffator). Dois de cada, no mesmo anel, com o pe no chao. A
@@ -2159,8 +2164,8 @@ function montarFundoDoMar(){
      assunto. A alga-a nao entra em neon: ela e ramificada e fina, e em neon
      virava fio de lampada. */
   const a = vazio();
-  emAnel(a, 5, 'alga-c-', 16, 0.24, 0.42, 0, 0);
-  emAnel(a, 2, 'alga-b-',  8, 0.20, 0.32, 0, 0);
+  emAnel(a, 8, 'alga-c-', 16, 0.24, 0.42, 0, 0);
+  emAnel(a, 3, 'alga-b-',  8, 0.20, 0.32, 0, 0);
   const r2 = subir(a);
   if(r2){ bAlgaNeon = r2.b; nAlgaNeonIdx = r2.n; }
 
@@ -2238,7 +2243,7 @@ function montarHorizonteSolido(){
      origem: o deslocamento continua vindo por uniforme na hora do desenho,
      porque a concha se mexe. */
   const cc = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  for(let k=0;k<3;k++) plantarMalha(cc, 'concha-' + k, [0,0,0], 0.30, 0.7, 0);
+  for(let k=0;k<3;k++) plantarMalha(cc, 'concha-' + k, [0,0,0], 0.45, 0.7, 0);
   if(cc.idx.length){
     bConchaMalha = criarBufs(['pos','nor','alt','fase','borda','idx']);
     enviar(bConchaMalha.pos,cc.pos); enviar(bConchaMalha.nor,cc.nor);
@@ -7052,8 +7057,15 @@ const BURACOS = [
 /* A CONCHA do planeta rosa, com o buraco negro dentro. Grande de proposito:
    ela precisa ser achada sem procura. Fica na borda do alcance — perto o
    bastante para a pessoa chegar, longe o bastante para nao estar no
-   caminho enquanto ela olha o resto. */
-const CONCHA = [-0.95, 0.72, -1.05];
+   caminho enquanto ela olha o resto.
+
+   FORA DA AGUA, E MAIOR -- 14/09: "tem que aumentar, tudo ficando fora da
+   agua". Estava com o centro a 0,72 m, abaixo da lamina (0,95): o que se
+   via era um disco de vidro no fundo. Agora o disco achatado (raio 0,70,
+   altura 0,31) flutua com a barriga a um dedo da superficie, centro a
+   1,15 m, e recuou para 1,7 m do meio: com esse tamanho, a 1,4 m a beira
+   dele entrava na area caminhavel. */
+const CONCHA = [-1.14, 1.15, -1.26];
 
 const SERES = [];
 (function(){
@@ -7886,7 +7898,7 @@ function alvosAgora(){
      Tocada, ela chama a mao gigante — que e o que o roteiro ja marcava
      para as 8:25. Como no casulo: o toque ANTECIPA, nao inventa. */
   if(conchaPresenca > 0.3)
-    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.26,
+    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.75,
                  fazer(m){ pulsarEm(CONCHA[0], CONCHA[1], CONCHA[2]); sinoDoToque(3, 0.8);
                           if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
@@ -10830,7 +10842,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
       gl.uniform1i(locAst.pele, 5);
       gl.uniform3f(locAst.centro, CONCHA[0], CONCHA[1], CONCHA[2]);
-      gl.uniform1f(locAst.raio, 0.46);
+      gl.uniform1f(locAst.raio, 0.70);
       gl.uniform1f(locAst.giro, 0.6);
       gl.uniform1f(locAst.achatar, 0.44);
       gl.uniform3f(locAst.cor, 1.0, 0.86, 0.82);
@@ -10937,8 +10949,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     // o buraco dentro da concha, menor e mais fundo
     if(conchaPresenca > 0.004){
       gl.uniform1f(locBo.presenca, conchaPresenca);
-      gl.uniform3f(locBo.centro, CONCHA[0], CONCHA[1] + 0.06, CONCHA[2] + 0.02);
-      gl.uniform1f(locBo.raio, 0.20);
+      gl.uniform3f(locBo.centro, CONCHA[0], CONCHA[1] + 0.09, CONCHA[2] + 0.03);
+      gl.uniform1f(locBo.raio, 0.30);
       gl.uniform1f(locBo.fase, 1.1);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
