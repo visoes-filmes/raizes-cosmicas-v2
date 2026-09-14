@@ -818,8 +818,14 @@ bolhas de vidro soprado empilhadas — um sino grande embaixo, uma pequena,
 uma média com um bico — com cacos de cristal iridescente dentro. "Você
 consegue fazer um ser desse jeito?" Está no planeta rosa, à frente-direita,
 em volta de um ponto a 2 m (`SER_VIDRO`), **andando devagar** como bolha ao
-vento (`ondeVidro`: três senos primos, 0,6 m em xz e 0,15 m em y, nunca a
-menos de 1,4 m do meio), das 6:48 às 8:28 (`vidroPresenca`). Duas malhas
+vento (`ondeVidro`: dois senos primos, 0,6 m em xz, nunca a menos de 1,4 m
+do meio), das 6:48 às 8:28 (`vidroPresenca`). **Boia na água e depois sobe
+ao céu** ("prefiro que flutue, porque está na água; a não ser que ele vá da
+água para o céu, aí sim"): até 7:30 o pé fica um dedo dentro da lâmina,
+subindo e descendo com a mesma onda que o `VS_AGUA` desenha (`ondaDaAgua`,
+a conta copiada); de 7:30 a 8:25 sobe seis metros, devagar. Com 1,9 m
+(`escalaObj` 1,6 — "pode fazer maior") e **branco levemente azulado** ("não
+seja rosa"): o céu refratado entra só um quarto na cor do vidro. Duas malhas
 (`montarSerDeVidro`): **o corpo** — depois de "existe uma forma entre as
 esferas que você não está capturando, como um funil; o biquinho para cima;
 não tão simétricas, mais fluidas, como bolha de sabão" (14/09), não são
