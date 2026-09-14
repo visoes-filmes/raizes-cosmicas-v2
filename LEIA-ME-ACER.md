@@ -815,6 +815,20 @@ mão de mentira da bancada (`raizes.mao`). O ser do céu passou a ficar
 no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
 dele); nos outros cenários segue como era.
 
+### Debaixo da água (14/09)
+
+"Criar uma ambientação debaixo d'água que pareça água, e tenha um solo
+cobrindo tudo, transparente, azulado — mas só aparece quando desce para
+ver; e tem objeto que não precisa ser tão transparente." Quem se abaixa no
+planeta rosa entra na lâmina (0,80 m). Uma medida (`mergulhoDe`: 0 com o
+olho fora, 1 um palmo dentro) liga duas coisas: **o véu** (`FS_MERGULHO`,
+um quad de tela por cima de tudo — inclusive da sala, em RM): verde-azulado
+escurecendo para baixo, com raios de luz descendo do alto e cáusticas
+cintilando; e **o solo** (`FS_SOLO_AGUA`, o vértice da lâmina a dois dedos
+do chão): azulado, translúcido, com as cáusticas ondulando, sumindo com a
+distância. Os seres do fundo ficaram menos transparentes (0,66–0,92). Na
+bancada só se vê com o olho baixo (`window.__olhoY` no `_dev.html`).
+
 ### O ser de vidro (14/09)
 
 Da capa de *Forma Fluida* (Amelia Toledo), mostrada pela direção de arte:

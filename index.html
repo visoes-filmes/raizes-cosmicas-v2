@@ -4277,8 +4277,9 @@ void main(){
      frente): e o bastante para a serra da silhueta sumir sem o corpo
      virar vapor. Os translucidos ganham a faixa larga. */
   float deFrente = smoothstep(0.0, 0.34, 1.0 - raspaoC);
+  // os seres do fundo: "tem objeto que nao precisa ser tao transparente"
   if(materia > 8.5 && materia < 9.5)
-    alfa *= mix(0.45, 0.72, pow(raspaoC, 1.1)) * deFrente;
+    alfa *= mix(0.66, 0.92, pow(raspaoC, 1.1)) * deFrente;
   // o vidro: quase nada de frente, mais denso perto da beira, e a beira some
   else if(materia > 17.5 && materia < 18.5)
     alfa *= mix(0.06, 0.55, pow(raspaoC, 2.0)) * deFrente;
@@ -4671,6 +4672,65 @@ void main(){
    menos de tres metros: o que se quer contornar e gente, nao a sala. O
    mapa e grosso (poucas centenas de pontos de lado), por isso o fio sai
    macio, como uma aura, e nao como linha de caneta. */
+/* ═══════════ DEBAIXO DA AGUA ═══════════
+   14/09: "criar uma ambientacao debaixo d'agua que pareca agua, e tenha um
+   solo cobrindo tudo, transparente, azulado -- mas so aparece quando desce
+   para ver". Quem se abaixa no planeta rosa entra na lamina, e ate aqui o
+   ar de baixo era o mesmo de cima.
+
+   Duas coisas, ligadas pela mesma medida (mergulho: 0 com o olho fora da
+   agua, 1 um palmo dentro):
+
+   O TOM DA AGUA, na tela inteira, por cima de tudo -- inclusive da sala de
+   verdade, em RM: um veu verde-azulado que escurece para baixo, com raios
+   de luz descendo do alto (bandas verticais de ruido, mais fortes em cima)
+   e um cintilar lento de causticas. E o que faz o olho aceitar que esta
+   dentro de agua, e nao atras de um vidro colorido.
+
+   O SOLO: um plano azulado, translucido, rente ao chao de verdade, com as
+   causticas ondulando -- a luz que a lamina la em cima desenha no fundo.
+   Some com a distancia, para nao ter beira. */
+const FS_MERGULHO = `
+precision mediump float;
+uniform float tempo, forca;
+varying vec2 vAtlas;
+float hashM(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float ruidoM(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(hashM(i), hashM(i + vec2(1,0)), f.x), mix(hashM(i + vec2(0,1)), hashM(i + vec2(1,1)), f.x), f.y);
+}
+void main(){
+  vec2 uv = vAtlas;
+  // o veu: mais claro em cima, mais fundo embaixo
+  vec3 cor = mix(vec3(0.05, 0.22, 0.30), vec3(0.30, 0.62, 0.70), uv.y);
+  // os raios: bandas verticais que andam devagar, so no alto
+  float raio = pow(ruidoM(vec2(uv.x * 7.0 + tempo * 0.06, uv.y * 0.8 + tempo * 0.03)), 3.0)
+             * smoothstep(0.25, 1.0, uv.y) * 1.4;
+  // as causticas: duas redes de ruido que se cruzam
+  float caus = ruidoM(uv * 9.0 + vec2(tempo * 0.11, -tempo * 0.07)) * ruidoM(uv * 13.0 - vec2(tempo * 0.09, tempo * 0.05));
+  cor += vec3(0.55, 0.85, 0.95) * (raio * 0.35 + pow(caus, 2.0) * 0.6);
+  float a = (0.34 + 0.12 * (1.0 - uv.y)) * forca;
+  gl_FragColor = vec4(cor * a, a);
+}`;
+const FS_SOLO_AGUA = `
+precision mediump float;
+uniform float tempo, forca;
+uniform vec2 centro;
+varying vec3 vMundo;
+float hashS(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float ruidoS(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(hashS(i), hashS(i + vec2(1,0)), f.x), mix(hashS(i + vec2(0,1)), hashS(i + vec2(1,1)), f.x), f.y);
+}
+void main(){
+  vec2 q = vMundo.xz;
+  float caus = ruidoS(q * 1.6 + vec2(tempo * 0.13, -tempo * 0.09)) * ruidoS(q * 2.3 - vec2(tempo * 0.11, tempo * 0.06));
+  vec3 cor = vec3(0.22, 0.50, 0.62) + vec3(0.55, 0.85, 0.95) * pow(caus, 1.8) * 2.2;
+  float longe = 1.0 - smoothstep(3.5, 8.5, length(q - centro));
+  float a = 0.55 * longe * forca;
+  gl_FragColor = vec4(cor * a, a);
+}`;
+
 const VS_CONTORNO = `
 attribute vec2 aXY;
 void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
@@ -6396,6 +6456,8 @@ const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
 const progTeatro = programa(VS_TEATRO, FS_TEATRO);
+const progMergulho = programa(VS_ASSA, FS_MERGULHO);      // o quad de tela do assador
+const progSoloAgua = programa(VS_AGUA, FS_SOLO_AGUA);     // a mesma lamina, rente ao chao
 const progAgua  = programa(VS_AGUA,  FS_AGUA);
 const progFigu  = programa(VS_FIGU,  FS_FIGU);
 const progBolha = programa(VS_BOLHA, FS_BOLHA);
@@ -8096,6 +8158,7 @@ function seguirBuracoFinal(t){
    quadro. */
 const TOQUE_AGUA = [[0, 0, 99], [0, 0, 99]];
 const TOQUE_AGUA_PLANO = new Float32Array([0, 0, 99, 0, 0, 99]);
+const TOQUE_AGUA_SEM = new Float32Array([0, 0, 99, 0, 0, 99]);     // nunca muda: o solo nao ressoa
 const ULTIMO_ANEL = [[9, 9], [9, 9]];
 function ressoarAgua(dt){
   const lamina = NIVEL_AGUA + nivelExtra;
@@ -8321,6 +8384,10 @@ function conferirToque(dt){
   }
 }
 let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0, vidroPresenca = 0;
+/* quanto o olho esta dentro da agua: 0 fora, 1 um palmo abaixo da lamina */
+function mergulhoDe(olhoPos){
+  return Math.min(1, Math.max(0, (NIVEL_AGUA + nivelExtra - olhoPos[1] + 0.04) / 0.14)) * aguaPresenca;
+}
 let ceuA = 0, ceuB = 0;
 
 /* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
@@ -9848,6 +9915,13 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                giroCeu:uAg('giroCeu'), toque:uAg('toque[0]')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
+const uMe = n=>gl.getUniformLocation(progMergulho,n);
+const locMe = {tempo:uMe('tempo'), forca:uMe('forca')};
+const aMe = {xy: gl.getAttribLocation(progMergulho,'aXY')};
+const uSa = n=>gl.getUniformLocation(progSoloAgua,n);
+const locSa = {mvp:uSa('mvp'), centro:uSa('centro'), nivel:uSa('nivel'), largura:uSa('largura'),
+               tempo:uSa('tempo'), agitacao:uSa('agitacao'), toque:uSa('toque[0]'), forca:uSa('forca')};
+const aSa = {xy: gl.getAttribLocation(progSoloAgua,'aXY')};
 const uTe = n=>gl.getUniformLocation(progTeatro,n);
 const locTe = {mvp:uTe('mvp'), centro:uTe('centro'), tamanho:uTe('tamanho'), faixa:uTe('faixa'),
                subir:uTe('subir'), cor:uTe('cor'), mascara:uTe('mascara'), presenca:uTe('presenca'),
@@ -11014,6 +11088,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         if(bHorizRaiz && nHorizRaizIdx) porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
+      /* O SOLO DEBAIXO DA AGUA, antes dos seres do fundo: azulado,
+         translucido, com as causticas -- e so quando o olho esta dentro
+         da agua. Usa o vertice da lamina com o nivel a dois dedos do chao,
+         e sem ondas de toque (a idade dos toques vai alta). */
+      const mergulho = mergulhoDe(olhoPos);
+      if(mergulho > 0.004){
+        gl.useProgram(progSoloAgua);
+        soltarAtributos();
+        gl.disable(gl.CULL_FACE);
+        mandarMvp(locSa.mvp, mvp);
+        gl.uniform2f(locSa.centro, olhoPos[0], olhoPos[2]);
+        gl.uniform1f(locSa.nivel, 0.03);
+        gl.uniform1f(locSa.largura, 9.5);
+        gl.uniform1f(locSa.tempo, relogio);
+        gl.uniform1f(locSa.agitacao, 0.0);
+        gl.uniform3fv(locSa.toque, TOQUE_AGUA_SEM);
+        gl.uniform1f(locSa.forca, mergulho * fundoDoMar);
+        ligar(aSa.xy, bAgua.xy, 2);
+        gl.drawArrays(gl.TRIANGLES, 0, nAguaVert);
+        gl.useProgram(progSolida);
+        soltarAtributos();
+        gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+        mandarMvp(locSo.mvp, mvp);
+        gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+        gl.uniform1i(locSo.casca, 2);
+      }
       for(const r of bFundo) porMalha(r.b, r.n, 9.0);      // no chao: agua com luz dentro
       gl.uniform1f(locSo.nadar, 1.0);
       for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: o rosa do ceu, e nadando
@@ -11843,6 +11943,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /* 5) DEBAIXO DA AGUA, por cima de tudo -- inclusive da sala, em RM. */
+  const mergulhoVeu = mergulhoDe(olhoPos);
+  if(mergulhoVeu > 0.004){
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+    gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false);
+    gl.useProgram(progMergulho); soltarAtributos();
+    gl.uniform1f(locMe.tempo, relogio);
+    gl.uniform1f(locMe.forca, mergulhoVeu);
+    ligar(aMe.xy, bQuadro, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
   }
 }
 
