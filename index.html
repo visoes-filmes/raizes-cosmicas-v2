@@ -4261,17 +4261,25 @@ void main(){
      E O TESTE E LIMITADO NOS DOIS LADOS. Estava so em "maior que 8,5", e
      com isso o neon caiu dentro dele: um tubo aceso ficava translucido, o
      que e o contrario do que ele e. */
+  /* A SILHUETA SE DESFAZ, COMO NOS PLANETAS -- 14/09, "suaviza a geometria
+     que circunda todas as formas, parecido com o que fez nos planetas; e
+     diminui a opacidade, inclusive das aguas-vivas". E a mesma receita do
+     planeta gasoso (FS_ASTRO): o alfa vai a zero na propria silhueta,
+     por smoothstep de quem-olha-de-frente, e a beira poligonal da malha
+     deixa de existir -- o que se ve e um corpo que termina em ar. Vale
+     para o que e vivo e translucido no planeta rosa: os seres do fundo, as
+     aguas-vivas, o vidro e os cacos. E tudo mais claro: nenhum deles passa
+     de 0,6 de frente. */
+  float deFrente = smoothstep(0.0, 0.34, 1.0 - raspaoC);
   if(materia > 8.5 && materia < 9.5)
-    alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
-  // o vidro: quase nada de frente, denso de esguelha; o cristal, quase inteiro
+    alfa *= mix(0.45, 0.72, pow(raspaoC, 1.1)) * deFrente;
+  // o vidro: quase nada de frente, mais denso perto da beira, e a beira some
   else if(materia > 17.5 && materia < 18.5)
-    alfa *= mix(0.10, 0.80, pow(raspaoC, 2.2));
+    alfa *= mix(0.06, 0.55, pow(raspaoC, 2.0)) * deFrente;
   else if(materia > 18.5 && materia < 19.5)
-    alfa *= 0.75;
-  /* O SER DO CEU ABRE MAIS que o de agua: ele tem o ceu inteiro atras, e um
-     bicho de noite estrelada opaco seria um recorte preto no ceu. */
+    alfa *= 0.50;
   else if(materia > 10.5 && materia < 11.5)
-    alfa *= mix(0.40, 0.90, pow(raspaoC, 1.0));
+    alfa *= mix(0.22, 0.55, pow(raspaoC, 1.0)) * deFrente;
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer

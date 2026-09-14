@@ -844,7 +844,13 @@ com três anéis (o de fora com borda zero: a beira esmaece em vez de cortar
 dentro"), matéria **19**: arco-íris que roda com o ângulo de quem olha, a
 fase do caco, o tempo e a posição dentro do caco (uma película nunca é de
 uma cor só), mais um reflexo branco, somando luz — mexer a cabeça faz o
-cristal cintilar. O fio branco do vidro também é graduado. Só na bancada.
+cristal cintilar. O fio branco do vidro também é graduado. **A silhueta se
+desfaz como nos planetas** ("suaviza a geometria que circunda todas as
+formas, parecido com o que fez nos planetas; diminui a opacidade, inclusive
+das águas-vivas"): no `FS_SOLIDA`, para os seres do fundo (9), as
+águas-vivas (11), o vidro (18) e os cacos (19), o alfa vai a zero na própria
+silhueta por `smoothstep` de quem-olha-de-frente (`deFrente`, a receita do
+planeta gasoso), e nenhum deles passa de 0,6 de frente. Só na bancada.
 
 ### A integra se mexe (14/09)
 
