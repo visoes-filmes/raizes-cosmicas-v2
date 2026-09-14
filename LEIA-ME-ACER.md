@@ -823,10 +823,14 @@ respira 5 cm), das 6:48 às 8:28 (`vidroPresenca`). Duas malhas
 demãos (parede de trás e da frente, que é o que dá espessura) com a
 matéria **18**: o céu atrás lido na direção desviada pela normal (refração
 de mentira), o arco-íris de película de esguelha e um fio branco na beira;
-alfa quase nada de frente e denso de esguelha. **Os cacos** — 110 lascas
-planas sorteadas dentro das bolhas, matéria **19**: arco-íris que roda com
-o ângulo de quem olha, a fase do caco e o tempo, mais um reflexo branco,
-somando luz — mexer a cabeça faz o cristal cintilar. Só na bancada.
+alfa quase nada de frente e denso de esguelha. **Os cacos** — 110 polígonos
+irregulares de 5 a 7 lados sorteados dentro das bolhas, cada um um leque
+com três anéis (o de fora com borda zero: a beira esmaece em vez de cortar
+— "as bordas podem ser levemente graduadas, inclusive as formas geométricas
+dentro"), matéria **19**: arco-íris que roda com o ângulo de quem olha, a
+fase do caco, o tempo e a posição dentro do caco (uma película nunca é de
+uma cor só), mais um reflexo branco, somando luz — mexer a cabeça faz o
+cristal cintilar. O fio branco do vidro também é graduado. Só na bancada.
 
 ### A integra se mexe (14/09)
 

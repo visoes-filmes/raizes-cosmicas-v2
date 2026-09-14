@@ -2248,27 +2248,40 @@ function montarSerDeVidro(){
       v.idx.push(a, c, a+1,  a+1, c, c+1);
     }
   });
-  // os cacos: lascas planas dentro de cada bolha, mais na grande
+  /* OS CACOS: poligonos irregulares de cinco a sete lados, planos, dentro
+     de cada bolha, mais na grande. COM A BEIRA QUE ESMAECE -- 14/09,
+     "as bordas podem ser levemente graduadas, inclusive as formas
+     geometricas dentro": cada caco e um leque com tres aneis -- o centro e
+     um anel a 70 % com borda cheia, e o anel de fora com borda zero. O alfa
+     interpola, e o caco acaba em transparencia em vez de num corte reto.
+     Tamanhos ate nove centimetros na bolha grande, como na capa. */
   const QUANTOS = [70, 10, 30, 0];
   BOLHAS.forEach(([cy, rx, ry], b) => {
     for(let q=0;q<QUANTOS[b];q++){
-      // um ponto dentro da bolha (raiz cubica: uniforme no volume), longe da parede
       const r = Math.cbrt(rnd()) * 0.82, u = rnd()*2-1, th = rnd()*Math.PI*2;
       const sr = Math.sqrt(1 - u*u);
       const c = [sr*Math.cos(th)*r*rx, cy + u*r*ry, sr*Math.sin(th)*r*rx];
       const n = norm([rnd()-0.5, rnd()-0.5, rnd()-0.5]);
       const t1 = norm(cruz(n, Math.abs(n[1]) > 0.8 ? [1,0,0] : [0,1,0])), t2 = cruz(n, t1);
-      const tam = (0.025 + rnd()*0.05) * (rx / 0.32 * 0.6 + 0.4);
-      const base = k.pos.length / 3, fase = rnd()*6.283;
-      for(let e=0;e<4;e++){
-        const ang = e/4*Math.PI*2 + rnd()*0.9, rr = tam * (0.6 + rnd()*0.7);
+      const tam = (0.02 + Math.pow(rnd(), 1.6) * 0.07) * (rx / 0.32 * 0.6 + 0.4);
+      const M = 5 + Math.floor(rnd() * 3), base = k.pos.length / 3, fase = rnd()*6.283;
+      const ponto = (ang, rr, borda) => {
         const px = c[0] + (t1[0]*Math.cos(ang) + t2[0]*Math.sin(ang))*rr;
         const py = c[1] + (t1[1]*Math.cos(ang) + t2[1]*Math.sin(ang))*rr;
         const pz = c[2] + (t1[2]*Math.cos(ang) + t2[2]*Math.sin(ang))*rr;
         k.pos.push(px, py, pz); k.nor.push(n[0], n[1], n[2]);
-        k.alt.push(py / ALTO); k.fase.push(fase); k.borda.push(1);
+        k.alt.push(py / ALTO); k.fase.push(fase); k.borda.push(borda);
+      };
+      ponto(0, 0, 1);                                  // o centro
+      const raios = [];
+      for(let e=0;e<M;e++){ raios.push([e/M*Math.PI*2 + rnd()*0.6, tam * (0.6 + rnd()*0.7)]); }
+      for(const [ang, rr] of raios) ponto(ang, rr * 0.70, 1);   // o anel de dentro
+      for(const [ang, rr] of raios) ponto(ang, rr, 0);          // a beira, que some
+      for(let e=0;e<M;e++){
+        const i1 = base + 1 + e, i2 = base + 1 + (e+1)%M;       // anel de dentro
+        const o1 = i1 + M, o2 = i2 + M;                          // anel de fora
+        k.idx.push(base, i1, i2,  i1, o1, o2,  i1, o2, i2);
       }
-      k.idx.push(base, base+1, base+2,  base, base+2, base+3);
     }
   });
   const subir = (m) => {
@@ -3461,11 +3474,15 @@ void main(){
        e devagar com o tempo -- mexer a cabeca faz o cristal cintilar, como
        na capa. Por cima, um brilho branco de reflexo. Soma luz no desenho:
        e vidro aceso, nao superficie. */
-    float pelK = dot(n, normalize(olhoPos - vMundo)) * 1.5 + vFase * 0.7 + tempo * 0.03;
+    /* A cor tambem muda POR DENTRO do caco (rugas na posicao do mundo):
+       uma pelicula nunca e de uma cor so, ela passa de um tom ao outro ao
+       longo da lasca -- e o que na capa faz cada caco ter um arco-iris. */
+    float pelK = dot(n, normalize(olhoPos - vMundo)) * 1.5 + vFase * 0.7 + tempo * 0.03
+               + rugas(vMundo * 28.0) * 0.8;
     vec3 arcoK = 0.5 + 0.5 * cos(6.2832 * (pelK + vec3(0.0, 0.33, 0.67)));
-    c = mix(vec3(0.85), arcoK, 0.75) * 0.9;
+    c = mix(vec3(0.85), arcoK, 0.8) * 0.9;
     vec3 rflK = reflect(normalize(vMundo - olhoPos), n);
-    c += vec3(1.0) * pow(max(dot(rflK, normalize(vec3(0.3, 0.9, 0.3))), 0.0), 30.0) * 0.8;
+    c += vec3(1.0) * pow(max(dot(rflK, normalize(vec3(0.3, 0.9, 0.3))), 0.0), 18.0) * 0.6;
   } else if(materia > 17.5 && materia < 18.5){
     /* 18 -- O VIDRO. O ceu que esta atras, lido na direcao desviada pela
        normal (refracao de mentira: o olho aceita), o arco-iris de pelicula
@@ -3479,8 +3496,9 @@ void main(){
     c = texture2D(casca, clamp(planoV / (2.0 * meiaV) + 0.5, 0.0, 1.0)).rgb * 0.9;
     float pelV = raspaoC * 2.2 + vFase * 0.4;
     vec3 arcoV = 0.5 + 0.5 * cos(6.2832 * (pelV + vec3(0.0, 0.33, 0.67)));
-    c += arcoV * pow(raspaoC, 1.6) * 0.35;
-    c += vec3(1.0) * pow(raspaoC, 4.0) * 0.5;
+    // a beira e graduada, nao um risco: o branco entra devagar e afina no fim
+    c += arcoV * pow(raspaoC, 1.3) * 0.28;
+    c += vec3(1.0) * (pow(raspaoC, 2.0) * 0.12 + pow(raspaoC, 7.0) * 0.30);
   } else if(materia > 15.5 && materia < 16.5){
     // 16 -- AS FOLHAS, no azul do ceu
     c = aFolha(vMundo * escalaTinta, vAlt);
@@ -4177,9 +4195,9 @@ void main(){
     alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
   // o vidro: quase nada de frente, denso de esguelha; o cristal, quase inteiro
   else if(materia > 17.5 && materia < 18.5)
-    alfa *= mix(0.16, 0.92, pow(raspaoC, 1.4));
+    alfa *= mix(0.10, 0.80, pow(raspaoC, 2.2));
   else if(materia > 18.5 && materia < 19.5)
-    alfa *= 0.85;
+    alfa *= 0.75;
   /* O SER DO CEU ABRE MAIS que o de agua: ele tem o ceu inteiro atras, e um
      bicho de noite estrelada opaco seria um recorte preto no ceu. */
   else if(materia > 10.5 && materia < 11.5)
