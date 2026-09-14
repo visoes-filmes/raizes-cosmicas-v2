@@ -6871,8 +6871,14 @@ const CENAS = {
        poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58, inverter:0 },
   3: { ceu:2, ceuB:2, tinta:0.92, neblina:0.16, marmore:0.98, leite:0.20,
        poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86, inverter:0 },
+  /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
+     esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
+     fechava a 50: no meio, meio transparente, a pintura escura se misturava
+     com a sala e virava mancha. Com inicio e fim abaixo do horizonte a
+     cupula e opaca na volta inteira: em cima a pintura invertida, embaixo a
+     noite. E o unico cenario sem a sala: estamos no espaco. */
   4: { ceu:1, ceuB:0, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
-       poeira:2000, sopro:0.8, raizes:0, ini:0.10, fim:0.55, inverter:1 },
+       poeira:2000, sopro:0.8, raizes:0, ini:-1.0, fim:-0.5, inverter:1 },
 };
 
 function cenaEm(t){
