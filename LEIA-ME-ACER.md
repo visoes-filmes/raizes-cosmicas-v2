@@ -850,7 +850,14 @@ formas, parecido com o que fez nos planetas; diminui a opacidade, inclusive
 das águas-vivas"): no `FS_SOLIDA`, para os seres do fundo (9), as
 águas-vivas (11), o vidro (18) e os cacos (19), o alfa vai a zero na própria
 silhueta por `smoothstep` de quem-olha-de-frente (`deFrente`, a receita do
-planeta gasoso), e nenhum deles passa de 0,6 de frente. Só na bancada.
+planeta gasoso), e nenhum deles passa de 0,6 de frente. E depois **em tudo**
+("faz em tudo mesmo; tirar ruídos e serrilhados"): todo corpo que passa pelo
+`FS_SOLIDA` — árvore, pedra, cogumelo, crisálida, montanha — perde a beira
+poligonal numa faixa estreita (0,10 de frente), o bastante para a serra da
+silhueta sumir sem o corpo virar vapor; o grão do céu caiu de 0,30 para
+0,14 e as estrelas finas do planeta rosa ficaram mais macias (ponto duro
+serrilha). A suavização de amostras (MSAA) já estava pedida no contexto e
+na camada do headset. Só na bancada.
 
 ### A integra se mexe (14/09)
 

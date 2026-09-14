@@ -4270,6 +4270,11 @@ void main(){
      para o que e vivo e translucido no planeta rosa: os seres do fundo, as
      aguas-vivas, o vidro e os cacos. E tudo mais claro: nenhum deles passa
      de 0,6 de frente. */
+  /* E EM TUDO -- "faz em tudo mesmo; tirar ruidos e serrilhados": os
+     corpos (arvore, pedra, cogumelo, crisalida, tudo o que passa por aqui)
+     tambem perdem a beira poligonal, numa faixa estreita (0,10 de
+     frente): e o bastante para a serra da silhueta sumir sem o corpo
+     virar vapor. Os translucidos ganham a faixa larga. */
   float deFrente = smoothstep(0.0, 0.34, 1.0 - raspaoC);
   if(materia > 8.5 && materia < 9.5)
     alfa *= mix(0.45, 0.72, pow(raspaoC, 1.1)) * deFrente;
@@ -4280,6 +4285,8 @@ void main(){
     alfa *= 0.50;
   else if(materia > 10.5 && materia < 11.5)
     alfa *= mix(0.22, 0.55, pow(raspaoC, 1.0)) * deFrente;
+  else
+    alfa *= smoothstep(0.0, 0.10, 1.0 - raspaoC);
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
@@ -4487,7 +4494,7 @@ void main(){
      O que sobra e superficie: a propria aquarela lida numa frequencia alta,
      como multiplicador em volta de um. Nao muda o desenho, muda a pele. */
   float grao = texture2D(panorama, st * vec2(9.0, 6.0)).g;
-  arte *= 1.0 + (grao - 0.5) * 0.30;
+  arte *= 1.0 + (grao - 0.5) * 0.14;      // era 0,30: "tirar ruidos" (14/09)
 
   arte *= corCena;
 
@@ -4521,7 +4528,7 @@ void main(){
     vec2 centroEstrela = (cel + 0.15 + 0.70 * sorte) / 28.0;
     float dE = length(plano - centroEstrela) * 28.0;
     float brilho = smoothstep(0.55, 1.0, sorte.x) * (0.35 + 0.65 * sorte.y);
-    float estrela = exp(-dE * dE * 90.0) * brilho;
+    float estrela = exp(-dE * dE * 40.0) * brilho * 0.8;   // macias: ponto duro serrilha
     arte += vec3(0.95, 0.90, 1.00) * estrela * longe * (0.7 + 0.3 * sin(tempo * 0.7 + sorte.y * 40.0));
   }
 
