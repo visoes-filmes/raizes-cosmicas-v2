@@ -2212,6 +2212,85 @@ function montarFundoDoMar(){
    triangulos contra os poucos pontos de antes -- e a dez metros de altura,
    contra o ceu, o que se le delas e a silhueta. Seis silhuetas dizem o
    mesmo que dez e cabem no orcamento. */
+/* ═══════════ O SER DE VIDRO ═══════════
+
+   Mostrado em 14/09: a capa de "Forma Fluida" (Amelia Toledo) -- bolhas de
+   vidro soprado empilhadas, uma grande embaixo como um sino, uma pequena,
+   uma media com um bico no alto, e dentro delas cacos de cristal que
+   fazem arco-iris. "Voce consegue fazer um ser desse jeito?"
+
+   Sao duas malhas. AS BOLHAS: esferas (a de baixo achatada, como o sino),
+   desenhadas duas vezes -- a parede de tras e depois a da frente --, com a
+   materia 18: o ceu atras, desviado pela normal (a refracao de mentira que
+   basta ao olho), o arco-iris de pelicula de esguelha e um fio branco na
+   beira. OS CACOS: lascas planas, sorteadas dentro de cada bolha, com a
+   materia 19: cor de arco-iris que muda com o angulo de quem olha e com a
+   fase de cada caco, somando luz -- e o que faz o cristal quebrado
+   cintilar quando a cabeca se mexe. O ser flutua sobre a agua do planeta
+   rosa, a frente-direita, e respira (sobe e desce cinco centimetros). */
+const SER_VIDRO = [1.55, 1.05, -1.25];
+let bVidro = null, nVidroIdx = 0, bCristal = null, nCristalIdx = 0;
+function montarSerDeVidro(){
+  const rnd = prng(7331);
+  const v = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const k = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const ALTO = 1.07;
+  // as bolhas: centro, raio horizontal, raio vertical
+  const BOLHAS = [[0.26, 0.32, 0.26], [0.60, 0.10, 0.10], [0.85, 0.17, 0.17], [1.04, 0.03, 0.035]];
+  BOLHAS.forEach(([cy, rx, ry], b) => {
+    const AN = 22, GO = 34, base = v.pos.length / 3;
+    for(let i=0;i<=AN;i++){
+      const phi = i/AN*Math.PI;
+      for(let j=0;j<=GO;j++){
+        const th = j/GO*Math.PI*2;
+        const nx = Math.sin(phi)*Math.cos(th), ny = Math.cos(phi), nz = Math.sin(phi)*Math.sin(th);
+        v.pos.push(nx*rx, cy + ny*ry, nz*rx);
+        // a normal de um elipsoide: a do ponto dividida pelos raios ao quadrado
+        const n = norm([nx/(rx*rx), ny/(ry*ry), nz/(rx*rx)]);
+        v.nor.push(n[0], n[1], n[2]);
+        v.alt.push((cy + ny*ry) / ALTO); v.fase.push(b * 1.3); v.borda.push(1);
+      }
+    }
+    for(let i=0;i<AN;i++) for(let j=0;j<GO;j++){
+      const a = base + i*(GO+1) + j, c = a + GO + 1;
+      v.idx.push(a, c, a+1,  a+1, c, c+1);
+    }
+  });
+  // os cacos: lascas planas dentro de cada bolha, mais na grande
+  const QUANTOS = [70, 10, 30, 0];
+  BOLHAS.forEach(([cy, rx, ry], b) => {
+    for(let q=0;q<QUANTOS[b];q++){
+      // um ponto dentro da bolha (raiz cubica: uniforme no volume), longe da parede
+      const r = Math.cbrt(rnd()) * 0.82, u = rnd()*2-1, th = rnd()*Math.PI*2;
+      const sr = Math.sqrt(1 - u*u);
+      const c = [sr*Math.cos(th)*r*rx, cy + u*r*ry, sr*Math.sin(th)*r*rx];
+      const n = norm([rnd()-0.5, rnd()-0.5, rnd()-0.5]);
+      const t1 = norm(cruz(n, Math.abs(n[1]) > 0.8 ? [1,0,0] : [0,1,0])), t2 = cruz(n, t1);
+      const tam = (0.025 + rnd()*0.05) * (rx / 0.32 * 0.6 + 0.4);
+      const base = k.pos.length / 3, fase = rnd()*6.283;
+      for(let e=0;e<4;e++){
+        const ang = e/4*Math.PI*2 + rnd()*0.9, rr = tam * (0.6 + rnd()*0.7);
+        const px = c[0] + (t1[0]*Math.cos(ang) + t2[0]*Math.sin(ang))*rr;
+        const py = c[1] + (t1[1]*Math.cos(ang) + t2[1]*Math.sin(ang))*rr;
+        const pz = c[2] + (t1[2]*Math.cos(ang) + t2[2]*Math.sin(ang))*rr;
+        k.pos.push(px, py, pz); k.nor.push(n[0], n[1], n[2]);
+        k.alt.push(py / ALTO); k.fase.push(fase); k.borda.push(1);
+      }
+      k.idx.push(base, base+1, base+2,  base, base+2, base+3);
+    }
+  });
+  const subir = (m) => {
+    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
+    enviar(b.fase,m.fase); enviar(b.borda,m.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+    return b;
+  };
+  bVidro = subir(v); nVidroIdx = v.idx.length;
+  bCristal = subir(k); nCristalIdx = k.idx.length;
+}
+
 let bHorizPedra = null, nHorizPedraIdx = 0;
 let bHorizRaiz = null, nHorizRaizIdx = 0;
 let bConchaMalha = null, nConchaMalhaIdx = 0;
@@ -3242,6 +3321,9 @@ uniform float escalaTinta;   // quantas voltas da pintura por metro
     13  camuflagem -- a pele mostra o ceu que estaria atras
     17  a floresta do retorno inverso -- a pele de noite da 8, com um fio
         de luz na beira, porque la em cima ela e silhueta contra o ceu
+    18  vidro -- o ser de vidro do planeta rosa: o ceu atras, refratado,
+        com o arco-iris de pelicula de esguelha
+    19  cristal -- os cacos dentro dele: arco-iris pelo angulo, somando luz
 
    Aquarela e OBRA, e nao material: como pele de corpo pequeno ela so tem
    dois destinos, e os dois aconteceram -- em escala grande uma mancha
@@ -3381,7 +3463,33 @@ void main(){
      E a armadilha ja tinha mordido aqui uma vez, no alfa da crisalida, com
      o cogumelo caindo dentro dela; esta escrito no comentario la embaixo.
      Duas vezes e regra: cada materia tem UM ramo, e o ramo diz qual. */
-  if(materia > 15.5 && materia < 16.5){
+  if(materia > 18.5 && materia < 19.5){
+    /* 19 -- OS CACOS DE CRISTAL. A cor e o arco-iris de uma pelicula fina:
+       roda com o angulo entre a normal e quem olha, com a fase de cada caco
+       e devagar com o tempo -- mexer a cabeca faz o cristal cintilar, como
+       na capa. Por cima, um brilho branco de reflexo. Soma luz no desenho:
+       e vidro aceso, nao superficie. */
+    float pelK = dot(n, normalize(olhoPos - vMundo)) * 1.5 + vFase * 0.7 + tempo * 0.03;
+    vec3 arcoK = 0.5 + 0.5 * cos(6.2832 * (pelK + vec3(0.0, 0.33, 0.67)));
+    c = mix(vec3(0.85), arcoK, 0.75) * 0.9;
+    vec3 rflK = reflect(normalize(vMundo - olhoPos), n);
+    c += vec3(1.0) * pow(max(dot(rflK, normalize(vec3(0.3, 0.9, 0.3))), 0.0), 30.0) * 0.8;
+  } else if(materia > 17.5 && materia < 18.5){
+    /* 18 -- O VIDRO. O ceu que esta atras, lido na direcao desviada pela
+       normal (refracao de mentira: o olho aceita), o arco-iris de pelicula
+       que o vidro fino faz de esguelha, e o fio branco da beira. O alfa,
+       la embaixo, e quase nada de frente e denso de esguelha -- e assim
+       que se ve uma bolha. */
+    vec3 dvV = normalize(vMundo - olhoPos);
+    vec3 drV = normalize(dvV - n * 0.22);
+    vec2 planoV = vec2(drV.x, -drV.z) * (2.0 / (1.0 + max(drV.y, -0.94)));
+    vec2 meiaV = vec2(2.0 * aspectoCeu, 2.0);
+    c = texture2D(casca, clamp(planoV / (2.0 * meiaV) + 0.5, 0.0, 1.0)).rgb * 0.9;
+    float pelV = raspaoC * 2.2 + vFase * 0.4;
+    vec3 arcoV = 0.5 + 0.5 * cos(6.2832 * (pelV + vec3(0.0, 0.33, 0.67)));
+    c += arcoV * pow(raspaoC, 1.6) * 0.35;
+    c += vec3(1.0) * pow(raspaoC, 4.0) * 0.5;
+  } else if(materia > 15.5 && materia < 16.5){
     // 16 -- AS FOLHAS, no azul do ceu
     c = aFolha(vMundo * escalaTinta, vAlt);
   } else if(materia > 13.5 && materia < 14.5){
@@ -3894,7 +4002,8 @@ void main(){
      amostrado ja vem com a luz que tem -- sombrear por cima poria uma
      segunda iluminacao sobre a primeira, e a mancha escura no meio do
      corpo seria justamente o que denuncia o bicho. */
-  if(materia > 16.5)                      piso = 0.38;   // a floresta virada: como a 8
+  if(materia > 17.5)                      piso = 1.00;   // vidro e cristal: luz, nao sombreia
+  else if(materia > 16.5)                 piso = 0.38;   // a floresta virada: como a 8
   else if(materia > 15.5)                 piso = 0.90;   // as folhas: acesas
   /* A MAE SOMBREIA COMO AS OUTRAS -- e a mesma casca, e sombra diferente
      seria justamente o que denunciaria que sao duas materias. */
@@ -3934,7 +4043,7 @@ void main(){
      noite contra ceu de noite e vulto sobre vulto, que foi o que a fez
      confusa. O fio separa cada galho do fundo e diz que ele e cilindro.
      No ouro palido das raizes pintadas no ceu, que e de onde ela pende. */
-  if(materia > 16.5) c += vec3(0.85, 0.80, 0.52) * pow(raspaoC, 3.0) * 0.65;
+  if(materia > 16.5 && materia < 17.5) c += vec3(0.85, 0.80, 0.52) * pow(raspaoC, 3.0) * 0.65;
 
   /* A CRISALIDA REBATE NO QUE ESTA EM VOLTA.
 
@@ -4074,6 +4183,11 @@ void main(){
      que e o contrario do que ele e. */
   if(materia > 8.5 && materia < 9.5)
     alfa *= mix(0.68, 1.0, pow(raspaoC, 1.1));
+  // o vidro: quase nada de frente, denso de esguelha; o cristal, quase inteiro
+  else if(materia > 17.5 && materia < 18.5)
+    alfa *= mix(0.16, 0.92, pow(raspaoC, 1.4));
+  else if(materia > 18.5 && materia < 19.5)
+    alfa *= 0.85;
   /* O SER DO CEU ABRE MAIS que o de agua: ele tem o ceu inteiro atras, e um
      bicho de noite estrelada opaco seria um recorte preto no ceu. */
   else if(materia > 10.5 && materia < 11.5)
@@ -7206,6 +7320,7 @@ montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarHorizonteSolido();   // idem
+montarSerDeVidro();
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -8107,7 +8222,7 @@ function conferirToque(dt){
     } else if(!perto) m.ultimoAlvo = null;
   }
 }
-let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0;
+let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0, vidroPresenca = 0;
 let ceuA = 0, ceuB = 0;
 
 /* Cada ajuste caminha para o alvo em vez de saltar. Seis segundos de
@@ -8314,6 +8429,7 @@ function seguirPartitura(dt){
      planetas ja se montaram e o cenario ja respirou. */
   buracoPresenca  = rampa(278, 298, t) * (1 - rampa(374, 388, t));
   conchaPresenca  = rampa(432, 456, t) * (1 - rampa(508, 522, t));
+  vidroPresenca   = rampa(408, 432, t) * (1 - rampa(508, 522, t));   // o ser de vidro
   seresPresenca   = rampa(402, 432, t) * (1 - rampa(504, 520, t));
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
@@ -10818,6 +10934,28 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         somarLuz();                          // neon e luz que chega, e soma
         for(const r of bAlgaNeon) porMalha(r.b, r.n, 12.0);
         sobrepor();
+      }
+      /* O SER DE VIDRO, por ultimo: o vidro precisa do ceu na unidade da
+         casca (a 18 amostra o ceu como a camuflagem), e ninguem depois dele
+         neste bloco usa a casca. Os cacos primeiro, somando luz, dos dois
+         lados; depois o vidro em duas demaos, a parede de tras e a da
+         frente -- e o que da espessura a bolha. Sem balanco: vidro nao
+         balanca no vento, e respira pelo deslocamento. */
+      if(bVidro && vidroPresenca > 0.004){
+        gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
+        gl.uniform1i(locSo.casca, 2);
+        gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
+        gl.uniform3f(locSo.desloca, SER_VIDRO[0], SER_VIDRO[1] + 0.05 * Math.sin(relogio * 0.5), SER_VIDRO[2]);
+        gl.uniform1f(locSo.presenca, vidroPresenca);
+        gl.uniform1f(locSo.balanca, 0.0);
+        somarLuz(); gl.disable(gl.CULL_FACE);
+        porMalha(bCristal, nCristalIdx, 19.0);
+        sobrepor(); gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.FRONT); porMalha(bVidro, nVidroIdx, 18.0);
+        gl.cullFace(gl.BACK);  porMalha(bVidro, nVidroIdx, 18.0);
+        gl.uniform3f(locSo.desloca, 0, 0, 0);
+        gl.uniform1f(locSo.balanca, 1.0);
+        gl.uniform1f(locSo.presenca, fundoDoMar);
       }
       gl.uniform1f(locSo.materia, 0.0);
 

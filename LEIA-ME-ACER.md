@@ -811,6 +811,23 @@ mão de mentira da bancada (`raizes.mao`). O ser do céu passou a ficar
 no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
 dele); nos outros cenários segue como era.
 
+### O ser de vidro (14/09)
+
+Da capa de *Forma Fluida* (Amelia Toledo), mostrada pela direção de arte:
+bolhas de vidro soprado empilhadas — um sino grande embaixo, uma pequena,
+uma média com um bico — com cacos de cristal iridescente dentro. "Você
+consegue fazer um ser desse jeito?" Está no planeta rosa, à frente-direita,
+a 2 m, flutuando sobre a água (`SER_VIDRO`, base a 1,05 m, 1,07 m de altura,
+respira 5 cm), das 6:48 às 8:28 (`vidroPresenca`). Duas malhas
+(`montarSerDeVidro`): **as bolhas** — elipsoides, desenhadas em duas
+demãos (parede de trás e da frente, que é o que dá espessura) com a
+matéria **18**: o céu atrás lido na direção desviada pela normal (refração
+de mentira), o arco-íris de película de esguelha e um fio branco na beira;
+alfa quase nada de frente e denso de esguelha. **Os cacos** — 110 lascas
+planas sorteadas dentro das bolhas, matéria **19**: arco-íris que roda com
+o ângulo de quem olha, a fase do caco e o tempo, mais um reflexo branco,
+somando luz — mexer a cabeça faz o cristal cintilar. Só na bancada.
+
 ### A integra se mexe (14/09)
 
 "Uma sensação de movimento no corpo, principalmente na região central, que
