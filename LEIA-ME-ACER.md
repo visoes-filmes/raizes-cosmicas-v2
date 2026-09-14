@@ -773,14 +773,24 @@ tentados no mesmo dia e saíram: era o contrário do pedido. **As seis algas
 que flutuavam a 2,6–5 m ("raízes no céu") desceram para debaixo da água**
 ("tem plantas de superfície flutuando; coloque debaixo da água"): pé um
 palmo abaixo do fundo, no máximo 0,9 m — inteiras sob a lâmina de 0,95. Só
-as águas-vivas ficam em cima. **A concha saiu da água e cresceu** ("tem
-que aumentar, tudo ficando fora da água"): o disco achatado com o buraco
-negro dentro vai de raio 0,46 a 0,70, flutua com a barriga a um dedo da
-superfície (centro a 1,15 m) e recuou de 1,4 para 1,7 m do meio, porque com
-esse tamanho a beira entrava na área caminhável; a malha da concha dentro
-dele vai a 45 cm e o raio do toque a 0,75. **A estrela-do-mar é grande**
-(60–75 cm, era 20–28) e **as algas foram multiplicadas** (5 de cada tipo em
-vez de 3, e 11 de neon em vez de 7). O ser do céu passou a ficar
+as águas-vivas ficam em cima. **A bola saiu**: em volta da concha havia um
+disco achatado com a pele do planeta rosa e um buraco negro dentro (11/09),
+que ninguém pediu — "aquela bola, eu não entendi o que ela é". Fica a concha
+de verdade, o modelo, com 60 cm, o pé na superfície da água (metade dentro,
+metade fora), a 1,56 m do meio; o toque continua nela (raio 0,45). **O fundo
+é colônia** ("está muito espaçado… como uma colônia de coral"): 8 de cada
+alga e 8 corais (eram 3), 16 algas de neon (eram 7), a estrela-do-mar com
+60–75 cm, a planta-fantasia e os cogumelos quase o dobro. Com isso o chão
+passou de 65 535 vértices e os índices de 16 bits deram a volta — vigas
+brancas de cinco metros cruzando o fundo —, então `bFundo`, `bAlgaNeon` e
+`bSeresCeu` são **listas de buffers**: cada malha fecha aos 58 mil vértices
+e a peça seguinte abre outra. Triângulos medidos na bancada: fundo 181 mil,
+neon 51 mil, águas-vivas 28 mil (eram 105 / 22 / 14) — **a medir no
+aparelho**. **As águas-vivas são 14 e nadam** (`nadar` no `VS_SOLIDA`):
+uma volta de 24 s por bicho, cada um no seu ponto dela pela fase — quatro
+impulsos de subida na primeira metade (o sino contrai a cada um, os
+vértices recuando pela normal) e o afundar lento na segunda; 90 cm de
+curso. O ser do céu passou a ficar
 **de frente** (meia volta no giro: com 0,62 eram a nuca e as escápulas) e
 no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
 dele); nos outros cenários segue como era.

@@ -2096,44 +2096,63 @@ function montarSeres(){
    custava dez mil triangulos, e o fundo tem doze: nao caberia. Alga rala
    continua alga -- ao contrario do coral, onde tirar ramos deu um punhado
    de varetas soltas. */
-let bFundo = null, nFundoIdx = 0;
-let bAlgaNeon = null, nAlgaNeonIdx = 0;
-let bSeresCeu = null, nSeresCeuIdx = 0;
+/* LISTAS DE BUFFERS, e nao um buffer cada. O indice e de 16 bits: com a
+   colonia de 14/09 o chao passou de 65 535 vertices e os indices deram a
+   volta -- vigas brancas de cinco metros cruzando o fundo, o "macarrao"
+   da nota da mata de fundo. Cada malha fecha aos 58 mil vertices e a peca
+   seguinte abre outra; o desenho percorre a lista. */
+let bFundo = [], nFundoIdx = 0;
+let bAlgaNeon = [], nAlgaNeonIdx = 0;
+let bSeresCeu = [], nSeresCeuIdx = 0;
 function montarFundoDoMar(){
   const rnd = prng(9277);
   /* EM ANEL, E NUNCA NO MEIO. O centro e a area caminhavel: objeto ali e
      tropeco, e a pessoa atravessa a agua a pe. */
-  const emAnel = (m, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
+  const vazio = () => ({pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]});
+  // a malha aberta da lista, ou uma nova quando a aberta chegou ao teto
+  const aberta = (lista) => {
+    let m = lista[lista.length - 1];
+    if(!m || m.pos.length / 3 > 58000){ m = vazio(); lista.push(m); }
+    return m;
+  };
+  const emAnel = (lista, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
     for(let i=0;i<quantos;i++){
       const ang = (i/quantos)*Math.PI*2 + (rnd()-0.5)*0.9;
       const raio = 1.05 + rnd()*1.75;
       const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0), -Math.cos(ang)*raio];
       const esc = escMin + rnd()*(escMax-escMin);
       const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
-      for(let k=0;k<pecas;k++) plantarMalha(m, prefixo + k, base, esc, giro, fase);
+      for(let k=0;k<pecas;k++) plantarMalha(aberta(lista), prefixo + k, base, esc, giro, fase);
     }
   };
-  const subir = (m) => {
-    if(!m.idx.length) return null;
-    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
-    enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
-    enviar(b.fase,m.fase); enviar(b.borda,m.borda);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
-    return {b, n: m.idx.length};
+  // sobe cada malha da lista para a placa; devolve [{b, n}] e o total de indices
+  const subir = (lista) => {
+    const bufs = [];
+    for(const m of lista){
+      if(!m.idx.length) continue;
+      const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+      enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
+      enviar(b.fase,m.fase); enviar(b.borda,m.borda);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+      bufs.push({b, n: m.idx.length});
+    }
+    return [bufs, bufs.reduce((t, r) => t + r.n, 0)];
   };
-  const vazio = () => ({pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]});
 
   // 1) O CHAO: alga, coral, concha e a estrela-do-mar
-  const f = vazio();
-  /* CINCO DE CADA, e nao tres -- 14/09, "tem umas algas que podem ser
-     multiplicadas harmoniosamente". O emAnel reparte cada tipo pela volta
-     inteira, com um desvio de meio radiano: os tres tipos se entremeiam
-     sem ficar em fila. */
-  emAnel(f, 5, 'alga-a-', 22, 0.30, 0.52, 0, 0);
-  emAnel(f, 5, 'alga-b-',  8, 0.26, 0.44, 0, 0);
-  emAnel(f, 5, 'alga-c-', 16, 0.28, 0.48, 0, 0);
-  emAnel(f, 3, 'coral-',  47, 0.22, 0.38, 0, 0);
+  const f = [];
+  /* UMA COLONIA, E NAO TRES DE CADA -- 14/09: "esta muito espacado;
+     algumas algas podem ser multiplicadas em grande quantidade, como uma
+     colonia de coral, embaixo". Oito de cada alga e oito corais, cada tipo
+     repartido pela volta inteira com meio radiano de desvio: entremeiam
+     sem ficar em fila. Custo medido na bancada antes e depois (fundoDoMar
+     no relato) -- e o que o cenario aguenta antes de ser medido no
+     aparelho. */
+  emAnel(f, 8, 'alga-a-', 22, 0.30, 0.52, 0, 0);
+  emAnel(f, 8, 'alga-b-',  8, 0.26, 0.44, 0, 0);
+  emAnel(f, 8, 'alga-c-', 16, 0.28, 0.48, 0, 0);
+  emAnel(f, 8, 'coral-',  47, 0.22, 0.42, 0, 0);
   emAnel(f, 2, 'conchas-', 6, 0.16, 0.26, 0, 0);
   /* A ESTRELA-DO-MAR NO CHAO, e uma so: ela entra inteira, sem simplificar
      -- e uma chapa fina e a grade a rasga --, e inteira custa vinte e dois
@@ -2149,11 +2168,12 @@ function montarFundoDoMar(){
      triangulos -- o fundo do mar foi de 74 a 114 mil. Doze folhas e seis
      pecas: uns trinta mil. E o que este cenario aguenta antes de ser
      medido no aparelho. */
-  emAnel(f, 2, 'planta-fantasia-', 12, 0.55, 0.85, 0, 0);
-  emAnel(f, 2, 'planta-alien-',     2, 0.70, 1.00, 0, 0);
-  emAnel(f, 2, 'cogumelos-mar-',    6, 0.60, 0.90, 0, 0);
-  const r1 = subir(f);
-  if(r1){ bFundo = r1.b; nFundoIdx = r1.n; }
+  /* MAIORES -- 14/09, "as coisinhas que estao debaixo da agua precisam
+     aumentar": a planta-fantasia e os cogumelos quase dobram. */
+  emAnel(f, 2, 'planta-fantasia-', 12, 0.95, 1.30, 0, 0);
+  emAnel(f, 2, 'planta-alien-',     2, 0.90, 1.20, 0, 0);
+  emAnel(f, 2, 'cogumelos-mar-',    6, 1.00, 1.40, 0, 0);
+  [bFundo, nFundoIdx] = subir(f);
 
   /* 2) AS ALGAS DE NEON ROSA, no meio delas.
 
@@ -2163,18 +2183,17 @@ function montarFundoDoMar(){
      acesa le como anemona; entra pouca, para variar a forma sem mudar o
      assunto. A alga-a nao entra em neon: ela e ramificada e fina, e em neon
      virava fio de lampada. */
-  const a = vazio();
-  emAnel(a, 8, 'alga-c-', 16, 0.24, 0.42, 0, 0);
-  emAnel(a, 3, 'alga-b-',  8, 0.20, 0.32, 0, 0);
-  const r2 = subir(a);
-  if(r2){ bAlgaNeon = r2.b; nAlgaNeonIdx = r2.n; }
+  const a = [];
+  emAnel(a, 12, 'alga-c-', 16, 0.24, 0.42, 0, 0);
+  emAnel(a, 4, 'alga-b-',  8, 0.20, 0.32, 0, 0);
+  [bAlgaNeon, nAlgaNeonIdx] = subir(a);
 
-  // 3) OS BICHOS, acima da lamina
-  const c = vazio();
-  emAnel(c, 7, 'agua-viva-', 8, 0.20, 0.36,
-         NIVEL_AGUA + 0.35, NIVEL_AGUA + 1.45);
-  const r3 = subir(c);
-  if(r3){ bSeresCeu = r3.b; nSeresCeuIdx = r3.n; }
+  // 3) OS BICHOS, acima da lamina -- catorze desde 14/09 ("pode
+  //    multiplicar as aguas-vivas"), e nadam: ver "nadar" no VS_SOLIDA
+  const c = [];
+  emAnel(c, 14, 'agua-viva-', 8, 0.20, 0.36,
+         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25);
+  [bSeresCeu, nSeresCeuIdx] = subir(c);
 }
 
 /* O HORIZONTE DO PLANETA ROSA, COM FORMA -- e nao mais em pontos.
@@ -2243,7 +2262,7 @@ function montarHorizonteSolido(){
      origem: o deslocamento continua vindo por uniforme na hora do desenho,
      porque a concha se mexe. */
   const cc = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  for(let k=0;k<3;k++) plantarMalha(cc, 'concha-' + k, [0,0,0], 0.45, 0.7, 0);
+  for(let k=0;k<3;k++) plantarMalha(cc, 'concha-' + k, [0,0,0], 0.60, 0.7, 0);
   if(cc.idx.length){
     bConchaMalha = criarBufs(['pos','nor','alt','fase','borda','idx']);
     enviar(bConchaMalha.pos,cc.pos); enviar(bConchaMalha.nor,cc.nor);
@@ -2945,6 +2964,15 @@ uniform float brota;
    transparencia -- um menos borda E a extremidade, por definicao. Uma
    grandeza, dois usos, e os dois saem do mesmo sentido da palavra. */
 uniform float ondula;
+/* NADAR -- 14/09: as aguas-vivas "se movimentando como agua-viva costuma
+   se movimentar: dao impulso para cima e depois vao subindo bem
+   lentamente". E uma volta de 24 s por bicho, cada um no seu ponto dela
+   (aFase): na primeira metade quatro impulsos, cada um um salto curto de
+   subida seguido de deriva; na segunda, o afundar lento e parado de quem
+   parou de nadar. Noventa centimetros de curso. E o sino CONTRAI a cada
+   impulso -- os vertices recuam pela normal --, que e o que faz o impulso
+   ser impulso e nao elevador. So quem pede (nadar = 1) recebe. */
+uniform float nadar;
 varying vec3 vMundo, vNor;
 varying float vAlt, vVivo, vBorda, vFase;
 void main(){
@@ -3008,6 +3036,16 @@ void main(){
     p.x += sin(wo) * ondula * ext;
     p.z += cos(wo*0.67 + 1.7) * ondula * ext * 0.75;
     p.y += sin(wo*1.31 + 0.4) * ondula * ext * 0.35;
+  }
+  if(nadar > 0.5){
+    float volta = fract((tempo + aFase * 3.8) / 24.0);
+    float k = volta * 8.0;                         // quatro impulsos na primeira metade
+    float degrau = floor(k) + smoothstep(0.0, 0.22, fract(k));
+    float altura = volta < 0.5 ? degrau / 4.0 : 1.0 - (volta - 0.5) * 2.0;
+    p.y += altura * 0.9;
+    // o sino contrai no comeco de cada impulso
+    float contrai = volta < 0.5 ? exp(-pow((fract(k) - 0.06) / 0.10, 2.0)) : 0.0;
+    p -= aNor * 0.035 * contrai;
   }
 
   vec3 nn = aNor;
@@ -7054,18 +7092,16 @@ const BURACOS = [
   { x: 0.85, y: 0.18, z: -1.15, raio: 0.62, fase: 1.7 },
 ];
 
-/* A CONCHA do planeta rosa, com o buraco negro dentro. Grande de proposito:
-   ela precisa ser achada sem procura. Fica na borda do alcance — perto o
-   bastante para a pessoa chegar, longe o bastante para nao estar no
-   caminho enquanto ela olha o resto.
+/* A CONCHA do planeta rosa. Fica na borda do alcance -- perto o bastante
+   para a pessoa chegar, longe o bastante para nao estar no caminho
+   enquanto ela olha o resto -- e e o objeto que se toca aqui.
 
-   FORA DA AGUA, E MAIOR -- 14/09: "tem que aumentar, tudo ficando fora da
-   agua". Estava com o centro a 0,72 m, abaixo da lamina (0,95): o que se
-   via era um disco de vidro no fundo. Agora o disco achatado (raio 0,70,
-   altura 0,31) flutua com a barriga a um dedo da superficie, centro a
-   1,15 m, e recuou para 1,7 m do meio: com esse tamanho, a 1,4 m a beira
-   dele entrava na area caminhavel. */
-const CONCHA = [-1.14, 1.15, -1.26];
+   A BOLA SAIU -- 14/09. Em volta da concha havia um disco achatado com a
+   pele do planeta rosa e um buraco negro dentro ("a concha com o buraco
+   negro dentro", 11/09), que ninguem pediu: "aquela bola, eu nao entendi
+   o que ela e". O que fica e a concha de verdade, o modelo, com 60 cm, o
+   pe na superficie da agua (0,95): metade dentro, metade fora. */
+const CONCHA = [-1.05, 0.88, -1.16];
 
 const SERES = [];
 (function(){
@@ -7898,7 +7934,7 @@ function alvosAgora(){
      Tocada, ela chama a mao gigante — que e o que o roteiro ja marcava
      para as 8:25. Como no casulo: o toque ANTECIPA, nao inventa. */
   if(conchaPresenca > 0.3)
-    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1], z:CONCHA[2], raio:0.75,
+    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1] + 0.15, z:CONCHA[2], raio:0.45,
                  fazer(m){ pulsarEm(CONCHA[0], CONCHA[1], CONCHA[2]); sinoDoToque(3, 0.8);
                           if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
@@ -9254,7 +9290,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
                luzCasulo:uSo('luzCasulo'), toque:uSo('toque'),
                proximidade:uSo('proximidade'),
-               aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula')};
+               aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar')};
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -10683,8 +10719,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         if(bHorizRaiz && nHorizRaizIdx) porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
-      porMalha(bFundo, nFundoIdx, 9.0);      // no chao: agua com luz dentro
-      porMalha(bSeresCeu, nSeresCeuIdx, 11.0);  // no ceu: noite estrelada
+      for(const r of bFundo) porMalha(r.b, r.n, 9.0);      // no chao: agua com luz dentro
+      gl.uniform1f(locSo.nadar, 1.0);
+      for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: noite estrelada, e nadando
+      gl.uniform1f(locSo.nadar, 0.0);
       /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
          uniforme porque ela nao esta plantada onde nasceu -- e o unico
          objeto do cenario que a pessoa alcanca. */
@@ -10697,9 +10735,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform3f(locSo.desloca, 0, 0, 0);
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
-      if(bAlgaNeon && nAlgaNeonIdx){
+      if(nAlgaNeonIdx){
         somarLuz();                          // neon e luz que chega, e soma
-        porMalha(bAlgaNeon, nAlgaNeonIdx, 12.0);
+        for(const r of bAlgaNeon) porMalha(r.b, r.n, 12.0);
         sobrepor();
       }
       gl.uniform1f(locSo.materia, 0.0);
@@ -10835,22 +10873,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       }
     }
 
-    /* A CONCHA, com o buraco negro dentro. Achatada e grande: precisa ser
-       achada sem procura. */
-    if(conchaPresenca > 0.004){
-      gl.depthMask(true);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
-      gl.uniform1i(locAst.pele, 5);
-      gl.uniform3f(locAst.centro, CONCHA[0], CONCHA[1], CONCHA[2]);
-      gl.uniform1f(locAst.raio, 0.70);
-      gl.uniform1f(locAst.giro, 0.6);
-      gl.uniform1f(locAst.achatar, 0.44);
-      gl.uniform3f(locAst.cor, 1.0, 0.86, 0.82);
-      gl.uniform3f(locAst.luzDe, 0.2, 1.0, 0.4);
-      gl.uniform1f(locAst.brilho, 0.06);
-      gl.uniform1f(locAst.presenca, conchaPresenca);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-    }
+    /* A bola achatada com a pele do planeta rosa que ficava aqui, em volta
+       da concha, saiu em 14/09: "aquela bola, eu nao entendi o que ela e". */
 
     // AS PEDRAS, quando ha agua. Opacas: sao corpos, e ficam abaixo da
     // lamina, entao precisam escrever profundidade para a agua nao as
@@ -10945,14 +10969,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       gl.uniform1f(locBo.deitado, 0.0);
-    }
-    // o buraco dentro da concha, menor e mais fundo
-    if(conchaPresenca > 0.004){
-      gl.uniform1f(locBo.presenca, conchaPresenca);
-      gl.uniform3f(locBo.centro, CONCHA[0], CONCHA[1] + 0.09, CONCHA[2] + 0.03);
-      gl.uniform1f(locBo.raio, 0.30);
-      gl.uniform1f(locBo.fase, 1.1);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
     // os seres: aditivo, porque sao luz espalhada e nao corpo
