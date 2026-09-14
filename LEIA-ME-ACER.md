@@ -732,6 +732,27 @@ outras): sem isso as partes escuras da faixa expandida ficavam como
 fantasmas cinzentos. Uma nebulosa de ruído atrás de cada pintura foi tentada
 e saiu: no escuro do cenário lia como "formas cinza estranhas".
 
+### As raízes do retorno inverso (14/09)
+
+"As árvores estão confusas." O retorno inverso (8:48 em diante) era a
+floresta inteira do cenário 1 espelhada no forro — doze árvores de cabeça
+para baixo, com galho para todo lado —, e contra o céu inteiro do cenário 4
+elas viravam um emaranhado de vultos. Árvore de cabeça para baixo não lê
+como raiz. Agora são **sete raízes em malha própria** (`prepararRetorno`,
+`RETORNO_RAIZES`, `RETORNO_TETO`): cada uma um fio grosso no alto que afina
+até a ponta, dois ramos em ângulo fechado que tornam a cair, pelos finos no
+trecho de baixo. Pendem de 4,2 m (de cima do céu pintado, não do teto da
+sala, que não existe mais nesse cenário), a 2,3–3,3 m de quem olha — fora do
+passo — e **nunca na frente**: os 90° da frente são do teatro e da deusa.
+Descem dos 8:48 aos 9:36 (antes acabava aos 9:46, com o fecho já começado)
+e vão com o resto no fecho. São geradas já penduradas e o crescimento é só
+alfa (`brota` 0): o espelho com `brota` comprimia a frente de crescimento
+contra o forro, e num fio de raiz isso era uma fita amassada descendo.
+Matéria **17** no `FS_SOLIDA`: corpo de terra escura com a noite por dentro,
+e **um fio de luz na beira e a seiva descendo no ouro pálido das raízes
+pintadas no céu** — são as mesmas raízes, agora em corpo. `RETORNO_RAIZES =
+0` tira o retorno inteiro. Visto só na bancada; nada conferido no aparelho.
+
 ### O contorno dos corpos (12/09)
 
 Pedido: "contorno para as mãos e demais partes do corpo que entrarem na
