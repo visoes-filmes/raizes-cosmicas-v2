@@ -2149,16 +2149,17 @@ function montarFundoDoMar(){
      sem ficar em fila. Custo medido na bancada antes e depois (fundoDoMar
      no relato) -- e o que o cenario aguenta antes de ser medido no
      aparelho. */
-  emAnel(f, 8, 'alga-a-', 22, 0.30, 0.52, 0, 0);
-  emAnel(f, 8, 'alga-b-',  8, 0.26, 0.44, 0, 0);
-  emAnel(f, 8, 'alga-c-', 16, 0.28, 0.48, 0, 0);
-  emAnel(f, 8, 'coral-',  47, 0.22, 0.42, 0, 0);
-  emAnel(f, 2, 'conchas-', 6, 0.16, 0.26, 0, 0);
+  // ESCALAS VEZES 1,5 em 14/09: "aumente a escala dos objetos embaixo d'agua"
+  emAnel(f, 8, 'alga-a-', 22, 0.45, 0.78, 0, 0);
+  emAnel(f, 8, 'alga-b-',  8, 0.39, 0.66, 0, 0);
+  emAnel(f, 8, 'alga-c-', 16, 0.42, 0.72, 0, 0);
+  emAnel(f, 8, 'coral-',  47, 0.33, 0.63, 0, 0);
+  emAnel(f, 2, 'conchas-', 6, 0.24, 0.39, 0, 0);
   /* A ESTRELA-DO-MAR NO CHAO, e uma so: ela entra inteira, sem simplificar
      -- e uma chapa fina e a grade a rasga --, e inteira custa vinte e dois
      mil triangulos, dez vezes o que custa uma agua-viva. */
   // GRANDE -- 14/09, "a estrela tem que ser grande": de 20-28 cm para 60-75
-  emAnel(f, 1, 'estrela-mar-', 1, 0.60, 0.75, 0, 0);
+  emAnel(f, 1, 'estrela-mar-', 1, 0.72, 0.90, 0, 0);
   /* OS TRES DO SKETCHFAB -- 11/09, "esses aqui abaixo adicione ao oceano":
      a planta de fantasia (3Dahlgren), a planta alienigena (ScyBTC) e os
      cogumelos (Duffator). Dois de cada, no mesmo anel, com o pe no chao. A
@@ -2170,9 +2171,9 @@ function montarFundoDoMar(){
      medido no aparelho. */
   /* MAIORES -- 14/09, "as coisinhas que estao debaixo da agua precisam
      aumentar": a planta-fantasia e os cogumelos quase dobram. */
-  emAnel(f, 2, 'planta-fantasia-', 12, 0.95, 1.30, 0, 0);
-  emAnel(f, 2, 'planta-alien-',     2, 0.90, 1.20, 0, 0);
-  emAnel(f, 2, 'cogumelos-mar-',    6, 1.00, 1.40, 0, 0);
+  emAnel(f, 2, 'planta-fantasia-', 12, 1.15, 1.55, 0, 0);
+  emAnel(f, 2, 'planta-alien-',     2, 1.10, 1.45, 0, 0);
+  emAnel(f, 2, 'cogumelos-mar-',    6, 1.20, 1.70, 0, 0);
   [bFundo, nFundoIdx] = subir(f);
 
   /* 2) AS ALGAS DE NEON ROSA, no meio delas.
@@ -2184,8 +2185,8 @@ function montarFundoDoMar(){
      assunto. A alga-a nao entra em neon: ela e ramificada e fina, e em neon
      virava fio de lampada. */
   const a = [];
-  emAnel(a, 12, 'alga-c-', 16, 0.24, 0.42, 0, 0);
-  emAnel(a, 4, 'alga-b-',  8, 0.20, 0.32, 0, 0);
+  emAnel(a, 12, 'alga-c-', 16, 0.36, 0.63, 0, 0);
+  emAnel(a, 4, 'alga-b-',  8, 0.30, 0.48, 0, 0);
   [bAlgaNeon, nAlgaNeonIdx] = subir(a);
 
   // 3) OS BICHOS, acima da lamina -- catorze desde 14/09 ("pode
@@ -2373,13 +2374,13 @@ function montarHorizonteSolido(){
   /* AS SEIS ALGAS QUE ERAM "RAIZES NO CEU" DESCERAM PARA A AGUA -- 14/09,
      "tem plantas de superficie flutuando; coloque debaixo da agua". Ficavam
      a 2,6-5 m de altura, e o que se via era alga voando. Agora tem o pe
-     um palmo abaixo do fundo e no maximo 0,9 m de altura: ficam inteiras
-     sob a lamina (NIVEL_AGUA, 0,95). Continuam no anel de fora, entre as
-     porcoes de terra e o horizonte. */
+     um palmo abaixo do fundo, de 0,75 a 1,35 m (vezes 1,5 em 14/09, como
+     tudo o que esta embaixo): as maiores passam da lamina, como junco.
+     Continuam no anel de fora, entre as porcoes de terra e o horizonte. */
   for(let i=0;i<6;i++){                    // as algas de fora, sob a agua
     const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
     const base = [Math.sin(ang)*d, -0.1, -Math.cos(ang)*d];
-    const esc = 0.5 + rnd()*0.4, giro = rnd()*6.28, fase = rnd()*6.283;
+    const esc = 0.75 + rnd()*0.6, giro = rnd()*6.28, fase = rnd()*6.283;
     const alga = i%2 ? ['alga-a-', 22] : ['alga-c-', 16];
     for(let k=0;k<alga[1];k++) plantarMalha(r, alga[0] + k, base, esc, giro, fase);
   }
@@ -7338,8 +7339,10 @@ function inicioDaCena(t){
 /* A altura da agua. Declarada AQUI, antes de quem a usa: as pedras sao
    posicionadas em relacao a ela na hora em que o modulo carrega, e uma
    constante usada antes da propria declaracao mata a pagina inteira.
-   Cintura de quem tem o olho a 1,60 fica por volta de 0,95. */
-const NIVEL_AGUA = 0.95;
+   Cintura de quem tem o olho a 1,60 fica por volta de 0,95 -- e desde
+   14/09 ela esta um pouco abaixo disso ("faz um pouco mais baixa essa
+   agua"): 0,80, a altura do quadril. */
+const NIVEL_AGUA = 0.80;
 
 /* ═══════════ ONDE FICAM OS BURACOS E OS SERES ═══════════ */
 /* UM SO, E NO CHAO.
@@ -7364,7 +7367,7 @@ const BURACOS = [
    negro dentro", 11/09), que ninguem pediu: "aquela bola, eu nao entendi
    o que ela e". O que fica e a concha de verdade, o modelo, com 60 cm, o
    pe na superficie da agua (0,95): metade dentro, metade fora. */
-const CONCHA = [-1.05, 0.88, -1.16];
+const CONCHA = [-1.05, NIVEL_AGUA - 0.07, -1.16];
 
 const SERES = [];
 (function(){

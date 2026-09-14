@@ -786,7 +786,11 @@ brancas de cinco metros cruzando o fundo —, então `bFundo`, `bAlgaNeon` e
 `bSeresCeu` são **listas de buffers**: cada malha fecha aos 58 mil vértices
 e a peça seguinte abre outra. Triângulos medidos na bancada: fundo 181 mil,
 neon 51 mil, águas-vivas 28 mil (eram 105 / 22 / 14) — **a medir no
-aparelho**. **As águas-vivas são 14 e nadam** (`nadar` no `VS_SOLIDA`):
+aparelho**. **A água baixou de 0,95 para 0,80** ("faz um pouco mais baixa essa água",
+14/09) e **tudo o que está embaixo cresceu 1,5×** (algas, corais, conchas
+pequenas, neon, as algas de fora; a estrela, a planta-fantasia, a alienígena
+e os cogumelos 1,2×): as maiores passam da lâmina, como junco. A concha e o
+ser de vidro seguem o nível (`NIVEL_AGUA`). **As águas-vivas são 14 e nadam** (`nadar` no `VS_SOLIDA`):
 uma volta de 24 s por bicho, cada um no seu ponto dela pela fase — quatro
 impulsos de subida na primeira metade (o sino contrai a cada um, os
 vértices recuando pela normal) e o afundar lento na segunda; 90 cm de
