@@ -1674,8 +1674,13 @@ function prepararAlienigena(){
      dois graus sobre o horizonte, ao alto da cabeca, a cinquenta e tres: e
      mais da metade do ceu, e nao cabe em olhada nenhuma. Na mesma direcao
      de antes. E o corpo e o andrógino (ser_alienigena_androgino_rigged),
-     trocado a pedido no mesmo dia. */
-  plantarMalha(m, 'alien-0', [-19.5, 3.0, -41.6], 60.0, 0.62, 0,
+     trocado a pedido no mesmo dia.
+
+     DE FRENTE PARA A PESSOA -- 14/09, "quero que ele fique virado para a
+     pessoa". Com o giro de 0,62 ele dava as costas: era a nuca e as
+     escapulas que se viam (medido na bancada, girando e olhando). Meia
+     volta a mais e sao o rosto e as claviculas. */
+  plantarMalha(m, 'alien-0', [-19.5, 3.0, -41.6], 60.0, 0.62 + Math.PI, 0,
     (x, y, z) => {
       const macio = (t) => { const u = Math.min(1, Math.max(0, t)); return u*u*(3 - 2*u); };
       const acima = macio((y - 0.30) / 0.32);
@@ -4109,6 +4114,7 @@ const FS_SALA = `
 precision highp float;
 uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
+uniform float longe;        // quanto o alto do ceu recua para a noite (por cenario)
 uniform float giroCeu;
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
@@ -4219,6 +4225,40 @@ void main(){
   arte *= 1.0 + (grao - 0.5) * 0.30;
 
   arte *= corCena;
+
+  /* O CEU RECUA -- 14/09, "o fundo esta muito proximo do teto, da cabeca;
+     tem que botar mais distante". Uma pintura clara e uniforme, colada no
+     alto das paredes e espalhada ate o zenite, le como forro aceso a
+     poucos metros. O que faz um ceu parecer longe nao e a distancia da
+     cupula (sao sessenta metros, e ela acompanha a cabeca -- nao ha
+     paralaxe que a denuncie): e o que se ve nele, e sao duas coisas.
+
+     MENOS LUZ, E UM DEGRADE SEM BEIRA: a pintura escurece para o
+     horizonte e se abre para o zenite, numa passagem que atravessa o ceu
+     inteiro -- qualquer beira visivel desenha a cupula, e cupula com
+     beira e lona a dez metros (uma faixa de noite so no horizonte foi
+     tentada e virou justamente isso: um disco rosa com borda).
+
+     E PONTOS SOBRE A MANCHA: estrelas finas, uma por celula de um hash no
+     plano da projecao, com brilho e posicao sorteados. Ponto nitido sobre
+     mancha macia e o que o olho le como profundidade -- a propria pintura
+     rosa tem esses pontos, mas ampliada eles viram borrao. Sao desenhadas
+     so onde o cenario pede (longe), porque o ceu cosmico ja e escuro e ja
+     tem as suas.
+
+     Por cenario: no planeta rosa longe = 0,8; nos outros, zero. */
+  float baixo = 1.0 - smoothstep(0.0, 0.9, clamp(dir.y, 0.0, 1.0));
+  arte = mix(arte, vec3(0.020, 0.019, 0.041) + arte * 0.30, baixo * longe * 0.7);
+  if(longe > 0.002){
+    vec2 cel = floor(plano * 28.0);
+    vec2 sorte = vec2(fract(sin(dot(cel, vec2(127.1, 311.7))) * 43758.5453),
+                      fract(sin(dot(cel, vec2(269.5, 183.3))) * 43758.5453));
+    vec2 centroEstrela = (cel + 0.15 + 0.70 * sorte) / 28.0;
+    float dE = length(plano - centroEstrela) * 28.0;
+    float brilho = smoothstep(0.55, 1.0, sorte.x) * (0.35 + 0.65 * sorte.y);
+    float estrela = exp(-dE * dE * 90.0) * brilho;
+    arte += vec3(0.95, 0.90, 1.00) * estrela * longe * (0.7 + 0.3 * sin(tempo * 0.7 + sorte.y * 40.0));
+  }
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
   // Uso smoothstep e não uma rampa reta justamente pra não ter serrilhado:
@@ -6934,8 +6974,20 @@ const CENAS = {
        poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72 },
   2: { ceu:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
        poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58 },
-  3: { ceu:2, tinta:0.92, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.86 },
+  /* O CEU DO PLANETA ROSA RECUA -- 14/09, "o fundo esta muito proximo do
+     teto, da cabeca; tem que botar mais distante". Tres coisas, e nenhuma
+     e a distancia da cupula (sao 60 m): a TINTA cai de 0,92 para 0,50,
+     porque pintura clara e uniforme sobre a cabeca le como forro aceso e
+     com mais noite no meio ela vira ceu; ela escurece para o horizonte
+     num degrade sem beira e ha estrelas finas sobre ela (longe, no
+     FS_SALA); e o degrade FECHA MAIS
+     CEDO (fim 0,60, 37 graus, em vez de 0,86, 59 graus): entre o alto das
+     paredes e os 59 graus a pintura ficava meio transparente sobre o forro
+     de verdade, e o que se ve atraves da pintura e o forro -- entao a
+     pintura ficava NELE. Opaca logo acima das paredes, ela nao pertence a
+     sala. So o aparelho confirma esta ultima parte. */
+  3: { ceu:2, tinta:0.50, neblina:0.16, marmore:0.98, leite:0.20,
+       poeira:380, sopro:1.5, raizes:0, ini:0.30, fim:0.60, longe:0.80 },
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
@@ -7569,7 +7621,7 @@ function montarRegua(){
     const c2 = cenaEm(t);
     cenaAtual = c2; ceuA = CENAS[c2].ceu; ceuB = CENAS[c2].ceu; misturaCeu = 1;
     const a = CENAS[c2];
-    tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
+    tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
     sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
     quantosPo=a.poeira; raizesOn=a.raizes>0.5;
     pinta();
@@ -7611,7 +7663,7 @@ function passo(){
      explode para longe. */
   return Math.max(0, Math.min(dt, 0.1));
 }
-let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, semente=11;
+let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, longeCeu=0, semente=11;
 let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
 // 0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o
 // céu era uma caixa; numa cúpula que acompanha a cabeça a altura do
@@ -8135,6 +8187,7 @@ function seguirPartitura(dt){
      O que sobra e o ceu estrelado escuro, que e onde a obra comecou. */
   const alvoTinta = a.tinta * ceuPintado * (1 - fecho);
   tinta      = dt > 0 ? aproximar(tinta, alvoTinta, p) : alvoTinta;
+  longeCeu   = aproximar(longeCeu, a.longe || 0, p);
   /* A nuvem tambem cede no fecho. Era a ultima coisa acesa quando tudo o
      mais ja tinha se apagado, e por isso a espera acontecia num fundo
      leitoso em vez do ceu escuro estrelado que a obra pede. */
@@ -8675,7 +8728,7 @@ if(emTesteLocal){
       const c = cenaEm(t);
       cenaAtual = c; ceuA = CENAS[c].ceu; ceuB = CENAS[c].ceu; misturaCeu = 1;
       const a = CENAS[c];
-      tinta=a.tinta; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
+      tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
       sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
       quantosPo=a.poeira; raizesOn=a.raizes>0.5;
       /* Saltar tem que acertar TAMBEM o que a partitura calcula por quadro
@@ -9244,7 +9297,7 @@ function desenharAMata(){
 }
 const uS = n=>gl.getUniformLocation(progSala,n);
 const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
-             mistura:uS('mistura'), tinta:uS('tinta'),
+             mistura:uS('mistura'), tinta:uS('tinta'), longe:uS('longe'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
               altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim'),
               giroCeu:uS('giroCeu'), aspecto:uS('aspectoCeu')};
@@ -9670,6 +9723,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     soltarAtributos();
     mandarMvp(locS.mvp, mvp);
     gl.uniform1f(locS.tinta, tinta);
+    gl.uniform1f(locS.longe, longeCeu);
     gl.uniform1f(locS.pass, dentroDeXR ? 1 : 0);
     gl.uniform1f(locS.tempo, relogio);
     gl.uniform1f(locS.olho, OLHO);
@@ -10238,8 +10292,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
            do ceu. Num ceu sem pintura -- a abertura, e o cenario dos
            planetas desde 11/09 -- a camuflagem viraria um vulto pintado
            sobre o preto, que e o contrario de camuflar. A presenca dele
-           segue a tinta. */
-        gl.uniform1f(locSo.presenca, (0.26 + 0.06*Math.sin(relogio*0.21)) * Math.min(1, tinta / 0.5));
+           segue a tinta.
+
+           E NO PLANETA ROSA ELE CHEGA AOS POUCOS -- 14/09, "ele nao vai
+           aparecer de imediato, vai aparecer aos poucos": de 6:40 a 7:50,
+           setenta segundos para se formar no ceu, e so depois disso esta
+           inteiro. Nos outros cenarios continua como era. */
+        const aosPoucos = cenaAtual === 3 ? rampa(400, 470, t) : 1;
+        gl.uniform1f(locSo.presenca, (0.26 + 0.06*Math.sin(relogio*0.21)) * Math.min(1, tinta / 0.5) * aosPoucos);
         gl.uniform1f(locSo.inverte, 0.0);
         gl.uniform3f(locSo.desloca, 0, 0, 0);
         gl.uniform1f(locSo.escalaObj, 1.0);

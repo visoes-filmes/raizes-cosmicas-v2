@@ -292,7 +292,7 @@ misturam. É por isso que não há corte em lugar nenhum da obra.
 const CENAS = {
   1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72 },
   2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58 },
-  3: { ceu:2, tinta:0.92, neblina:0.16, ... ini:0.30, fim:0.86 },
+  3: { ceu:2, tinta:0.50, neblina:0.16, ... ini:0.30, fim:0.60, longe:0.80 },
   4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:-1.0, fim:-0.5 },
 };
 ```
@@ -754,6 +754,25 @@ Só as árvores — nem pedras, grama ou folhagem. Matéria **17** no
 `FS_SOLIDA`: a mesma pele de noite das árvores (8) com um fio de luz na
 beira, no ouro pálido das raízes pintadas no céu, porque a onze metros
 contra a pintura elas são silhueta. Visto só na bancada.
+
+### O céu do planeta rosa recua, e o ser chega aos poucos (14/09)
+
+"O fundo está muito próximo do teto, da cabeça; tem que botar mais
+distante." Não é a distância da cúpula (60 m, e ela acompanha a cabeça): é o
+que se vê nela. Uma pintura clara e uniforme colada no alto das paredes lê
+como forro aceso. Três alavancas, todas em `CENAS[3]` e no `FS_SALA`:
+`tinta` 0,92 → 0,50 (mais noite no meio do rosa); `longe` 0,80 — a pintura
+escurece para o horizonte e se abre para o zênite num degradê sem beira
+(uma faixa de noite só no horizonte foi tentada e virou um disco rosa com
+borda — cúpula com beira é lona), e **estrelas finas** por hash sobre a
+pintura (ponto nítido sobre mancha macia é o que o olho lê como fundo); e
+`fim` 0,86 → 0,60: a cúpula fecha a 37° em vez de 59°, porque entre o alto
+das paredes e os 59° a pintura ficava meio transparente sobre o forro real —
+e o que se vê através da pintura é o forro, então a pintura ficava nele.
+**Só o aparelho confirma esta última parte.** O ser do céu passou a ficar
+**de frente** (meia volta no giro: com 0,62 eram a nuca e as escápulas) e
+no planeta rosa **chega aos poucos**, de 6:40 a 7:50 (`aosPoucos` no bloco
+dele); nos outros cenários segue como era.
 
 ### A integra se mexe (14/09)
 
