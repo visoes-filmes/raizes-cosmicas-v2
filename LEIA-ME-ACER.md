@@ -826,8 +826,19 @@ um quad de tela por cima de tudo — inclusive da sala, em RM): verde-azulado
 escurecendo para baixo, com raios de luz descendo do alto e cáusticas
 cintilando; e **o solo** (`FS_SOLO_AGUA`, o vértice da lâmina a dois dedos
 do chão): azulado, translúcido, com as cáusticas ondulando, sumindo com a
-distância. Os seres do fundo ficaram menos transparentes (0,66–0,92). Na
-bancada só se vê com o olho baixo (`window.__olhoY` no `_dev.html`).
+distância. E **tudo o que está abaixo da lâmina azula** ("faça tudo embaixo
+ter tom azul e diminui a opacidade"): o `FS_SOLIDA` recebe a altura da
+lâmina (`lamina`, 99 fora do cenário 3) e o que está abaixo dela ganha o
+tom da água, mais quanto mais fundo (25 cm de passagem), e perde um quarto
+da opacidade; os seres do fundo ficam em 0,50–0,78. Na bancada só se vê
+com o olho baixo (`window.__olhoY` no `_dev.html`).
+
+> Nesta rodada dois shaders quebraram sem o verificador reclamar — um
+> `else` órfão no `FS_SOLIDA` e um uniforme com precisão diferente entre o
+> `VS_AGUA` e um fragmento novo — e a obra abriu sem nenhuma superfície.
+> Agora há o **banco de provas**: `python fontes/provar_shaders.py` escreve
+> `_prova.html`, que compila e linka todos os programas num WebGL de verdade
+> e lista o log de cada um que falhar. Abrir na bancada antes de montar.
 
 ### O ser de vidro (14/09)
 

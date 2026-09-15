@@ -268,7 +268,9 @@ simplesmente não aparece.
   >     gl.getShaderInfoLog(sh)     // diz a linha e o identificador
   >
   > Em 08/09 ele respondeu em uma linha o que três hipóteses erradas não
-  > tinham achado.
+  > tinham achado. Desde 14/09 é um comando: `python fontes/provar_shaders.py`
+  > escreve `_prova.html`; aberta num navegador, ela compila e linka todos os
+  > programas e lista o log dos que falharem.
 - **Atributo vaza entre programas.** Chame `soltarAtributos()` depois de
   todo `useProgram`.
 - **Alocar memória por quadro** vira engasgo periódico do coletor de lixo.

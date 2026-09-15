@@ -3405,6 +3405,11 @@ uniform float proximidade;
    amostrado aqui sai esticado em relacao ao ceu de verdade -- e a
    camuflagem depende de os dois coincidirem exatamente. */
 uniform float aspectoCeu;
+/* A LAMINA D'AGUA. O que esta abaixo dela ganha o tom da agua -- azul, e
+   mais azul quanto mais fundo -- e perde um pouco de opacidade: "faca
+   tudo embaixo ter tom azul e diminui a opacidade" (14/09). Alta (99) em
+   todo cenario sem agua: ai ninguem esta embaixo. */
+uniform float lamina;
 
 /* O BATIMENTO QUE CHAMA A MAO.
 
@@ -4236,6 +4241,11 @@ void main(){
      42. Era ele, e nao a atmosfera. */
   if(materia < 0.5) c = max(c, vec3(0.058, 0.052, 0.068));
 
+  // debaixo da lamina: tudo azula, mais quanto mais fundo (25 cm de passagem)
+  // (smoothstep com as beiras invertidas e indefinido em GLSL: por isso o 1 -)
+  float fundoAzul = 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
+  c = mix(c, c * vec3(0.45, 0.62, 1.00) + vec3(0.02, 0.06, 0.16), fundoAzul * 0.8);
+
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
      Sem isto a pedra nao encosta em lugar nenhum -- fica pairando. */
@@ -4269,9 +4279,9 @@ void main(){
      frente): e o bastante para a serra da silhueta sumir sem o corpo
      virar vapor. Os translucidos ganham a faixa larga. */
   float deFrente = smoothstep(0.0, 0.34, 1.0 - raspaoC);
-  // os seres do fundo: "tem objeto que nao precisa ser tao transparente"
+  // os seres do fundo, e o que esta embaixo da lamina perde um quarto
   if(materia > 8.5 && materia < 9.5)
-    alfa *= mix(0.66, 0.92, pow(raspaoC, 1.1)) * deFrente;
+    alfa *= mix(0.50, 0.78, pow(raspaoC, 1.1)) * deFrente;
   // o vidro: quase nada de frente, mais denso perto da beira, e a beira some
   else if(materia > 17.5 && materia < 18.5)
     alfa *= mix(0.06, 0.55, pow(raspaoC, 2.0)) * deFrente;
@@ -4281,6 +4291,7 @@ void main(){
     alfa *= mix(0.22, 0.55, pow(raspaoC, 1.0)) * deFrente;
   else
     alfa *= smoothstep(0.0, 0.10, 1.0 - raspaoC);
+  alfa *= 1.0 - 0.25 * fundoAzul;      // debaixo da lamina, um quarto a menos
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
@@ -4694,7 +4705,7 @@ float ruidoM(vec2 p){
 void main(){
   vec2 uv = vAtlas;
   // o veu: mais claro em cima, mais fundo embaixo
-  vec3 cor = mix(vec3(0.05, 0.22, 0.30), vec3(0.30, 0.62, 0.70), uv.y);
+  vec3 cor = mix(vec3(0.04, 0.14, 0.34), vec3(0.26, 0.50, 0.80), uv.y);
   // os raios: bandas verticais que andam devagar, so no alto
   float raio = pow(ruidoM(vec2(uv.x * 7.0 + tempo * 0.06, uv.y * 0.8 + tempo * 0.03)), 3.0)
              * smoothstep(0.25, 1.0, uv.y) * 1.4;
@@ -4705,7 +4716,7 @@ void main(){
   gl_FragColor = vec4(cor * a, a);
 }`;
 const FS_SOLO_AGUA = `
-precision mediump float;
+precision highp float;      // o VS_AGUA e highp: uniforme com precisao diferente nao linka
 uniform float tempo, forca;
 uniform vec2 centro;
 varying vec3 vMundo;
@@ -4717,7 +4728,7 @@ float ruidoS(vec2 p){
 void main(){
   vec2 q = vMundo.xz;
   float caus = ruidoS(q * 1.6 + vec2(tempo * 0.13, -tempo * 0.09)) * ruidoS(q * 2.3 - vec2(tempo * 0.11, tempo * 0.06));
-  vec3 cor = vec3(0.22, 0.50, 0.62) + vec3(0.55, 0.85, 0.95) * pow(caus, 1.8) * 2.2;
+  vec3 cor = vec3(0.18, 0.40, 0.72) + vec3(0.55, 0.80, 1.00) * pow(caus, 1.8) * 2.2;
   float longe = 1.0 - smoothstep(3.5, 8.5, length(q - centro));
   float a = 0.55 * longe * forca;
   gl_FragColor = vec4(cor * a, a);
@@ -9643,7 +9654,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                luzCasulo:uSo('luzCasulo'), toque:uSo('toque'),
                proximidade:uSo('proximidade'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar'),
-               bolha:uSo('bolha')};
+               bolha:uSo('bolha'), lamina:uSo('lamina')};
+gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
              alt:gl.getAttribLocation(progSolida,'aAlt'),
@@ -11051,6 +11063,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.tempo, relogio);
       gl.uniform1f(locSo.crescimento, 9.0);
       gl.uniform1f(locSo.presenca, fundoDoMar);
+      gl.uniform1f(locSo.lamina, NIVEL_AGUA + nivelExtra);
       gl.uniform1f(locSo.inverte, 0.0);
       gl.uniform3f(locSo.desloca, 0, 0, 0);
       gl.uniform1f(locSo.escalaObj, 1.0);
@@ -11157,6 +11170,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
       gl.uniform1f(locSo.materia, 0.0);
+      gl.uniform1f(locSo.lamina, 99.0);   // devolve: fora daqui nao ha agua
 
       /* O HORIZONTE E A CONCHA SEGUEM EM NUVEM, e de proposito: o horizonte
          esta a dezenas de metros, onde forma nao se le, e a concha nao foi
