@@ -1542,25 +1542,41 @@ function decodificarMalha(nome){
            idx: new Uint16Array(cru(m.idx)) };
 }
 
-/* ONDE E O PE DE UM MODELO: o y mais baixo entre as pecas dele, no corpo
-   normalizado. As pedras vem com o pe em zero, mas os modelos do fundo do
-   mar (algas, corais, cogumelos, a planta alienigena) vem CENTRADOS -- o
-   pe em -0,44 a -0,50 --, e plantados com a base no chao ficavam com
-   metade do corpo enterrada: um cogumelo de 3,2 m mostrava 1,6. Medido em
-   14/09, quando "bem maior" nao ficava maior. Quem planta soma isto. */
-const PE_DA_MALHA = {};
-function peDaMalha(prefixo, pecas){
+/* ONDE E O PE DE UM MODELO, E ONDE E O ALTO: o y mais baixo e o mais alto
+   entre as pecas dele, no corpo normalizado. As pedras vem com o pe em
+   zero, mas os modelos do fundo do mar (algas, corais, cogumelos, a planta
+   alienigena) vem CENTRADOS -- o pe em -0,44 a -0,50 --, e plantados com a
+   base no chao ficavam com metade do corpo enterrada: um cogumelo de 3,2 m
+   mostrava 1,6. Medido em 14/09, quando "bem maior" nao ficava maior. Quem
+   planta soma o pe -- e usa os dois para dizer a altura no corpo de 0 a 1,
+   que e por onde a corrente dobra a alga (15/09). */
+const MEDIDA_DA_MALHA = {};
+function medidaDaMalha(prefixo, pecas){
   const chave = prefixo + pecas;
-  if(PE_DA_MALHA[chave] === undefined){
-    let ymin = 0;
+  if(!MEDIDA_DA_MALHA[chave]){
+    let pe = 0, alto = 0;
     for(let k=0;k<pecas;k++){
       const o = decodificarMalha(prefixo + k);
       if(!o) continue;
-      for(let i=0;i<o.n;i++) ymin = Math.min(ymin, o.pos[i*3+1] / 8000);
+      for(let i=0;i<o.n;i++){
+        const y = o.pos[i*3+1] / 8000;
+        pe = Math.min(pe, y); alto = Math.max(alto, y);
+      }
     }
-    PE_DA_MALHA[chave] = ymin;
+    MEDIDA_DA_MALHA[chave] = {pe, alto: Math.max(alto, pe + 0.01)};
   }
-  return PE_DA_MALHA[chave];
+  return MEDIDA_DA_MALHA[chave];
+}
+/* PLANTAR E MEDIR: o mesmo plantarMalha, com a altura no corpo (aAlt)
+   reescrita de 0 no pe a 1 no alto em vez do y cru do modelo. Os modelos
+   centrados davam alturas de -0,5 a 0,5, e tudo o que le aAlt -- o
+   balanco, a corrente, o broto mais claro -- lia o meio do corpo como se
+   fosse o pe. */
+function plantarMedido(m, nome, base, escala, giro, fase, medida){
+  const n = plantarMalha(m, nome, base, escala, giro, fase);
+  for(let v = m.alt.length - n; v < m.alt.length; v++)
+    m.alt[v] = (m.alt[v] - medida.pe) / (medida.alto - medida.pe);
+  return n;
 }
 
 /* PLANTAR UMA MALHA. O mesmo servico do plantarNuvem, so que assando
@@ -2122,7 +2138,8 @@ function montarSeres(){
    volta -- vigas brancas de cinco metros cruzando o fundo, o "macarrao"
    da nota da mata de fundo. Cada malha fecha aos 58 mil vertices e a peca
    seguinte abre outra; o desenho percorre a lista. */
-let bFundo = [], nFundoIdx = 0;
+let bFundo = [], nFundoIdx = 0;                 // o que a corrente dobra: algas e as plantas grandes
+let bFundoParado = [], nFundoParadoIdx = 0;     // o que fica: coral, conchas, a estrela, os cogumelos
 let bAlgaNeon = [], nAlgaNeonIdx = 0;
 let bSeresCeu = [], nSeresCeuIdx = 0;
 function montarFundoDoMar(){
@@ -2137,14 +2154,14 @@ function montarFundoDoMar(){
     return m;
   };
   const emAnel = (lista, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
-    const pe = peDaMalha(prefixo, pecas);        // o modelo pode vir centrado: sobe o pe ao chao
+    const md = medidaDaMalha(prefixo, pecas);    // o modelo pode vir centrado: sobe o pe ao chao
     for(let i=0;i<quantos;i++){
       const ang = (i/quantos)*Math.PI*2 + (rnd()-0.5)*0.9;
       const raio = 1.05 + rnd()*1.75;
       const esc = escMin + rnd()*(escMax-escMin);
-      const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0) - pe*esc, -Math.cos(ang)*raio];
+      const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0) - md.pe*esc, -Math.cos(ang)*raio];
       const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
-      for(let k=0;k<pecas;k++) plantarMalha(aberta(lista), prefixo + k, base, esc, giro, fase);
+      for(let k=0;k<pecas;k++) plantarMedido(aberta(lista), prefixo + k, base, esc, giro, fase, md);
     }
   };
   // sobe cada malha da lista para a placa; devolve [{b, n}] e o total de indices
@@ -2163,7 +2180,13 @@ function montarFundoDoMar(){
   };
 
   // 1) O CHAO: alga, coral, concha e a estrela-do-mar
-  const f = [];
+  /* EM DUAS MALHAS -- 15/09, "os que parecem folhagem tem que se
+     movimentar lentamente": as algas e as duas plantas grandes vao em f,
+     que o desenho dobra com a corrente; coral, conchas, a estrela e os
+     cogumelos vao em q, parados -- coral que ondula deixa de ser coral. A
+     ORDEM DAS CHAMADAS NAO MUDA, porque e ela que puxa o sorteio: trocar
+     a ordem trocaria o lugar de tudo. */
+  const f = [], q = [];
   /* UMA COLONIA, E NAO TRES DE CADA -- 14/09: "esta muito espacado;
      algumas algas podem ser multiplicadas em grande quantidade, como uma
      colonia de coral, embaixo". Oito de cada alga e oito corais, cada tipo
@@ -2175,13 +2198,13 @@ function montarFundoDoMar(){
   emAnel(f, 8, 'alga-a-', 22, 0.45, 0.78, 0, 0);
   emAnel(f, 8, 'alga-b-',  8, 0.39, 0.66, 0, 0);
   emAnel(f, 8, 'alga-c-', 16, 0.42, 0.72, 0, 0);
-  emAnel(f, 8, 'coral-',  47, 0.33, 0.63, 0, 0);
-  emAnel(f, 2, 'conchas-', 6, 0.24, 0.39, 0, 0);
+  emAnel(q, 8, 'coral-',  47, 0.33, 0.63, 0, 0);
+  emAnel(q, 2, 'conchas-', 6, 0.24, 0.39, 0, 0);
   /* A ESTRELA-DO-MAR NO CHAO, e uma so: ela entra inteira, sem simplificar
      -- e uma chapa fina e a grade a rasga --, e inteira custa vinte e dois
      mil triangulos, dez vezes o que custa uma agua-viva. */
   // GRANDE -- 14/09, "a estrela tem que ser grande": de 20-28 cm para 60-75
-  emAnel(f, 1, 'estrela-mar-', 1, 0.72, 0.90, 0, 0);
+  emAnel(q, 1, 'estrela-mar-', 1, 0.72, 0.90, 0, 0);
   /* OS TRES DO SKETCHFAB -- 11/09, "esses aqui abaixo adicione ao oceano":
      a planta de fantasia (3Dahlgren), a planta alienigena (ScyBTC) e os
      cogumelos (Duffator). Dois de cada, no mesmo anel, com o pe no chao. A
@@ -2199,8 +2222,9 @@ function montarFundoDoMar(){
      olha, com o pe no fundo e a copa no ar. */
   emAnel(f, 2, 'planta-fantasia-', 12, 2.0, 2.7, 0, 0);
   emAnel(f, 2, 'planta-alien-',     2, 2.2, 3.0, 0, 0);
-  emAnel(f, 2, 'cogumelos-mar-',    6, 2.4, 3.2, 0, 0);
+  emAnel(q, 2, 'cogumelos-mar-',    6, 2.4, 3.2, 0, 0);
   [bFundo, nFundoIdx] = subir(f);
+  [bFundoParado, nFundoParadoIdx] = subir(q);
 
   /* 2) AS ALGAS DE NEON ROSA, no meio delas.
 
@@ -2475,8 +2499,9 @@ function montarHorizonteSolido(){
     const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
     const esc = 0.75 + rnd()*0.6, giro = rnd()*6.28, fase = rnd()*6.283;
     const alga = i%2 ? ['alga-a-', 22] : ['alga-c-', 16];
-    const base = [Math.sin(ang)*d, -0.1 - peDaMalha(alga[0], alga[1])*esc, -Math.cos(ang)*d];
-    for(let k=0;k<alga[1];k++) plantarMalha(r, alga[0] + k, base, esc, giro, fase);
+    const md = medidaDaMalha(alga[0], alga[1]);
+    const base = [Math.sin(ang)*d, -0.1 - md.pe*esc, -Math.cos(ang)*d];
+    for(let k=0;k<alga[1];k++) plantarMedido(r, alga[0] + k, base, esc, giro, fase, md);
   }
   const subirH = (o) => {
     if(!o.idx.length) return null;
@@ -3168,6 +3193,12 @@ uniform float inflar;
    Uma pedra nao faz nem uma coisa nem outra: ela sobe onde esta e fica
    parada, porque pedra que balanca deixa de ser pedra na hora. */
 uniform float balanca;       // 1 = oscila no vento, mais na ponta
+/* A CORRENTE -- 15/09, "os objetos no mar que parecem folhagem tem que se
+   movimentar lentamente". E alga em agua, e nao o vento do balanco: uma
+   onda lenta que SOBE pelo corpo -- a fase anda com a altura, entao a
+   folha faz um S em vez de pender inteira. Metros por metro de altura;
+   zero fora do fundo do mar. */
+uniform float corrente;
 /* BROTA: 1 = o corpo SOBE DO CHAO conforme cresce; 0 = ele nao se move, e o
    crescimento aparece so no alfa.
 
@@ -3272,6 +3303,21 @@ void main(){
   float w = tempo*0.55 + aFase;
   p.x += sin(w)*0.055*b;
   p.z += cos(w*0.83+1.3)*0.045*b;
+
+  /* A CORRENTE. A amplitude cresce pelo quadrado da altura no corpo (aAlt,
+     de 0 no pe a 1 no alto) e e proporcional a altura no mundo ate 1,2 m:
+     uma alga de meio metro dobra a ponta uns sete centimetros, e as plantas
+     de tres metros ondulam sem chicotear. Quinze segundos por volta, com
+     uma segunda onda menor por cima para nao ser pendulo. O balanco de
+     vento nao servia aqui: cinco centimetros em onze segundos, que numa
+     alga nem se ve. */
+  if(corrente > 0.0){
+    float h = clamp(aAlt, 0.0, 1.0);
+    float dobra = corrente * h * h * clamp(aPos.y, 0.0, 1.2);
+    float wc = tempo * 0.42 + aFase;
+    p.x += (sin(wc - h * 2.4) + 0.35 * sin(wc * 2.3 + h * 4.0 + 1.0)) * dobra;
+    p.z += (cos(wc * 0.79 - h * 2.0 + 1.3) + 0.35 * cos(wc * 1.9 + h * 3.5)) * dobra * 0.8;
+  }
 
   /* E A ONDULACAO, para quem a pedir. Devagar de proposito: 0,11 radiano
      por segundo da um ciclo de quase um minuto, e o que se ve nao e o
@@ -7543,6 +7589,10 @@ function inicioDaCena(t){
    14/09 ela esta um pouco abaixo disso ("faz um pouco mais baixa essa
    agua"): 0,80, a altura do quadril. */
 const NIVEL_AGUA = 0.80;
+/* A CORRENTE DO FUNDO: metros de dobra na ponta por metro de altura da
+   alga (ate 1,2 m) -- ver "corrente" no VS_SOLIDA. 0,14 e uma alga de
+   meio metro dobrando uns sete centimetros em quinze segundos. */
+const CORRENTE_DO_MAR = 0.14;
 
 /* ═══════════ ONDE FICAM OS BURACOS E OS SERES ═══════════ */
 /* UM SO, E NO CHAO.
@@ -9300,7 +9350,7 @@ if(emTesteLocal){
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
     onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
-                     estrelas: nEstrelas, fundoDoMar: nFundoIdx/3,
+                     estrelas: nEstrelas, fundoDoMar: (nFundoIdx + nFundoParadoIdx)/3,
                      algaNeon: nAlgaNeonIdx/3, seresDoCeu: nSeresCeuIdx/3,
                      pontas: PONTAS.length, folhagem: nFolhagemIdx/24,
                      capim: nGramaIdx/18, manchas: nSoloIdx/462}; },
@@ -9791,7 +9841,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                proximidade:uSo('proximidade'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar'),
                bolha:uSo('bolha'), lamina:uSo('lamina'),
-               serpente:uSo('serpente'), serpentes:uSo('serpentes[0]')};
+               serpente:uSo('serpente'), serpentes:uSo('serpentes[0]'),
+               corrente:uSo('corrente')};
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -11207,10 +11258,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.inflar, 0.0);
       gl.uniform3fv(locSo.focos, FOCOS);
       gl.uniform1f(locSo.escalaTinta, 1.0);
-      /* PLANTA EM ZERO: alga nao se recolhe para a origem ao nascer, ela ja
-         esta la. BALANCA EM UM: e o que da a corrente de agua, e a conta
-         usa o quadrado da altura -- a ponta ondula e o pe nao. */
-      gl.uniform1f(locSo.balanca, 1.0);
+      /* SEM O BALANCO DE VENTO: o que se mexe aqui e pela CORRENTE, ligada
+         so para o que e folhagem (as algas, de dentro e de fora, e as duas
+         plantas grandes) -- ver "corrente" no VS_SOLIDA. Pedra, coral,
+         concha e cogumelo ficam parados. */
+      gl.uniform1f(locSo.balanca, 0.0);
+      gl.uniform1f(locSo.corrente, 0.0);
       gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locSo.casca, 2);
@@ -11226,8 +11279,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.escalaTinta, 0.055);
         porMalha(bHorizPedra, nHorizPedraIdx, 1.0);
         gl.uniform1f(locSo.escalaTinta, 1.0);
-        // e as algas de fora sao materia viva, nao pedra
-        if(bHorizRaiz && nHorizRaizIdx) porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
+        // e as algas de fora sao materia viva, nao pedra -- e ondulam
+        if(bHorizRaiz && nHorizRaizIdx){
+          gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR);
+          porMalha(bHorizRaiz, nHorizRaizIdx, 9.0);
+          gl.uniform1f(locSo.corrente, 0.0);
+        }
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
       /* O SOLO DEBAIXO DA AGUA, antes dos seres do fundo: azulado,
@@ -11256,7 +11313,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
         gl.uniform1i(locSo.casca, 2);
       }
-      for(const r of bFundo) porMalha(r.b, r.n, 9.0);      // no chao: agua com luz dentro
+      // no chao: agua com luz dentro. As algas e as plantas grandes na corrente;
+      // coral, conchas, a estrela e os cogumelos parados
+      gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR);
+      for(const r of bFundo) porMalha(r.b, r.n, 9.0);
+      gl.uniform1f(locSo.corrente, 0.0);
+      for(const r of bFundoParado) porMalha(r.b, r.n, 9.0);
       gl.uniform1f(locSo.nadar, 1.0);
       /* AS SERPENTES DO MAR, por baixo da lamina: em neon (a materia das
          algas acesas), somando luz -- com a pele dos seres elas sumiam na
@@ -11265,14 +11327,13 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       if(bSerpentes && nSerpentesIdx){
         gl.uniform1f(locSo.serpente, 1.0);
         gl.uniform4fv(locSo.serpentes, SERPENTES_PLANO);
-        gl.uniform1f(locSo.balanca, 0.0);
         somarLuz();
         porMalha(bSerpentes, nSerpentesIdx, 12.0);
         sobrepor();
         gl.uniform1f(locSo.serpente, 0.0);
-        gl.uniform1f(locSo.balanca, 1.0);
       }
-      for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: o rosa do ceu, e nadando
+      // no ceu: o rosa do ceu, e nadando -- o nadar e o movimento delas, sem balanco
+      for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);
       gl.uniform1f(locSo.nadar, 0.0);
       /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
          uniforme porque ela nao esta plantada onde nasceu -- e o unico
@@ -11288,7 +11349,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       }
       if(nAlgaNeonIdx){
         somarLuz();                          // neon e luz que chega, e soma
+        gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR);
         for(const r of bAlgaNeon) porMalha(r.b, r.n, 12.0);
+        gl.uniform1f(locSo.corrente, 0.0);
         sobrepor();
       }
       /* O SER DE VIDRO, por ultimo: o vidro precisa do ceu na unidade da
@@ -11305,7 +11368,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform3f(locSo.desloca, ov[0], ov[1], ov[2]);
         gl.uniform1f(locSo.escalaObj, 1.6);   // "pode fazer maior": 1,9 m de altura
         gl.uniform1f(locSo.presenca, vidroPresenca);
-        gl.uniform1f(locSo.balanca, 0.0);
         // os cacos ondulam um terco do vidro: flutuam dentro, nao sao a pelicula
         gl.uniform1f(locSo.bolha, 0.008);
         somarLuz(); gl.disable(gl.CULL_FACE);
@@ -11317,10 +11379,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         gl.uniform1f(locSo.bolha, 0.0);
         gl.uniform1f(locSo.escalaObj, 1.0);
         gl.uniform3f(locSo.desloca, 0, 0, 0);
-        gl.uniform1f(locSo.balanca, 1.0);
         gl.uniform1f(locSo.presenca, fundoDoMar);
       }
       gl.uniform1f(locSo.materia, 0.0);
+      gl.uniform1f(locSo.balanca, 1.0);   // devolve o vento a quem vem depois
       gl.uniform1f(locSo.lamina, 99.0);   // devolve: fora daqui nao ha agua
 
       /* O HORIZONTE E A CONCHA SEGUEM EM NUVEM, e de proposito: o horizonte

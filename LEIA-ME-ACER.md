@@ -849,10 +849,32 @@ onda corre da cabeça à cauda. Em neon, somando luz — com a pele dos seres
 sumiam na água azul. **Os modelos do fundo vinham centrados** (o pé em
 −0,44 a −0,50, e não em zero como as pedras): plantados com a base no chão
 ficavam com metade do corpo enterrada — um cogumelo de 3,2 m mostrava 1,6.
-`peDaMalha` mede o pé e quem planta soma; com isso os cogumelos (2,4–3,2 m)
-e a planta alienígena (2,2–3,0 m) saem da água como torres ("o cogumelo
-pode ficar ainda maior, e a que é tipo uma árvore também, para um contraste
-de tamanho").
+`medidaDaMalha` mede o pé (e o alto) e quem planta soma; com isso os
+cogumelos (2,4–3,2 m) e a planta alienígena (2,2–3,0 m) saem da água como
+torres ("o cogumelo pode ficar ainda maior, e a que é tipo uma árvore
+também, para um contraste de tamanho").
+
+### A corrente do fundo (15/09)
+
+"Os objetos no mar que parecem folhagem têm que se movimentar lentamente."
+Eles tinham o balanço de vento de todo vegetal (`balanca`), e ele não
+aparecia: é uma inclinação de cinco centímetros pelo quadrado da altura no
+corpo — e a altura no corpo (`aAlt`) era o y cru do modelo, que vem
+centrado (−0,5 a 0,5): o pé balançava tanto quanto a ponta e o meio nada,
+um centímetro e meio. Agora **quem planta o fundo reescreve a altura de 0
+no pé a 1 no alto** (`plantarMedido`), e há a **corrente** (`corrente` no
+`VS_SOLIDA`, `CORRENTE_DO_MAR` = 0,14): uma onda lenta que sobe pelo
+corpo — a fase anda com a altura, então a folha faz um S em vez de pender
+inteira —, com a amplitude pelo quadrado da altura no corpo e proporcional
+à altura no mundo até 1,2 m: uma alga de meio metro dobra a ponta uns sete
+centímetros em quinze segundos; as plantas de três metros ondulam sem
+chicotear. **O fundo está em duas malhas**: `bFundo` (algas e as duas
+plantas grandes) recebe a corrente; `bFundoParado` (coral, conchas, a
+estrela, os cogumelos) fica parado — coral que ondula deixa de ser coral.
+As algas de fora e as de neon ondulam também. O bloco do fundo corre sem
+o balanço de vento (as águas-vivas nadam, o vidro respira, a concha fica).
+A ordem das chamadas de `emAnel` não mudou, porque é ela que puxa o
+sorteio dos lugares.
 
 > Nesta rodada dois shaders quebraram sem o verificador reclamar — um
 > `else` órfão no `FS_SOLIDA` e um uniforme com precisão diferente entre o
