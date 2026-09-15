@@ -833,6 +833,27 @@ tom da água, mais quanto mais fundo (25 cm de passagem), e perde um quarto
 da opacidade; os seres do fundo ficam em 0,50–0,78. Na bancada só se vê
 com o olho baixo (`window.__olhoY` no `_dev.html`).
 
+**Olhando de cima vê-se bem menos** ("o ideal é não ver tanto o que está
+debaixo da água"): a lâmina a pino passou de 0,42 para 0,72 de opacidade
+(`FS_AGUA`), e o que está abaixo dela, visto com o olho fora da água, perde
+70 % (`deCima` no `FS_SOLIDA`; quem mergulha vê inteiro). E o azul é de
+verdade: a cor vai para a luminância pintada de azul, não para um azul por
+cima do rosa. **As serpentes do mar** ("não peixes, mas coisas passando por
+debaixo d'água, como cobra do mar, com formas um pouco diferentes"): cinco
+corpos compridos (`montarSerpentes`, 1,4–2,3 m, três com crista dorsal),
+cada um numa volta própria em torno de quem olha, abaixo da lâmina
+(`SERPENTES`: raio, altura, fase, velocidade). A malha é reta e o
+`VS_SOLIDA` (`serpente`) a enrola na volta: cada fatia do corpo vai ao
+ponto do arco que lhe cabe, o anel se encaixa no triedro da curva, e uma
+onda corre da cabeça à cauda. Em neon, somando luz — com a pele dos seres
+sumiam na água azul. **Os modelos do fundo vinham centrados** (o pé em
+−0,44 a −0,50, e não em zero como as pedras): plantados com a base no chão
+ficavam com metade do corpo enterrada — um cogumelo de 3,2 m mostrava 1,6.
+`peDaMalha` mede o pé e quem planta soma; com isso os cogumelos (2,4–3,2 m)
+e a planta alienígena (2,2–3,0 m) saem da água como torres ("o cogumelo
+pode ficar ainda maior, e a que é tipo uma árvore também, para um contraste
+de tamanho").
+
 > Nesta rodada dois shaders quebraram sem o verificador reclamar — um
 > `else` órfão no `FS_SOLIDA` e um uniforme com precisão diferente entre o
 > `VS_AGUA` e um fragmento novo — e a obra abriu sem nenhuma superfície.

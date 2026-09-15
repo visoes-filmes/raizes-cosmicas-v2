@@ -1542,6 +1542,27 @@ function decodificarMalha(nome){
            idx: new Uint16Array(cru(m.idx)) };
 }
 
+/* ONDE E O PE DE UM MODELO: o y mais baixo entre as pecas dele, no corpo
+   normalizado. As pedras vem com o pe em zero, mas os modelos do fundo do
+   mar (algas, corais, cogumelos, a planta alienigena) vem CENTRADOS -- o
+   pe em -0,44 a -0,50 --, e plantados com a base no chao ficavam com
+   metade do corpo enterrada: um cogumelo de 3,2 m mostrava 1,6. Medido em
+   14/09, quando "bem maior" nao ficava maior. Quem planta soma isto. */
+const PE_DA_MALHA = {};
+function peDaMalha(prefixo, pecas){
+  const chave = prefixo + pecas;
+  if(PE_DA_MALHA[chave] === undefined){
+    let ymin = 0;
+    for(let k=0;k<pecas;k++){
+      const o = decodificarMalha(prefixo + k);
+      if(!o) continue;
+      for(let i=0;i<o.n;i++) ymin = Math.min(ymin, o.pos[i*3+1] / 8000);
+    }
+    PE_DA_MALHA[chave] = ymin;
+  }
+  return PE_DA_MALHA[chave];
+}
+
 /* PLANTAR UMA MALHA. O mesmo servico do plantarNuvem, so que assando
    triangulos em vez de pontos: os vertices entram transformados e os
    indices entram deslocados pelo tanto de vertice que ja havia. Assar em
@@ -2116,11 +2137,12 @@ function montarFundoDoMar(){
     return m;
   };
   const emAnel = (lista, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
+    const pe = peDaMalha(prefixo, pecas);        // o modelo pode vir centrado: sobe o pe ao chao
     for(let i=0;i<quantos;i++){
       const ang = (i/quantos)*Math.PI*2 + (rnd()-0.5)*0.9;
       const raio = 1.05 + rnd()*1.75;
-      const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0), -Math.cos(ang)*raio];
       const esc = escMin + rnd()*(escMax-escMin);
+      const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0) - pe*esc, -Math.cos(ang)*raio];
       const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
       for(let k=0;k<pecas;k++) plantarMalha(aberta(lista), prefixo + k, base, esc, giro, fase);
     }
@@ -2171,9 +2193,13 @@ function montarFundoDoMar(){
      medido no aparelho. */
   /* MAIORES -- 14/09, "as coisinhas que estao debaixo da agua precisam
      aumentar": a planta-fantasia e os cogumelos quase dobram. */
-  emAnel(f, 2, 'planta-fantasia-', 12, 1.15, 1.55, 0, 0);
-  emAnel(f, 2, 'planta-alien-',     2, 1.10, 1.45, 0, 0);
-  emAnel(f, 2, 'cogumelos-mar-',    6, 1.20, 1.70, 0, 0);
+  /* GRANDES, SAINDO DA AGUA -- 14/09: "o cogumelo pode ficar ainda maior;
+     e a que e tipo uma arvore tambem, bem maior, saindo da agua, para
+     criar um contraste de tamanho". Dois a tres metros: o dobro de quem
+     olha, com o pe no fundo e a copa no ar. */
+  emAnel(f, 2, 'planta-fantasia-', 12, 2.0, 2.7, 0, 0);
+  emAnel(f, 2, 'planta-alien-',     2, 2.2, 3.0, 0, 0);
+  emAnel(f, 2, 'cogumelos-mar-',    6, 2.4, 3.2, 0, 0);
   [bFundo, nFundoIdx] = subir(f);
 
   /* 2) AS ALGAS DE NEON ROSA, no meio delas.
@@ -2351,6 +2377,74 @@ function montarSerDeVidro(){
   bCristal = subir(k); nCristalIdx = k.idx.length;
 }
 
+/* ═══════════ AS SERPENTES DO MAR ═══════════
+
+   14/09: "nao peixes, mas algumas coisas passando por debaixo d'agua, como
+   cobra do mar, com formas um pouco diferentes -- para ter uma
+   movimentacao na agua de baixo". Cinco corpos compridos, cada um numa
+   volta propria em torno de quem olha, abaixo da lamina, ondulando.
+
+   A MALHA E RETA: cada bicho e um tubo ao longo de x, do focinho a cauda,
+   com o raio variando (a cabeca um pouco mais grossa, a cauda fina) e, em
+   tres deles, uma crista dorsal -- uma fita fina pelo lombo. aAlt e a
+   fracao ao longo do corpo, aFase e o numero do bicho. Quem o poe no
+   mundo e o VS_SOLIDA ("serpente"): pega o ponto da volta que corresponde
+   a cada fatia do corpo, arma o triedro ali e encaixa o anel -- o corpo
+   segue a curva e ondula sozinho. Nada de animar malha no JavaScript. */
+let bSerpentes = null, nSerpentesIdx = 0;
+/* por bicho: raio da volta (m), altura (m), fase (rad), velocidade (rad/s;
+   negativa anda ao contrario). Vai para o shader como esta. */
+const SERPENTES = [
+  [1.55, 0.30,  0.0,  0.30], [2.15, 0.46,  2.1, -0.24], [2.75, 0.22,  4.0,  0.19],
+  [1.90, 0.56,  1.2, -0.34], [2.45, 0.38,  5.1,  0.27]];
+const SERPENTES_PLANO = new Float32Array(SERPENTES.flat());
+function montarSerpentes(){
+  const rnd = prng(2609);
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const FEITIO = [[1.6, 0.060, true], [2.3, 0.085, false], [1.4, 0.045, true],
+                  [2.0, 0.070, true], [1.8, 0.095, false]];   // comprimento, raio, crista?
+  FEITIO.forEach(([comp, raio, crista], id) => {
+    const N = 40, L = 10, base = m.pos.length / 3;
+    for(let i=0;i<=N;i++){
+      const u = i/N;
+      // grossa no meio, fina na cauda, e uma cabeca um pouco mais cheia
+      const r = raio * (0.35 + 0.65 * Math.sin(Math.PI * Math.pow(u, 0.7))) * (1 + 0.35 * Math.exp(-Math.pow((u - 0.08) / 0.07, 2)));
+      for(let j=0;j<=L;j++){
+        const a = j/L*Math.PI*2, ny = Math.cos(a), nz = Math.sin(a);
+        m.pos.push(u * comp, ny * r, nz * r);
+        m.nor.push(0, ny, nz);
+        m.alt.push(u); m.fase.push(id); m.borda.push(1);
+      }
+    }
+    for(let i=0;i<N;i++) for(let j=0;j<L;j++){
+      const a = base + i*(L+1) + j, c = a + L + 1;
+      m.idx.push(a, c, a+1,  a+1, c, c+1);
+    }
+    if(crista){
+      // a crista: uma fita pelo lombo, do pescoco ate perto da cauda, dos dois lados
+      const b2 = m.pos.length / 3;
+      for(let i=0;i<=N;i++){
+        const u = i/N;
+        const r = raio * (0.35 + 0.65 * Math.sin(Math.PI * Math.pow(u, 0.7)));
+        const alt = 0.07 * Math.sin(Math.PI * Math.min(1, Math.max(0, (u - 0.12) / 0.8))) * (0.7 + 0.3 * rnd());
+        m.pos.push(u * comp, r, 0);          m.nor.push(0, 0, 1);
+        m.pos.push(u * comp, r + alt, 0);    m.nor.push(0, 0, 1);
+        m.alt.push(u, u); m.fase.push(id, id); m.borda.push(1, 0);   // a beira da crista esmaece
+      }
+      for(let i=0;i<N;i++){
+        const a = b2 + i*2;
+        m.idx.push(a, a+2, a+1,  a+1, a+2, a+3);
+      }
+    }
+  });
+  bSerpentes = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bSerpentes.pos,m.pos); enviar(bSerpentes.nor,m.nor); enviar(bSerpentes.alt,m.alt);
+  enviar(bSerpentes.fase,m.fase); enviar(bSerpentes.borda,m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bSerpentes.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nSerpentesIdx = m.idx.length;
+}
+
 let bHorizPedra = null, nHorizPedraIdx = 0;
 let bHorizRaiz = null, nHorizRaizIdx = 0;
 let bConchaMalha = null, nConchaMalhaIdx = 0;
@@ -2379,9 +2473,9 @@ function montarHorizonteSolido(){
      Continuam no anel de fora, entre as porcoes de terra e o horizonte. */
   for(let i=0;i<6;i++){                    // as algas de fora, sob a agua
     const ang = rnd()*Math.PI*2, d = 3.5 + rnd()*4.5;
-    const base = [Math.sin(ang)*d, -0.1, -Math.cos(ang)*d];
     const esc = 0.75 + rnd()*0.6, giro = rnd()*6.28, fase = rnd()*6.283;
     const alga = i%2 ? ['alga-a-', 22] : ['alga-c-', 16];
+    const base = [Math.sin(ang)*d, -0.1 - peDaMalha(alga[0], alga[1])*esc, -Math.cos(ang)*d];
     for(let k=0;k<alga[1];k++) plantarMalha(r, alga[0] + k, base, esc, giro, fase);
   }
   const subirH = (o) => {
@@ -3118,6 +3212,15 @@ uniform float nadar;
    corpo -- a superficie ondula como a pelicula de uma bolha grande, que
    nunca esta parada nem redonda. Zero em tudo o que nao e bolha. */
 uniform float bolha;
+/* SERPENTE -- 14/09. O corpo vem reto ao longo de x (aPos.x e a distancia
+   do focinho, em metros; aAlt a fracao do corpo; aFase o numero do bicho)
+   e aqui e posto na volta dele: o angulo da fatia e o angulo da cabeca
+   menos a distancia percorrida no arco, o ponto da volta sobe e desce com
+   um seno lento, e o anel se encaixa no triedro da curva. A ondulacao e
+   uma onda que corre da cabeca para a cauda, de lado, maior na cauda.
+   serpentes[]: raio da volta, altura, fase, velocidade, por bicho. */
+uniform float serpente;
+uniform vec4 serpentes[5];
 varying vec3 vMundo, vNor;
 varying float vAlt, vVivo, vBorda, vFase;
 void main(){
@@ -3221,6 +3324,20 @@ void main(){
      dependem de ele entrar antes, e mover mudaria como todos eles nascem. */
   if(inverte > 0.5){ p.y = desloca.y * (1.0 + vivo) - p.y; nn.y = -nn.y; }
 
+  if(serpente > 0.5){
+    vec4 sp = serpentes[int(aFase + 0.5)];
+    float ang = sp.z + tempo * sp.w - aPos.x / sp.x * sign(sp.w);
+    float sobe = 0.10 * sin(ang * 3.0 + sp.z);
+    vec3 c0 = vec3(sp.x * cos(ang), sp.y + sobe, sp.x * sin(ang));
+    float a2 = ang + 0.01 * sign(sp.w);
+    vec3 c1 = vec3(sp.x * cos(a2), sp.y + 0.10 * sin(a2 * 3.0 + sp.z), sp.x * sin(a2));
+    vec3 T = normalize(c1 - c0);
+    vec3 lado = normalize(cross(vec3(0.0, 1.0, 0.0), T));
+    vec3 cima = cross(T, lado);
+    float onda = sin(aAlt * 9.0 - tempo * 4.5 + aFase * 1.3) * 0.07 * (0.3 + aAlt);
+    p = c0 + cima * aPos.y + lado * (aPos.z + onda) + desloca;
+    nn = normalize(T * aNor.x + cima * aNor.y + lado * aNor.z);
+  }
   /* A TINTA SEGUE O CORPO. vMundo e a posicao DEPOIS de crescer e balancar:
      assim o pigmento anda com o galho em vez de o galho deslizar por dentro
      de uma pintura parada. */
@@ -4249,10 +4366,14 @@ void main(){
      42. Era ele, e nao a atmosfera. */
   if(materia < 0.5) c = max(c, vec3(0.058, 0.052, 0.068));
 
-  // debaixo da lamina: tudo azula, mais quanto mais fundo (25 cm de passagem)
-  // (smoothstep com as beiras invertidas e indefinido em GLSL: por isso o 1 -)
+  /* Debaixo da lamina: tudo azula, mais quanto mais fundo (25 cm de
+     passagem). AZUL DE VERDADE -- 14/09, "muita coisa rosa ainda embaixo":
+     a cor vai para a luminancia dela pintada de azul, e nao para um azul
+     por cima do rosa -- so assim o rosa some. (smoothstep com as beiras
+     invertidas e indefinido em GLSL: por isso o 1 -.) */
   float fundoAzul = 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
-  c = mix(c, c * vec3(0.45, 0.62, 1.00) + vec3(0.02, 0.06, 0.16), fundoAzul * 0.8);
+  float lumAzul = dot(c, vec3(0.30, 0.50, 0.20));
+  c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * 0.92);
 
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
@@ -4299,7 +4420,11 @@ void main(){
     alfa *= mix(0.22, 0.55, pow(raspaoC, 1.0)) * deFrente;
   else
     alfa *= smoothstep(0.0, 0.10, 1.0 - raspaoC);
-  alfa *= 1.0 - 0.25 * fundoAzul;      // debaixo da lamina, um quarto a menos
+  /* Debaixo da lamina perde um quarto; e VISTO DE CIMA, com o olho fora
+     da agua, perde bem mais -- "olhando de cima nao se deve ver tanto o
+     que esta debaixo da agua" (14/09). Quem mergulha ve inteiro. */
+  float deCima = smoothstep(lamina - 0.10, lamina + 0.10, olhoPos.y);
+  alfa *= 1.0 - fundoAzul * (0.25 + 0.45 * deCima);
 
   /* A CRISALIDA E TRANSLUCIDA, e a translucidez tem forma: de frente
      ve-se atraves, de esguelha a parede fica opaca -- e assim que qualquer
@@ -5911,7 +6036,9 @@ void main(){
   float d = length(q - olhoPos.xz);
   float alcance = 1.0 - smoothstep(6.5, 9.0, d);
 
-  float a = presenca * alcance * mix(0.42, 0.92, espelho);
+  // 0,72 a pino, e nao 0,42: "olhando de cima nao se deve ver tanto o que
+  // esta debaixo da agua" (14/09); as pernas ainda se veem, mais fundas
+  float a = presenca * alcance * mix(0.72, 0.94, espelho);
   if(a < 0.004) discard;
   gl_FragColor = vec4(cor, a);
 }`;
@@ -7492,6 +7619,7 @@ montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarHorizonteSolido();   // idem
 montarSerDeVidro();
+montarSerpentes();
 
 /* As posicoes vao para o shader uma vez so: elas nao mudam nunca. */
 const FOCOS = new Float32Array(13 * 3);
@@ -9662,7 +9790,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                luzCasulo:uSo('luzCasulo'), toque:uSo('toque'),
                proximidade:uSo('proximidade'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar'),
-               bolha:uSo('bolha'), lamina:uSo('lamina')};
+               bolha:uSo('bolha'), lamina:uSo('lamina'),
+               serpente:uSo('serpente'), serpentes:uSo('serpentes[0]')};
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -11129,6 +11258,20 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       }
       for(const r of bFundo) porMalha(r.b, r.n, 9.0);      // no chao: agua com luz dentro
       gl.uniform1f(locSo.nadar, 1.0);
+      /* AS SERPENTES DO MAR, por baixo da lamina: em neon (a materia das
+         algas acesas), somando luz -- com a pele dos seres elas sumiam na
+         agua azul, e o que se pediu foi movimento que se veja. O neon rosa
+         azula debaixo da lamina como tudo. */
+      if(bSerpentes && nSerpentesIdx){
+        gl.uniform1f(locSo.serpente, 1.0);
+        gl.uniform4fv(locSo.serpentes, SERPENTES_PLANO);
+        gl.uniform1f(locSo.balanca, 0.0);
+        somarLuz();
+        porMalha(bSerpentes, nSerpentesIdx, 12.0);
+        sobrepor();
+        gl.uniform1f(locSo.serpente, 0.0);
+        gl.uniform1f(locSo.balanca, 1.0);
+      }
       for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);  // no ceu: o rosa do ceu, e nadando
       gl.uniform1f(locSo.nadar, 0.0);
       /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
