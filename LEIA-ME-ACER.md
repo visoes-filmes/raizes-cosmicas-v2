@@ -681,6 +681,22 @@ sobem a luz a 100% na mesma cor, para a câmera achar as mãos — **se luz
 colorida saturada basta para o rastreio, só o Quest diz**; se não bastar, o
 que cede é o valor do escuro, não a cor.
 
+**A luz nunca salta, e sem a obra ela deriva (17/09).** "Você consegue
+colocar ela mudando de cor lentamente, como uma alternativa?" — a Alexa
+tinha se desligado da lâmpada (o vínculo se refaz só no app da Alexa, com a
+conta dela; a lâmpada em si estava online e com a chave certa). Então a
+ponte ganhou duas coisas: **toda mudança é um deslize** — a cor anda para a
+cor pedida um pouco a cada passo de 3 s (o que a lâmpada leva para
+responder pelo caminho local): a troca de cenário leva uns 8 s, como a
+travessia do céu, e a luz das janelas sobe em 6 s; e **sem obra ao alcance
+a lâmpada deriva** pelas quatro cores da partitura, na ordem dela, meio grau
+de matiz por segundo e meio minuto parada em cada cor — a volta inteira
+leva uns 14 minutos. Serve para a sala viva antes de alguém entrar, e para a
+lâmpada de casa: `node fontes/luz-segue-cena.mjs deriva` faz só a deriva,
+sem procurar a obra (`VALOR=0.9` para clarear; o padrão é o escuro da obra,
+60%). Precisa do estúdio do v1 no ar (`node estudio.mjs`), que é quem fala
+com a lâmpada — pelo caminho local (tinytuya 3.5), sem nuvem e sem cota.
+
 ### O teatro de papel do cenário 4 (13/09)
 
 Os planos com borda rasgada saíram: "estão tampando a deusa... acho que você

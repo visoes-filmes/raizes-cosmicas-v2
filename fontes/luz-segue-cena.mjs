@@ -21,15 +21,31 @@
  *   3. a obra aberta no headset -- pelo cabo (localhost:8765) ou a publicada
  *
  * USO
- *   node fontes/luz-segue-cena.mjs
+ *   node fontes/luz-segue-cena.mjs            segue a obra; sem obra, deriva
+ *   node fontes/luz-segue-cena.mjs deriva     so a deriva, sem procurar a obra
  *
  * As cores sao as mesmas da regua da partitura: cada cenario tem a sua, e
  * quem olha a sala de fora reconhece em que ponto da obra a pessoa esta.
+ *
+ * A LUZ NUNCA SALTA, E SEM A OBRA ELA DERIVA -- 17/09, "voce consegue
+ * colocar ela mudando de cor lentamente, como uma alternativa?" (a Alexa
+ * tinha se desligado da lampada). Duas coisas:
+ *
+ *   - toda mudanca e um DESLIZE: a cor atual anda para a cor pedida um
+ *     pouco por passo (a cada 3 s, que e o que a lampada leva para
+ *     responder pelo caminho local). Seguindo a obra, a troca de cenario
+ *     leva uns 8 s, como a travessia do ceu; a luz das janelas sobe em 6 s.
+ *   - sem obra ao alcance (o headset ainda nao abriu, ou o modo "deriva"),
+ *     a lampada passeia pelas quatro cores da partitura, na ordem dela,
+ *     devagar: meio grau de matiz por segundo, meio minuto parada em cada
+ *     cor -- uma volta inteira leva uns catorze minutos. E a sala viva
+ *     antes de alguem entrar, e a lampada de casa sem a Alexa.
  */
 
 const ESTUDIO = process.env.ESTUDIO ?? 'http://localhost:8600';
 const CDP     = process.env.CDP     ?? 'http://localhost:9222';
-const PAUSA   = Number(process.env.PAUSA ?? 2000);
+const PASSO   = Number(process.env.PASSO ?? 3000);      // ms entre dois comandos a lampada
+const MODO    = process.argv[2] === 'deriva' ? 'deriva' : 'segue';
 
 /* AS TRES JANELAS, E POR QUE A LUZ SOBE NELAS.
  *
@@ -141,40 +157,84 @@ async function pintar(cor) {
   return (await r.json())?.ok === true;
 }
 
-console.log('a luz segue a obra — Ctrl+C para parar');
-let ws = null, ultima = null;
+/* O DESLIZE. A cor atual (h, s, v) anda para o alvo um tanto por passo, e
+   no matiz pelo caminho mais curto da roda. As taxas sao por passo de 3 s:
+   seguindo a obra, 12 graus (um cenario para o outro em uns 8 s) e o valor
+   em dois passos (a janela das maos nao pode esperar); na deriva, um grau e
+   meio -- meio grau por segundo, que e o "lentamente". */
+const TAXA = {
+  segue:  { h: 12,  s: 0.12, v: 0.35 },
+  deriva: { h: 1.5, s: 0.02, v: 0.05 },
+};
+function deslizar(de, para, taxa) {
+  const passo = (a, b, max) => a + Math.max(-max, Math.min(max, b - a));
+  let dh = ((para.h - de.h + 540) % 360) - 180;          // -180..180: o caminho curto
+  dh = Math.max(-taxa.h, Math.min(taxa.h, dh));
+  return { h: (de.h + dh + 360) % 360, s: passo(de.s, para.s, taxa.s), v: passo(de.v, para.v, taxa.v) };
+}
+const chegou = (a, b) => Math.abs(((a.h - b.h + 540) % 360) - 180) < 0.01
+                      && Math.abs(a.s - b.s) < 0.001 && Math.abs(a.v - b.v) < 0.001;
+const corDe = (n, v) => { const c = COR_DA_CENA[n]; return { h: c.matiz, s: c.sat ?? 1.0, v }; };
+
+/* A DERIVA: as quatro cores na ordem da partitura, e uma parada em cada.
+   O valor e o escuro da obra; em casa, VALOR=0.9 clareia. */
+const VOLTA  = [1, 2, 3, 4];
+const PARADA = 30000;           // ms parada em cada cor
+const VALOR_DERIVA = Number(process.env.VALOR ?? VALOR_OBRA);
+let voltaI = 0, paradaAte = 0;
+function alvoDaDeriva(luz) {
+  const alvo = corDe(VOLTA[voltaI], VALOR_DERIVA);
+  if (luz && chegou(luz, alvo)) {
+    if (!paradaAte) paradaAte = Date.now() + PARADA;
+    else if (Date.now() >= paradaAte) { paradaAte = 0; voltaI = (voltaI + 1) % VOLTA.length; }
+  }
+  return { alvo: corDe(VOLTA[voltaI], VALOR_DERIVA),
+           nome: `deriva: ${COR_DA_CENA[VOLTA[voltaI]].nome}` };
+}
+
+console.log(MODO === 'deriva' ? 'a luz deriva pelas cores da obra — Ctrl+C para parar'
+                              : 'a luz segue a obra (e deriva enquanto ela nao abre) — Ctrl+C para parar');
+let ws = null, luz = null, ultimoNome = null;
 
 for (;;) {
-  try {
-    if (!ws) {
-      ws = await abaDaObra();
-      if (!ws) { console.log('  esperando a obra abrir no headset…'); await espera(4000); continue; }
-      console.log('  ligada a obra');
-      ultima = null;                       // ao reconectar, repinta
-    }
-    const onde = await perguntar(ws, `window.raizes.onde()`);
-    if (!onde) { try { ws.close(); } catch { /* nada */ } ws = null; continue; }
-
-    const segundos = paraSegundos(onde.tempo);
-    // na espera do fim a sala ja se prepara para a proxima pessoa: a floresta
-    const cena = segundos >= 600 ? 1 : onde.cena;
-    const janela = emJanela(segundos);
-    const chave = `${cena}/${janela ? 'janela' : 'escuro'}`;
-    if (chave !== ultima) {
-      const c = COR_DA_CENA[cena];
-      // a saturacao e cheia, salvo onde a direcao de arte pediu mais suave (sat na tabela)
-      const cor = c && hsvParaHex(c.matiz, c.sat ?? 1.0, janela ? VALOR_JANELA : VALOR_OBRA);
-      if (cor && await pintar(cor)) {
-        console.log(`  ${onde.tempo}  cenario ${cena}  ${c.nome}  ${cor}` +
-                    (janela ? `  — janela: ${janela.o_que}` : '  — o escuro da obra'));
-        ultima = chave;
+  let pedido = null;                       // { alvo, nome }, de onde vier
+  if (MODO === 'segue') {
+    try {
+      if (!ws) {
+        ws = await abaDaObra();
+        if (ws) console.log('  ligada a obra');
       }
+      if (ws) {
+        const onde = await perguntar(ws, `window.raizes.onde()`);
+        if (!onde) { try { ws.close(); } catch { /* nada */ } ws = null; }
+        else {
+          const segundos = paraSegundos(onde.tempo);
+          // na espera do fim a sala ja se prepara para a proxima pessoa: a floresta
+          const cena = segundos >= 600 ? 1 : onde.cena;
+          const janela = emJanela(segundos);
+          if (COR_DA_CENA[cena]) pedido = {
+            alvo: corDe(cena, janela ? VALOR_JANELA : VALOR_OBRA),
+            nome: `${onde.tempo}  cenario ${cena}  ${COR_DA_CENA[cena].nome}` +
+                  (janela ? `  — janela: ${janela.o_que}` : '  — o escuro da obra'),
+          };
+        }
+      }
+    } catch {
+      try { if (ws) ws.close(); } catch { /* nada */ }
+      ws = null;
     }
-  } catch (e) {
-    try { if (ws) ws.close(); } catch { /* nada */ }
-    ws = null;
   }
-  await espera(PAUSA);
+  if (!pedido) pedido = alvoDaDeriva(luz);
+
+  if (pedido.nome !== ultimoNome) { console.log('  ' + pedido.nome); ultimoNome = pedido.nome; }
+  // o primeiro comando vai direto: nao ha de onde deslizar
+  const proxima = luz ? deslizar(luz, pedido.alvo, TAXA[ws ? 'segue' : 'deriva']) : pedido.alvo;
+  if (!luz || !chegou(luz, proxima)) {
+    const cor = hsvParaHex(proxima.h, proxima.s, proxima.v);
+    try { if (await pintar(cor)) luz = proxima; }
+    catch { /* o estudio caiu ou a lampada nao respondeu: tenta no proximo passo */ }
+  }
+  await espera(PASSO);
 }
 
 function espera(ms) { return new Promise(r => setTimeout(r, ms)); }
