@@ -1027,26 +1027,44 @@ O que continua sem conferência dentro da RM: o toque, o pegar e dimensionar
 do rosa, as deusas vistas em estéreo, o buraco no chão, a luz da sala com as
 mãos.
 
-### Decidido, mas não construído
+### Decidido, mas não construído (revisto em 18/09)
 
-- **As interações que faltam.** Pegar um planeta, tocar a mão gigante.
-  Tocar o casulo, a mãe, os cogumelos e a borboleta já respondem (seção 8,
-  "O toque e o som") — **nada disso foi visto dentro do Quest ainda**.
-- **Um sinal de que uma coisa pode ser tocada.** Uma respiração, um brilho.
+Saíram desta lista por já existirem: pegar e dimensionar o rosa (12/09), e
+o sinal de que algo pode ser tocado — o casulo e a concha acendem quando
+podem ser tocados. Ficam:
+
+- **Tocar a mão gigante** — e a própria **mão gigante**: não existe quadro
+  dela na Odara, e o que puxa às 8:25 é o buraco negro final crescendo, com
+  os furacões. Proposta de 17/09, à espera de decisão: uma mão por código
+  (dedos em tubos, como as serpentes; pele da noite com o fio dourado),
+  que vem do lado do buraco às 8:25, fecha em volta da pessoa sem tocar e,
+  no puxão, é o mundo que corre para o buraco.
 - **As borboletas circundando**, depois de tocar o casulo.
 - **As deusas em vídeo**, em bumerangue. **Um por cenário, nunca dois ao
   mesmo tempo** — os cenários não se sobrepõem, então o decodificador do
   Quest nunca vê dois. E **nenhum vídeo começa sozinho: só ao toque.**
-- **A mão gigante.** Não existe quadro dela na Odara. Precisa de imagem.
+  Não é para o dia 22.
 - **O céu marmorizado e estrelado do planeta rosa**, no Midjourney. Quando
   sair, vale mapear só no hemisfério de cima: no cenário 3 a água tapa
-  **39%** da imagem, que nunca é lida.
+  **39%** da imagem, que nunca é lida. Enquanto não sai, o céu rosa tem a
+  graduação longa e as estrelas finas de 14/09.
+- **A unificação das sete imagens no Midjourney** — pedida em 13/09 sobre
+  uma captura da biblioteca com sete imagens circuladas; faltam os links
+  delas (ou o dia/prompt) para achá-las.
 
 ### Em aberto, e é decisão de vocês
 
+- **A água do planeta rosa**: subir do chão à cintura entre 6:30 e 7:05
+  (o que o roteiro escreve) ou aparecer no lugar, como está. Proposta de
+  17/09.
+- **A deusa vermelha × a azul**: 1,5× sugerido, com ela uns 18° mais à
+  esquerda para o Sol continuar no vão (`_fotos/deusa-proporcao-*.jpg`,
+  17/09); a partir de 1,25× a praia de pétalas chega ao Sol; 2× não cabe.
+- **As licenças** (`CREDITOS.md`): seis `magnific_*` na obra, a crisálida e
+  o ser alienígena, de origem desconhecida — achar a origem, ou refazer por
+  código. O crédito da borboleta (CC BY) tem que aparecer no estande.
 - Onde as partículas caem: só no polígono do chão, ou por todo o volume?
 - Os asteroides são cinzas? (agora estão com o mármore violeta)
-- O prazo do FIL. Tudo se dimensiona a partir dele.
 
 ---
 
