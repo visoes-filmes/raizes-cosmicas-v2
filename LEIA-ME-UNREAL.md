@@ -57,7 +57,7 @@ mesmo repositório (com o `.git`) **mais o que nunca esteve nele**:
 | pasta no ZIP | o que é | onde colocar no desktop |
 |---|---|---|
 | `Raizes Cósmicas/` | o projeto, com `.git` — dá para `git pull` e publicar direto dela | `Downloads\Raizes Cósmicas` (o nome com acento é o que está no `bancada.py` do ateliê antigo; o resto não depende do nome) |
-| `raizes-display/` | **o estúdio do v1**: `node estudio.mjs` (porta 8600) é quem fala com a lâmpada do estande. **As chaves da lâmpada não viajam no ZIP** (`lampada/config.json` e `lampada/luzes.json` ficaram de fora de propósito): copie os dois deste computador ou do Acer, ou refaça a chave com `node lampada/nuvem.mjs <AccessID> <AccessSecret> us` (a conta Tuya IoT) | `Downloads\claudeaizes-display` |
+| `raizes-display/` | **o estúdio do v1**: `node estudio.mjs` (porta 8600) é quem fala com a lâmpada do estande. **As chaves da lâmpada não viajam no ZIP** (`lampada/config.json` e `lampada/luzes.json` ficaram de fora de propósito): copie os dois deste computador ou do Acer, ou refaça a chave com `node lampada/nuvem.mjs <AccessID> <AccessSecret> us` (a conta Tuya IoT) | `Downloads\claude\raizes-display` |
 | `Modelos 3D/` | os `.glb` de origem (algas, corais, cogumelos, a planta alienígena, o ser, a mão cósmica…). A obra **não** precisa deles para rodar — já estão assados em `fontes/nuvens.js`. Só para **converter um modelo novo** (`fontes/modelos_em_pontos.py`) | `Downloads\Visões filmes\Modelos 3D`, ou qualquer lugar com `MODELOS=<pasta>` no ambiente |
 
 Ficaram de fora do ZIP, de propósito: `_fotos/` (700 MB de renders da
