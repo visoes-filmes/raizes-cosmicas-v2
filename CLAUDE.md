@@ -206,7 +206,7 @@ Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
 | `OBJETOS_NO_CHAO` | `false` | grama, folhas, trevo e soja como nuvem de pontos |
 | `ARVORE_MAE` | `1` | 1 é a de sempre; 2 é a árvore da vida, com a raiz como espelho da copa |
 | `PAPEL_NO_CENARIO` | `true` | o teatro de papel do cenário 4: as ondas do quadro de 186 s cortadas em cinco camadas com os portais vazados (`fontes/teatro_de_papel.py`) — os planos com borda rasgada saíram em 13/09 |
-| `CONTORNO_PROFUNDIDADE` | `true` | o fio de luz em volta de qualquer corpo que entre na visão (o próprio, o dos outros), pelo mapa de profundidade do Quest (`depth-sensing`) |
+| `CONTORNO_PROFUNDIDADE` | `false` | o fio de luz em volta de qualquer corpo que entre na visão, pelo mapa de profundidade do Quest (`depth-sensing`). **Desligado em 20/09**: o Quest 3 entrega o mapa como texture-array, o WebGL 1 não tem isso e o contexto inteiro caía no primeiro quadro em RM. Só religar com WebGL 2 ou `cpu-optimized`, provado no aparelho |
 | `CONTORNO_MAOS` | `true` | o contorno das mãos pelas juntas rastreadas — só quando o mapa de profundidade não vem |
 
 Fora do arquivo:

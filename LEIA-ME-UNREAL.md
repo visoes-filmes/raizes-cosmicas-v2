@@ -287,15 +287,99 @@ Isto não está no código e é o que mais custa perder numa mudança de chat.
 
 ---
 
-## 5. O estado da obra em 19/09
+## 5. O estado da obra em 20/09
 
-No ar: **`raizes-cosmicas-2026-09-20c`** em
-`visoes-filmes.github.io/raizes-cosmicas-v2/` (commit `4e04f4a`). A obra em
-si é a de 15/09 (`437df9e`, a corrente); 20b só acrescentou ao portão a
-linha "18 programas de desenho compilados neste aparelho" — ver "O relato
-do Plínio", abaixo.
+No ar: **`raizes-cosmicas-2026-09-20f`** em
+`visoes-filmes.github.io/raizes-cosmicas-v2/`. A obra em si continua a de
+15/09 (`437df9e`, a corrente); de 20b a 20f só entraram salvaguardas —
+nenhuma muda o que se vê: a linha dos 18 programas no portão (20b), o
+prazo do `local-floor` e o erro no portão (20c), o contorno pela
+profundidade desligado (20d, o que fazia a obra morrer no Quest — abaixo),
+a versão nova que entra sozinha no portão, o contexto perdido que se
+relata e recarrega, e o aviso de chão não mapeado (20e/20f).
 
-### "Só um céu cósmico e um carregamento que nunca acontece" (20/09, à noite)
+### O primeiro teste em RM pelo cabo, no desktop (20/09) — o que se viu
+
+**A obra morria no primeiro quadro em RM, muda.** A RM abria (`RM-ABRIU`
+com `local-floor`, mãos rastreadas, `QUADRO-1` desenhado) e então o
+contador travava em `52 / 72` e o relógio em `0:00` para sempre. Nenhum
+erro de JavaScript, nenhum shader falhando (18/18). O console do navegador
+do Quest, lido pelo DevTools no cabo, dizia:
+
+```
+>> PROFUNDIDADE 320x320 unsigned-short texture-array x1
+GL ERROR GL_INVALID_ENUM : glBindTexture: target was GL_TEXTURE_2D_ARRAY
+WebGL: CONTEXT_LOST_WEBGL: context lost
+```
+
+O contorno pela profundidade (12/09) pedia `depth-sensing` em
+`gpu-optimized`; o Quest 3 entrega o mapa como **texture-array** (uma
+camada por olho), coisa de WebGL 2, e a obra é WebGL 1. O navegador tenta
+amarrar a textura num alvo que o WebGL 1 não tem e **derruba o contexto
+inteiro** — dentro do próprio `getDepthInformation()`, antes de o código
+poder recusar (ele recusava: `textureType !== 'texture'`). Desde 20d
+`CONTORNO_PROFUNDIDADE = false` e o `depth-sensing` só é pedido com ele
+ligado; o contorno das mãos pelas juntas continua. Para religar: contexto
+WebGL 2 (`sampler2DArray` no `FS_CONTORNO`) ou `cpu-optimized` com o mapa
+subido a uma `TEXTURE_2D` por quadro. **Provado no aparelho**: com a 20d,
+RM aberta, relógio correndo pelos quatro cenários, contexto íntegro.
+
+**Quadros em RM, medidos pela primeira vez** (`adb logcat -s VrApi`, dois
+olhos a 1680 × 1760, 4× MSAA; GPU do navegador presa em 456 MHz, nível 2,
+e `powerPreference: 'high-performance'` não a move — testado e tirado):
+
+| cenário | quadros / 72 | GPU |
+|---|---|---|
+| 1 floresta | **17–33** | 99 %, ~38 ms por quadro |
+| 2 cosmos | 57–61 | — |
+| 3 planeta rosa | **18–34** | 99 % |
+| 4 papel | 61–65 | — |
+
+Neblina, poeira, raízes e sala desligados pelo cabo, um de cada vez: nenhum
+mexe no número. O peso é a mata sólida (1) e o fundo do mar (3). Abaixo de
+36 o movimento ganha rastro, e dez minutos a 99 % de GPU, pessoa após
+pessoa, é calor (44 °C em minutos de teste). A lista de corte do
+`LEIA-ME-ACER` (§10) vale, mas é decisão de direção de arte: escala de
+desenho 0,8, `ANISO_ALVO` 4 → 0, menos do que não se vê de pé. O número
+final só sai no aparelho.
+
+**O que mais o dia ensinou** (tudo já aplicado):
+
+- **A aba atrás dá `SecurityError`.** Com outra aba na frente do navegador
+  do Quest (havia uma da Netflix), `requestSession` é recusado e a obra
+  corre achatada (`RM-RECUSOU SecurityError`). No estande: só a aba da
+  obra, ou instalada como app. Pelo cabo: `curl localhost:9222/json/activate/<id>`
+  antes de clicar.
+- **Este Quest tinha a 15b guardada.** Uma recarga com Wi-Fi trouxe a
+  versão nova — é o caso do Plínio. Desde 20e a página se recarrega sozinha
+  no portão quando o guardião novo assume (`controllerchange`; confere a
+  cada dez minutos com `registration.update()`; sem rede não acha nada).
+- **O GitHub Pages não montou a 20d.** O push chegou (`bc1e6d9`) e nenhum
+  "pages build and deployment" disparou em meia hora; um commit vazio
+  empurrado em seguida montou em um minuto. Conferir sempre:
+  `curl -s https://api.github.com/repos/visoes-filmes/raizes-cosmicas-v2/actions/runs?per_page=1`
+  e o `md5` do `index.html` publicado contra o do commit.
+- **A autorização do cabo não sobrevive ao reinício** se a caixa "Permitir
+  depuração USB" foi aceita sem **"Sempre permitir deste computador"**. O
+  Quest reiniciou à tarde, voltou `unauthorized`, e sem ninguém perto dele
+  não há como aceitar de fora — nem app Horizon, nem MQDH, nem Wi-Fi (o
+  `adb tcpip` só se liga *depois* de uma autorização por cabo). Sempre
+  marcar; e, com o cabo de pé, deixar `adb tcpip 5555` + `adb connect
+  <ip>:5555` para alcançar o Quest pela Wi-Fi da casa.
+- **O Quest dorme fora da cabeça** e some do DevTools. Para trabalhar com
+  ele na mesa: `adb shell am broadcast -a com.oculus.vrpowermanager.prox_close`
+  (o sensor de proximidade passa a ser ignorado até o reinício;
+  `…automation_disable` devolve).
+- **Clique pelo cabo conta como gesto.** `Runtime.evaluate` com
+  `userGesture: true` no DevTools do Quest abre a sessão de RM sem
+  ninguém tocar — a obra roda inteira na mesa, e o `raizes.ir()` salta
+  os cenários. O que continua precisando de gente: o toque, o pegar, e
+  ver.
+- **No Windows, `estande.py` com a saída redirecionada** morre no acento
+  (`cp1252`): `PYTHONIOENCODING=utf-8`. E `adb` não vem com nada — o
+  `platform-tools` foi largado em `fontes/platform-tools/` (fora do git).
+
+### "Só um céu cósmico e um carregamento que nunca acontece" (20/09)
 
 Relato da Crisia com o Quest no desktop, num lugar novo: a sessão abre e
 fica na **tela de espera do navegador do Quest** (um céu escuro de
@@ -471,6 +555,11 @@ A lista inteira, com as melhorias sugeridas, está em
   `centro`) não linka. `provar_shaders.py` pega os três casos acima.
 - Índices de 16 bits: uma malha passa de 65 mil vértices e o desenho vira
   lixo (vigas brancas de 5 m). As listas do fundo fecham em 58 mil.
+- **Uma textura que o WebGL 1 não conhece derruba o contexto inteiro**, sem
+  erro de JavaScript — foi o `depth-sensing` em texture-array (20/09). O
+  contexto perdido agora se relata (`CONTEXTO-PERDIDO`) e recarrega; mas
+  toda extensão nova do WebXR que entregue textura deve ser provada no
+  aparelho antes de ficar ligada.
 - Modelos do Sketchfab/Magnific vêm **centrados** (pé em −0,5): plantados no
   chão ficam meio enterrados, e a altura no corpo (`aAlt`) fica de −0,5 a
   0,5 — `plantarMedido` corrige as duas coisas.
