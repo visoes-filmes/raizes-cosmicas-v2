@@ -31,9 +31,16 @@ mexer no código de verdade.
    (comandos com barra em português). Elas vêm com o login no claude.ai; se
    não vierem, a regra que importa está aqui: **documento é no Drive.** A
    memória do Claude para este projeto estava vazia — nada a trazer.
-4. **O conector do Google Drive** desta conta estava só com leitura (escrita
-   recusada em 18–20/09). Para o chat novo subir documentos: reconectar o
-   Drive nas configurações do claude.ai marcando a permissão de edição.
+4. **O conector do Google Drive** da conta `admcrisia@gmail.com` recusava
+   escrever em 18–20/09 — a conta estava **cheia** (2,6 TB de 2 TB), e é
+   isso que o Drive responde como "sem permissão". Os documentos passaram a
+   ir para a pasta **RAÍZES CÓSMICAS DEV** da outra conta (a de 5 TB), pelo
+   navegador. O jeito que funcionou para subir arquivos grandes sem o
+   conector: o Chrome da Crisia (extensão Claude in Chrome) na página do
+   Drive; o "Upload de arquivo" cria um `input type=file` — interceptar o
+   `click`/`showPicker` dele, alimentar o input com o arquivo (em partes de
+   9 MB coladas num `File` só, porque a ferramenta sobe no máximo 10 MB por
+   vez) e disparar `change`: o Drive faz o upload com o uploader dele.
 
 ---
 
@@ -70,8 +77,20 @@ montada e publicada está no repositório, com o histórico inteiro:
 git clone https://github.com/visoes-filmes/raizes-cosmicas-v2.git "Raizes Cósmicas"
 ```
 
-**O ZIP no Drive** (`raizes-cosmicas-v2-completo-2026-09-19.zip`) tem o
-mesmo repositório (com o `.git`) **mais o que nunca esteve nele**:
+**No Drive** — pasta **RAÍZES CÓSMICAS DEV** da conta com espaço
+(`drive.google.com/drive/u/0/folders/1KSLMJoW2me4ku42fJZsGRNKmodDbc8wR`;
+a conta `admcrisia@gmail.com` estava cheia, 2,6 TB de 2 TB, e por isso o
+conector recusava escrever). Subido em 20/09, pelo próprio navegador:
+
+| arquivo | o que é |
+|---|---|
+| `raizes-cosmicas-v2-completo-2026-09-20.zip` (598 MB) | o projeto com o `.git` na versão 20b + o estúdio do v1 + os modelos de origem + este guia (a versão do guia de dentro é a de 20/09 de manhã; a mais nova é a do repositório) |
+| `Modelos-3D-origem-2026-09-20.zip` (66 MB) | só os `.glb` de origem, para quem não quiser o pacote inteiro |
+| `raizes-cosmicas-v2-extras-2026-09-20.zip` (1,8 MB) | só o que não está no repositório e é pequeno: o estúdio do v1 (sem chaves), os quatro MDs, o relatório de 18/09 e as folhas de contato. `_extras.zip` é o mesmo arquivo, duplicado — pode apagar |
+| `LEIA-ME-UNREAL.md` | este guia, solto, para ler antes de baixar |
+
+O pacote completo tem o mesmo repositório (com o `.git`) **mais o que nunca
+esteve nele**:
 
 | pasta no ZIP | o que é | onde colocar no desktop |
 |---|---|---|
