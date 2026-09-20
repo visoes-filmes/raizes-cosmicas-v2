@@ -44,8 +44,32 @@
           .catch(function () {});
       }
     } else {
+      /* E A VERSAO NOVA ENTRA SOZINHA, NO PORTAO -- 20/09. O guardiao ja
+         baixava a obra nova e passava a mandar (skipWaiting + claim), mas
+         a pagina aberta seguia com o codigo velho ate alguem recarregar --
+         dai o "no headset esta a de ontem". Agora: a cada dez minutos ele
+         confere se ha versao nova (sem rede, nao acha nada e a obra segue);
+         quando o guardiao novo assume, a pagina se recarrega -- mas SO com
+         o portao a vista, nunca no meio da obra: quem tira o capacete
+         devolve o portao, e a proxima pessoa ja entra na versao nova. A
+         primeira instalacao nao conta (nao ha versao velha a trocar). */
+      var tinhaGuardiao = !!navigator.serviceWorker.controller, versaoNova = false;
+      function trocarNoPortao() {
+        var portao = document.getElementById("portao");
+        if (versaoNova && portao && !portao.classList.contains("foi")) location.reload();
+      }
       addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js").catch(function () {});
+        navigator.serviceWorker.register("./sw.js").then(function (reg) {
+          setInterval(function () { reg.update().catch(function () {}); }, 10 * 60 * 1000);
+        }).catch(function () {});
+        var portao = document.getElementById("portao");
+        if (portao && self.MutationObserver) {
+          new MutationObserver(trocarNoPortao).observe(portao, { attributes: true, attributeFilter: ["class"] });
+        }
+      });
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!tinhaGuardiao) { tinhaGuardiao = true; return; }
+        versaoNova = true; trocarNoPortao();
       });
 
       /* E PEDE QUE O ARMAZENAMENTO SEJA DURAVEL.
@@ -283,6 +307,7 @@
     <p class="portao-dica" id="portaoVersao"></p>
     <p class="portao-dica" id="portaoProgramas"></p>
     <p class="portao-dica" id="portaoErro"></p>
+    <p class="portao-dica" id="portaoAviso"></p>
   </div>
 </div>
 
@@ -567,6 +592,18 @@ const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
 if(!gl){ document.body.innerHTML='<p style="padding:24px">WebGL indisponível.</p>'; return; }
+/* O CONTEXTO PODE CAIR SEM ERRO NENHUM -- 20/09, visto pelo cabo: o WebGL
+   se perdeu no primeiro quadro em RM e a obra ficou parada em 0:00, muda,
+   sem nada no console nem no portao. Um contexto perdido nao volta sozinho
+   e esta obra nao reconstroi seus buffers: o caminho e recarregar. Antes,
+   diz o que foi -- pelo cabo e no portao, que reaparece ao tirar o
+   capacete -- e tres segundos depois recarrega; na fila, o operador nem ve. */
+cv.addEventListener('webglcontextlost', function(){
+  relato('CONTEXTO-PERDIDO');
+  const p = document.getElementById('portaoErro');
+  if(p) p.textContent = 'o desenho caiu (contexto WebGL perdido) — recarregando em 3 s';
+  setTimeout(function(){ location.reload(); }, 3000);
+});
 
 /* ═══════════ medidas reais da sala (rider) ═══════════ */
 const LARG = 4.00, PROF = 4.70, ALTURA = 3.00, OLHO = 1.60;
@@ -9832,6 +9869,9 @@ async function entrarXR(aoEntrar){
   }catch(semChao){
     relato('SEM-CHAO ' + (semChao && semChao.message));
     tipoEspaco = 'local';
+    /* E o portao diz, quando voltar: e o lugar, nao a obra. */
+    const aviso = document.getElementById('portaoAviso');
+    if(aviso) aviso.textContent = 'chão não mapeado neste lugar: a obra abriu pela altura dos olhos — configure o limite de área do Quest aqui';
     espaco = await sessao.requestReferenceSpace('local');
     /* Sem chao mapeado, a origem e a cabeca. Baixar o mundo pela altura
        dos olhos poe o chao da obra de volta onde o chao esta. */
