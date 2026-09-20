@@ -1,4 +1,4 @@
-# Seguir no desktop (o computador "Unreal") — 19/09/2026
+# Seguir no desktop (o computador "Unreal") — 20/09/2026
 
 Este arquivo existe para a produção mudar de máquina sem perder nada:
 o que instalar, o que trazer, como o trabalho funcionou até aqui, em que
@@ -15,6 +15,25 @@ Ele **não substitui** os outros dois — completa:
 Um chat novo do Claude Code aberto **na pasta do projeto** lê o `CLAUDE.md`
 sozinho. Peça a ele para ler o `LEIA-ME-ACER.md` e este arquivo antes de
 mexer no código de verdade.
+
+## 0. Para o chat novo — o que ler, e o que vive fora da pasta
+
+1. `CLAUDE.md` (regras) → **este arquivo** (a máquina, o jeito, o estado) →
+   `LEIA-ME-ACER.md` (o mapa). Depois `CREDITOS.md` (licenças) e
+   `NOTAS-2026-09-07.md` (a primeira lista da direção de arte, quase toda
+   feita). `_fotos/2026-09-18 pendencias e melhorias.html` é o último
+   relatório (não está no repositório: está no ZIP e no Drive).
+2. **O que não está no repositório e vai no ZIP**: o estúdio do v1
+   (`raizes-display/`, a lâmpada) e os modelos de origem (`Modelos 3D/`).
+3. **O que não está em lugar nenhum da pasta e mora na conta do Claude**:
+   duas *skills* pessoais da Crisia — `documentacao` ("tabelas e documentos
+   sempre no Google Drive, como Google Docs/Sheets") e `slash-commands`
+   (comandos com barra em português). Elas vêm com o login no claude.ai; se
+   não vierem, a regra que importa está aqui: **documento é no Drive.** A
+   memória do Claude para este projeto estava vazia — nada a trazer.
+4. **O conector do Google Drive** desta conta estava só com leitura (escrita
+   recusada em 18–20/09). Para o chat novo subir documentos: reconectar o
+   Drive nas configurações do claude.ai marcando a permissão de edição.
 
 ---
 
@@ -251,9 +270,38 @@ Isto não está no código e é o que mais custa perder numa mudança de chat.
 
 ## 5. O estado da obra em 19/09
 
-No ar: **`raizes-cosmicas-2026-09-15b`** em
-`visoes-filmes.github.io/raizes-cosmicas-v2/`. Último commit da obra
-`437df9e` (a corrente); depois dele só documentação e a ponte da lâmpada.
+No ar: **`raizes-cosmicas-2026-09-20b`** em
+`visoes-filmes.github.io/raizes-cosmicas-v2/` (commit `c91b515`). A obra em
+si é a de 15/09 (`437df9e`, a corrente); 20b só acrescentou ao portão a
+linha "18 programas de desenho compilados neste aparelho" — ver "O relato
+do Plínio", abaixo.
+
+### O relato do Plínio (20/09) e como se responde
+
+"A deusa do final não aparece; não parece ser a última versão, várias
+mudanças que pedi não estão lá; olhar no celular não é o mesmo que no
+Quest." O que se fez: a obra publicada foi conferida **byte a byte** contra
+a montagem (`md5` do `index.html` no endereço = o do commit) — o site está
+certo — e os quatro cenários foram rodados na bancada
+(`_fotos/todas-as-cenas-15b.jpg`): a integra está lá, de frente, às 9:16 →
+9:54. O que sobra é o aparelho dele, e um aparelho tem dois jeitos de não
+mostrar o novo:
+
+- **cache velho** — o portão diz a versão que ele tem na mão (tem que ser
+  `2026-09-20b`); com Wi-Fi, abrir de novo; se teimar, limpar os dados do
+  site no navegador do Quest e abrir outra vez;
+- **um programa que não linka naquela GPU** — não dá erro em lugar nenhum,
+  a coisa só não aparece. Por isso o portão agora diz também **"18 programas
+  de desenho compilados neste aparelho"** (ou "ATENÇÃO: n de 18 não
+  compilaram: nomes"). Com 18/18 e a versão certa, o que ele vê **é** a
+  obra; com menos, é o cabo (`estande.py`, `_prova.html` no navegador do
+  Quest, o relato `PROGRAMAS`).
+
+Uma foto do portão dele responde as duas. Se as duas estiverem certas e ainda
+assim faltar coisa, aí é a lista dele, mudança por mudança, contra
+`_fotos/todas-as-cenas-15b.jpg` — pode ser a janela curta da integra
+(9:16–9:54; entra 31 s depois do teatro), e mudar isso é `de: 556` em
+`FIGURAS`.
 
 ### Os quatro cenários, em uma linha cada
 
@@ -330,6 +378,52 @@ A lista inteira, com as melhorias sugeridas, está em
    a lâmpada com estúdio + ponte.
 
 ---
+
+## 6b. Ideias propostas e soluções achadas — para não se perderem
+
+**Ideias (propostas, à espera de "sim"):**
+- **A água subindo de verdade** (6:30 → 7:05) sobre o fundo que já está
+  lá: `nivel` deixa de ser `NIVEL_AGUA` fixo e sobe com uma rampa; a
+  `lamina` e o `mergulhoDe` seguem o mesmo nível — o azul chega com ela.
+- **A mão gigante por código**: dedos em tubos ao longo de curvas (a receita
+  das serpentes: malha reta, o vértice a põe na curva), uma palma
+  elipsoidal, pele da noite + fio dourado (matéria 17), translúcida; vem
+  do lado do buraco às 8:25, fecha em volta da pessoa sem tocar (~8:37), e
+  no puxão é o mundo que corre (água, fundo, céu deslizam para o buraco)
+  enquanto `buracoFinal` engole (8:45). Fazer depois do teste no Quest.
+- **A vermelha a 1,5×** com o centro uns 18° mais à esquerda (azimute ≈ −96)
+  para o Sol continuar no vão; `FIGURAS[1].tam` e `centro`.
+- **Uma válvula de quadros** no planeta rosa: medir o tempo de quadro em RM
+  e, abaixo do alvo por alguns segundos, tirar o neon e metade da colônia
+  (`bAlgaNeon`, metade de `bFundo`). Só depois da medida no aparelho.
+- **As montanhas do horizonte do planeta rosa** (`bHorizPedra`, matéria 1,
+  presença 0,62) leem como manchas cinza-escuras atrás da água quando se
+  está de pé: mais longe, mais baixas, ou com o rosa do céu por cima.
+- **A integra desde o começo do papel**: `de: 556 → 525` se a janela curta
+  for o problema.
+- **A deriva da lâmpada** já é solução; a ideia que sobra é ela **mudar de
+  cor com o toque** na obra (o `relato('TOCOU-…')` já existe pelo cabo).
+
+**Soluções que valem de método:**
+- **Remendo por trecho exato** (`s.count(trecho) == 1`) em vez de editar à
+  mão ou cortar entre âncoras; o script fica no scratchpad, a receita no
+  commit.
+- **`provar_shaders.py` + a linha do portão**: o que o verificador estático
+  não vê (GLSL) se prova compilando de verdade — na bancada e no aparelho.
+- **A bancada com fotos de dentro do WebGL** (`bancada.py`/`bancada.js`):
+  vistas em pé e agachado, GIFs em tempo real, folhas de contato com
+  rótulo, diferença entre quadros e média de pixels para medir em vez de
+  achar.
+- **Modelos centrados**: medir o pé e o alto (`medidaDaMalha`) e reescrever
+  a altura no corpo de 0 a 1 (`plantarMedido`) — sem isso nem o chão nem o
+  balanço batem.
+- **Listas de buffers** fechando em 58 mil vértices, para o índice de 16 bits.
+- **Conferir o publicado byte a byte** (`curl` do `index.html` + `md5`
+  contra o commit) antes de discutir "versão velha".
+- **Servidor da bancada solto** (`Start-Process`) numa porta própria (8791);
+  outra sessão pode ocupar 8767/8768.
+- **A lâmpada pelo caminho local** (tinytuya 3.5, ~1,8 s por comando): sem
+  nuvem, sem cota; a nuvem da Tuya serve para conferir `online` e a chave.
 
 ## 7. Armadilhas que morderam esta semana (além das do CLAUDE.md)
 
