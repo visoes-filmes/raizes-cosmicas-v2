@@ -289,11 +289,29 @@ Isto não está no código e é o que mais custa perder numa mudança de chat.
 
 ## 5. O estado da obra em 19/09
 
-No ar: **`raizes-cosmicas-2026-09-20b`** em
-`visoes-filmes.github.io/raizes-cosmicas-v2/` (commit `c91b515`). A obra em
+No ar: **`raizes-cosmicas-2026-09-20c`** em
+`visoes-filmes.github.io/raizes-cosmicas-v2/` (commit `4e04f4a`). A obra em
 si é a de 15/09 (`437df9e`, a corrente); 20b só acrescentou ao portão a
 linha "18 programas de desenho compilados neste aparelho" — ver "O relato
 do Plínio", abaixo.
+
+### "Só um céu cósmico e um carregamento que nunca acontece" (20/09, à noite)
+
+Relato da Crisia com o Quest no desktop, num lugar novo: a sessão abre e
+fica na **tela de espera do navegador do Quest** (um céu escuro de
+estrelas com um indicador de carregamento) para sempre. "Tem a ver com o
+limite de área?" Tem: essa tela fica até a obra entregar o primeiro
+quadro, e o primeiro quadro só é pedido depois de `await
+requestReferenceSpace('local-floor')` — que, num lugar onde o Quest não
+tem o espaço mapeado, **pendura** (não rejeita, não resolve — o mesmo
+gênero de defeito do dom-overlay e da taxa de quadros). Desde
+`2026-09-20c` o pedido tem prazo de 8 s e cai para `local` (relato
+`SEM-CHAO`), e a obra abre torta em vez de não abrir. O certo no estande
+continua: **configurar o limite de área do Quest no lugar da montagem**,
+para haver `local-floor` e o chão ficar onde está. E, desde a mesma
+versão, **todo erro de JavaScript vira relato (`ERRO …`) e linha no
+portão** (`portaoErro`), que reaparece quando se tira o capacete — uma
+foto do portão passa a dizer versão, programas compilados e o último erro.
 
 ### O relato do Plínio (20/09) e como se responde
 
