@@ -282,6 +282,7 @@
     <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
     <p class="portao-dica" id="portaoVersao"></p>
     <p class="portao-dica" id="portaoProgramas"></p>
+    <p class="portao-dica" id="portaoErro"></p>
   </div>
 </div>
 
@@ -423,6 +424,23 @@
 
    Quem decide o comportamento da obra inteira mora no topo. */
 const emTesteLocal = location.hostname !== 'visoes-filmes.github.io';
+/* TODO ERRO VIRA RELATO E LINHA NO PORTAO -- 20/09. Dentro do capacete nao
+   ha console: um erro de JavaScript num quadro e "nada acontece", e de fora
+   ninguem sabe se foi cache velho, shader ou uma linha errada. Agora ele
+   sai pelo cabo (ERRO ...) e fica escrito no portao, que reaparece quando
+   se tira o capacete -- uma foto responde. */
+addEventListener('error', function(e){
+  const m = (e.message || 'erro') + ' @' + (e.lineno || '?');
+  relato('ERRO ' + m);
+  const p = document.getElementById('portaoErro');
+  if(p) p.textContent = 'erro: ' + m;
+});
+addEventListener('unhandledrejection', function(e){
+  const m = String(e.reason && (e.reason.message || e.reason)).slice(0, 140);
+  relato('ERRO-PROMESSA ' + m);
+  const p = document.getElementById('portaoErro');
+  if(p) p.textContent = 'erro (promessa): ' + m;
+});
 
 /* ═══════════ O QUE ESTA DESLIGADO PARA SE VER LIMPO ═══════════
 
@@ -9781,9 +9799,24 @@ async function entrarXR(aoEntrar){
      um pouco fora de altura em vez de nao nascer. */
   relato('PASSO-4 pedindo o espaco de referencia');
   let tipoEspaco = 'local-floor';
+  /* E O PEDIDO TEM PRAZO -- 20/09. "So aparece um ceu cosmico e um
+     carregamento que nunca acontece; tem a ver com o limite de area?" Tem:
+     o ceu escuro de estrelas e a tela de espera do navegador do Quest, que
+     fica ate a obra entregar o PRIMEIRO quadro -- e o primeiro quadro so e
+     pedido depois deste await. Num lugar em que o Quest nao tem o espaco
+     (o limite de area) mapeado, o pedido de 'local-floor' pode nao
+     rejeitar nem resolver: PENDURA, como o dom-overlay e a taxa de quadros
+     penduraram antes, e a obra fica na tela de espera para sempre. Oito
+     segundos e passa-se ao 'local', que sempre existe. Nao e prazo de
+     permissao humana (aquela ja foi aceita na sessao): e um pedido de
+     conforto, e vale a mesma regra -- nunca esperar por nada de que a obra
+     nao precise para existir. */
+  const comPrazo = (promessa, ms) => Promise.race([promessa,
+    new Promise((_, ruim) => setTimeout(() => ruim(new Error('prazo')), ms))]);
   try{
-    espaco = await sessao.requestReferenceSpace('local-floor');
+    espaco = await comPrazo(sessao.requestReferenceSpace('local-floor'), 8000);
   }catch(semChao){
+    relato('SEM-CHAO ' + (semChao && semChao.message));
     tipoEspaco = 'local';
     espaco = await sessao.requestReferenceSpace('local');
     /* Sem chao mapeado, a origem e a cabeca. Baixar o mundo pela altura

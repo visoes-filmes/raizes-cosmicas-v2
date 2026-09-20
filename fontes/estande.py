@@ -31,6 +31,7 @@ manda relatos. Medido: nada disso aparece para quem visita -- a régua e os
 medidores estão atrás do ANDAIME, e o `window.raizes` só existe no console.
 Os relatos, num estande, são justamente o que o operador quer ler.
 """
+import glob
 import os
 import shutil
 import subprocess
@@ -47,6 +48,8 @@ CANTOS = [
     os.path.join(AQUI, "platform-tools", "adb"),
     os.path.expanduser(r"~\AppData\Local\Android\Sdk\platform-tools\adb.exe"),
     r"C:\Program Files\Oculus\Support\oculus-drivers\adb.exe",
+    # o scrcpy instalado pelo winget traz o adb junto (e o que este computador tem)
+    *glob.glob(os.path.expanduser(r"~\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy*\*\adb.exe")),
 ]
 
 FALTA_ADB = """
