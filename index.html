@@ -546,7 +546,17 @@ const COGUMELOS_NO_CHAO  = true;
    qualquer corpo -- o proprio, o dos outros -- e desenha um fio de luz onde
    a distancia salta; e as JUNTAS das maos rastreadas, que so veem as maos
    de quem usa, para quando o mapa nao vier. */
-const CONTORNO_PROFUNDIDADE = true;
+/* 20/09, DESLIGADO -- e pela primeira vez visto no Quest: a obra abria em
+   RM, desenhava o primeiro quadro e MORRIA. O Quest 3 entrega o mapa
+   gpu-optimized como texture-array (uma camada por olho); texture-array e
+   coisa de WebGL 2, e a obra e WebGL 1. O navegador tenta amarrar a textura
+   num alvo que o WebGL 1 nao tem (GL_INVALID_ENUM: GL_TEXTURE_2D_ARRAY) e
+   derruba o contexto inteiro (CONTEXT_LOST_WEBGL) -- dentro do proprio
+   getDepthInformation(), antes de o codigo poder recusar. Enquanto for
+   false, o depth-sensing nem e pedido; o contorno fica pelas juntas das
+   maos. Para religar: contexto WebGL 2 (sampler2DArray no FS_CONTORNO) ou
+   cpu-optimized com o mapa subido a uma TEXTURE_2D por quadro. */
+const CONTORNO_PROFUNDIDADE = false;
 const CONTORNO_MAOS         = true;
 /* O TEATRO DE PAPEL DO CENARIO 4. Em 13/09 os planos com borda rasgada
    sairam ("estao tampando a deusa... voce nao entendeu ainda as imagens,
@@ -9647,10 +9657,14 @@ async function entrarXR(aoEntrar){
      uma textura por olho, que e o que o shader do contorno le. */
   const pedido = {
     requiredFeatures: [],
-    optionalFeatures: ['local-floor','hand-tracking','plane-detection','anchors','hit-test',
-                       'depth-sensing'],
-    depthSensing: { usagePreference: ['gpu-optimized'], dataFormatPreference: ['luminance-alpha', 'float32'] }
+    optionalFeatures: ['local-floor','hand-tracking','plane-detection','anchors','hit-test'],
   };
+  /* So se pede o mapa de profundidade com o contorno ligado: pedir e
+     receber texture-array em WebGL 1 derruba o contexto (20/09). */
+  if(CONTORNO_PROFUNDIDADE){
+    pedido.optionalFeatures.push('depth-sensing');
+    pedido.depthSensing = { usagePreference: ['gpu-optimized'], dataFormatPreference: ['luminance-alpha', 'float32'] };
+  }
 
   /* DOM-OVERLAY NAO ENTRA AQUI, E ISSO CUSTOU UMA NOITE.
 
