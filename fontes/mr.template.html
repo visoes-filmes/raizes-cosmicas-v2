@@ -281,6 +281,7 @@
     <button id="bIniciarTela">Iniciar na tela</button>
     <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
     <p class="portao-dica" id="portaoVersao"></p>
+    <p class="portao-dica" id="portaoProgramas"></p>
   </div>
 </div>
 
@@ -6639,6 +6640,27 @@ const progFigu  = programa(VS_FIGU,  FS_FIGU);
 const progBolha = programa(VS_BOLHA, FS_BOLHA);
 const progBorbo = programa(VS_BORBO, FS_BORBO);
 const progTexto = programa(VS_TEXTO, FS_TEXTO);
+
+/* QUE PROGRAMAS ESTE APARELHO COMPILOU -- 20/09. Um programa que nao linka
+   nao da erro em lugar nenhum dentro do capacete: a coisa simplesmente nao
+   aparece, e de fora parece versao velha ("varias mudancas que pedi nao
+   estao la"). O banco de provas (provar_shaders.py) so prova o computador
+   da bancada; o portao passa a dizer, embaixo da versao, quantos dos
+   dezoito programas linkaram NESTE aparelho -- e o nome dos que nao. E uma
+   linha de texto no portao, como a versao: nao e andaime dentro da obra. */
+(function(){
+  const PROGRAMAS = {solida:progSolida, mata:progMata, sala:progSala, fig:progFig, po:progPo,
+    fio:progFio, contorno:progContorno, mao:progMao, assa:progAssa, astro:progAstro,
+    teatro:progTeatro, mergulho:progMergulho, soloAgua:progSoloAgua, agua:progAgua,
+    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto};
+  const nomes = Object.keys(PROGRAMAS);
+  const falhos = nomes.filter(n => !gl.getProgramParameter(PROGRAMAS[n], gl.LINK_STATUS));
+  const onde = document.getElementById('portaoProgramas');
+  if(onde) onde.textContent = falhos.length
+    ? 'ATENÇÃO: ' + falhos.length + ' de ' + nomes.length + ' programas de desenho não compilaram neste aparelho: ' + falhos.join(', ')
+    : nomes.length + ' programas de desenho compilados neste aparelho';
+  relato('PROGRAMAS ' + (nomes.length - falhos.length) + '/' + nomes.length + (falhos.length ? ' falhos=' + falhos.join(',') : ''));
+})();
 
 /* ═══════════ cortinas de aurora (camada 3) ═══════════
    Cada cortina é uma fita comprida: um caminho em arco pela sala,

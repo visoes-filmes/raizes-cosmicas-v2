@@ -1027,6 +1027,19 @@ O que continua sem conferência dentro da RM: o toque, o pegar e dimensionar
 do rosa, as deusas vistas em estéreo, o buraco no chão, a luz da sala com as
 mãos.
 
+### O portão diz o que este aparelho compilou (20/09)
+
+"Não parece ser a última versão: várias mudanças que pedi não estão lá"
+(relato do Plínio, pelo headset dele). A obra publicada foi conferida byte a
+byte contra a montagem (`md5` do `index.html` no endereço publicado = o do
+commit `437df9e`): o site está certo. O que sobra é o aparelho, e um
+aparelho tem dois jeitos de não mostrar o novo: **cache velho** (o portão
+diz a versão que ele tem na mão) e **programa que não linka naquela GPU** —
+que não dá erro em lugar nenhum, a coisa só não aparece. Para o segundo, o
+portão passou a dizer, embaixo da versão, **quantos dos dezoito programas
+linkaram neste aparelho** e o nome dos que não (`portaoProgramas`; e um
+relato `PROGRAMAS 18/18` pelo cabo). Uma foto do portão responde as duas.
+
 ### Decidido, mas não construído (revisto em 18/09)
 
 Saíram desta lista por já existirem: pegar e dimensionar o rosa (12/09), e

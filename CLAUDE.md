@@ -271,6 +271,11 @@ simplesmente não aparece.
   > tinham achado. Desde 14/09 é um comando: `python fontes/provar_shaders.py`
   > escreve `_prova.html`; aberta num navegador, ela compila e linka todos os
   > programas e lista o log dos que falharem.
+  >
+  > E **dentro do capacete**, desde 20/09, o portão diz embaixo da versão
+  > quantos dos dezoito programas linkaram *naquele aparelho* — e o nome
+  > dos que não. "Várias mudanças não estão lá" com o portão dizendo
+  > 18/18 é cache velho; com menos de 18 é o aparelho, e aí é o cabo.
 - **Atributo vaza entre programas.** Chame `soltarAtributos()` depois de
   todo `useProgram`.
 - **Alocar memória por quadro** vira engasgo periódico do coletor de lixo.
