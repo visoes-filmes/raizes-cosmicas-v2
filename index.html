@@ -3637,6 +3637,9 @@ uniform float materia;
    valor que arma o toque, que ate agora era so limiar interno e nao
    aparecia em lugar nenhum. */
 uniform float proximidade;
+/* QUAO PERTO A MAO ESTA DA MAE: zero longe, um encostando. So a materia 15
+   (ela) le isto -- as outras onze arvores sao a 8 e nao respondem. */
+uniform float veiaPerto;
 /* A PROPORCAO DA PINTURA DO CEU, para a materia 13 poder amostra-la
    com a MESMA estereografica da cupula. Sem o aspecto certo, o ceu
    amostrado aqui sai esticado em relacao ao ceu de verdade -- e a
@@ -3994,6 +3997,34 @@ void main(){
       float sobe = fract(vMundo.y * 0.85 - tempo * 0.13);
       float onda = pow(1.0 - abs(sobe * 2.0 - 1.0), 8.0);
       c += vec3(0.13, 0.40, 0.36) * onda * smoothstep(1.90, 0.10, vMundo.y) * 0.45;
+      /* E ELA RESPONDE A QUEM CHEGA -- 23/09, a direcao de arte: "as arvores
+         tambem, quando se aproximar, ela tem que ter uma reacao; eu tinha
+         colocado umas veias, e essas veias aparecem quando a pessoa se
+         aproxima".
+
+         A seiva acima esta sempre correndo, fraca, e e o pulso dela em
+         repouso. Com a mao chegando acende POR CIMA uma rede de veios: fio
+         fino de ruido dobrado -- o mesmo recurso da pedra e da montanha --,
+         correndo mais rapido que a seiva e SEM o teto de altura, porque
+         quem responde e a arvore inteira e nao o pe dela.
+
+         O EXPOENTE 6 E O QUE FAZ FIO EM VEZ DE MANCHA, e a escala de 3,4
+         por metro poe uns trinta centimetros entre um veio e outro: de
+         perto le-se cada um, e de longe le-se a arvore inteira acesa de
+         leve. No mesmo turquesa da seiva e dos cogumelos -- o cenario tem
+         um batimento so. */
+      if(veiaPerto > 0.004){
+        /* A ESCALA E DE ONZE VOLTAS POR METRO NO PLANO e duas na altura: no
+           plano o veio se repete a cada nove centimetros, que num tronco de
+           sessenta le-se como uma dezena de fios em volta; na altura ele quase
+           nao varia, e por isso cada fio CORRE o tronco de baixo para cima em
+           vez de virar mancha. Com 3,4 nos tres eixos sairam duas faixas largas,
+           medido na bancada em 23/09: parecia a arvore inteira acendendo. */
+        float rede = 1.0 - abs(rugas(vMundo * vec3(11.0, 2.2, 11.0)) * 2.0 - 1.0);
+        float correndo = fract(vMundo.y * 0.55 - tempo * 0.40);
+        float pulso = 0.35 + 0.65 * pow(1.0 - abs(correndo * 2.0 - 1.0), 3.0);
+        c += vec3(0.24, 0.72, 0.64) * pow(rede, 6.0) * pulso * veiaPerto * 1.30;
+      }
     }
   } else if(materia < 0.5){
     // A AQUARELA, por triplanar: a pele das arvores
@@ -8202,7 +8233,10 @@ function presencaSol(t){
    SOLTAR -- o planeta volta a orbita dele devagar, em uns seis segundos.
    Um planeta largado no chao ou atirado longe nunca se perde, e voltar
    devagar e soltar, nao mola. */
-const rosaNaMao = { por:-1, desvio:[0,0,0], pos:null, escala:1, escala0:1, dist0:0, escalando:false };
+const rosaNaMao = { por:-1, desvio:[0,0,0], pos:null, escala:1, escala0:1, dist0:0, escalando:false,
+                    /* 23/09: pousar tambem pega (quanto tempo cada mao ja
+                       esta em cima), e a obra lembra COMO foi pego. */
+                    dentro:[0, 0], pinca:false, grande:0, noRosto:0 };
 function raioDoRosa(){ return PLANETAS[0].raio * rosaNaMao.escala; }
 function seguirRosa(dt){
   const R = rosaNaMao;
@@ -8218,8 +8252,15 @@ function seguirRosa(dt){
   };
   if(R.por >= 0){
     const m = MAOS[R.por];
-    if(!m.tem || !m.apertando){ R.por = -1; R.escalando = false; relato('SOLTOU-O-ROSA escala=' + R.escala.toFixed(2)); }
+    /* SOLTAR. Pego com o pinca, solta-se abrindo a mao, como sempre. Pego
+       por POUSAR, abrir a mao nao quer dizer nada -- ela ja estava aberta --
+       e ai quem solta e um pinca deliberado. O terceiro jeito de soltar e o
+       da obra: as 6:18 o planeta se apaga e a mao fica vazia sozinha. */
+    const soltou = !m.tem || (R.pinca ? !m.apertando : (m.apertando && R.dentro[R.por] > 1.2));
+    if(soltou){ R.por = -1; R.escalando = false; R.pinca = false; R.dentro[0] = R.dentro[1] = 0;
+                relato('SOLTOU-O-ROSA escala=' + R.escala.toFixed(2)); }
     else {
+      R.dentro[R.por] += dt;
       // segue a mao com um atraso de uns 70 ms: e o que lixa o tremor do rastreio
       const k = 1 - Math.exp(-14 * dt);
       R.pos[0] += (m.x + R.desvio[0] - R.pos[0]) * k;
@@ -8232,18 +8273,70 @@ function seguirRosa(dt){
         // a regua nunca comeca menor que um palmo: maos que comecam juntas
         // dobrariam o planeta com um dedo de movimento
         if(!R.escalando){ R.escalando = true; R.dist0 = Math.max(0.15, d); R.escala0 = R.escala; }
-        else R.escala = Math.max(0.5, Math.min(2.5, R.escala0 * d / R.dist0));
+        /* O TETO SUBIU DE 2,5 PARA 4 -- 23/09. O roteiro sempre disse
+           "abrindo muito, ele cresce alem de voce, e voce entra nele", e com
+           2,5 o maior que ele ficava tinha 1,2 m de ponta a ponta: grande,
+           e ainda um objeto na frente da pessoa. Com 4 ele passa dos 1,8 m e
+           deixa de ser objeto. */
+        else R.escala = Math.max(0.5, Math.min(4.0, R.escala0 * d / R.dist0));
       } else R.escalando = false;
+      /* E ENTRAR NELE E O QUE A MAO FAZ, e nao o relogio -- 23/09: "a reacao
+         do planeta rosa nao esta muito precisa, nao esta muito intuitiva;
+         facilitar para poder entrar no planeta rosa".
+
+         Ate aqui pegar e dimensionar nao levavam a lugar nenhum: a entrada
+         acontecia as 6:20 de qualquer jeito, e o gesto que o roteiro descreve
+         desde o comeco nao tinha consequencia. Agora ha DOIS caminhos, e os
+         dois sao o mesmo gesto do roteiro visto de dois jeitos:
+
+           CRESCER -- com as duas maos, passando de 2,4 de escala (mais de um
+           metro de ponta a ponta), meio segundo;
+           CHEGAR PERTO DO ROSTO -- com uma mao so, trazendo-o a menos de um
+           palmo do olho, meio segundo. Nao e invencao: a obra JA dissolve o
+           planeta quando ele chega ao rosto (a rampa de um a dois raios,
+           12/09), e ate hoje essa dissolucao nao queria dizer nada. Agora
+           quer: o que se dissolve em volta de voce e o que voce atravessou.
+
+         Como o casulo e a concha, isto ANTECIPA -- salta para os 6:20 que
+         aconteceriam de qualquer jeito -- e nao cria um segundo caminho para
+         manter. Quem nao entende o gesto entra as 6:20, como sempre. */
+      const rEnt = raioDoRosa();
+      const dRosto = Math.hypot(ondeOOlhoEsta[0] - R.pos[0], ondeOOlhoEsta[1] - R.pos[1],
+                                ondeOOlhoEsta[2] - R.pos[2]);
+      R.grande  = (R.escala >= 2.4)      ? R.grande + dt  : 0;
+      R.noRosto = (dRosto < rEnt + 0.15) ? R.noRosto + dt : 0;
+      if(t < 380 && (R.grande > 0.5 || R.noRosto > 0.5)){
+        relato('ENTROU-NO-ROSA por=' + (R.grande > 0.5 ? 'cresceu' : 'rosto')
+               + ' escala=' + R.escala.toFixed(2));
+        sinoDoToque(5, 1.0);
+        pulsarEm(R.pos[0], R.pos[1], R.pos[2]);
+        t = 380;
+      }
       return;
     }
   }
-  // solto: alguem pinca perto dele?
+  /* PEGAR FICOU MAIS FACIL -- 23/09. Eram duas exigencias ao mesmo tempo:
+     estar a menos de dez centimetros da casca E estar pincando. Dez
+     centimetros e menos que o tremor do rastreio a meio metro, e o pinca no
+     Quest sai quando os dedos se encostam de verdade -- errar as duas juntas
+     e o normal, e errar sem nenhum aviso e o que fazia isto nao parecer
+     interativo.
+
+     Agora: a folga e de 26 cm, e POUSAR A MAO EM CIMA por meio segundo pega,
+     sem pinca nenhum. O pinca continua valendo e pega na hora, para quem ja
+     sabe. E o halo do planeta ja vinha crescendo com a mao chegando, entao a
+     pessoa ve que esta no lugar certo ANTES de conseguir. */
   if(vivo) for(let i = 0; i < 2; i++){
     const m = MAOS[i];
-    if(m.tem && m.apertando && perto(m, 0.10)){
-      R.por = i; R.pos = onde.slice();
+    if(!m.tem){ R.dentro[i] = 0; continue; }
+    const emCima = perto(m, 0.26);
+    R.dentro[i] = emCima ? R.dentro[i] + dt : 0;
+    if(emCima && (m.apertando || R.dentro[i] > 0.5)){
+      R.por = i; R.pinca = !!m.apertando; R.pos = onde.slice();
       R.desvio = [onde[0] - m.x, onde[1] - m.y, onde[2] - m.z];
-      relato('PEGOU-O-ROSA mao=' + i);
+      R.grande = 0; R.noRosto = 0;
+      sinoDoToque(4, 0.6);
+      relato('PEGOU-O-ROSA mao=' + i + (R.pinca ? ' pincando' : ' pousando'));
       return;
     }
   }
@@ -8525,14 +8618,18 @@ function alvosAgora(){
      Cada um tem a sua nota. A mae e a mais grave. */
   if(presencaMata > 0.3){
     const tx = ARVORE_BASE[0], tz = ARVORE_BASE[2];
-    lista.push({ id:'mae', dentro(m){
+    /* px/py/pz/praio sao o corpo APROXIMADO, so para medir a chegada da mao
+       -- o toque continua sendo o dentro(), que e a forma de verdade. */
+    lista.push({ id:'mae', nota:0, px:tx, py:1.20, pz:tz, praio:0.70,
+                 dentro(m){
                    const dx = m.x - tx, dz = m.z - tz, d2 = dx*dx + dz*dz;
                    return (m.y < 0.55 && d2 < 1.4*1.4) || (m.y < 2.6 && d2 < 0.62*0.62);
                  },
                  fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(0, 1.0); relato('TOCOU-A-MAE'); } });
     COGUMELOS.forEach((cg, i) => {
-      lista.push({ id:'cogumelo-' + i, x:cg.x, y:0.18, z:cg.z, raio:0.24,
-                   fazer(m){ pulsarEm(cg.x, 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7); } });
+      lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:0.18, z:cg.z, raio:0.24,
+                   fazer(m){ pulsarEm(cg.x, 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7);
+                             relato('TOCOU-UM-COGUMELO ' + i); } });
     });
   }
   if(borboletaPresenteAgora > 0.3)
@@ -8541,7 +8638,7 @@ function alvosAgora(){
                            somEstranho(); relato('TOCOU-A-BORBOLETA'); } });
   if(presencaAstro(0, t) > 0.3){
     const q = ondeEsta(0, t);
-    lista.push({ id:'rosa', x:q[0], y:q[1], z:q[2], raio:raioDoRosa() + 0.12,
+    lista.push({ id:'rosa', nota:4, x:q[0], y:q[1], z:q[2], raio:raioDoRosa() + 0.12,
                  /* O pulso nasce ONDE A MAO ENCOSTOU -- no ponto da superficie
                     mais perto dela --, e nao no centro: do centro, toda a
                     superficie esta a um raio, e a onda vira piscada. */
@@ -8551,7 +8648,7 @@ function alvosAgora(){
   }
   if(casuloPresenca > 0.3)
     // o alvo acompanha o corpo: 0,28 era generoso para a pupa de 23 cm
-    lista.push({ id:'casulo', x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.34,
+    lista.push({ id:'casulo', nota:1, x:CASULO[0], y:CASULO[1], z:CASULO[2], raio:0.34,
                  /* O QUE O TOQUE FAZ: adianta a partitura ate a borboleta.
                     Nao inventa um efeito paralelo -- faz acontecer AGORA o
                     que aconteceria as 2:50 de qualquer jeito. Quem toca
@@ -8565,7 +8662,7 @@ function alvosAgora(){
      Tocada, ela chama a mao gigante — que e o que o roteiro ja marcava
      para as 8:25. Como no casulo: o toque ANTECIPA, nao inventa. */
   if(conchaPresenca > 0.3)
-    lista.push({ id:'concha', x:CONCHA[0], y:CONCHA[1] + 0.15, z:CONCHA[2], raio:0.45,
+    lista.push({ id:'concha', nota:3, x:CONCHA[0], y:CONCHA[1] + 0.15, z:CONCHA[2], raio:0.45,
                  fazer(m){ pulsarEm(CONCHA[0], CONCHA[1], CONCHA[2]); sinoDoToque(3, 0.8);
                           if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
@@ -8638,8 +8735,72 @@ function lerMaos(frame){
 /* O TOQUE. Encostar basta: nao ha gesto a aprender, e numa fila cada
    instrucao a menos e um visitante a mais que entende sozinho. O gatilho
    tambem vale, para quem estiver de controle. */
+/* O CHAMADO -- 23/09. "As arvores tambem, quando se aproximar, ela tem que
+   ter uma reacao"; "ter uma reacao quando chega perto dos planetas".
+
+   Ate aqui so o CASULO sabia que uma mao estava vindo, e sabia sozinho, com
+   a conta escrita no meio do desenho. Agora e de todos: para cada alvo,
+   quanto a mao mais perto esta dele -- 1 encostando na superficie, 0 a meio
+   metro dela.
+
+   SOBE RAPIDO E DESCE DEVAGAR (8 contra 2,5 por segundo): o que chega tem
+   que acender junto com o braco, e o que sai tem que apagar como brasa. Com
+   os dois iguais, o tremor do rastreio de mao vira pisca-pisca.
+
+   E AVISA UMA VEZ POR CHEGADA: o sussurro dispara ao cruzar 0,42 subindo, e
+   so rearma abaixo de 0,15. Sem as duas soleiras, uma mao parada na
+   fronteira dispara sessenta sussurros por segundo. */
+const ALCANCE_CHAMADO = 0.55;
+const chamados = Object.create(null);
+const cruQuadro = Object.create(null);
+function chamadoDe(id){ const e = chamados[id]; return e ? e.q : 0; }
+function verChamados(alvos, dt){
+  for(const k in cruQuadro) cruQuadro[k] = 0;
+  for(const a of alvos){
+    const cx = a.px !== undefined ? a.px : a.x;
+    if(cx === undefined) continue;
+    const cy = a.py !== undefined ? a.py : a.y;
+    const cz = a.pz !== undefined ? a.pz : a.z;
+    const r  = a.praio !== undefined ? a.praio : (a.raio || 0.2);
+    let q = 0;
+    for(const m of MAOS){
+      if(!m.tem) continue;
+      const d = Math.hypot(m.x - cx, m.y - cy, m.z - cz) - r;
+      const qq = 1 - Math.min(Math.max(d / ALCANCE_CHAMADO, 0), 1);
+      if(qq > q) q = qq;
+    }
+    cruQuadro[a.id] = q;
+    if(!chamados[a.id]) chamados[a.id] = { q:0, avisou:false, nota:a.nota };
+    else chamados[a.id].nota = a.nota;
+  }
+  for(const id in chamados){
+    const e = chamados[id], alvo = cruQuadro[id] || 0;
+    e.q += (alvo - e.q) * (1 - Math.exp(-(alvo > e.q ? 8.0 : 2.5) * dt));
+    if(e.q < 0.0015) e.q = 0;
+    if(!e.avisou && e.q > 0.42){ e.avisou = true;
+      if(e.nota !== undefined) sussurroDePerto(e.nota, 1.0); }
+    else if(e.avisou && e.q < 0.15) e.avisou = false;
+  }
+}
+
+/* OS OUTROS TRES PLANETAS entram no chamado sem entrar no toque: eles
+   respondem a quem chega -- "ter uma reacao quando chega perto dos
+   planetas" -- mas nao tem o que fazer se forem tocados, e um deles que
+   tocasse a nota do sino estaria prometendo o que nao cumpre. Quem fala e
+   so o rosa, que e o interativo. E a distancia continua sendo o convite. */
+function astrosNoChamado(){
+  const lista = [];
+  for(let i = 1; i < PLANETAS.length; i++){
+    if(presencaAstro(i, t) < 0.3) continue;
+    const c = ondeEsta(i, t);
+    lista.push({ id:'astro-' + i, x:c[0], y:c[1], z:c[2], raio:PLANETAS[i].raio });
+  }
+  return lista;
+}
+
 function conferirToque(dt){
   const alvos = alvosAgora();
+  verChamados(alvos.concat(astrosNoChamado()), dt);
   for(const m of MAOS){
     let perto = null;
     if(m.tem) for(const a of alvos){
@@ -9131,18 +9292,82 @@ function podeSoar(){ return audio && somLigado && audio.state === 'running'; }
    aguda -- 785 Hz --, e ela pesa quatro por cento. Era uma oitava acima,
    e a direcao de arte nao quer agudo. */
 const NOTAS = [130.81, 146.83, 164.81, 196.00, 220.00, 261.63];
+/* 23/09, a direcao de arte: "o cogumelo teve uma reacao luminosa, mas nao
+   teve som -- queria uma sonoridade delicada e cosmica, que ambiente esse
+   universo". O sino era tres senos limpos, e seno limpo e sino de relogio:
+   correto e sem lugar nenhum. O que faz um som ter ESPACO sao tres coisas,
+   e nenhuma delas e agudo (ela nao quer agudo, e o teto de 1,4 kHz fica):
+
+   AS DUAS VOZES QUE BATEM. A fundamental sai em duas, afastadas oito
+   centesimos de tom (+-0,25 %): elas entram em fase e saem, e essa batida
+   lenta -- menos de um ciclo por segundo -- e o que o ouvido le como coisa
+   viva, e nao como nota digitada. E o mesmo recurso de coro de vozes.
+
+   O SOPRO DA ENTRADA. Um sopro de ruido de sessenta milissegundos, filtrado
+   estreito na propria nota, antes do tom: e o ar que a coisa desloca ao
+   responder. Sem ele o som COMECA, com ele o som CHEGA -- e "delicado" e
+   quase sempre isto, um ataque que nao e um degrau.
+
+   A CAUDA LONGA E A QUINTA QUE DEMORA. A cauda vai a quatro segundos (era
+   2,3) e, por cima dela, uma quinta acima entra DEPOIS, em meio segundo de
+   subida, com um decimo do peso: e o rastro que a nota deixa, e e ele o
+   "cosmico" -- um halo que continua quando a mao ja saiu.
+
+   E O CONTEXTO ACORDA AQUI, se estiver dormindo. Dentro da RM nao ha
+   pointerdown, e o contexto pode ter ficado suspenso: um toque que acende a
+   coisa e nao soa e exatamente o defeito relatado. */
 function sinoDoToque(nota, forca){
+  if(audio && audio.state !== 'running') acordarGestos();
   if(!podeSoar()) return;
   const t0 = audio.currentTime, freq = NOTAS[nota % NOTAS.length];
-  for(const [mult, peso, dur] of [[1.0, 1.0, 2.3], [2.0, 0.24, 1.4], [3.0, 0.04, 0.6]]){
+  // o sopro: o ar antes do tom
+  if(!ruidoCurto){
+    const n = Math.floor(audio.sampleRate * 0.12);
+    ruidoCurto = audio.createBuffer(1, n, audio.sampleRate);
+    const d = ruidoCurto.getChannelData(0);
+    for(let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const ar = audio.createBufferSource(); ar.buffer = ruidoCurto;
+  const fAr = audio.createBiquadFilter();
+  fAr.type = 'bandpass'; fAr.frequency.value = freq * 2.0; fAr.Q.value = 6.0;
+  const gAr = audio.createGain();
+  gAr.gain.setValueAtTime(0.0001, t0);
+  gAr.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * 0.26), t0 + 0.010);
+  gAr.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.075);
+  ar.connect(fAr); fAr.connect(gAr); gAr.connect(somMestre);
+  ar.start(t0); ar.stop(t0 + 0.10);
+  //            multiplo  peso  duracao  atraso da entrada
+  for(const [mult, peso, dur, sobe] of [[0.9975, 1.00, 4.0, 0.012],
+                                        [1.0025, 0.92, 4.0, 0.012],
+                                        [2.0,    0.20, 2.2, 0.030],
+                                        [3.0,    0.035, 0.9, 0.030],
+                                        [1.5,    0.10, 3.4, 0.50]]){
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = 'sine'; o.frequency.value = freq * mult;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * peso * 0.085), t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * peso * 0.075), t0 + sobe);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(somMestre);
     o.start(t0); o.stop(t0 + dur + 0.05);
   }
+}
+
+/* O SUSSURRO DA APROXIMACAO -- 23/09. Antes de tocar, a coisa avisa que
+   esta ali: um sopro quase inaudivel, curto, na oitava abaixo da nota dela.
+   Dispara UMA VEZ por chegada (quem cuida disso e o chamado(), abaixo), e
+   nao enquanto a mao fica perto -- senao vira chiado continuo. */
+function sussurroDePerto(nota, forca){
+  if(audio && audio.state !== 'running') acordarGestos();
+  if(!podeSoar()) return;
+  const t0 = audio.currentTime, freq = NOTAS[nota % NOTAS.length] * 0.5;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(freq * 0.94, t0);
+  o.frequency.exponentialRampToValueAtTime(freq, t0 + 0.55);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * 0.030), t0 + 0.28);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.30);
+  o.connect(g); g.connect(somMestre);
+  o.start(t0); o.stop(t0 + 1.35);
 }
 
 /* O SOPRO DA ASA. Um sopro de ruido de sessenta milissegundos, filtrado
@@ -9356,6 +9581,11 @@ if(emTesteLocal){
 
 if(emTesteLocal){
   window.raizes = {
+    /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
+       raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
+    chamado(id){ return chamadoDe(id); },
+    /* onde um astro esta agora, para a bancada pousar a mao nele (23/09) */
+    astro(i){ return ondeEsta(i | 0, t); },
     /* UMA MAO DE MENTIRA, para a bancada: poe a mao 0 num ponto (ou tira,
        sem argumento). E so daqui que se testa toque sem headset. */
     mao(x, y, z, aperta, qual){
@@ -9947,7 +10177,7 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                escalaObj:uSo('escalaObj'), tempo2:uSo('tempo'),
                inflar:uSo('inflar'), focos:uSo('focos[0]'),
                luzCasulo:uSo('luzCasulo'), toque:uSo('toque'),
-               proximidade:uSo('proximidade'),
+               proximidade:uSo('proximidade'), veiaPerto:uSo('veiaPerto'),
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar'),
                bolha:uSo('bolha'), lamina:uSo('lamina'),
                serpente:uSo('serpente'), serpentes:uSo('serpentes[0]'),
@@ -10393,6 +10623,8 @@ function mandarMvp(loc, m){
   gl.uniformMatrix4fv(loc, false, mvpBuf);
 }
 
+/* ONDE O OLHO ESTAVA no ultimo quadro desenhado (o desenho escreve aqui). */
+const ondeOOlhoEsta = [0, 1.6, 0];
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   gl.enable(gl.DEPTH_TEST);
   /* O RELOGIO DO PULSO DO TOQUE, uma vez por quadro e para todos os
@@ -10415,6 +10647,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     -(visao[4]*visao[12] + visao[5]*visao[13] + visao[6]*visao[14]),
     -(visao[8]*visao[12] + visao[9]*visao[13] + visao[10]*visao[14]),
   ];
+  /* E FICA GUARDADO PARA FORA DO DESENHO -- 23/09. Quem corre antes do
+     desenho (o seguirRosa, que decide se o planeta chegou ao rosto) tambem
+     precisa saber onde esta o olho, e ate aqui isto era const local. Um
+     quadro de atraso nao muda nada numa conta de meio segundo, e em RM sao
+     duas vistas por quadro: vale a ultima, que e a diferenca de um olho. */
+  ondeOOlhoEsta[0] = olhoPos[0]; ondeOOlhoEsta[1] = olhoPos[1]; ondeOOlhoEsta[2] = olhoPos[2];
 
   // 1) RAÍZES PRIMEIRO, opacas. Se a sala translúcida viesse antes, ela
   //    gravaria profundidade e apagaria as raízes atrás dela.
@@ -10594,6 +10832,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
 
     if(presencaMata > 0.004){
+      // a veia da mae acende com a mao chegando (23/09); so a materia 15 le
+      gl.uniform1f(locSo.veiaPerto, chamadoDe('mae'));
       ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
       ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
@@ -11255,9 +11495,22 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       somarLuz();
       gl.depthMask(false);
       gl.cullFace(gl.FRONT);           // a parede de tras: so em volta do corpo
+      /* E O CORPO ACENDE COM A MAO CHEGANDO -- 23/09. A casca que ele ja
+         derramava vira a resposta dele: cresce de 1,6 para 2,0 raios e mais
+         que dobra de forca. No rosa o dobro disso, porque e nele que a
+         pessoa tem de reparar -- "a reacao do planeta rosa nao esta muito
+         intuitiva". Nada de novo no shader: e a mesma casca, com outro
+         numero. */
+      /* MEDIDO E BAIXADO -- bancada, 23/09. Com +0,75 de brilho o rosa
+         estourava para BRANCO com a mao perto: sumiam as nuvens da pele do
+         Midjourney e sobrava uma lampada rosa. A regra da casa vale aqui
+         ("tingir forte apagaria o que se foi buscar"): +0,30 e o dobro do
+         que ele derrama parado, ve-se de longe, e a pele continua la. */
+      const qPerto = i === 0 ? chamadoDe('rosa') : chamadoDe('astro-' + i);
+      const forte = i === 0 ? 1.0 : 0.45;
       gl.uniform1f(locAst.halo, 1.0);
-      gl.uniform1f(locAst.raio, raio * 1.6);
-      gl.uniform1f(locAst.brilho, 0.30);
+      gl.uniform1f(locAst.raio, raio * (1.6 + 0.22 * qPerto * forte));
+      gl.uniform1f(locAst.brilho, 0.30 + 0.30 * qPerto * forte);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
       if(pl.gas){   // o gasoso derrama mais longe: e gas, nao pedra
         gl.uniform1f(locAst.raio, raio * (1.6 + 0.55 * pl.gas));
