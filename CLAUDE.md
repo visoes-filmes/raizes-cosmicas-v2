@@ -208,6 +208,7 @@ Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
 | `PAPEL_NO_CENARIO` | `true` | o teatro de papel do cenário 4: as ondas do quadro de 186 s cortadas em cinco camadas com os portais vazados (`fontes/teatro_de_papel.py`) — os planos com borda rasgada saíram em 13/09 |
 | `CONTORNO_PROFUNDIDADE` | `false` | o fio de luz em volta de qualquer corpo que entre na visão, pelo mapa de profundidade do Quest (`depth-sensing`). **Desligado em 20/09**: o Quest 3 entrega o mapa como texture-array, o WebGL 1 não tem isso e o contexto inteiro caía no primeiro quadro em RM. Só religar com WebGL 2 ou `cpu-optimized`, provado no aparelho |
 | `CONTORNO_MAOS` | `true` | o contorno das mãos pelas juntas rastreadas — só quando o mapa de profundidade não vem |
+| `ESPACO_ESCANEADO` | `false` | **o v4**: a obra lê os planos do aparelho e se planta no espaço de verdade — o que é pequeno pousa na superfície que estiver embaixo (chão, mesa, banco) e as árvores procuram chão livre, sem móvel embaixo. O montador escreve `v4.html` com ele ligado; a obra de sempre não muda. Sem espaço configurado no Quest não vem plano nenhum, e o v4 é idêntico ao v2 |
 
 Fora do arquivo:
 

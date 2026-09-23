@@ -234,6 +234,22 @@ if saida == os.path.join(RAIZ, "index.html"):
             f.write(simulador)
         print("Simulador: simulador.html (entra em RM sem headset)")
 
+    # O V4: a mesma obra, lendo o espaco de verdade.
+    #
+    # "Que aconteca um escaneamento do ambiente para posicionar os objetos
+    # integrados com o espaco" -- 23/09. Ele nao substitui a obra: sai ao
+    # lado dela, num arquivo proprio, para os dois poderem ser postos no
+    # headset e comparados na mesma tarde. Sem o espaco configurado no
+    # Quest nao vem plano nenhum, e ai o v4 e identico a obra.
+    v4 = html.replace("const ESPACO_ESCANEADO      = false;",
+                      "const ESPACO_ESCANEADO      = true;")
+    if v4 == html:
+        print("AVISO: nao achei o interruptor do v4 -- v4.html nao saiu")
+    else:
+        with open(os.path.join(RAIZ, "v4.html"), "w", encoding="utf-8") as f:
+            f.write(v4)
+        print("V4: v4.html (le o espaco e planta a obra nele)")
+
     oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
     with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
         f.write(oficina)

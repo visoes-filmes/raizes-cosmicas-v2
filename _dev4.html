@@ -1,4 +1,23 @@
 <meta charset="utf-8">
+<script>
+/* BANCADA: relogio de setTimeout no lugar do de composicao. */
+(function () {
+  var proxima = 1, pendentes = {}, t0 = performance.now();
+  window.requestAnimationFrame = function (fn) {
+    var id = proxima++;
+    pendentes[id] = setTimeout(function () {
+      delete pendentes[id];
+      fn(performance.now() - t0);
+    }, 16);
+    return id;
+  };
+  window.cancelAnimationFrame = function (id) {
+    clearTimeout(pendentes[id]); delete pendentes[id];
+  };
+  window.__bancada = true;
+})();
+</script>
+
 <title>Raízes Cósmicas v2</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -604,7 +623,7 @@ const PAPEL_NO_CENARIO      = true;
    esta: quem nao tem o espaco configurado no Quest nao ganha plano nenhum,
    e uma obra que depende de um escaneamento que pode nao vir seria uma obra
    que as vezes nao abre. Sem planos, o v4 e identico ao v2. */
-const ESPACO_ESCANEADO      = false;
+const ESPACO_ESCANEADO      = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -7563,6 +7582,7 @@ function subirFiguras(s){
   nIdxF = s.idx.length;
 }
 subirRaizes(semearMata(11), 11);
+window.__semearMata = semearMata; window.__BASES = BASES; window.__malha = decodificarMalha;
 subirFiguras(semearFiguras(29));
 subirPoeira(semearPoeira(53));
 subirEsporos(semearEsporos(71));   // depois de BASES existir
@@ -8182,6 +8202,7 @@ const FIGURAS = [
        0,465 e 0,535 e vao de 0,28 a 0,55 de altura */
     fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135] },
 ];
+window.__FIGURAS = FIGURAS;
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
    levando o mundo. A subida acontece entre 2:48 e 3:00, que e a passagem do
@@ -12985,7 +13006,7 @@ function quadro(){
   gl.clearColor(0.03,0.025,0.055,1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   const proj = perspectiva(fov, cv.width/cv.height, 0.05, LONGE);
-  const vis = visaoOrbita(yaw, pitch, OLHO);
+  const vis = visaoOrbita(yaw, pitch, (window.__olhoY === undefined ? OLHO : window.__olhoY));
   // escala do ponto: metade da altura em pixels vezes o termo vertical
   // da projeção. É o mesmo fator que a projeção aplica em y, então um
   // grão de 2 cm sai com o tamanho de 2 cm na tela.

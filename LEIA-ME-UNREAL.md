@@ -478,6 +478,54 @@ assim faltar coisa, aí é a lista dele, mudança por mudança, contra
 
 ---
 
+## 5b. O v4: a obra lida com o espaço de verdade (23/09)
+
+"Que aconteça um escaneamento do ambiente para posicionar os objetos
+integrados com o espaço. É importante evitar que coloque uma árvore em cima
+de algum objeto físico. Um cogumelo pode ficar em cima da mesa, mas não
+através/dentro dela."
+
+Sai num arquivo próprio — **`v4.html`**, escrito pelo montador com
+`ESPACO_ESCANEADO = true` — e a obra de sempre continua como está. O motivo
+de serem dois: sem a configuração de espaço feita no Quest não vem plano
+nenhum, e uma obra que dependesse de um escaneamento que pode não vir seria
+uma obra que às vezes não abre. **Sem planos, o v4 é idêntico ao v2.**
+
+**Como funciona.** Dentro da RM, a obra já pedia `plane-detection` e o Quest
+já concedia — só que ninguém lia. Agora lê: dois segundos depois do primeiro
+plano chegar (eles vêm aos poucos), monta-se a sala em `SALA` — o **piso**
+(o horizontal mais baixo), os **móveis** (horizontais acima dele, até 2,2 m)
+e as **paredes** (os verticais) — tudo como polígonos em x,z do mundo da
+obra. Não se usa `mesh-detection`: a pergunta aqui é de duas dimensões, "o
+que está embaixo deste ponto e a que altura", e polígono responde isso com
+uma conta de escola.
+
+Com a sala lida, a obra **replanta**, uma vez:
+
+| o quê | regra |
+|---|---|
+| cogumelos, pedras | pousam na superfície que estiver embaixo (`alturaEm`); a menos de 12 cm da quina, entram 18 cm para dentro — meio chapéu no ar lê pior do que atravessar |
+| a árvore-mãe | se o lugar de sempre tem móvel embaixo ou encosta na parede, ela **gira** em volta da pessoa até o chão livre mais próximo em ângulo (girar preserva o vão e o enquadramento do céu melhor do que afastar). O casulo vai junto, pelo mesmo deslocamento |
+| as outras onze | moram no anel de 2,9 a 5,0 m e atravessam a parede de propósito; delas só se cobra não nascerem de cima de um móvel — e fogem para fora |
+
+**Provado na bancada** (`raizes.sala({...})` dita uma sala de mentira, e o
+replantio corre igual): com uma mesa onde a mãe fica hoje, ela saiu de
+(−1,35, −1,75) para (0,32, −1,48) e o casulo foi junto; com uma mesa de
+centro de 42 cm dentro do anel dos cogumelos, dois deles subiram para
+`y = 0,42` — o pé no tampo. **Nada disso foi visto no Quest.**
+
+**O que falta no v4:**
+
+- **ver no aparelho** — é tudo o que importa: a leitura de planos de verdade,
+  o tempo dela, e se a mãe cai num lugar que faça sentido numa sala real;
+- a grama e a mancha de solo continuam no piso (não sobem na mesa);
+- `v4.html` não está no cache do `sw.js` — no estande sem rede ele não abre.
+  Entrar na lista se o v4 for o que vai à feira;
+- o replantio custa uma montagem de malha (uns poucos décimos de segundo),
+  dois segundos depois de entrar em RM. Medir no aparelho.
+
+---
+
 ## 6. Pendências e decisões em aberto (18/09)
 
 A lista inteira, com as melhorias sugeridas, está em

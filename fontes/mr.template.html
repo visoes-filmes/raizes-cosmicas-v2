@@ -588,6 +588,23 @@ const CONTORNO_MAOS         = true;
    como e que recorta elas") e entrou o teatro: as ondas do proprio quadro,
    cortadas em camadas, com os portais vazados. */
 const PAPEL_NO_CENARIO      = true;
+/* V4 -- A OBRA LE O ESPACO DE VERDADE E SE PLANTA NELE (23/09).
+
+   "Que aconteca um escaneamento do ambiente para posicionar os objetos
+   integrados com o espaco. E importante evitar que coloque uma arvore em
+   cima de algum objeto fisico. Um cogumelo pode ficar em cima da mesa, mas
+   nao atraves/dentro dela."
+
+   Ligado, a obra pede os PLANOS do aparelho (plane-detection, que o Quest
+   ja concede) e, dois segundos depois do primeiro chegar, replanta: o que e
+   pequeno POUSA na superficie que estiver debaixo dele -- chao, mesa,
+   banco -- e as arvores procuram chao livre, sem movel embaixo.
+
+   Sai num arquivo proprio, v4.html, e a obra de sempre continua como
+   esta: quem nao tem o espaco configurado no Quest nao ganha plano nenhum,
+   e uma obra que depende de um escaneamento que pode nao vir seria uma obra
+   que as vezes nao abre. Sem planos, o v4 e identico ao v2. */
+const ESPACO_ESCANEADO      = false;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -1458,6 +1475,241 @@ const CASULO = [-0.85, 1.45, -0.88];
    corpo, como pupa faz. CASULO marca a barriga; o pedunculo sobe dali. */
 const FIO_ALTO = CASULO[1] + 0.085 + 0.058;
 
+/* ═══════════ V4 — O ESPACO LIDO ═══════════
+
+   O que o aparelho entrega sao POLIGONOS: cada plano detectado tem uma
+   posicao no mundo e um contorno. O Quest os da depois que alguem fez a
+   configuracao de espaco (o limite de area e o movel marcado); sem isso
+   nao vem nenhum, e a obra segue como sempre.
+
+   O que se guarda aqui e o minimo para decidir onde as coisas ficam:
+   o PISO (o plano horizontal mais baixo), os MOVEIS (horizontais acima do
+   piso -- mesa, banco, cama) e as PAREDES (os verticais). Tudo em x,z do
+   mundo da obra, que e o mesmo mundo em que as arvores sao plantadas.
+
+   NAO se guarda a malha do comodo (mesh-detection): ela tem milhares de
+   triangulos e a pergunta aqui e de duas dimensoes -- "o que esta embaixo
+   deste ponto, e a que altura". Poligono responde isso com uma conta de
+   escola. */
+const SALA = { pronta:false, planos:0, chaoY:0, chao:null, moveis:[], paredes:[] };
+
+/* Ponto dentro do poligono, pelo numero de cruzamentos (o algoritmo do
+   raio). O poligono vem achatado: x,z,x,z... */
+function dentroDoPoligono(px, pz, poly){
+  let dentro = false;
+  for(let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2){
+    const xi = poly[i], zi = poly[i+1], xj = poly[j], zj = poly[j+1];
+    if((zi > pz) !== (zj > pz) &&
+       px < (xj - xi) * (pz - zi) / (zj - zi) + xi) dentro = !dentro;
+  }
+  return dentro;
+}
+
+/* Distancia do ponto ao CONTORNO do poligono -- serve tanto para "quao
+   perto da beirada da mesa" quanto para "quao perto da parede", porque uma
+   parede vista de cima e um retangulo fino. */
+function distAoContorno(px, pz, poly){
+  let d = 1e9;
+  for(let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2){
+    const xi = poly[i], zi = poly[i+1], xj = poly[j], zj = poly[j+1];
+    const dx = xj - xi, dz = zj - zi, L = dx*dx + dz*dz;
+    let u = L > 0 ? ((px - xi)*dx + (pz - zi)*dz) / L : 0;
+    u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const qx = xi + dx*u - px, qz = zi + dz*u - pz;
+    const dd = Math.sqrt(qx*qx + qz*qz);
+    if(dd < d) d = dd;
+  }
+  return d;
+}
+
+/* A ALTURA DA SUPERFICIE debaixo de um ponto, medida do piso. Zero e o
+   chao; 0,74 e o tampo de uma mesa. Havendo moveis empilhados, vale o mais
+   alto -- uma caixa em cima da mesa recebe o cogumelo, e nao a mesa. */
+function alturaEm(x, z){
+  if(!SALA.pronta) return 0;
+  let alto = 0;
+  for(const m of SALA.moveis){
+    const h = m.y - SALA.chaoY;
+    if(h > alto && dentroDoPoligono(x, z, m.poly)) alto = h;
+  }
+  return alto;
+}
+
+/* O MOVEL debaixo do ponto, quando ha -- para saber de que beirada fugir. */
+function movelEm(x, z){
+  if(!SALA.pronta) return null;
+  let achado = null;
+  for(const m of SALA.moveis)
+    if(dentroDoPoligono(x, z, m.poly) && (!achado || m.y > achado.y)) achado = m;
+  return achado;
+}
+
+/* CHAO LIVRE PARA UMA ARVORE: nenhum movel debaixo dela nem a menos de
+   raio da beirada. E o pedido inteiro desta versao -- "evitar que coloque
+   uma arvore em cima de algum objeto fisico".
+
+   naSala pede, alem disso, que ela fique DENTRO do piso lido e longe das
+   paredes: vale para a mae, que e de dentro. As outras onze moram no anel
+   de 2,9 a 5,0 m e atravessam a parede de proposito (a cupula ja faz o
+   mesmo) -- delas so se cobra nao nascerem de cima de um movel. */
+function chaoLivre(x, z, raio, naSala){
+  if(!SALA.pronta) return true;
+  for(const m of SALA.moveis)
+    if(dentroDoPoligono(x, z, m.poly) || distAoContorno(x, z, m.poly) < raio) return false;
+  if(!naSala) return true;
+  for(const pd of SALA.paredes)
+    if(distAoContorno(x, z, pd.poly) < raio * 0.55) return false;
+  if(SALA.chao && !dentroDoPoligono(x, z, SALA.chao)) return false;
+  return true;
+}
+
+/* ONDE A MAE PODE FICAR. Se o lugar de sempre esta livre, ela nao se mexe:
+   a posicao dela e composicao (o vao, o casulo ao alcance, a regiao
+   infinita atras dela), e mudar o que nao precisa mudar e perder isso.
+
+   Nao estando, procura-se o lugar livre mais proximo EM ANGULO -- girando
+   em volta da pessoa, meio passo de cada vez para os dois lados, e em cada
+   angulo variando a distancia. Girar preserva mais a composicao do que
+   afastar: o vao da arvore continua enquadrando o mesmo pedaco de ceu.
+
+   O CASULO VAI JUNTO, pelo mesmo deslocamento: ele pende de um galho dela,
+   e um casulo que ficasse para tras estaria pendurado no ar. */
+function acharLugarDaMae(){
+  const raio = 0.80;                       // a saia de sapopemas
+  if(chaoLivre(ARVORE_BASE[0], ARVORE_BASE[2], raio, true)) return 'ficou';
+  const a0 = Math.atan2(ARVORE_BASE[0], -ARVORE_BASE[2]);
+  const d0 = Math.hypot(ARVORE_BASE[0], ARVORE_BASE[2]);
+  let achado = null;
+  for(let giro = Math.PI/18; giro <= Math.PI && !achado; giro += Math.PI/18){
+    for(const lado of [1, -1]){
+      const a = a0 + lado * giro;
+      for(let d = Math.max(1.30, d0 - 0.70); d <= d0 + 1.00; d += 0.12){
+        const x = Math.sin(a) * d, z = -Math.cos(a) * d;
+        if(chaoLivre(x, z, raio, true)){ achado = [x, z]; break; }
+      }
+      if(achado) break;
+    }
+  }
+  if(!achado) return 'sem lugar';
+  const dx = achado[0] - ARVORE_BASE[0], dz = achado[1] - ARVORE_BASE[2];
+  ARVORE_BASE[0] = achado[0]; ARVORE_BASE[2] = achado[1];
+  CASULO[0] += dx; CASULO[2] += dz;
+  return 'moveu ' + dx.toFixed(2) + ',' + dz.toFixed(2);
+}
+
+/* AS OUTRAS ONZE so fogem do movel, e fogem PARA FORA: elas ja moram no
+   anel de fora, e trazer uma para dentro a poria no meio da sala. */
+function afastarDoMovel(base, raio){
+  if(!SALA.pronta || chaoLivre(base[0], base[2], raio, false)) return base;
+  const d = Math.hypot(base[0], base[2]) || 0.001;
+  const ux = base[0] / d, uz = base[2] / d;
+  for(let passo = 0.25; passo <= 3.0; passo += 0.25){
+    const x = base[0] + ux * passo, z = base[2] + uz * passo;
+    if(chaoLivre(x, z, raio, false)) return [x, 0, z];
+  }
+  return base;
+}
+
+/* O QUE E PEQUENO POUSA NO QUE ESTIVER EMBAIXO.
+
+   "Um cogumelo pode ficar em cima da mesa, mas nao atraves/dentro dela."
+   E so isto: a altura do objeto deixa de ser zero e passa a ser a da
+   superficie sob ele. O pe do cogumelo encosta no tampo.
+
+   E ELE NAO FICA NA BEIRADA. Pousado a cinco centimetros da quina, metade
+   do chapeu fica no ar e o olho le como coisa caindo -- pior do que
+   atravessar. Estando a menos de 12 cm da borda, ele entra 18 cm na
+   direcao do centro da superficie. */
+function pousarNoQueHouver(obj, folga){
+  const h = alturaEm(obj.x, obj.z);
+  obj.y = h;
+  if(h <= 0.02) return;
+  const m = movelEm(obj.x, obj.z);
+  if(!m) return;
+  if(distAoContorno(obj.x, obj.z, m.poly) < folga){
+    const dx = m.cx - obj.x, dz = m.cz - obj.z, L = Math.hypot(dx, dz) || 1;
+    obj.x += dx / L * (folga + 0.06);
+    obj.z += dz / L * (folga + 0.06);
+    obj.y = alturaEm(obj.x, obj.z);
+  }
+}
+
+/* REPLANTAR A OBRA NO ESPACO LIDO. Uma vez, quando a leitura assenta. */
+function arrumarOEspaco(){
+  for(const cg of COGUMELOS) pousarNoQueHouver(cg, 0.12);
+  montarCogumelos();
+  for(const pd of PEDRAS_CHAO) pousarNoQueHouver(pd, 0.10);
+  prepararPedras();
+  const daMae = acharLugarDaMae();
+  /* a semente vai numa variavel de proposito: o texto exato
+     a chamada com o numero cru la embaixo e o gancho da bancada, e ele
+     precisa aparecer uma vez so no arquivo. */
+  const semente = 11;
+  subirRaizes(semearMata(semente), semente);
+  const emCima = COGUMELOS.filter(c => (c.y || 0) > 0.05).length;
+  relato('ESPACO-ARRUMADO mae=' + daMae + ' cogumelos-em-movel=' + emCima +
+         ' moveis=' + SALA.moveis.length);
+}
+
+/* A LEITURA. Chamada por quadro dentro da RM; ela mesma decide quando ja
+   tem o bastante e se desliga.
+
+   DOIS SEGUNDOS DEPOIS DO PRIMEIRO PLANO, e nao no primeiro: eles chegam
+   aos poucos, e replantar a cada chegada seria a floresta andando pela sala
+   na frente de quem entrou. Dois segundos e o que o Quest leva para
+   entregar o que ja tinha guardado da configuracao de espaco.
+
+   E NUNCA PENDURA: getPose pode devolver nulo enquanto o rastreio assenta,
+   e um plano sem pose simplesmente nao entra nesta rodada. */
+let primeiroPlanoEm = 0;
+function lerOEspaco(frame, espaco){
+  if(!ESPACO_ESCANEADO || SALA.pronta || !frame || !frame.detectedPlanes) return;
+  const planos = frame.detectedPlanes;
+  if(!planos.size) return;
+  if(!primeiroPlanoEm){ primeiroPlanoEm = relogio; relato('ESPACO-PRIMEIRO-PLANO'); return; }
+  if(relogio - primeiroPlanoEm < 2.0) return;
+
+  const moveis = [], paredes = [];
+  let chao = null, chaoY = 1e9;
+  for(const plano of planos){
+    let pose = null;
+    try{ pose = frame.getPose(plano.planeSpace, espaco); }catch(e){ pose = null; }
+    if(!pose) continue;
+    const M = pose.transform.matrix;
+    const poly = [];
+    let somaY = 0, minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
+    for(const q of (plano.polygon || [])){
+      const x = M[0]*q.x + M[4]*q.y + M[8]*q.z + M[12];
+      const y = M[1]*q.x + M[5]*q.y + M[9]*q.z + M[13];
+      const z = M[2]*q.x + M[6]*q.y + M[10]*q.z + M[14];
+      poly.push(x, z); somaY += y;
+      if(x < minX) minX = x; if(x > maxX) maxX = x;
+      if(z < minZ) minZ = z; if(z > maxZ) maxZ = z;
+    }
+    if(poly.length < 6) continue;
+    const y = somaY / (poly.length / 2);
+    const rotulo = plano.semanticLabel || '';
+    const peca = { y, poly, rotulo, cx:(minX+maxX)/2, cz:(minZ+maxZ)/2 };
+    if(plano.orientation === 'horizontal'){
+      /* O PISO E O HORIZONTAL MAIS BAIXO. O rotulo ajuda quando vem, e o
+         Quest nem sempre o manda -- por isso a altura decide, e o rotulo
+         so confirma. Acima de 2,2 m e teto, e teto nao recebe nada. */
+      if(rotulo === 'floor' || y < 0.30){ if(y < chaoY){ chaoY = y; chao = poly; } }
+      else if(y < 2.20 && rotulo !== 'ceiling') moveis.push(peca);
+    } else paredes.push(peca);
+  }
+
+  SALA.pronta = true;
+  SALA.planos = planos.size;
+  SALA.chao = chao;
+  SALA.chaoY = chao ? chaoY : 0;
+  SALA.moveis = moveis;
+  SALA.paredes = paredes;
+  relato('ESPACO-LIDO planos=' + planos.size + ' chao=' + (chao ? 'sim' : 'nao') +
+         ' moveis=' + moveis.length + ' paredes=' + paredes.length);
+  arrumarOEspaco();
+}
+
 /* ONDE CADA PLANTA FICOU. O solo e a grama nascem AO PE DAS ARVORES, e
    para isso precisam saber onde as arvores estao. As posicoes sao sorteadas
    dentro do semeador; recalcula-las fora seria repetir o sorteio e depender
@@ -1496,6 +1748,9 @@ function semearMata(semente){
      forro, onde o ceu e virtual e portanto visivel. E o que transforma o
      comodo num lugar dentro de algo maior -- e e de um galho de dentro que
      o casulo pende. */
+  /* v4: antes de gerar, ela procura chao livre. Fora do v4 -- e sem
+     planos -- isto nao faz nada e a mae fica onde sempre esteve. */
+  if(ESPACO_ESCANEADO && SALA.pronta) acharLugarDaMae();
   (ARVORE_MAE === 2 ? gerarArvoreMae2 : gerarArvoreMae)(rnd, ARVORE_BASE, s);
   /* ATE AQUI E A MAE. Ela e gerada antes do laco, entao ocupa o primeiro
      trecho dos indices -- e e so isso que permite dar a ela uma casca e as
@@ -1518,7 +1773,9 @@ function semearMata(semente){
     const t = i/N * Math.PI*2 + (rnd()-0.5)*0.4;
     const rx = 2.9 + rnd()*2.1;
     const rz = 2.9 + rnd()*2.1;
-    const base = [Math.sin(t)*rx, 0, -Math.cos(t)*rz];
+    let base = [Math.sin(t)*rx, 0, -Math.cos(t)*rz];
+    // v4: nenhuma delas nasce de cima de um movel
+    if(ESPACO_ESCANEADO && SALA.pronta) base = afastarDoMovel(base, 0.45);
     /* E MAIORES, porque estao mais longe. A escala vinha contida pelo
        pe-direito: acima de 1,5 a planta furava os 3 m do forro. Fora da
        sala nao ha forro -- ha ceu --, e afastar sem crescer as encolheria
@@ -2089,7 +2346,8 @@ function montarCogumelos(){
   const monta = (modelo) => {
     const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
     for(const cg of COGUMELOS)
-      plantarMalha(m, modelo, [cg.x, 0, cg.z], cg.alt, cg.fase*0.97, cg.fase);
+      // cg.y e a altura da superficie embaixo dele: zero no chao, 0,74 na mesa (v4)
+      plantarMalha(m, modelo, [cg.x, cg.y || 0, cg.z], cg.alt, cg.fase*0.97, cg.fase);
     if(!m.idx.length) return null;
     const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
     enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
@@ -2735,7 +2993,7 @@ function prepararPedras(){
        uma pedras soltas num monte; o conversor separou as oito maiores, e
        aqui cada lugar recebe uma delas. Onze pedras de oito corpos, giradas
        ao acaso, e nao se reconhece a repeticao. */
-    plantarMalha(m, 'pedra-' + pd.peca, [pd.x, -0.07*pd.escala, pd.z],
+    plantarMalha(m, 'pedra-' + pd.peca, [pd.x, (pd.y || 0) - 0.07*pd.escala, pd.z],
                  pd.escala, pd.giro, pd.fase);
   });
   if(!m.idx.length) return;
@@ -8619,8 +8877,8 @@ function alvosAgora(){
                  },
                  fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(0, 1.0); relato('TOCOU-A-MAE'); } });
     COGUMELOS.forEach((cg, i) => {
-      lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:0.18, z:cg.z, raio:0.24,
-                   fazer(m){ pulsarEm(cg.x, 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7);
+      lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:(cg.y || 0) + 0.18, z:cg.z, raio:0.24,
+                   fazer(m){ pulsarEm(cg.x, (cg.y || 0) + 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7);
                              relato('TOCOU-UM-COGUMELO ' + i); } });
     });
   }
@@ -9578,6 +9836,39 @@ if(emTesteLocal){
     chamado(id){ return chamadoDe(id); },
     /* onde um astro esta agora, para a bancada pousar a mao nele (23/09) */
     astro(i){ return ondeEsta(i | 0, t); },
+    /* UMA SALA DE MENTIRA, para provar o v4 sem o headset (23/09).
+
+       O escaneamento so existe dentro da RM, e dentro da RM nao ha como
+       olhar duas vezes a mesma sala: cada teste seria outra leitura. Aqui a
+       sala e ditada -- retangulos em metros, como se o aparelho os tivesse
+       entregue -- e o replantio corre igualzinho.
+
+         raizes.sala({ chao:[-2,-2.35, 2,2.35],
+                       moveis:[{y:0.74, r:[-1.9,-2.3, -0.4,-1.0]}],
+                       paredes:[{r:[-2.05,-2.40, 2.05,-2.30]}] })
+
+       Sem argumento, devolve o que esta lido. */
+    sala(desc){
+      if(desc === undefined) return { pronta:SALA.pronta, moveis:SALA.moveis.length,
+                                      paredes:SALA.paredes.length, chao:!!SALA.chao };
+      const caixa = (r) => [r[0],r[1], r[2],r[1], r[2],r[3], r[0],r[3]];
+      const meio  = (r) => ({ cx:(r[0]+r[2])/2, cz:(r[1]+r[3])/2 });
+      SALA.chao = desc.chao ? caixa(desc.chao) : null;
+      SALA.chaoY = 0;
+      SALA.moveis = (desc.moveis || []).map(m => Object.assign(
+        { y:m.y, poly:caixa(m.r), rotulo:m.rotulo || 'table' }, meio(m.r)));
+      SALA.paredes = (desc.paredes || []).map(pd => Object.assign(
+        { y:0, poly:caixa(pd.r), rotulo:'wall' }, meio(pd.r)));
+      SALA.planos = SALA.moveis.length + SALA.paredes.length + (SALA.chao ? 1 : 0);
+      SALA.pronta = true;
+      arrumarOEspaco();
+      return { moveis:SALA.moveis.length, arvore:[+ARVORE_BASE[0].toFixed(2), +ARVORE_BASE[2].toFixed(2)],
+               cogumelosEmMovel: COGUMELOS.filter(c => (c.y||0) > 0.05).length };
+    },
+    /* onde as coisas ficaram, para medir o replantio */
+    plantas(){ return { arvore:ARVORE_BASE.slice(), casulo:CASULO.slice(),
+                        cogumelos:COGUMELOS.map(c => [+c.x.toFixed(2), +(c.y||0).toFixed(2), +c.z.toFixed(2)]),
+                        pedras:PEDRAS_CHAO.map(p => [+p.x.toFixed(2), +(p.y||0).toFixed(2), +p.z.toFixed(2)]) }; },
     /* UMA MAO DE MENTIRA, para a bancada: poe a mao 0 num ponto (ou tira,
        sem argumento). E so daqui que se testa toque sem headset. */
     mao(x, y, z, aperta, qual){
@@ -12765,6 +13056,8 @@ function quadroXR(t, frame){
 
   if(frame.detectedPlanes)
     vPlanos.textContent = frame.detectedPlanes.size;
+  // v4: le o espaco e replanta a obra nele, uma vez (nada fora do v4)
+  lerOEspaco(frame, espaco);
 
   // Uma assadura por quadro, antes de trocar para o alvo do headset.
   // Assar dentro do laço dos olhos custaria o dobro e daria a mesma
