@@ -291,7 +291,7 @@ def hotspot_mac(acao="status"):
         aviso = None
     ssid = None
     s2, _ = rodar(["defaults", "read", "/Library/Preferences/SystemConfiguration/com.apple.nat"], timeout=8)
-    m2 = re.search(r'"?SSID"?\s*=\s*"?([^";\n]+)', s2)
+    m2 = re.search(r'"?(?:NetworkName|SSID)"?\s*=\s*"?([^";\n]+)', s2)
     if m2:
         ssid = m2.group(1).strip()
     return {"ligado": ligado, "estado": "On" if ligado else "Off", "ssid": ssid or "(o nome da rede fica nos Ajustes > Compartilhamento de Internet > Wi-Fi)",
