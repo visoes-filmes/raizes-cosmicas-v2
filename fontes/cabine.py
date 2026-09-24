@@ -56,7 +56,7 @@ PORTA_DEVTOOLS = 9222
 LOG = os.path.join(AQUI, "cabine.log")
 IP_GUARDADO = os.path.join(AQUI, "guardiao_quest.ip")   # o mesmo do guardião
 NAVEGADOR_QUEST = "com.oculus.browser"
-VERSOES = {"v52": "v52.html", "v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html"}
+VERSOES = {"v6": "v6.html", "v52": "v52.html", "v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html"}
 NOMES_CENAS = {1: "floresta", 2: "cosmos", 3: "planeta rosa", 4: "papel"}
 
 # no Windows sem console (pythonw), nenhum subprocesso pode abrir janela
@@ -70,7 +70,11 @@ ESTADO = {
     "obra": {"aba": False, "url": None, "portao": None, "versao": "", "programas": "",
              "onde": None, "fps": None, "app_ms": None, "duracao": 600},
     "relatos": [], "scrcpy": None, "avisos": [],
+    "projecao": {"ativa": False, "saida": None, "monitor": None, "espelhar": False},
+    "monitores": [], "tela": None,
 }
+OUVINTES = []            # filas dos clientes do /eventos (a pagina de projecao)
+PROJECAO = None          # o processo da projecao (navegador em quiosque ou scrcpy)
 TRAVA = threading.Lock()
 ADB = None
 SERVIDOR_OBRA = None
@@ -87,9 +91,13 @@ def log(msg):
 
 
 def relatar(texto, origem="cabine"):
+    r = {"h": f"{datetime.now():%H:%M:%S}", "de": origem, "t": texto}
     with TRAVA:
-        ESTADO["relatos"].append({"h": f"{datetime.now():%H:%M:%S}", "de": origem, "t": texto})
+        ESTADO["relatos"].append(r)
         del ESTADO["relatos"][:-400]
+        for fila in OUVINTES:
+            if len(fila) < 200:
+                fila.append(r)
 
 
 def rodar(cmd, timeout=25, **kw):
@@ -224,7 +232,8 @@ LEITURA = ("(function(){var q=function(i){var e=document.getElementById(i);retur
            "var p=document.getElementById('portao');"
            "return {portao: !!p && getComputedStyle(p).display!=='none', versao:q('portaoVersao'),"
            "programas:q('portaoProgramas'), erro:q('portaoErro'), aviso:q('portaoAviso'),"
-           "onde:(window.raizes&&raizes.onde)?raizes.onde():null, url:location.pathname}})()")
+           "onde:(window.raizes&&raizes.onde)?raizes.onde():null, url:location.pathname,"
+           "tela:(window.raizes&&raizes.tela)?raizes.tela.onde():null}})()")
 
 
 def abrir_no_quest(serial, versao):
@@ -309,6 +318,103 @@ def espelhar(serial):
     return {"ok": True}
 
 
+# ── a projeção (6.0): o que vai para o projetor ──────────────────────────
+
+def monitores():
+    """Os monitores do Windows, com posicao e tamanho (o projetor e um deles)."""
+    saida, _ = rodar(["powershell", "-NoProfile", "-Command",
+                      "Add-Type -AssemblyName System.Windows.Forms; "
+                      "[System.Windows.Forms.Screen]::AllScreens | ForEach-Object { [pscustomobject]@{ nome=$_.DeviceName; "
+                      "x=$_.Bounds.X; y=$_.Bounds.Y; w=$_.Bounds.Width; h=$_.Bounds.Height; principal=$_.Primary } } "
+                      "| ConvertTo-Json -Compress"], timeout=20)
+    try:
+        lista = json.loads(saida.splitlines()[-1])
+        return lista if isinstance(lista, list) else [lista]
+    except Exception:
+        return []
+
+
+def achar_navegador():
+    for c in [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+              r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+              os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
+              r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+              r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"]:
+        if os.path.exists(c):
+            return c
+    return None
+
+
+def projetar(saida, monitor, espelhar=False, recorte=""):
+    """saida: 'pagina' (a agua da tela, projecao.html) ou 'espelho' (scrcpy, o que o oculos ve)."""
+    global PROJECAO
+    parar_projecao()
+    lista = ESTADO["monitores"] or monitores()
+    alvo = None
+    for m in lista:
+        if str(m.get("nome")) == str(monitor) or (monitor in (None, "", "auto") and not m.get("principal")):
+            alvo = m
+            break
+    if not alvo and lista:
+        alvo = lista[0]
+    alvo = alvo or {}
+    x, y, w, h = alvo.get("x", 0), alvo.get("y", 0), alvo.get("w", 1920), alvo.get("h", 1080)
+    if saida == "pagina":
+        nav = achar_navegador()
+        if not nav:
+            return {"ok": False, "erro": "não achei Chrome nem Edge para abrir a projeção"}
+        perfil = os.path.join(os.environ.get("TEMP", AQUI), "raizes-projecao-perfil")
+        url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
+               f"&cabine=http://localhost:{PORTA_CABINE}")
+        PROJECAO = subprocess.Popen([nav, "--kiosk", f"--window-position={x},{y}", f"--window-size={w},{h}",
+                                     f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars", url],
+                                    creationflags=SEM_JANELA)
+        relatar(f"projeção (página) aberta no monitor {alvo.get('nome', '?')} {w}x{h}" + (" espelhada" if espelhar else ""))
+    elif saida == "espelho":
+        s = ESTADO["quest"]["escolhido"]
+        exe = achar_scrcpy()
+        if not exe:
+            return {"ok": False, "erro": "scrcpy não está instalado"}
+        if not s:
+            return {"ok": False, "erro": "nenhum Quest ao alcance para espelhar"}
+        args = [exe, "-s", s, "--no-audio", "--fullscreen", f"--window-x={x}", f"--window-y={y}",
+                "--window-title", "Quest — projeção", "--max-fps", "30"]
+        if recorte:
+            args += ["--crop", recorte]
+        PROJECAO = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), creationflags=SEM_JANELA)
+        relatar(f"projeção (espelho do óculos) aberta no monitor {alvo.get('nome', '?')}")
+    else:
+        return {"ok": False, "erro": f"saída desconhecida: {saida}"}
+    with TRAVA:
+        ESTADO["projecao"] = {"ativa": True, "saida": saida, "monitor": alvo.get("nome"), "espelhar": bool(espelhar)}
+    return {"ok": True}
+
+
+def parar_projecao():
+    global PROJECAO
+    if PROJECAO and PROJECAO.poll() is None:
+        try:
+            PROJECAO.terminate()
+        except Exception:
+            pass
+        relatar("projeção fechada")
+    PROJECAO = None
+    with TRAVA:
+        ESTADO["projecao"] = {"ativa": False, "saida": None, "monitor": None, "espelhar": False}
+    return {"ok": True}
+
+
+def tela_js(expr):
+    r, e = avaliar(f"(window.raizes&&raizes.tela)?JSON.stringify({expr}):'sem tela aqui'")
+    if isinstance(r, str) and r[:1] in ('{', '[', '"'):
+        try:
+            r = json.loads(r)
+        except Exception:
+            pass
+    return {"ok": r is not None and r != "sem tela aqui", "resposta": r if r is not None else e}
+
+
 # ── o servidor da obra (servir.py como filho) ────────────────────────────
 
 def subir_servidor_da_obra():
@@ -383,6 +489,8 @@ def vigiar():
                         o.update(portao=leitura.get("portao"), versao=leitura.get("versao", ""),
                                  programas=leitura.get("programas", ""), onde=leitura.get("onde"),
                                  erro=leitura.get("erro", ""), aviso=leitura.get("aviso", ""))
+                        with TRAVA:
+                            ESTADO["tela"] = leitura.get("tela")
                     if ciclo % 2 == 0:
                         o["fps"], o["app_ms"] = quadros(s)
                 else:
@@ -397,6 +505,9 @@ def vigiar():
             if ciclo % 4 == 1:
                 rede["hotspot"] = hotspot("status")
                 rede["wifi_pc"] = wifi_do_pc()
+                with TRAVA:
+                    ESTADO["monitores"] = monitores()
+                    ESTADO["projecao"]["ativa"] = PROJECAO is not None and PROJECAO.poll() is None
             with TRAVA:
                 ESTADO["quest"] = q
                 ESTADO["obra"] = o
@@ -413,7 +524,7 @@ def vigiar():
 
 def agir(nome, dados):
     s = ESTADO["quest"]["escolhido"]
-    precisa_quest = {"liberar_wifi", "tuneis", "abrir", "espelhar", "acordado", "desconectar"}
+    precisa_quest = {"liberar_wifi", "tuneis", "abrir", "espelhar", "acordado", "desconectar", "tela_cravar"}
     if nome in precisa_quest and not s:
         return {"ok": False, "erro": "nenhum Quest ao alcance"}
     if nome == "hotspot_on":
@@ -437,7 +548,7 @@ def agir(nome, dados):
     elif nome == "tuneis":
         return {"ok": tuneis(s)}
     elif nome == "abrir":
-        return abrir_no_quest(s, dados.get("versao", "v52"))
+        return abrir_no_quest(s, dados.get("versao", "v6"))
     elif nome == "iniciar":
         return clicar("bIniciar")
     elif nome == "reiniciar":
@@ -459,6 +570,28 @@ def agir(nome, dados):
         return acordado(s, bool(dados.get("ligar")))
     elif nome == "espelhar":
         return espelhar(s)
+    elif nome == "projetar":
+        return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
+    elif nome == "parar_projecao":
+        return parar_projecao()
+    elif nome == "tela_cravar":
+        return tela_js("raizes.tela.cravar()")
+    elif nome == "tela_ditar":
+        w, h = float(dados.get("largura") or 3.0), float(dados.get("altura") or 2.0)
+        return tela_js(f"raizes.tela.ditar({{largura:{w}, altura:{h}, rumo:{float(dados.get('rumo') or 0)}}})")
+    elif nome == "tela_mostrar":
+        modo = dados.get("modo")
+        js = "true" if modo == "acender" else "false" if modo == "apagar" else "null"
+        return tela_js(f"raizes.tela.mostrar({js})")
+    elif nome == "tela_toque":
+        u, v = float(dados.get("u", 0.5)), float(dados.get("v", 0.5))
+        r = tela_js(f"raizes.tela.toque({u}, {v}, 1)")
+        if not r.get("ok"):      # sem óculos, a projeção ainda recebe o toque de teste
+            relatar(f"TOCOU-A-TELA {u:.3f} {v:.3f} 1.0 teste-cabine", origem="quest")
+            r = {"ok": True, "resposta": "toque mandado só à projeção"}
+        return r
+    elif nome == "tela_soltar":
+        return tela_js("raizes.tela.soltar()")
     elif nome == "limpar_relatos":
         with TRAVA:
             ESTADO["relatos"] = []
@@ -478,6 +611,7 @@ def agir(nome, dados):
 def encerrar_tudo():
     log("cabine encerrando")
     try:
+        parar_projecao()
         if SERVIDOR_OBRA and SERVIDOR_OBRA.poll() is None:
             SERVIDOR_OBRA.terminate()
     finally:
@@ -509,6 +643,36 @@ class Cabine(BaseHTTPRequestHandler):
         elif self.path.startswith("/estado"):
             with TRAVA:
                 self._json(ESTADO)
+        elif self.path.startswith("/eventos"):
+            # os relatos ao vivo, para a página de projeção (Server-Sent Events)
+            fila = []
+            with TRAVA:
+                OUVINTES.append(fila)
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(b": oi\n\n"); self.wfile.flush()
+                quieto = 0.0
+                while True:
+                    if fila:
+                        with TRAVA:
+                            lote, fila[:] = list(fila), []
+                        for r in lote:
+                            self.wfile.write(("data: " + json.dumps(r, ensure_ascii=False) + "\n\n").encode("utf-8"))
+                        self.wfile.flush(); quieto = 0.0
+                    else:
+                        time.sleep(0.15); quieto += 0.15
+                        if quieto >= 15:
+                            self.wfile.write(b": vivo\n\n"); self.wfile.flush(); quieto = 0.0
+            except Exception:
+                pass
+            finally:
+                with TRAVA:
+                    if fila in OUVINTES:
+                        OUVINTES.remove(fila)
         elif self.path == "/icone.png":
             with open(os.path.join(RAIZ, "icone-192.png"), "rb") as f:
                 corpo = f.read()

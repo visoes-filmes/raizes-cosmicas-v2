@@ -307,6 +307,35 @@ if saida == os.path.join(RAIZ, "index.html"):
         f.write(v52)
     print("5.2: v52.html (um passo atras: o ceu em fade com as paredes, sem ler a sala, o chao sempre visivel; nevoa 0,5, escala 0,7)")
 
+    # RAIZES COSMICAS 6.0 (24/09): a 5.2 mais A TELA DE TULE. O oculos acha a
+    # tela (plano rotulado na Configuracao de Espaco, ou dois cantos tocados),
+    # estica nela o video "Odara - Cosmos" e cada toque vira onda; a pagina
+    # projecao.html joga a mesma agua no projetor. O video NAO e embutido:
+    # fica em assets/video/ e e servido ao lado (70 MB nao cabem num data:).
+    v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 6.0</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 6.0</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>6.0</em>')
+             .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
+    if "const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6:
+        print("AVISO: os interruptores da 6.0 nao foram todos achados")
+    with open(os.path.join(RAIZ, "v6.html"), "w", encoding="utf-8") as f:
+        f.write(v6)
+    print("6.0: v6.html (a 5.2 + a tela de tule: video da Odara na tela real, agua ao toque)")
+
+    # A PAGINA DE PROJECAO leva o MESMO shader da agua: copiado do template,
+    # para o oculos e o projetor fazerem a mesma conta.
+    ini = html.index("const FS_TELA = `") + len("const FS_TELA = `")
+    fs_tela = html[ini:html.index("`;", ini)]
+    with open(os.path.join(AQUI, "projecao.template.html"), encoding="utf-8") as f:
+        proj = f.read()
+    if proj.count("/*FS_TELA*/") != 1:
+        print("AVISO: o marcador do shader nao esta na projecao.template.html -- projecao.html nao saiu")
+    else:
+        with open(os.path.join(RAIZ, "projecao.html"), "w", encoding="utf-8") as f:
+            f.write(proj.replace("/*FS_TELA*/", fs_tela))
+        print("Projecao: projecao.html (a agua da tela no projetor; toques chegam pela Cabine)")
+
     oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
     with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
         f.write(oficina)

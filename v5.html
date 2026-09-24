@@ -636,6 +636,22 @@ const SUAVIZAR_RM           = true;
    NEBLINA_FATOR multiplica a neblina de todos os cenarios (0,5 na 5.0). */
 const PAREDES_RACHADAS      = true;
 const NEBLINA_FATOR         = 0.5;
+
+/* A TELA DE TULE -- 6.0 (24/09). Pedido da direcao de arte: "no momento em
+   que estivermos no espaco, uma tela de tule transparente onde e projetada
+   uma imagem; o oculos escaneia a tela real e projeta o desenho da Odara
+   nela; quando a pessoa toca a tela real, ele se move como agua, e isso
+   reverbera tambem na projecao real."
+
+   A obra acha a tela (o plano que a Configuracao de Espaco do Quest rotula
+   como tela, janela ou quadro; ou os dois cantos de cima tocados pelo
+   operador, pela Cabine), estica nela o video "Odara - Cosmos" e cada
+   toque da mao nasce uma onda. O montador liga TELA_DE_TULE no v6.html. */
+const TELA_DE_TULE          = false;
+const TELA_LARGURA          = 3.0;      /* metros, quando cravada pelos cantos ou ditada; o escaneamento traz a medida real */
+const TELA_ALTURA           = 2.0;
+const TELA_QUANDO           = 'cosmos'; /* 'cosmos' (3:16 a 6:30), 'papel' (8:40 em diante) ou 'sempre' */
+const TELA_VIDEO            = './assets/video/odara-cosmos.mp4';
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -1671,6 +1687,195 @@ function pousarNoQueHouver(obj, folga){
    coordenada em METROS ao longo da parede e na altura -- e nela que a
    rachadura e desenhada, para ser a mesma de qualquer distancia e nao
    esticar com a largura da parede. */
+/* ── A TELA DE TULE (6.0) ─────────────────────────────────────────────────
+   As ondas sao SOMA DE ANEIS calculada no shader a partir de (u, v,
+   instante, forca) -- nada de simulacao em textura. E de proposito: o mesmo
+   toque da a mesma onda aqui e na pagina de projecao do computador
+   (projecao.html), que so recebe a lista de toques pelos relatos. */
+const TELA = { pronta:false, centro:[0,1.5,-2.3], u:[1,0,0], v:[0,1,0], n:[0,0,1],
+               w:TELA_LARGURA, h:TELA_ALTURA, origem:'', ondas:[], cravando:0, cantos:[],
+               video:null, tex:null, videoOk:false, ultimoQuadro:-1, forcar:null,
+               presenca:0, acesa:false, buscaDesde:0, avisouFalta:false };
+const TELA_MAX_ONDAS = 16;
+const ondasBuf = new Float32Array(TELA_MAX_ONDAS * 4);   /* uma vez: nada alocado por quadro */
+let bTela = null;
+
+function cravarTela(centro, u, v, w, h, origem){
+  const norm = a => { const L = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/L, a[1]/L, a[2]/L]; };
+  TELA.u = norm(u); TELA.v = norm(v);
+  const a = TELA.u, b = TELA.v;
+  TELA.n = norm([a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]);
+  TELA.centro = centro.slice(); TELA.w = w; TELA.h = h; TELA.origem = origem;
+  TELA.pronta = true; TELA.cravando = 0; TELA.ondas = [];
+  montarTela();
+  relato('TELA-CRAVADA ' + origem + ' w=' + w.toFixed(2) + ' h=' + h.toFixed(2) +
+         ' centro=' + centro.map(x => x.toFixed(2)).join(','));
+}
+
+function montarTela(){
+  const c = TELA.centro, u = TELA.u, v = TELA.v, hw = TELA.w / 2, hh = TELA.h / 2;
+  const P = (a, b) => [c[0] + u[0]*a + v[0]*b, c[1] + u[1]*a + v[1]*b, c[2] + u[2]*a + v[2]*b];
+  const p00 = P(-hw, -hh), p10 = P(hw, -hh), p11 = P(hw, hh), p01 = P(-hw, hh);
+  if(!bTela) bTela = criarBufs(['pos', 'uv', 'idx']);
+  enviar(bTela.pos, [].concat(p00, p10, p11, p01));
+  /* v da textura: 0 em cima -- o video sobe sem virar */
+  enviar(bTela.uv, [0,1, 1,1, 1,0, 0,0]);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTela.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
+}
+
+/* ACHAR A TELA NO ESPACO LIDO. So os planos verticais que o Quest rotula
+   como tela, janela ou quadro -- e o maior deles. Nada de paredes, nada de
+   replantio: a sala continua como e (5.2). Sem rotulo, o operador crava
+   pelos cantos (raizes.tela.cravar, pela Cabine). */
+const ROTULOS_DE_TELA = { 'screen':1, 'window':1, 'wall art':1, 'whiteboard':1, 'tv':1, 'display':1 };
+let telaProcuradaEm = -9;
+function lerATela(frame, espaco){
+  if(!TELA_DE_TULE || TELA.pronta || !frame || !frame.detectedPlanes) return;
+  if(!TELA.buscaDesde) TELA.buscaDesde = relogio;
+  if(relogio - telaProcuradaEm < 1.0) return;
+  telaProcuradaEm = relogio;
+  let melhor = null;
+  for(const plano of frame.detectedPlanes){
+    const rot = String(plano.semanticLabel || '').toLowerCase();
+    if(!ROTULOS_DE_TELA[rot] || plano.orientation === 'horizontal') continue;
+    let pose = null;
+    try{ pose = frame.getPose(plano.planeSpace, espaco); }catch(e){ pose = null; }
+    if(!pose || !plano.polygon || plano.polygon.length < 3) continue;
+    const M = pose.transform.matrix;
+    /* o poligono vive em x,z do espaco do plano; Y e a normal */
+    const ex = [M[0], M[1], M[2]], ez = [M[8], M[9], M[10]];
+    let eu = (Math.abs(ex[1]) <= Math.abs(ez[1])) ? ex : ez;
+    let ev = (eu === ex) ? ez : ex;
+    if(ev[1] < 0) ev = [-ev[0], -ev[1], -ev[2]];
+    let minU = 1e9, maxU = -1e9, minV = 1e9, maxV = -1e9, sx = 0, sy = 0, sz = 0, n = 0;
+    for(const q of plano.polygon){
+      const x = M[0]*q.x + M[4]*q.y + M[8]*q.z + M[12];
+      const y = M[1]*q.x + M[5]*q.y + M[9]*q.z + M[13];
+      const z = M[2]*q.x + M[6]*q.y + M[10]*q.z + M[14];
+      sx += x; sy += y; sz += z; n++;
+      const a = x*eu[0] + y*eu[1] + z*eu[2], b = x*ev[0] + y*ev[1] + z*ev[2];
+      if(a < minU) minU = a; if(a > maxU) maxU = a;
+      if(b < minV) minV = b; if(b > maxV) maxV = b;
+    }
+    const w = maxU - minU, h = maxV - minV;
+    if(w < 0.5 || h < 0.4) continue;
+    if(!melhor || w*h > melhor.area) melhor = { area:w*h, w, h, centro:[sx/n, sy/n, sz/n], eu, ev, rot };
+  }
+  if(melhor) cravarTela(melhor.centro, melhor.eu, melhor.ev, melhor.w, melhor.h, 'espaco:' + melhor.rot);
+  else if(!TELA.avisouFalta && relogio - TELA.buscaDesde > 8){
+    TELA.avisouFalta = true;
+    relato('TELA-NAO-ACHADA nenhum plano rotulado como tela; cravar pelos cantos');
+  }
+}
+
+/* CRAVAR PELOS CANTOS: o operador pede (raizes.tela.cravar), a pessoa de
+   capacete belisca no canto de cima a ESQUERDA da tela, depois no da
+   DIREITA. A largura e a distancia entre os dois no plano horizontal; a
+   altura e TELA_ALTURA. */
+function cravarPelosCantos(){
+  for(const m of MAOS){
+    if(!m.tem){ m.apertavaTela = false; continue; }
+    const agora = !!m.apertando, antes = !!m.apertavaTela;
+    m.apertavaTela = agora;
+    if(!(agora && !antes)) continue;
+    TELA.cantos.push([m.x, m.y, m.z]);
+    sinoDoToque(5, 0.5);
+    relato('TELA-CANTO ' + TELA.cantos.length + ' ' + [m.x, m.y, m.z].map(a => a.toFixed(2)).join(','));
+    if(TELA.cantos.length < 2){ TELA.cravando = 2; return; }
+    const A = TELA.cantos[0], B = TELA.cantos[1];
+    const w = Math.hypot(B[0] - A[0], B[2] - A[2]);
+    if(w < 0.3){ TELA.cantos = []; TELA.cravando = 1; relato('TELA-CANTOS muito perto; de novo'); return; }
+    const u = [(B[0] - A[0]) / w, 0, (B[2] - A[2]) / w];
+    const h = TELA_ALTURA > 0 ? TELA_ALTURA : w * 2 / 3;
+    const topo = (A[1] + B[1]) / 2;
+    TELA.cantos = [];
+    cravarTela([(A[0] + B[0]) / 2, topo - h / 2, (A[2] + B[2]) / 2], u, [0, 1, 0], w, h, 'manual');
+    return;
+  }
+}
+
+/* QUANDO A TELA EXISTE, pela partitura -- ou pela mao do operador. */
+function presencaDaTela(){
+  if(!TELA_DE_TULE || !TELA.pronta) return 0;
+  if(TELA.forcar === true) return 1;
+  if(TELA.forcar === false) return 0;
+  if(TELA_QUANDO === 'sempre') return 1;
+  if(TELA_QUANDO === 'papel') return rampa(520, 530, t);
+  return rampa(186, 198, t) * (1 - rampa(384, 392, t));
+}
+
+/* O VIDEO, e a textura dele. Um quadro novo so quando o video andou; nada
+   de await: o play() devolve promessa e ela fica por conta propria. */
+function atualizarTela(){
+  if(!TELA_DE_TULE) return;
+  const p = presencaDaTela();
+  TELA.presenca = p;
+  const acesa = p > 0.01;
+  if(acesa !== TELA.acesa){ TELA.acesa = acesa; relato(acesa ? 'TELA-ACESA' : 'TELA-APAGADA'); }
+  if(!TELA.video){
+    const v = document.createElement('video');
+    v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', '');
+    v.setAttribute('muted', ''); v.preload = 'auto';
+    v.addEventListener('error', function(){ relato('TELA-VIDEO erro ' + (v.error && v.error.code)); });
+    v.addEventListener('loadeddata', function(){
+      TELA.videoOk = true; relato('TELA-VIDEO pronto ' + v.videoWidth + 'x' + v.videoHeight);
+    });
+    v.src = TELA_VIDEO;
+    TELA.video = v;
+    TELA.tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, TELA.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([12, 10, 28]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+  const v = TELA.video;
+  if(acesa){
+    if(v.paused && TELA.videoOk){ const pr = v.play(); if(pr && pr.catch) pr.catch(function(){}); }
+    if(TELA.videoOk && v.readyState >= 2 && v.currentTime !== TELA.ultimoQuadro){
+      TELA.ultimoQuadro = v.currentTime;
+      gl.bindTexture(gl.TEXTURE_2D, TELA.tex);
+      try{ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v); }catch(e){}
+    }
+  } else if(!v.paused){ v.pause(); v.currentTime = 0; TELA.ultimoQuadro = -1; }
+  if(TELA.ondas.length && relogio - TELA.ondas[0].t0 > 6.0) TELA.ondas.shift();
+}
+
+function ondaNaTela(a, b, forca){
+  TELA.ondas.push({ u:a, v:b, t0:relogio, f:forca });
+  if(TELA.ondas.length > TELA_MAX_ONDAS) TELA.ondas.splice(0, TELA.ondas.length - TELA_MAX_ONDAS);
+}
+
+/* O TOQUE NA TELA. Fora do conferirToque de proposito: la um alvo soa uma
+   vez e respira 1,5 s; agua quer o dedo ARRASTANDO -- uma onda nova a cada
+   10 cm de caminho, no maximo oito por segundo por mao. A ponta do dedo a
+   menos de 8 cm do plano, dentro do retangulo, e toque. */
+function tocarATela(dt){
+  if(!TELA_DE_TULE) return;
+  if(TELA.cravando){ cravarPelosCantos(); return; }
+  if(!TELA.pronta || TELA.presenca < 0.3) return;
+  const c = TELA.centro, u = TELA.u, v = TELA.v, n = TELA.n;
+  for(const m of MAOS){
+    if(!m.tem){ m.naTela = false; continue; }
+    const dx = m.x - c[0], dy = m.y - c[1], dz = m.z - c[2];
+    const d = dx*n[0] + dy*n[1] + dz*n[2];
+    const a = (dx*u[0] + dy*u[1] + dz*u[2]) / TELA.w + 0.5;
+    const b = 0.5 - (dx*v[0] + dy*v[1] + dz*v[2]) / TELA.h;
+    if(!(Math.abs(d) < 0.08 && a > 0 && a < 1 && b > 0 && b < 1)){ m.naTela = false; continue; }
+    const andou = m.naTela && Math.hypot((a - m.telaU) * TELA.w, (b - m.telaV) * TELA.h) > 0.10;
+    if(!m.naTela || (andou && relogio - (m.telaEm || 0) > 0.12)){
+      const forca = m.naTela ? 0.5 : 1.0;
+      ondaNaTela(a, b, forca);
+      if(!m.naTela){ sinoDoToque(5, 0.45); pulsarEm(m.x, m.y, m.z); }
+      relato('TOCOU-A-TELA ' + a.toFixed(3) + ' ' + b.toFixed(3) + ' ' + forca.toFixed(1));
+      m.telaU = a; m.telaV = b; m.telaEm = relogio;
+    }
+    m.naTela = true;
+  }
+}
+
 let bParede = null, nParedeIdx = 0;
 function montarParedes(){
   nParedeIdx = 0;
@@ -7124,6 +7329,55 @@ const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progFio  = programa(VS_FIO,  FS_FIO);
 const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
+/* A TELA DE TULE (6.0): o video na superficie, e a agua por cima. Cada
+   onda e um anel que anda 0,45 da altura da tela por segundo, some em uns
+   quatro segundos e desloca a leitura do video para fora do centro; a
+   crista ganha um brilho. Redonda na TELA e nao na textura (aspecto).
+   O FS_TELA e o MESMO da pagina de projecao: o montador copia daqui. */
+const VS_TELA = `
+attribute vec3 aPos;
+attribute vec2 aUV;
+uniform mat4 mvp;
+varying vec2 vUV;
+void main(){ vUV = aUV; gl_Position = mvp * vec4(aPos, 1.0); }`;
+const FS_TELA = `
+precision mediump float;
+uniform sampler2D video;
+uniform float tempo, presenca, aspecto, temVideo;
+uniform vec4 ondas[16];   /* u, v, instante, forca */
+uniform int nOndas;
+varying vec2 vUV;
+void main(){
+  vec2 q = vec2(vUV.x * aspecto, vUV.y);
+  vec2 desloca = vec2(0.0);
+  float brilho = 0.0;
+  for(int i = 0; i < 16; i++){
+    if(i >= nOndas) break;
+    vec4 o = ondas[i];
+    float idade = tempo - o.z;
+    if(idade < 0.0) continue;
+    vec2 dif = q - vec2(o.x * aspecto, o.y);
+    float r = length(dif) + 0.0001;
+    float atras = idade * 0.45 - r;
+    float faixa = smoothstep(-0.02, 0.06, atras) * (1.0 - smoothstep(0.0, 0.55, atras));
+    float amp = o.w * exp(-idade * 0.9) * exp(-r * 1.4) * faixa;
+    float fase = sin(atras * 40.0 - idade * 3.0);
+    desloca += (dif / r) * fase * amp * 0.035;
+    brilho += amp * max(0.0, fase) * 0.5;
+  }
+  vec2 uv = clamp(vUV + desloca, 0.001, 0.999);
+  vec3 cor = (temVideo > 0.5) ? texture2D(video, uv).rgb : vec3(0.05, 0.04, 0.10);
+  cor += brilho * vec3(0.85, 0.9, 1.0);
+  /* beira macia: o tule nao tem moldura */
+  float beira = smoothstep(0.0, 0.03, vUV.x) * smoothstep(0.0, 0.03, 1.0 - vUV.x)
+              * smoothstep(0.0, 0.05, vUV.y) * smoothstep(0.0, 0.05, 1.0 - vUV.y);
+  gl_FragColor = vec4(cor, presenca * beira);
+}`;
+const progTela = programa(VS_TELA, FS_TELA);
+const uTl = n => gl.getUniformLocation(progTela, n);
+const locTl = { mvp:uTl('mvp'), video:uTl('video'), tempo:uTl('tempo'), presenca:uTl('presenca'),
+                aspecto:uTl('aspecto'), temVideo:uTl('temVideo'), ondas:uTl('ondas[0]'), nOndas:uTl('nOndas') };
+const aTl = { pos:gl.getAttribLocation(progTela, 'aPos'), uv:gl.getAttribLocation(progTela, 'aUV') };
 const progParede = programa(VS_PAREDE, FS_PAREDE);
 const uPa = n => gl.getUniformLocation(progParede, n);
 const locPa = { mvp:uPa('mvp'), abertura:uPa('abertura'), tempo:uPa('tempo'), modo:uPa('modo'), cor:uPa('cor'),
@@ -9994,6 +10248,24 @@ if(emTesteLocal){
     /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
        raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
     chamado(id){ return chamadoDe(id); },
+    /* A TELA DE TULE (6.0) -- pela Cabine (DevTools) e pela bancada. */
+    tela: {
+      onde(){ return { pronta:TELA.pronta, origem:TELA.origem, w:+TELA.w.toFixed(2), h:+TELA.h.toFixed(2),
+                       centro:TELA.centro.map(a => +a.toFixed(2)), presenca:+TELA.presenca.toFixed(2),
+                       video:TELA.videoOk, ondas:TELA.ondas.length, cravando:TELA.cravando, forcar:TELA.forcar }; },
+      cravar(){ TELA.cravando = 1; TELA.cantos = [];
+                relato('TELA-CRAVANDO belisque o canto de cima a esquerda, depois o da direita'); return 'esperando os cantos'; },
+      /* uma tela ditada, para a bancada: rumo em graus (0 = de frente para quem olha para -z) */
+      ditar(o){ o = o || {};
+                const w = +(o.largura || TELA_LARGURA), h = +(o.altura || TELA_ALTURA), r = (+(o.rumo || 0)) * Math.PI / 180;
+                cravarTela(o.centro || [0, h / 2 + 0.2, -2.3], [Math.cos(r), 0, -Math.sin(r)], [0, 1, 0], w, h, 'ditada');
+                return TELA.centro; },
+      mostrar(b){ TELA.forcar = (b === true) ? true : (b === false) ? false : null; return TELA.forcar; },
+      toque(a, b, f){ f = (f === undefined) ? 1 : +f; ondaNaTela(+a, +b, f);
+                      relato('TOCOU-A-TELA ' + (+a).toFixed(3) + ' ' + (+b).toFixed(3) + ' ' + f.toFixed(1) + ' teste');
+                      return TELA.ondas.length; },
+      soltar(){ TELA.pronta = false; TELA.origem = ''; TELA.cravando = 0; TELA.avisouFalta = false; TELA.buscaDesde = 0; return 'solta'; },
+    },
     /* onde um astro esta agora, para a bancada pousar a mao nele (23/09) */
     astro(i){ return ondeEsta(i | 0, t); },
     /* UMA SALA DE MENTIRA, para provar o v4 sem o headset (23/09).
@@ -11210,6 +11482,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.drawElements(gl.TRIANGLES, nParedeIdx, gl.UNSIGNED_SHORT, 0);
     gl.depthFunc(gl.LESS);
     gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+
+  /* 1c) A TELA DE TULE (6.0): uma superficie com o video, depois do ceu e
+     das paredes, escrevendo profundidade -- o que estiver na frente dela
+     passa na frente. Dois lados, porque o tule se ve dos dois. */
+  if(TELA_DE_TULE && TELA.pronta && TELA.presenca > 0.005 && bTela){
+    gl.useProgram(progTela); soltarAtributos();
+    mandarMvp(locTl.mvp, mvp);
+    gl.uniform1f(locTl.tempo, relogio);
+    gl.uniform1f(locTl.presenca, TELA.presenca);
+    gl.uniform1f(locTl.aspecto, TELA.w / TELA.h);
+    gl.uniform1f(locTl.temVideo, TELA.videoOk ? 1 : 0);
+    const nO = Math.min(TELA.ondas.length, TELA_MAX_ONDAS);
+    for(let i = 0; i < nO; i++){
+      const o = TELA.ondas[i];
+      ondasBuf[i*4] = o.u; ondasBuf[i*4+1] = o.v; ondasBuf[i*4+2] = o.t0; ondasBuf[i*4+3] = o.f;
+    }
+    gl.uniform4fv(locTl.ondas, ondasBuf);
+    gl.uniform1i(locTl.nOndas, nO);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, TELA.tex); gl.uniform1i(locTl.video, 0);
+    ligar(aTl.pos, bTela.pos, 3); ligar(aTl.uv, bTela.uv, 2);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTela.idx);
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.CULL_FACE);
+    gl.enable(gl.BLEND); sobrepor();
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    gl.disable(gl.BLEND);
   }
 
   /* A MATA SOLIDA. Vem ANTES da nuvem porque ESCREVE PROFUNDIDADE, e o
@@ -13175,9 +13473,11 @@ function quadro(){
   contarQuadro();
   andarGlitter(dt);
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
+  tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
   if(neblinaOn) assarTinta();
+  atualizarTela();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.03,0.025,0.055,1);
@@ -13242,6 +13542,7 @@ function quadroXR(t, frame){
   lerMaos(frame);
   const dt = passo();
   conferirToque(dt);
+  tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
   andarGlitter(dt);
@@ -13264,11 +13565,13 @@ function quadroXR(t, frame){
     vPlanos.textContent = frame.detectedPlanes.size;
   // v4: le o espaco e replanta a obra nele, uma vez (nada fora do v4)
   lerOEspaco(frame, espaco);
+  lerATela(frame, espaco);          // 6.0: so o plano rotulado como tela
 
   // Uma assadura por quadro, antes de trocar para o alvo do headset.
   // Assar dentro do laço dos olhos custaria o dobro e daria a mesma
   // imagem, já que os dois olhos veem o mesmo instante.
   if(neblinaOn) assarTinta();
+  atualizarTela();
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, camadaXR.framebuffer);
   // alfa zero: o que não for desenhado deixa passar a câmera do headset

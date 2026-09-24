@@ -67,6 +67,7 @@ engasga no bash em alguns comandos). **Não publique só por ter montado.**
 | **v2** | a obra base, sem escaneamento | `visoes-filmes.github.io/raizes-cosmicas-v2/` | `v2.0` |
 | **v4** | lê o espaço: cogumelos e pedras pousam em mesa/banco; a árvore-mãe procura chão livre | `…/raizes-cosmicas-v2/v4.html` | `v4.0` |
 | **5.1** | v4 + paredes lidas com rachaduras e buracos por onde a outra realidade aparece; só o teto é 100 % VR; metade da névoa; escala de desenho 0,7 (floresta 54, planeta rosa 45 quadros no Quest); toque com respiro | `…/raizes-cosmicas-v2/v5.html` | `v5.1` (a 5.0 em `v5.0`) |
+| **6.0** | **a 5.2 + a tela de tule** (24/09): o óculos acha a tela real (plano rotulado como tela/janela na Configuração de Espaço, ou dois cantos beliscados a pedido da Cabine), estica nela o vídeo "Odara - Cosmos" e cada toque da mão nasce uma onda; a mesma água sai no projetor pela `projecao.html`, que recebe os toques da Cabine (`/eventos`). Provada na bancada (tela ditada, cosmos, toque); **nada visto no Quest** | `…/raizes-cosmicas-v2/v6.html` · projeção em `…/projecao.html` | `v6.0` |
 | **5.2** | **um passo atrás na sala** (24/09, depois de ela ver a 5.1 no capacete): sem escaneamento e sem paredes rachadas — o céu volta a fazer *fade* com as paredes reais no degradê de sempre, e **o chão real aparece o tempo todo** até o cenário 4. Fica o que não tem a ver com a sala: metade da névoa, escala 0,7, toque com folga e respiro | `…/raizes-cosmicas-v2/v52.html` | `v5.2` |
 
 > **Por que o chão ficou preto na 5.1.** Com paredes lidas, o céu recebia
@@ -158,6 +159,23 @@ do capacete** (relatos `>>`, cena e segundo por `raizes.onde()`, quadros do
 
 Ela faz sozinha o trabalho do guardião quando o Quest aparece (túneis e, no
 cabo, a liberação da Wi-Fi), e guarda o ip no mesmo `guardiao_quest.ip`.
+
+**A projeção (6.0).** O card "Projeção · tela de tule" escolhe **o que o
+projetor mostra** e em que monitor: *tela: desenho + água* abre a
+`projecao.html` em quiosque (Chrome/Edge com perfil próprio) no monitor
+escolhido — é a água da tela, parada e alinhada ao tule, recebendo cada
+toque do óculos pelo `/eventos` (Server-Sent Events) da Cabine; *espelho do
+óculos* abre o scrcpy em tela cheia (o que a pessoa vê, com ~0,15 s de
+atraso e balançando com a cabeça). "Espelhar horizontalmente" é para
+retroprojeção (projetor atrás do tule). Os botões da tela falam com a obra
+pelo DevTools (`raizes.tela.*`): cravar pelos cantos, acender/apagar/seguir
+a partitura, ditar uma tela de teste, toque de teste (sem óculos, o toque
+vai só à projeção), soltar. Na página de projeção: F tela cheia, M espelho,
+A acende sem esperar o óculos (para enquadrar o projetor), clique = onda.
+**Atenção:** `adb tcpip 5555` (que a Cabine roda ao ver o Quest no cabo)
+reinicia o adb do óculos; se a caixa de depuração foi aceita sem "Sempre
+permitir", a autorização cai e volta a "unauthorized" — aceitar de novo,
+marcando a caixinha.
 O roteiro do dia está numerado na própria página: 1 ligar a rede · 2 o
 Quest entra nela · 3 cabo uma vez → Liberar Wi-Fi · 4 abrir a versão ·
 5 Iniciar em RM. Pela Wi-Fi o endereço no headset continua `localhost:8765`

@@ -141,7 +141,8 @@
     <div class="passos"><b>4</b> abra a versão no Quest <b>5</b> <em>Iniciar em RM</em> (o operador aperta daqui; ninguém precisa tocar o capacete)</div>
     <div class="linha">
       <div class="seg" id="versoes">
-        <label><input type="radio" name="versao" value="v52" checked><span>5.2 · céu + chão</span></label>
+        <label><input type="radio" name="versao" value="v6" checked><span>6.0 · tela de tule</span></label>
+        <label><input type="radio" name="versao" value="v52"><span>5.2 · céu + chão</span></label>
         <label><input type="radio" name="versao" value="v2"><span>v2</span></label>
         <label><input type="radio" name="versao" value="v4"><span>v4 · espaço</span></label>
         <label><input type="radio" name="versao" value="v5"><span>5.1 · paredes</span></label>
@@ -177,6 +178,48 @@
     <div id="oErro"></div>
   </section>
 
+  <!-- PROJEÇÃO E TELA DE TULE (6.0) -->
+  <section class="card">
+    <h2><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="11" rx="1.5"/><path d="M12 16v4M8 20h8M7 9l3 3-3 3"/></svg>Projeção · tela de tule</h2>
+    <div class="passos"><b>6</b> escolha o que o projetor mostra e em que monitor <b>7</b> crave a tela real pelos cantos, de capacete</div>
+    <div class="linha">
+      <div class="seg" id="saidas">
+        <label><input type="radio" name="saida" value="pagina" checked><span>tela: desenho + água</span></label>
+        <label><input type="radio" name="saida" value="espelho"><span>espelho do óculos</span></label>
+      </div>
+      <select id="monitor" style="background:#0f121b;color:var(--texto);border:1px solid var(--borda);border-radius:9px;padding:9px"><option value="auto">monitor: o que não é o principal</option></select>
+    </div>
+    <div class="linha">
+      <label class="nota"><input type="checkbox" id="espelhar"> espelhar horizontalmente (retroprojeção, projetor atrás do tule)</label>
+      <input type="text" id="recorte" placeholder="recorte do espelho (opcional, ex.: 1600:900:2017:510)" class="mono" style="flex:1;min-width:220px">
+    </div>
+    <div class="linha">
+      <button class="primario" onclick="acao('projetar',{saida:saida(),monitor:v('monitor'),espelhar:$('espelhar').checked,recorte:v('recorte')})"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Projetar</button>
+      <button class="perigo" onclick="acao('parar_projecao')">Parar projeção</button>
+      <a class="nota" href="http://localhost:8765/projecao.html" target="_blank">abrir a projeção numa aba (F = tela cheia) ↗</a>
+    </div>
+    <div class="kv">
+      <b>projeção</b><span id="prEstado">—</span>
+      <b>tela no óculos</b><span id="tlEstado">—</span>
+      <b>medidas</b><span id="tlMedidas" class="mono">—</span>
+      <b>vídeo · ondas</b><span id="tlVideo">—</span>
+    </div>
+    <div class="linha">
+      <button onclick="acao('tela_cravar')"><svg viewBox="0 0 24 24"><path d="M4 4h6M4 4v6M20 4h-6M20 4v6M4 20h6M4 20v-6M20 20h-6M20 20v-6"/></svg>Cravar tela pelos cantos</button>
+      <button onclick="acao('tela_mostrar',{modo:'acender'})">Acender agora</button>
+      <button onclick="acao('tela_mostrar',{modo:'partitura'})">Seguir a partitura</button>
+      <button onclick="acao('tela_mostrar',{modo:'apagar'})">Apagar</button>
+    </div>
+    <div class="linha">
+      <button onclick="acao('tela_toque',{u:0.5,v:0.5})"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg>Toque de teste</button>
+      <input type="number" id="tlLarg" value="3.0" step="0.1" style="width:80px" title="largura (m)"> <span class="nota">×</span>
+      <input type="number" id="tlAlt" value="2.0" step="0.1" style="width:80px" title="altura (m)"> <span class="nota">m</span>
+      <button onclick="acao('tela_ditar',{largura:v('tlLarg'),altura:v('tlAlt')})" title="uma tela de mentira a 2,3 m à frente, para testar sem escanear">Ditar tela (teste)</button>
+      <button class="perigo" onclick="acao('tela_soltar')">Soltar tela</button>
+    </div>
+    <div class="nota">Como cravar: o operador aperta <em>Cravar</em>; quem está de capacete belisca o canto de cima à <b>esquerda</b> do tule, depois o da <b>direita</b>. A largura vem dos dois cantos; a altura, do campo acima. Se a tela estiver marcada como "tela/janela" na Configuração de Espaço do Quest, ela é achada sozinha.</div>
+  </section>
+
   <!-- RELATOS -->
   <section class="card" style="grid-column:1/-1">
     <h2><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>Relatos de dentro do capacete</h2>
@@ -202,6 +245,29 @@ let verSenha = false, ipEditado = false, ultimoRelato = -1;
 const $ = id => document.getElementById(id);
 const v = id => $(id).value;
 const versao = () => document.querySelector('input[name=versao]:checked').value;
+const saida = () => document.querySelector('input[name=saida]:checked').value;
+let monitoresVistos = '';
+function desenharProjecao(e){
+  const pr = e.projecao||{}, tl = e.tela, mons = e.monitores||[];
+  const chave = JSON.stringify(mons.map(m=>m.nome));
+  if (chave !== monitoresVistos){
+    monitoresVistos = chave; const sel = $('monitor'); const atual = sel.value;
+    sel.innerHTML = '<option value="auto">monitor: o que não é o principal</option>' +
+      mons.map(m=>`<option value="${m.nome}">${m.nome.replace('\\\\.\\','')} · ${m.w}×${m.h}${m.principal?' (principal)':''}</option>`).join('');
+    if ([...sel.options].some(o=>o.value===atual)) sel.value = atual;
+  }
+  $('prEstado').textContent = pr.ativa ? `ligada · ${pr.saida==='pagina'?'tela: desenho + água':'espelho do óculos'} · ${pr.monitor||''}${pr.espelhar?' · espelhada':''}` : 'desligada';
+  $('prEstado').style.color = pr.ativa ? 'var(--ok)' : '';
+  if (tl && typeof tl === 'object'){
+    $('tlEstado').textContent = tl.pronta ? `cravada (${tl.origem})${tl.presenca>0.01?' · acesa '+Math.round(tl.presenca*100)+'%':' · apagada'}${tl.forcar===true?' · forçada':tl.forcar===false?' · forçada apagada':''}` : (tl.cravando ? `esperando o canto ${tl.cravando===2?'da direita':'da esquerda'}…` : 'não cravada');
+    $('tlEstado').style.color = tl.pronta ? 'var(--ok)' : (tl.cravando ? 'var(--aviso)' : '');
+    $('tlMedidas').textContent = tl.pronta ? `${tl.w} × ${tl.h} m · centro ${tl.centro.join(', ')}` : '—';
+    $('tlVideo').textContent = `${tl.video?'vídeo pronto':'vídeo ainda não'} · ${tl.ondas} onda(s)`;
+  } else {
+    $('tlEstado').textContent = e.obra&&e.obra.aba ? 'esta versão não tem a tela (abra a 6.0)' : '—';
+    $('tlEstado').style.color = ''; $('tlMedidas').textContent = '—'; $('tlVideo').textContent = '—';
+  }
+}
 
 function toast(msg, ruim){ const t=$('toast'); t.textContent=msg; t.style.borderColor = ruim?'var(--erro)':'var(--ok)'; t.classList.add('mostra'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('mostra'), 3500); }
 
@@ -270,6 +336,7 @@ function desenhar(){
   }
   $('oErro').innerHTML = (o.erro ? `<div class="erro">${o.erro}</div>` : '') + (o.aviso ? `<div class="aviso">${o.aviso}</div>` : '');
   $('avisos').innerHTML = (e.avisos||[]).map(a=>`<div class="aviso">${a}</div>`).join('');
+  desenharProjecao(e);
   desenharRelatos();
 }
 

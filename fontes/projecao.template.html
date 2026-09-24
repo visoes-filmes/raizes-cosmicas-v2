@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raízes Cósmicas — projeção</title>
+<!--
+  A PROJEÇÃO DA TELA DE TULE (6.0, 24/09). Gerada por fontes/montar_mr.py a
+  partir de fontes/projecao.template.html: o shader da água (FS_TELA) é
+  COPIADO do mr.template.html, então o que a pessoa vê no óculos e o que o
+  projetor joga no tule são a mesma conta.
+
+  Abre no computador do estande, em tela cheia no projetor (a Cabine faz
+  isso), e recebe os toques do óculos pela Cabine (localhost:8790/eventos):
+  cada TOCOU-A-TELA vira uma onda aqui também.
+
+  Teclas: F tela cheia · M espelhar (retroprojeção) · clique = onda de teste.
+  Endereço: ?espelho=1 já abre espelhada; ?cabine=http://host:8790 outra Cabine.
+-->
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:none}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+  #aviso{position:absolute;left:12px;bottom:10px;color:#666;font:12px system-ui;opacity:.8;cursor:default}
+  body.quieto #aviso{display:none}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="aviso">projeção · F tela cheia · M espelhar · aguardando a Cabine…</div>
+<video id="vid" muted loop playsinline preload="auto" style="display:none"></video>
+<script>
+const params = new URLSearchParams(location.search);
+let espelho = params.get('espelho') === '1';
+const CABINE = params.get('cabine') || 'http://localhost:8790';
+const VIDEO = './assets/video/odara-cosmos.mp4';
+const cv = document.getElementById('cv'), aviso = document.getElementById('aviso');
+const vid = document.getElementById('vid'); vid.src = VIDEO;
+const gl = cv.getContext('webgl', { alpha:false, antialias:true, preserveDrawingBuffer:false });
+
+const VS = `
+attribute vec2 aPos;
+attribute vec2 aUV;
+varying vec2 vUV;
+void main(){ vUV = aUV; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+/* o mesmo FS_TELA da obra -- o montador cola aqui */
+const FS = `/*FS_TELA*/`;
+
+function compilar(tipo, src){
+  const sh = gl.createShader(tipo); gl.shaderSource(sh, src); gl.compileShader(sh);
+  if(!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compilar(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compilar(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const u = n => gl.getUniformLocation(prog, n);
+const loc = { video:u('video'), tempo:u('tempo'), presenca:u('presenca'), aspecto:u('aspecto'), temVideo:u('temVideo'),
+              ondas:u('ondas[0]'), nOndas:u('nOndas') };
+const aPos = gl.getAttribLocation(prog, 'aPos'), aUV = gl.getAttribLocation(prog, 'aUV');
+const bPos = gl.createBuffer(), bUV = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, bUV);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,1, 1,1, 1,0, 0,0]), gl.STATIC_DRAW);
+const bIdx = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bIdx);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
+
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([12, 10, 28]));
+for(const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
+                     [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+  gl.texParameteri(gl.TEXTURE_2D, k, v);
+
+/* O ESTADO: o mesmo da obra -- aspecto da tela, presenca, lista de ondas
+   (u, v, instante, forca). O relogio e local: o toque chega com dezenas de
+   milissegundos de atraso pela rede, e uma onda que nasce 50 ms depois nao
+   se distingue a olho. */
+const T = { aspecto:1.5, presenca:0, alvo:0, ondas:[], videoOk:false, ultimo:-1, ligado:false };
+const ondasBuf = new Float32Array(64);
+let relogio = 0, ultimoInstante = performance.now();
+
+vid.addEventListener('loadeddata', () => { T.videoOk = true; });
+function tocarVideo(){ const p = vid.play(); if(p && p.catch) p.catch(() => {}); }
+
+function onda(a, b, f){ T.ondas.push({ u:a, v:b, t0:relogio, f:f === undefined ? 1 : f });
+                        if(T.ondas.length > 16) T.ondas.splice(0, T.ondas.length - 16); }
+
+/* OS EVENTOS DA CABINE: os relatos do oculos, ao vivo. */
+let fonte = null, tentativa = 0;
+function ligarCabine(){
+  try{ fonte = new EventSource(CABINE + '/eventos'); }catch(e){ return; }
+  fonte.onopen = () => { T.ligado = true; tentativa = 0; aviso.textContent = 'projeção · ligada à Cabine'; };
+  fonte.onerror = () => { T.ligado = false; aviso.textContent = 'projeção · sem a Cabine (toques só pelo clique)';
+                          fonte.close(); setTimeout(ligarCabine, Math.min(15000, 1000 * (2 ** tentativa++))); };
+  fonte.onmessage = ev => {
+    let r = null; try{ r = JSON.parse(ev.data); }catch(e){ return; }
+    const txt = (r && r.t) || '';
+    if(txt.indexOf('TOCOU-A-TELA') === 0){
+      const p = txt.split(/\s+/); onda(parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3] || '1'));
+    } else if(txt.indexOf('TELA-ACESA') === 0){ T.alvo = 1; vid.currentTime = 0; tocarVideo(); }
+    else if(txt.indexOf('TELA-APAGADA') === 0){ T.alvo = 0; }
+    else if(txt.indexOf('TELA-CRAVADA') === 0){
+      const w = /w=([\d.]+)/.exec(txt), h = /h=([\d.]+)/.exec(txt);
+      if(w && h && +h[1] > 0) T.aspecto = (+w[1]) / (+h[1]);
+    } else if(txt.indexOf('A-OBRA-PARTIU') === 0){ T.alvo = 0; T.ondas = []; }
+  };
+}
+ligarCabine();
+
+/* O QUADRO: a tela ocupa o maior retangulo com o aspecto dela dentro da
+   janela; o resto e preto (o projetor nao joga luz fora do tule). */
+function quadro(){
+  const agora = performance.now(); const dt = Math.min(0.1, (agora - ultimoInstante) / 1000); ultimoInstante = agora;
+  relogio += dt;
+  T.presenca += (T.alvo - T.presenca) * (1 - Math.exp(-dt * 1.2));
+  if(T.videoOk && T.presenca > 0.01 && vid.paused) tocarVideo();
+  if(T.presenca <= 0.01 && !vid.paused) vid.pause();
+  const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, devicePixelRatio || 1);
+  if(cv.width !== Math.round(W*dpr) || cv.height !== Math.round(H*dpr)){ cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); }
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  if(T.presenca > 0.005){
+    /* o retangulo da tela, em coordenadas de recorte */
+    let w = 2, h = 2 * (W / H) / T.aspecto; if(h > 2){ h = 2; w = 2 * T.aspecto / (W / H); }
+    const x0 = -w/2, x1 = w/2, y0 = -h/2, y1 = h/2;
+    const xa = espelho ? x1 : x0, xb = espelho ? x0 : x1;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bPos);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([xa,y0, xb,y0, xb,y1, xa,y1]), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, bUV);
+    gl.enableVertexAttribArray(aUV); gl.vertexAttribPointer(aUV, 2, gl.FLOAT, false, 0, 0);
+    if(T.videoOk && vid.readyState >= 2 && vid.currentTime !== T.ultimo){
+      T.ultimo = vid.currentTime; gl.bindTexture(gl.TEXTURE_2D, tex);
+      try{ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, vid); }catch(e){}
+    }
+    while(T.ondas.length && relogio - T.ondas[0].t0 > 6) T.ondas.shift();
+    const n = T.ondas.length;
+    for(let i = 0; i < n; i++){ const o = T.ondas[i]; ondasBuf[i*4] = o.u; ondasBuf[i*4+1] = o.v; ondasBuf[i*4+2] = o.t0; ondasBuf[i*4+3] = o.f; }
+    gl.uniform4fv(loc.ondas, ondasBuf); gl.uniform1i(loc.nOndas, n);
+    gl.uniform1f(loc.tempo, relogio); gl.uniform1f(loc.presenca, T.presenca);
+    gl.uniform1f(loc.aspecto, T.aspecto); gl.uniform1f(loc.temVideo, T.videoOk ? 1 : 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(loc.video, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bIdx);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  }
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+
+/* O OPERADOR: F tela cheia, M espelho, clique = onda onde clicou, A acende
+   sem esperar o oculos (para enquadrar o projetor no tule). */
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if(k === 'f'){ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); }
+  if(k === 'm') espelho = !espelho;
+  if(k === 'a'){ T.alvo = T.alvo > 0.5 ? 0 : 1; if(T.alvo) tocarVideo(); }
+});
+cv.addEventListener('pointerdown', e => {
+  if(T.presenca < 0.5){ T.alvo = 1; tocarVideo(); return; }
+  const W = cv.clientWidth, H = cv.clientHeight;
+  let w = W, h = W / T.aspecto; if(h > H){ h = H; w = H * T.aspecto; }
+  let a = (e.clientX - (W - w) / 2) / w, b = (e.clientY - (H - h) / 2) / h;
+  if(espelho) a = 1 - a;
+  if(a >= 0 && a <= 1 && b >= 0 && b <= 1) onda(a, b, 1);
+});
+let sossego = null;
+addEventListener('pointermove', () => { document.body.classList.remove('quieto'); clearTimeout(sossego);
+                                        sossego = setTimeout(() => document.body.classList.add('quieto'), 4000); });
+setTimeout(() => document.body.classList.add('quieto'), 6000);
+</script>
+</body>
+</html>
