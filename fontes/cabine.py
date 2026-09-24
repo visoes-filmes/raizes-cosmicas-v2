@@ -56,7 +56,7 @@ PORTA_DEVTOOLS = 9222
 LOG = os.path.join(AQUI, "cabine.log")
 IP_GUARDADO = os.path.join(AQUI, "guardiao_quest.ip")   # o mesmo do guardião
 NAVEGADOR_QUEST = "com.oculus.browser"
-VERSOES = {"v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html"}
+VERSOES = {"v52": "v52.html", "v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html"}
 NOMES_CENAS = {1: "floresta", 2: "cosmos", 3: "planeta rosa", 4: "papel"}
 
 # no Windows sem console (pythonw), nenhum subprocesso pode abrir janela
@@ -437,7 +437,7 @@ def agir(nome, dados):
     elif nome == "tuneis":
         return {"ok": tuneis(s)}
     elif nome == "abrir":
-        return abrir_no_quest(s, dados.get("versao", "v2"))
+        return abrir_no_quest(s, dados.get("versao", "v52"))
     elif nome == "iniciar":
         return clicar("bIniciar")
     elif nome == "reiniciar":

@@ -67,6 +67,17 @@ engasga no bash em alguns comandos). **Não publique só por ter montado.**
 | **v2** | a obra base, sem escaneamento | `visoes-filmes.github.io/raizes-cosmicas-v2/` | `v2.0` |
 | **v4** | lê o espaço: cogumelos e pedras pousam em mesa/banco; a árvore-mãe procura chão livre | `…/raizes-cosmicas-v2/v4.html` | `v4.0` |
 | **5.1** | v4 + paredes lidas com rachaduras e buracos por onde a outra realidade aparece; só o teto é 100 % VR; metade da névoa; escala de desenho 0,7 (floresta 54, planeta rosa 45 quadros no Quest); toque com respiro | `…/raizes-cosmicas-v2/v5.html` | `v5.1` (a 5.0 em `v5.0`) |
+| **5.2** | **um passo atrás na sala** (24/09, depois de ela ver a 5.1 no capacete): sem escaneamento e sem paredes rachadas — o céu volta a fazer *fade* com as paredes reais no degradê de sempre, e **o chão real aparece o tempo todo** até o cenário 4. Fica o que não tem a ver com a sala: metade da névoa, escala 0,7, toque com folga e respiro | `…/raizes-cosmicas-v2/v52.html` | `v5.2` |
+
+> **Por que o chão ficou preto na 5.1.** Com paredes lidas, o céu recebia
+> `inicio/fim` negativos para descer abaixo do horizonte; mas o `FS_CEU`
+> corta a direção em zero (`h = clamp(dir.y, 0, 1)`), então abaixo do
+> horizonte `h` vale 0 e `smoothstep(-0,35, -0,12, 0)` dá 1: cúpula opaca,
+> chão junto. É o mesmo mecanismo que o cenário 4 usa de propósito
+> (`ini:-1, fim:-0.5`, 8:45–9:45, "estamos no espaço"). Na 5.2 a floresta
+> volta a `0,22/0,72`, o cosmos `0,12/0,58`, o rosa `0/0,85`: olhando para
+> baixo o céu não chega, e a sala real está lá. **A bancada não prova isso**
+> (na tela, transparente e preto saem iguais); só o Quest.
 
 A obra em si (partitura, cenários, seres) é a de 15/09. De 20/09 para cá
 entraram salvaguardas e a interatividade (23/09): o sino do toque delicado e

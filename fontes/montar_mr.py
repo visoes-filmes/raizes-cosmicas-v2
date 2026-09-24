@@ -273,6 +273,40 @@ if saida == os.path.join(RAIZ, "index.html"):
         f.write(v5)
     print("5.1: v5.html (paredes rachadas, so o ceu e VR, menos nevoa, escala 0,7)")
 
+    # RAIZES COSMICAS 5.2 (24/09): UM PASSO ATRAS NA SALA. Pedido da direcao
+    # de arte, depois de ver a 5.1 no capacete: "a integracao com a sala, com
+    # os objetos, nao deu certo; eu havia dito que era melhor so ser RA do
+    # teto para cima -- quero voltar um passo atras, onde o ceu fazia fade com
+    # as paredes. E nessa ultima versao o chao ficou preto, como se fosse o
+    # ceu; isso so acontece no final. Precisamos ver o chao: a pessoa vai
+    # caminhar pelo espaco."
+    #
+    # POR QUE O CHAO FICOU PRETO NA 5.1: com paredes lidas, o ceu recebia
+    # inicio/fim negativos (-0,35 / -0,12) para descer abaixo do horizonte.
+    # Mas o FS_CEU corta a direcao em zero (h = clamp(dir.y, 0, 1)), entao
+    # abaixo do horizonte h vale 0 e smoothstep(-0,35, -0,12, 0) = 1: a cupula
+    # inteira ficou opaca, o chao junto. E o mesmo mecanismo que o cenario 4
+    # usa de proposito (-1 / -0,5) de 8:45 a 9:45, "estamos no espaco".
+    #
+    # A 5.2 e a v2 -- sem escaneamento, sem paredes rachadas, o ceu no degrade
+    # de sempre por cenario, o chao real ate o cenario 4 -- com o que a 5.x
+    # consertou e nao tem a ver com a sala: metade da nevoa, a escala 0,7
+    # (o travamento ao mexer a cabeca) e o toque com folga e respiro (esse ja
+    # esta no template, vale para todas).
+    v52 = (html.replace("const NEBLINA_FATOR         = 1.0;",   "const NEBLINA_FATOR         = 0.5;")
+               .replace("const ESCALA_DESENHO        = 1.0;",   "const ESCALA_DESENHO        = 0.7;")
+               .replace("<title>Raízes Cósmicas v2</title>", "<title>Raízes Cósmicas 5.2</title>")
+               .replace("<h1>Raízes Cósmicas v2</h1>", "<h1>Raízes Cósmicas 5.2</h1>")
+               .replace('Raízes Cósmicas <em>v2</em>', 'Raízes Cósmicas <em>5.2</em>')
+               .replace("var PREFIXO_CACHE = 'raizes-cosmicas-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v52-';"))
+    if ("const ESPACO_ESCANEADO      = false;" not in v52 or "const PAREDES_RACHADAS      = false;" not in v52
+            or "NEBLINA_FATOR         = 0.5;" not in v52 or "ESCALA_DESENHO        = 0.7;" not in v52
+            or "raizes-cosmicas-v52-" not in v52):
+        print("AVISO: os interruptores da 5.2 nao foram todos achados")
+    with open(os.path.join(RAIZ, "v52.html"), "w", encoding="utf-8") as f:
+        f.write(v52)
+    print("5.2: v52.html (um passo atras: o ceu em fade com as paredes, sem ler a sala, o chao sempre visivel; nevoa 0,5, escala 0,7)")
+
     oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
     with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
         f.write(oficina)
