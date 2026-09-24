@@ -34,7 +34,7 @@ import sys
 AQUI = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(AQUI)
 N = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].isdigit() else "4"
-NOME = "5.0" if N == "5" else "v" + N            # como a versao se chama para gente
+NOME = "5.1" if N == "5" else "v" + N            # como a versao se chama para gente
 DESTINO = os.path.join(os.path.dirname(RAIZ), "raizes-cosmicas-v" + N)
 REMOTO = "https://github.com/visoes-filmes/raizes-cosmicas-v" + N + ".git"
 

@@ -1736,7 +1736,7 @@ function arrumarOEspaco(){
 
    E NUNCA PENDURA: getPose pode devolver nulo enquanto o rastreio assenta,
    e um plano sem pose simplesmente nao entra nesta rodada. */
-let primeiroPlanoEm = 0;
+let primeiroPlanoEm = 0, salaLidaEm = 0;    // salaLidaEm: o relogio no instante da leitura
 function lerOEspaco(frame, espaco){
   if(!ESPACO_ESCANEADO || SALA.pronta || !frame || !frame.detectedPlanes) return;
   const planos = frame.detectedPlanes;
@@ -1775,6 +1775,7 @@ function lerOEspaco(frame, espaco){
   }
 
   SALA.pronta = true;
+  salaLidaEm = relogio;
   SALA.planos = planos.size;
   SALA.chao = chao;
   SALA.chaoY = chao ? chaoY : 0;
@@ -5362,7 +5363,7 @@ varying vec2 vUV;
 void main(){ vUV = aUV; gl_Position = mvp * vec4(aPos, 1.0); }`;
 const FS_PAREDE = `
 precision mediump float;
-uniform float abertura, tempo, modo;
+uniform float abertura, tempo, modo, leitura;   // leitura: 1 no instante em que a sala foi lida, 0 tres segundos depois
 uniform vec3 cor;
 varying vec2 vUV;
 float hashP(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -5388,9 +5389,15 @@ void main(){
     if(aberto > 0.5) discard;
     gl_FragColor = vec4(0.0);
   } else {
-    float borda = smoothstep(0.16, 0.42, r) * (1.0 - aberto);
+    /* mais larga e mais forte que na 5.0 (0,16-0,42 e 0,85): dentro do
+       capacete, contra a parede de verdade, o fio quase nao se via */
+    float borda = smoothstep(0.06, 0.40, r) * (1.0 - aberto);
     float pulsa = 0.72 + 0.28 * sin(tempo * 0.9 + vUV.x * 2.1 + vUV.y * 1.3);
-    float a = borda * pulsa * 0.85;
+    /* A LEITURA SE MOSTRA: nos tres segundos depois de a sala ser lida, uma
+       onda de luz sobe pelas paredes -- "ele nao escaneou quando iniciou"
+       era a leitura acontecendo sem nenhum sinal. */
+    float onda = leitura * pow(1.0 - abs(fract(vUV.y * 0.35 - (1.0 - leitura) * 1.6) * 2.0 - 1.0), 3.0) * 0.55;
+    float a = borda * pulsa * 1.25 + onda + leitura * 0.10;
     gl_FragColor = vec4(cor * a, a);
   }
 }`;
@@ -7119,7 +7126,8 @@ const progFio  = programa(VS_FIO,  FS_FIO);
 const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
 const progParede = programa(VS_PAREDE, FS_PAREDE);
 const uPa = n => gl.getUniformLocation(progParede, n);
-const locPa = { mvp:uPa('mvp'), abertura:uPa('abertura'), tempo:uPa('tempo'), modo:uPa('modo'), cor:uPa('cor') };
+const locPa = { mvp:uPa('mvp'), abertura:uPa('abertura'), tempo:uPa('tempo'), modo:uPa('modo'), cor:uPa('cor'),
+                leitura:uPa('leitura') };
 const aPa = { pos:gl.getAttribLocation(progParede, 'aPos'), uv:gl.getAttribLocation(progParede, 'aUV') };
 const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
@@ -9186,14 +9194,22 @@ function astrosNoChamado(){
   return lista;
 }
 
+const ultimoToqueEm = Object.create(null);   // quando cada alvo soou pela ultima vez
 function conferirToque(dt){
   const alvos = alvosAgora();
   verChamados(alvos.concat(astrosNoChamado()), dt);
   for(const m of MAOS){
     let perto = null;
     if(m.tem) for(const a of alvos){
-      if(a.dentro ? a.dentro(m) : (()=>{ const dx = m.x-a.x, dy = m.y-a.y, dz = m.z-a.z;
-                                          return dx*dx + dy*dy + dz*dz < a.raio*a.raio; })()){
+      /* FOLGA DE SAIDA -- 24/09. Lido no Quest: TOCOU-UM-COGUMELO 9 doze
+         vezes seguidas, um sino em cima do outro. A mao parada na beira do
+         alvo entra e sai a cada tremor do rastreio, e cada entrada e um
+         toque novo. Agora o alvo em que a mao JA ESTA e mais largo (12 cm
+         a mais) do que o alvo em que ela entra: sair pede um gesto, nao um
+         tremor. */
+      const folga = (m.ultimoAlvo === a.id) ? 0.12 : 0.0;
+      if(a.dentro ? a.dentro(m) : (()=>{ const dx = m.x-a.x, dy = m.y-a.y, dz = m.z-a.z, r = a.raio + folga;
+                                          return dx*dx + dy*dy + dz*dz < r*r; })()){
         perto = a; break;
       }
     }
@@ -9204,7 +9220,13 @@ function conferirToque(dt){
        cada quadro e uma serra. A mao lembra em que alvo esta e so dispara
        de novo depois de sair dele. */
     if(perto && (m.aceso > 0.6 || m.apertando)){
-      if(m.ultimoAlvo !== perto.id){ perto.fazer(m); m.ultimoAlvo = perto.id; }
+      /* E UM RESPIRO POR ALVO: a mesma coisa nao soa de novo em menos de
+         um segundo e meio, venha a mao de onde vier. */
+      const ultimo = ultimoToqueEm[perto.id] || -9;
+      if(m.ultimoAlvo !== perto.id && relogio - ultimo > 1.5){
+        perto.fazer(m); ultimoToqueEm[perto.id] = relogio;
+      }
+      m.ultimoAlvo = perto.id;
     } else if(!perto) m.ultimoAlvo = null;
   }
 }
@@ -11122,8 +11144,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.tempo, relogio);
     gl.uniform1f(locS.olho, OLHO);
     gl.uniform1f(locS.altura, ALTURA);
-    gl.uniform1f(locS.inicio, degradeIni);
-    gl.uniform1f(locS.fim, degradeFim);
+    /* COM AS PAREDES LIDAS, O CEU DESCE INTEIRO (5.1). A graduacao existia
+       para a sala real aparecer por baixo do ceu -- e na 5.0 quem faz a sala
+       aparecer sao as PAREDES, tampando. Lido no Quest em 24/09: com a
+       graduacao de sempre o ceu ja era transparente na altura da parede, e
+       pela rachadura nao se via nada alem da propria parede. Agora, havendo
+       paredes, o ceu vai ate um pouco abaixo do horizonte: atras de cada
+       rachadura ha cosmos. O chao continua real -- de -0,35 (uns 20 graus
+       para baixo) em diante o ceu nao chega. */
+    const comParedes = PAREDES_RACHADAS && nParedeIdx > 0;
+    gl.uniform1f(locS.inicio, comParedes ? Math.min(degradeIni, -0.35) : degradeIni);
+    gl.uniform1f(locS.fim,    comParedes ? Math.min(degradeFim, -0.12) : degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
     /* A proporcao e a do ceu que esta na frente. Na travessia os dois
@@ -11162,6 +11193,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     mandarMvp(locPa.mvp, mvp);
     gl.uniform1f(locPa.abertura, ab);
     gl.uniform1f(locPa.tempo, relogio);
+    gl.uniform1f(locPa.leitura, salaLidaEm > 0 ? 1.0 - rampa(salaLidaEm, salaLidaEm + 3.0, relogio) : 0.0);
     ligar(aPa.pos, bParede.pos, 3); ligar(aPa.uv, bParede.uv, 2);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bParede.idx);
     gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);

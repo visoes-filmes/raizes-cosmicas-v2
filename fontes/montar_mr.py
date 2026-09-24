@@ -263,15 +263,15 @@ if saida == os.path.join(RAIZ, "index.html"):
               .replace("const PAREDES_RACHADAS      = false;", "const PAREDES_RACHADAS      = true;")
               .replace("const NEBLINA_FATOR         = 1.0;",   "const NEBLINA_FATOR         = 0.5;")
               .replace("const ESCALA_DESENHO        = 1.0;",   "const ESCALA_DESENHO        = 0.7;")
-              .replace("<title>Raízes Cósmicas v2</title>", "<title>Raízes Cósmicas 5.0</title>")
-              .replace("<h1>Raízes Cósmicas v2</h1>", "<h1>Raízes Cósmicas 5.0</h1>")
-              .replace('Raízes Cósmicas <em>v2</em>', 'Raízes Cósmicas <em>5.0</em>')
+              .replace("<title>Raízes Cósmicas v2</title>", "<title>Raízes Cósmicas 5.1</title>")
+              .replace("<h1>Raízes Cósmicas v2</h1>", "<h1>Raízes Cósmicas 5.1</h1>")
+              .replace('Raízes Cósmicas <em>v2</em>', 'Raízes Cósmicas <em>5.1</em>')
               .replace("var PREFIXO_CACHE = 'raizes-cosmicas-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v5-';"))
     if v5.count("= true;") < html.count("= true;") + 2:
         print("AVISO: os interruptores da 5.0 nao foram todos achados")
     with open(os.path.join(RAIZ, "v5.html"), "w", encoding="utf-8") as f:
         f.write(v5)
-    print("5.0: v5.html (paredes rachadas, so o ceu e VR, menos nevoa, escala 0,7)")
+    print("5.1: v5.html (paredes rachadas, so o ceu e VR, menos nevoa, escala 0,7)")
 
     oficina = html.replace("const ANDAIME = false;", "const ANDAIME = true;")
     with open(os.path.join(RAIZ, "oficina.html"), "w", encoding="utf-8") as f:
