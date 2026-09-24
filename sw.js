@@ -19,7 +19,7 @@
  * momento em que metade da obra é de uma versão e metade de outra.
  */
 
-const VERSAO = 'raizes-cosmicas-2026-09-23b';
+const VERSAO = 'raizes-cosmicas-2026-09-23d';
 
 /**
  * O que é baixado na instalação, sem esperar ninguém pedir.
@@ -59,11 +59,27 @@ self.addEventListener('install', (e) => {
   );
 });
 
+/* SO OS CACHES DESTA OBRA -- 23/09.
+ *
+ * O v2 e o v4 moram no mesmo dominio (visoes-filmes.github.io), e o
+ * armazenamento de cache e por DOMINIO, nao por pasta: os dois enxergam os
+ * caches um do outro. Apagando "tudo que nao e a minha versao", abrir o v2
+ * apagava o v4 guardado no aparelho, e vice-versa -- e o estande sem rede
+ * descobriria isso na hora de abrir.
+ *
+ * O nome da versao e prefixo + data ('raizes-cosmicas-2026-09-23c',
+ * 'raizes-cosmicas-v4-2026-09-23c'), e o prefixo sai dele mesmo. Apaga-se
+ * so o que tem o MEU prefixo seguido de data. */
+const PREFIXO = VERSAO.replace(/\d{4}-\d{2}-\d{2}[a-z]*$/, '');
+const MEUS = {
+  test: (n) => n.indexOf(PREFIXO) === 0 && /^\d{4}-/.test(n.slice(PREFIXO.length)),
+};
+
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
       .then((nomes) => Promise.all(
-        nomes.filter((n) => n !== VERSAO).map((n) => caches.delete(n)),
+        nomes.filter((n) => MEUS.test(n) && n !== VERSAO).map((n) => caches.delete(n)),
       ))
       .then(() => self.clients.claim()),
   );

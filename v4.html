@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas v2</title>
+<title>Raízes Cósmicas v4</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas v2</h1>
+  <h1>Raízes Cósmicas v4</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>v2</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>v4</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -323,13 +323,17 @@
     var onde = document.getElementById('portaoVersao');
     if (!onde || !self.caches || !caches.keys) return;
     caches.keys().then(function (nomes) {
-      var meus = nomes.filter(function (n) { return n.indexOf('raizes-cosmicas-') === 0; });
+      /* SO OS DESTA OBRA (23/09): v2 e v4 dividem o dominio e, com ele, o
+         armazenamento de cache. O prefixo do v4 e trocado pelo montador. */
+      var PREFIXO_CACHE = 'raizes-cosmicas-';
+      var meus = nomes.filter(function (n) {
+        return n.indexOf(PREFIXO_CACHE) === 0 && /^\d{4}-/.test(n.slice(PREFIXO_CACHE.length)); });
       if (!meus.length) { onde.textContent = 'primeira abertura — ainda guardando'; return; }
       /* DUAS QUER DIZER "A NOVA ESTA CHEGANDO". O guardiao serve a antiga
          ate acabar de guardar a nova; quem abrir de novo pega a nova. */
       onde.textContent = meus.length > 1
         ? meus.join('  →  ') + '   (abra de novo para a nova valer)'
-        : meus[0].replace('raizes-cosmicas-', 'versão ');
+        : meus[0].replace(PREFIXO_CACHE, 'versão ');
     }).catch(function () {});
   })();
 </script>

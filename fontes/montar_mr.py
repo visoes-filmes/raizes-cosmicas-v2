@@ -243,6 +243,11 @@ if saida == os.path.join(RAIZ, "index.html"):
     # Quest nao vem plano nenhum, e ai o v4 e identico a obra.
     v4 = html.replace("const ESPACO_ESCANEADO      = false;",
                       "const ESPACO_ESCANEADO      = true;")
+    # e ele se diz v4: na aba, no cartao e no portao (23/09 -- "no github
+    # ainda esta raizes cosmicas v2"). Quem abre tem de saber qual e.
+    v4 = (v4.replace("<title>Raízes Cósmicas v2</title>", "<title>Raízes Cósmicas v4</title>")
+            .replace("<h1>Raízes Cósmicas v2</h1>", "<h1>Raízes Cósmicas v4</h1>")
+            .replace('Raízes Cósmicas <em>v2</em>', 'Raízes Cósmicas <em>v4</em>'))
     if v4 == html:
         print("AVISO: nao achei o interruptor do v4 -- v4.html nao saiu")
     else:

@@ -323,13 +323,17 @@
     var onde = document.getElementById('portaoVersao');
     if (!onde || !self.caches || !caches.keys) return;
     caches.keys().then(function (nomes) {
-      var meus = nomes.filter(function (n) { return n.indexOf('raizes-cosmicas-') === 0; });
+      /* SO OS DESTA OBRA (23/09): v2 e v4 dividem o dominio e, com ele, o
+         armazenamento de cache. O prefixo do v4 e trocado pelo montador. */
+      var PREFIXO_CACHE = 'raizes-cosmicas-';
+      var meus = nomes.filter(function (n) {
+        return n.indexOf(PREFIXO_CACHE) === 0 && /^\d{4}-/.test(n.slice(PREFIXO_CACHE.length)); });
       if (!meus.length) { onde.textContent = 'primeira abertura — ainda guardando'; return; }
       /* DUAS QUER DIZER "A NOVA ESTA CHEGANDO". O guardiao serve a antiga
          ate acabar de guardar a nova; quem abrir de novo pega a nova. */
       onde.textContent = meus.length > 1
         ? meus.join('  →  ') + '   (abra de novo para a nova valer)'
-        : meus[0].replace('raizes-cosmicas-', 'versão ');
+        : meus[0].replace(PREFIXO_CACHE, 'versão ');
     }).catch(function () {});
   })();
 </script>
