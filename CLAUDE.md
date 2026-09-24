@@ -3,7 +3,8 @@
 Obra de realidade mista para Meta Quest 3, em WebXR. Dez minutos, quatro
 cenários, 3 × 3 m caminháveis. FIL 2026. HTML único, sem build, sem npm.
 
-O mapa completo está em `LEIA-ME-ACER.md` — **leia-o antes de mexer no
+Para seguir em outra máquina: **`LEIA-ME-SEGUIR.md`** (o que instalar, o
+estado, como se trabalha). O mapa completo está em `LEIA-ME-ACER.md` — **leia-o antes de mexer no
 código de verdade.** Este arquivo tem só o que não pode ser esquecido nem
 por um minuto.
 
