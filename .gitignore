@@ -10,3 +10,6 @@ simulador.html
 # andaime: quadros que a obra manda para o servidor de teste
 _fotos/
 _prova.html
+
+# o adb baixado do Google, por maquina (LEIA-ME-SEGUIR: fica fora do git)
+fontes/platform-tools/
