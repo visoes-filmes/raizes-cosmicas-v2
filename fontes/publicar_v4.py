@@ -86,6 +86,17 @@ def main():
         "No ar: `visoes-filmes.github.io/raizes-cosmicas-v4/` — versão de cache\n"
         "`raizes-cosmicas-v4-" + versao + "`.\n")
 
+    # A montagem aqui gira a versao do sw.js da v2 mesmo quando a obra da v2
+    # nao mudou -- e um sw.js so com a versao nova faria todo headset baixar
+    # de novo a mesma obra. Se o index da v2 saiu igual ao do commit e a
+    # unica diferenca no sw.js e a linha da versao, ela volta.
+    if rodar(["git", "diff", "--quiet", "HEAD", "--", "index.html"], RAIZ, calar=True).returncode == 0:
+        antigo = rodar(["git", "show", "HEAD:sw.js"], RAIZ).stdout
+        atual = io.open(os.path.join(RAIZ, "sw.js"), encoding="utf-8", newline="").read()
+        sem_versao = lambda t: re.sub(r"const VERSAO = '[^']+'", "", t).replace("\r\n", "\n")
+        if sem_versao(antigo) == sem_versao(atual):
+            rodar(["git", "checkout", "--", "sw.js"], RAIZ)
+
     print("3/3  commit e push")
     if not os.path.isdir(os.path.join(DESTINO, ".git")):
         rodar(["git", "init", "-b", "main"], DESTINO)
