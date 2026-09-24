@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas v2</title>
+<title>Raízes Cósmicas 5.0</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas v2</h1>
+  <h1>Raízes Cósmicas 5.0</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>v2</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>5.0</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -325,7 +325,7 @@
     caches.keys().then(function (nomes) {
       /* SO OS DESTA OBRA (23/09): v2 e v4 dividem o dominio e, com ele, o
          armazenamento de cache. O prefixo do v4 e trocado pelo montador. */
-      var PREFIXO_CACHE = 'raizes-cosmicas-';
+      var PREFIXO_CACHE = 'raizes-cosmicas-v5-';
       var meus = nomes.filter(function (n) {
         return n.indexOf(PREFIXO_CACHE) === 0 && /^\d{4}-/.test(n.slice(PREFIXO_CACHE.length)); });
       if (!meus.length) { onde.textContent = 'primeira abertura — ainda guardando'; return; }
@@ -608,7 +608,7 @@ const PAPEL_NO_CENARIO      = true;
    esta: quem nao tem o espaco configurado no Quest nao ganha plano nenhum,
    e uma obra que depende de um escaneamento que pode nao vir seria uma obra
    que as vezes nao abre. Sem planos, o v4 e identico ao v2. */
-const ESPACO_ESCANEADO      = false;
+const ESPACO_ESCANEADO      = true;
 /* OS QUADROS -- 24/09, "ainda esta com um pouco de travamento quando eu
    mexo a cabeca". Medido em 20/09: floresta e planeta rosa a 17-34 de 72,
    GPU a 99 %, e abaixo de 36 o timewarp deixa de disfarcar -- e isso que se
@@ -618,7 +618,7 @@ const ESPACO_ESCANEADO      = false;
    que a obra e desenhada; o compositor reescala. 0,8 e 36 % de pixels a
    menos, e em RM -- a imagem da camera continua nativa -- quase nao se ve.
    SUAVIZAR_RM e o multisample de 4x na camada do headset. */
-const ESCALA_DESENHO        = 1.0;
+const ESCALA_DESENHO        = 0.7;
 const SUAVIZAR_RM           = true;
 /* RAIZES COSMICAS 5.0 -- 24/09, a direcao de arte: "deixe mais integrado
    com o espaco; preciso que entenda as paredes e faca rachaduras e buracos
@@ -634,8 +634,8 @@ const SUAVIZAR_RM           = true;
    virtual. Sem paredes lidas, nada muda.
 
    NEBLINA_FATOR multiplica a neblina de todos os cenarios (0,5 na 5.0). */
-const PAREDES_RACHADAS      = false;
-const NEBLINA_FATOR         = 1.0;
+const PAREDES_RACHADAS      = true;
+const NEBLINA_FATOR         = 0.5;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});

@@ -209,6 +209,10 @@ Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
 | `CONTORNO_PROFUNDIDADE` | `false` | o fio de luz em volta de qualquer corpo que entre na visão, pelo mapa de profundidade do Quest (`depth-sensing`). **Desligado em 20/09**: o Quest 3 entrega o mapa como texture-array, o WebGL 1 não tem isso e o contexto inteiro caía no primeiro quadro em RM. Só religar com WebGL 2 ou `cpu-optimized`, provado no aparelho |
 | `CONTORNO_MAOS` | `true` | o contorno das mãos pelas juntas rastreadas — só quando o mapa de profundidade não vem |
 | `ESPACO_ESCANEADO` | `false` | **o v4**: a obra lê os planos do aparelho e se planta no espaço de verdade — o que é pequeno pousa na superfície que estiver embaixo (chão, mesa, banco) e as árvores procuram chão livre, sem móvel embaixo. O montador escreve `v4.html` com ele ligado; a obra de sempre não muda. Sem espaço configurado no Quest não vem plano nenhum, e o v4 é idêntico ao v2 |
+| `PAREDES_RACHADAS` | `false` | **a 5.0** (pede `ESPACO_ESCANEADO`): as paredes lidas viram tampa — alfa zero (a câmera) escrevendo profundidade — com rachaduras e buracos descartados por onde a outra realidade aparece, e um fio de luz na borda. Abrem cenário a cenário (`aberturaDasParedes`) e no papel quase somem. O teto não recebe tampa: é o único espaço 100 % VR. Sem paredes lidas, nada muda |
+| `NEBLINA_FATOR` | `1.0` | multiplica a neblina de todos os cenários; a 5.0 sai com 0,5 ("diminua a névoa para ficar mais limpo") |
+| `ESCALA_DESENHO` | `1.0` | fração da resolução nativa do olho em que a obra é desenhada (`framebufferScaleFactor`). **Medido no Quest em 24/09:** 1,0 → floresta 35, planeta rosa 17 quadros; 0,8 → 46/23; **0,7 → 54/26, e com as paredes tampando o que está atrás, 58/47**. A 5.0 sai com 0,7 |
+| `SUAVIZAR_RM` | `true` | o multisample 4× da camada do headset. Medido: desligar **não** muda os quadros (32/17) — fica ligado |
 
 Fora do arquivo:
 

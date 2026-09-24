@@ -526,6 +526,62 @@ centro de 42 cm dentro do anel dos cogumelos, dois deles subiram para
 
 ---
 
+## 5c. Raízes Cósmicas 5.0 (24/09)
+
+Pedido: "a interatividade ainda não está rolando bem e ainda está com um
+pouco de travamento quando eu mexo a cabeça; deixe mais integrado com o
+espaço — preciso que entenda as paredes e faça rachaduras e buracos por onde
+podemos visualizar a outra realidade; diminua a névoa para ficar mais limpo;
+determine que o único espaço 100 % VR é o teto/céu; retome a interface de
+visualização no computador; se ficar muito pesado faça uma versão
+instalável." E: "faça backups da versão e denomine sempre uma nova versão —
+essa é Raízes Cósmicas 5.0."
+
+**Backups:** marcas `v2.0` (a obra base) e `v4.0` (a que lê o espaço) no
+repositório, antes de qualquer mudança; `v5.0` na 5.0 publicada.
+
+**O travamento ao mexer a cabeça** é o timewarp abaixo de 36 quadros. Medido
+no Quest com a obra de sempre, cenários 1 e 3: escala 1,0 → 35/17; 0,8 →
+46/23; **0,7 → 54/26**; suavização desligada → 32/17 (não ajuda); névoa
+pela metade → 19/17 (não ajuda nos quadros). **A 5.0, com escala 0,7 e as
+paredes tampando o que está atrás delas: floresta 58, planeta rosa 47.**
+Acima da linha nos dois. A escala de desenho é a alavanca; em RM, com a
+câmera em resolução nativa, 0,7 quase não se vê.
+
+**As paredes rachadas** (`PAREDES_RACHADAS`, pede o escaneamento): cada
+parede lida vira malha (leque do polígono, coordenadas em metros ao longo
+dela e na altura) e é desenhada logo depois do céu em dois passes — a
+TAMPA, sem mistura, alfa zero e profundidade (ali o céu some e a câmera
+aparece; o que vier atrás é cortado), descartando onde a rachadura está
+aberta; e a LUZ DA BORDA, somada, sem profundidade, na cor do cenário. A
+rachadura é ruído dobrado elevado (fios, duas escalas) mais manchas de baixa
+frequência (buracos) que ganham com a abertura — 0,06 na chegada, +0,22 na
+floresta, +0,22 no cosmos, +0,20 no rosa, +0,30 no papel, onde a sala quase
+some ("estamos no espaço"). O teto não recebe tampa: é o único espaço 100 %
+VR. O chão continua como era (a obra some ao descer).
+
+**Lido no Quest desta casa (24/09):** 37 planos — chão, 11 móveis, 22
+pedaços de parede (66 triângulos); a mãe teve de girar para o outro lado da
+sala (não havia chão livre onde ela fica); nenhum cogumelo caiu em móvel.
+**A imagem dentro do capacete ainda não foi vista por ninguém.**
+
+**Interface no computador:** `python fontes/servir.py 8791` e a oficina em
+`localhost:8791/oficina.html` (ou pelo estande em 8765). A bancada com
+`_dev5.html` (o `_dev.html` com os interruptores da 5.0 trocados) é o que
+gerou `_fotos/v5-cenas.jpg`.
+
+**Versão instalável:** a obra já é instalável como app no Quest pelo
+manifesto (menu ⋮ → Instalar app); com a escala 0,7 o peso ficou dentro do
+alvo. Um APK só se o navegador deixar de servir.
+
+**Em aberto na 5.0:** a interatividade "não está rolando bem" — falta o
+relato dela do que viu (toque, pegar o rosa, som); o cache do `sw.js` não
+inclui `v5.html` (no estande sem rede só o `index.html` abre); as marcas de
+móvel do Quest vêm em pedaços (11 móveis, 22 paredes) e o replantio pode
+levar a mãe para longe — ver se o lugar faz sentido na sala real.
+
+---
+
 ## 6. Pendências e decisões em aberto (18/09)
 
 A lista inteira, com as melhorias sugeridas, está em

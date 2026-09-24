@@ -618,24 +618,8 @@ const ESPACO_ESCANEADO      = false;
    que a obra e desenhada; o compositor reescala. 0,8 e 36 % de pixels a
    menos, e em RM -- a imagem da camera continua nativa -- quase nao se ve.
    SUAVIZAR_RM e o multisample de 4x na camada do headset. */
-const ESCALA_DESENHO        = 1.0;
+const ESCALA_DESENHO        = 0.8;
 const SUAVIZAR_RM           = true;
-/* RAIZES COSMICAS 5.0 -- 24/09, a direcao de arte: "deixe mais integrado
-   com o espaco; preciso que entenda as paredes e faca rachaduras e buracos
-   por onde podemos visualizar a outra realidade; diminua a nevoa para ficar
-   mais limpo; e determine que o unico espaco 100 % VR e o teto/ceu".
-
-   PAREDES_RACHADAS: as paredes lidas pelo escaneamento (pede
-   ESPACO_ESCANEADO) sao desenhadas como TAMPA -- alfa zero, que em RM e a
-   camera, escrevendo profundidade -- e o que esta atras delas (a mata de
-   fora, o ceu ate o horizonte) some. Menos nas RACHADURAS: fios e buracos
-   descartados no desenho, por onde a outra realidade aparece, com um fio de
-   luz na borda. O teto nao recebe tampa nenhuma: e o unico lugar todo
-   virtual. Sem paredes lidas, nada muda.
-
-   NEBLINA_FATOR multiplica a neblina de todos os cenarios (0,5 na 5.0). */
-const PAREDES_RACHADAS      = false;
-const NEBLINA_FATOR         = 1.0;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -1665,52 +1649,8 @@ function pousarNoQueHouver(obj, folga){
   }
 }
 
-/* AS PAREDES VIRAM MALHA -- 5.0. Cada parede lida e um poligono vertical;
-   aqui ele vira triangulos (leque a partir do primeiro ponto, que basta
-   para poligono convexo, e as paredes do Quest sao retangulos) com uma
-   coordenada em METROS ao longo da parede e na altura -- e nela que a
-   rachadura e desenhada, para ser a mesma de qualquer distancia e nao
-   esticar com a largura da parede. */
-let bParede = null, nParedeIdx = 0;
-function montarParedes(){
-  nParedeIdx = 0;
-  if(!PAREDES_RACHADAS || !SALA.paredes.length) return;
-  const pos = [], uv = [], idx = [];
-  for(const pd of SALA.paredes){
-    const P = pd.pts3;
-    if(!P || P.length < 9) continue;
-    // o eixo horizontal da parede: do ponto mais a esquerda ao mais a direita, no plano
-    let ax = P[3] - P[0], az = P[5] - P[2], L = Math.hypot(ax, az);
-    if(L < 1e-3){ ax = P[6] - P[0]; az = P[8] - P[2]; L = Math.hypot(ax, az) || 1; }
-    ax /= L; az /= L;
-    const base = pos.length / 3, n = P.length / 3;
-    for(let i = 0; i < n; i++){
-      const x = P[i*3], y = P[i*3+1], z = P[i*3+2];
-      pos.push(x, y, z);
-      uv.push((x - P[0]) * ax + (z - P[2]) * az, y);
-    }
-    for(let i = 1; i + 1 < n; i++) idx.push(base, base + i, base + i + 1);
-  }
-  if(!idx.length) return;
-  if(!bParede) bParede = criarBufs(['pos', 'uv', 'idx']);
-  enviar(bParede.pos, pos); enviar(bParede.uv, uv);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bParede.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
-  nParedeIdx = idx.length;
-  relato('PAREDES ' + SALA.paredes.length + ' malha=' + (idx.length / 3) + ' triangulos');
-}
-
-/* QUANTO AS RACHADURAS ESTAO ABERTAS, pela partitura: quase fechadas na
-   chegada, abrindo a cada cenario, e escancaradas no papel -- que e o
-   cenario em que "estamos no espaco" e a sala deixa de existir. */
-function aberturaDasParedes(){
-  return 0.06 + 0.22 * rampa(15, 110, t) + 0.22 * rampa(184, 240, t)
-              + 0.20 * rampa(380, 420, t) + 0.30 * rampa(520, 560, t);
-}
-
 /* REPLANTAR A OBRA NO ESPACO LIDO. Uma vez, quando a leitura assenta. */
 function arrumarOEspaco(){
-  montarParedes();
   for(const cg of COGUMELOS) pousarNoQueHouver(cg, 0.12);
   montarCogumelos();
   for(const pd of PEDRAS_CHAO) pousarNoQueHouver(pd, 0.10);
@@ -1751,20 +1691,20 @@ function lerOEspaco(frame, espaco){
     try{ pose = frame.getPose(plano.planeSpace, espaco); }catch(e){ pose = null; }
     if(!pose) continue;
     const M = pose.transform.matrix;
-    const poly = [], pts3 = [];      // pts3: o contorno inteiro, para as paredes
+    const poly = [];
     let somaY = 0, minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
     for(const q of (plano.polygon || [])){
       const x = M[0]*q.x + M[4]*q.y + M[8]*q.z + M[12];
       const y = M[1]*q.x + M[5]*q.y + M[9]*q.z + M[13];
       const z = M[2]*q.x + M[6]*q.y + M[10]*q.z + M[14];
-      poly.push(x, z); pts3.push(x, y, z); somaY += y;
+      poly.push(x, z); somaY += y;
       if(x < minX) minX = x; if(x > maxX) maxX = x;
       if(z < minZ) minZ = z; if(z > maxZ) maxZ = z;
     }
     if(poly.length < 6) continue;
     const y = somaY / (poly.length / 2);
     const rotulo = plano.semanticLabel || '';
-    const peca = { y, poly, rotulo, cx:(minX+maxX)/2, cz:(minZ+maxZ)/2, pts3 };
+    const peca = { y, poly, rotulo, cx:(minX+maxX)/2, cz:(minZ+maxZ)/2 };
     if(plano.orientation === 'horizontal'){
       /* O PISO E O HORIZONTAL MAIS BAIXO. O rotulo ajuda quando vem, e o
          Quest nem sempre o manda -- por isso a altura decide, e o rotulo
@@ -5343,57 +5283,6 @@ void main(){
   gl_FragColor = vec4(cor * a, a);
 }`;
 
-/* ═══════════ A PAREDE RACHADA (5.0) ═══════════
-   Dois modos, uma malha. TAPAR (modo 0): a parede escreve alfa zero -- que
-   em RM e a propria camera -- e profundidade, e DESCARTA onde a rachadura
-   esta aberta; por esse buraco o que vem depois no desenho aparece, e o que
-   vem antes (o ceu) ja ficou. A LUZ DA BORDA (modo 1): somada por cima, so
-   perto da rachadura, no turquesa da casa, pulsando devagar.
-
-   A rachadura e ruido dobrado -- um menos o modulo do ruido centrado --
-   elevado, que vira FIO; duas escalas para ramificar; e por cima manchas de
-   baixa frequencia que viram BURACOS quando a abertura sobe. Tudo em
-   metros na parede, entao a mesma parede rachada de longe e de perto. */
-const VS_PAREDE = `
-attribute vec3 aPos;
-attribute vec2 aUV;
-uniform mat4 mvp;
-varying vec2 vUV;
-void main(){ vUV = aUV; gl_Position = mvp * vec4(aPos, 1.0); }`;
-const FS_PAREDE = `
-precision mediump float;
-uniform float abertura, tempo, modo;
-uniform vec3 cor;
-varying vec2 vUV;
-float hashP(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float ruidoP(vec2 p){
-  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
-  return mix(mix(hashP(i), hashP(i + vec2(1,0)), f.x), mix(hashP(i + vec2(0,1)), hashP(i + vec2(1,1)), f.x), f.y);
-}
-float fbmP(vec2 p){ return 0.55*ruidoP(p) + 0.30*ruidoP(p*2.03 + 5.2) + 0.15*ruidoP(p*4.11 + 1.7); }
-float rachadura(vec2 p){
-  float f1 = 1.0 - abs(fbmP(p * 1.35) * 2.0 - 1.0);
-  float f2 = 1.0 - abs(fbmP(p * 3.10 + 7.0) * 2.0 - 1.0);
-  float fio = max(pow(f1, 9.0), 0.8 * pow(f2, 14.0)) * (0.35 + 1.4 * abertura);
-  /* medido na bancada (24/09): com 0,66 a floresta ja tinha mais buraco que
-     parede -- aqui a parede e real e comeca quase inteira, com FIOS; os
-     buracos so ganham dela quando a abertura sobe, cenario a cenario */
-  float mancha = smoothstep(0.74 - 0.44 * abertura, 0.82 - 0.44 * abertura, fbmP(p * 0.45 + 3.0));
-  return max(fio, mancha);
-}
-void main(){
-  float r = rachadura(vUV);
-  float aberto = smoothstep(0.42, 0.55, r);
-  if(modo < 0.5){
-    if(aberto > 0.5) discard;
-    gl_FragColor = vec4(0.0);
-  } else {
-    float borda = smoothstep(0.16, 0.42, r) * (1.0 - aberto);
-    float pulsa = 0.72 + 0.28 * sin(tempo * 0.9 + vUV.x * 2.1 + vUV.y * 1.3);
-    float a = borda * pulsa * 0.85;
-    gl_FragColor = vec4(cor * a, a);
-  }
-}`;
 const VS_CONTORNO = `
 attribute vec2 aXY;
 void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
@@ -7117,10 +7006,6 @@ const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progFio  = programa(VS_FIO,  FS_FIO);
 const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
-const progParede = programa(VS_PAREDE, FS_PAREDE);
-const uPa = n => gl.getUniformLocation(progParede, n);
-const locPa = { mvp:uPa('mvp'), abertura:uPa('abertura'), tempo:uPa('tempo'), modo:uPa('modo'), cor:uPa('cor') };
-const aPa = { pos:gl.getAttribLocation(progParede, 'aPos'), uv:gl.getAttribLocation(progParede, 'aUV') };
 const progMao  = programa(VS_MAO,  FS_MAO);
 const progAssa = programa(VS_ASSA, FS_ASSA);
 const progAstro = programa(VS_ASTRO, FS_ASTRO);
@@ -7144,7 +7029,7 @@ const progTexto = programa(VS_TEXTO, FS_TEXTO);
   const PROGRAMAS = {solida:progSolida, mata:progMata, sala:progSala, fig:progFig, po:progPo,
     fio:progFio, contorno:progContorno, mao:progMao, assa:progAssa, astro:progAstro,
     teatro:progTeatro, mergulho:progMergulho, soloAgua:progSoloAgua, agua:progAgua,
-    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto, parede:progParede};
+    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto};
   const nomes = Object.keys(PROGRAMAS);
   const falhos = nomes.filter(n => !gl.getProgramParameter(PROGRAMAS[n], gl.LINK_STATUS));
   const onde = document.getElementById('portaoProgramas');
@@ -8767,7 +8652,7 @@ function montarRegua(){
     const c2 = cenaEm(t);
     cenaAtual = c2; ceuA = CENAS[c2].ceu; ceuB = CENAS[c2].ceu; misturaCeu = 1;
     const a = CENAS[c2];
-    tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina * NEBLINA_FATOR; marmore=a.marmore; leitoso=a.leite;
+    tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
     sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
     quantosPo=a.poeira; raizesOn=a.raizes>0.5;
     pinta();
@@ -9452,7 +9337,7 @@ function seguirPartitura(dt){
      Cosseno, e nao rampa: chega e sai sem quina, e a nuvem nunca "liga". */
   const nuvemVaiEVem = (c === 2)
     ? 0.08 + 0.92 * (0.5 - 0.5 * Math.cos((t - 196) * 6.2831853 / 48)) : 1;
-  const alvoNeblina = a.neblina * NEBLINA_FATOR * neblinaDoComeco * nuvemVaiEVem * (1 - fecho);
+  const alvoNeblina = a.neblina * neblinaDoComeco * nuvemVaiEVem * (1 - fecho);
   neblina    = dt > 0 ? aproximar(neblina, alvoNeblina, p) : alvoNeblina;
   marmore    = aproximar(marmore, a.marmore, p);
   leitoso    = aproximar(leitoso, a.leite, p);
@@ -9995,12 +9880,8 @@ if(emTesteLocal){
       SALA.chaoY = 0;
       SALA.moveis = (desc.moveis || []).map(m => Object.assign(
         { y:m.y, poly:caixa(m.r), rotulo:m.rotulo || 'table' }, meio(m.r)));
-      SALA.paredes = (desc.paredes || []).map(pd => {
-        const r = pd.r, alto = pd.alto || 2.7;
-        // a parede de pe: os dois cantos opostos do retangulo, do chao ao alto
-        const pts3 = [r[0],0,r[1], r[2],0,r[3], r[2],alto,r[3], r[0],alto,r[1]];
-        return Object.assign({ y:0, poly:caixa(r), rotulo:'wall', pts3 }, meio(r));
-      });
+      SALA.paredes = (desc.paredes || []).map(pd => Object.assign(
+        { y:0, poly:caixa(pd.r), rotulo:'wall' }, meio(pd.r)));
       SALA.planos = SALA.moveis.length + SALA.paredes.length + (SALA.chao ? 1 : 0);
       SALA.pronta = true;
       arrumarOEspaco();
@@ -11148,36 +11029,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
-  }
-
-  /* 1b) AS PAREDES, logo depois do ceu (5.0). Primeiro a TAMPA: sem
-     mistura, escrevendo alfa zero por cima do ceu que acabou de ser pintado
-     -- ali o ceu some e a camera aparece -- e escrevendo profundidade, para
-     tudo o que vier depois e estiver atras da parede ser cortado. A
-     rachadura e descartada e por ela o ceu fica e a mata de fora vai
-     aparecer. Depois a LUZ DA BORDA, somada, sem escrever profundidade. */
-  if(PAREDES_RACHADAS && nParedeIdx > 0){
-    const ab = aberturaDasParedes();
-    gl.useProgram(progParede); soltarAtributos();
-    mandarMvp(locPa.mvp, mvp);
-    gl.uniform1f(locPa.abertura, ab);
-    gl.uniform1f(locPa.tempo, relogio);
-    ligar(aPa.pos, bParede.pos, 3); ligar(aPa.uv, bParede.uv, 2);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bParede.idx);
-    gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
-    gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
-    gl.uniform1f(locPa.modo, 0.0);
-    gl.drawElements(gl.TRIANGLES, nParedeIdx, gl.UNSIGNED_SHORT, 0);
-    // a luz da borda
-    gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
-    gl.depthFunc(gl.LEQUAL);
-    gl.uniform1f(locPa.modo, 1.0);
-    if(cenaAtual === 3)      gl.uniform3f(locPa.cor, 0.95, 0.45, 0.70);
-    else if(cenaAtual === 2) gl.uniform3f(locPa.cor, 0.55, 0.50, 0.95);
-    else                     gl.uniform3f(locPa.cor, 0.24, 0.72, 0.64);
-    gl.drawElements(gl.TRIANGLES, nParedeIdx, gl.UNSIGNED_SHORT, 0);
-    gl.depthFunc(gl.LESS);
-    gl.depthMask(true); gl.disable(gl.BLEND);
   }
 
   /* A MATA SOLIDA. Vem ANTES da nuvem porque ESCREVE PROFUNDIDADE, e o
