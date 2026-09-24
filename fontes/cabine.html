@@ -215,6 +215,7 @@
       <input type="number" id="tlLarg" value="3.0" step="0.1" style="width:80px" title="largura (m)"> <span class="nota">×</span>
       <input type="number" id="tlAlt" value="2.0" step="0.1" style="width:80px" title="altura (m)"> <span class="nota">m</span>
       <button onclick="acao('tela_ditar',{largura:v('tlLarg'),altura:v('tlAlt')})" title="uma tela de mentira a 2,3 m à frente, para testar sem escanear">Ditar tela (teste)</button>
+      <button id="bTelaVer" onclick="acao('tela_ver',{ver:!(estado.tela&&estado.tela.visivel)})" title="no v6 a tela é invisível no óculos; ligue só para conferir o encaixe">Ver no óculos (conferir)</button>
       <button class="perigo" onclick="acao('tela_soltar')">Soltar tela</button>
     </div>
     <div class="nota">Como cravar: o operador aperta <em>Cravar</em>; quem está de capacete belisca o canto de cima à <b>esquerda</b> do tule, depois o da <b>direita</b>. A largura vem dos dois cantos; a altura, do campo acima. Se a tela estiver marcada como "tela/janela" na Configuração de Espaço do Quest, ela é achada sozinha.</div>
@@ -262,7 +263,8 @@ function desenharProjecao(e){
     $('tlEstado').textContent = tl.pronta ? `cravada (${tl.origem})${tl.presenca>0.01?' · acesa '+Math.round(tl.presenca*100)+'%':' · apagada'}${tl.forcar===true?' · forçada':tl.forcar===false?' · forçada apagada':''}` : (tl.cravando ? `esperando o canto ${tl.cravando===2?'da direita':'da esquerda'}…` : 'não cravada');
     $('tlEstado').style.color = tl.pronta ? 'var(--ok)' : (tl.cravando ? 'var(--aviso)' : '');
     $('tlMedidas').textContent = tl.pronta ? `${tl.w} × ${tl.h} m · centro ${tl.centro.join(', ')}` : '—';
-    $('tlVideo').textContent = `${tl.video?'vídeo pronto':'vídeo ainda não'} · ${tl.ondas} onda(s)`;
+    $('tlVideo').textContent = `${tl.visivel ? (tl.video?'visível no óculos · vídeo pronto':'visível no óculos · vídeo ainda não') : 'invisível no óculos (só o projetor mostra)'} · ${tl.ondas} onda(s)`;
+    $('bTelaVer').textContent = tl.visivel ? 'Esconder no óculos' : 'Ver no óculos (conferir)';
   } else {
     $('tlEstado').textContent = e.obra&&e.obra.aba ? 'esta versão não tem a tela (abra a 6.0)' : '—';
     $('tlEstado').style.color = ''; $('tlMedidas').textContent = '—'; $('tlVideo').textContent = '—';

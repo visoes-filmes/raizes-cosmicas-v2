@@ -313,11 +313,13 @@ if saida == os.path.join(RAIZ, "index.html"):
     # projecao.html joga a mesma agua no projetor. O video NAO e embutido:
     # fica em assets/video/ e e servido ao lado (70 MB nao cabem num data:).
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
+             .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
              .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 6.0</title>")
              .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 6.0</h1>")
              .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>6.0</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
-    if "const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6:
+    if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
+            or "const TELA_VISIVEL          = false;" not in v6):
         print("AVISO: os interruptores da 6.0 nao foram todos achados")
     with open(os.path.join(RAIZ, "v6.html"), "w", encoding="utf-8") as f:
         f.write(v6)

@@ -652,6 +652,14 @@ const TELA_LARGURA          = 3.0;      /* metros, quando cravada pelos cantos o
 const TELA_ALTURA           = 2.0;
 const TELA_QUANDO           = 'cosmos'; /* 'cosmos' (3:16 a 6:30), 'papel' (8:40 em diante) ou 'sempre' */
 const TELA_VIDEO            = './assets/video/odara-cosmos.mp4';
+/* "Repensei: o video nao precisa aparecer dentro do oculos, porque ele ja
+   vai ser visto na realidade. Mas a tela tem que ser reconhecida, para,
+   quando tocar nela, o video reagir como agua" (24/09). Invisivel, a obra
+   nem carrega o video no Quest: reconhece a tela, le o toque, e quem
+   mostra a agua e o projetor (projecao.html). O montador deixa false no
+   v6.html; true e para a bancada e para conferir o encaixe no capacete
+   (raizes.tela.ver(true) pela Cabine). */
+const TELA_VISIVEL          = true;
 const cv = document.getElementById('gl');
 const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
                                    xrCompatible:true});
@@ -1695,7 +1703,7 @@ function pousarNoQueHouver(obj, folga){
 const TELA = { pronta:false, centro:[0,1.5,-2.3], u:[1,0,0], v:[0,1,0], n:[0,0,1],
                w:TELA_LARGURA, h:TELA_ALTURA, origem:'', ondas:[], cravando:0, cantos:[],
                video:null, tex:null, videoOk:false, ultimoQuadro:-1, forcar:null,
-               presenca:0, acesa:false, buscaDesde:0, avisouFalta:false };
+               presenca:0, acesa:false, buscaDesde:0, avisouFalta:false, ver:TELA_VISIVEL };
 const TELA_MAX_ONDAS = 16;
 const ondasBuf = new Float32Array(TELA_MAX_ONDAS * 4);   /* uma vez: nada alocado por quadro */
 let bTela = null;
@@ -1813,6 +1821,8 @@ function atualizarTela(){
   TELA.presenca = p;
   const acesa = p > 0.01;
   if(acesa !== TELA.acesa){ TELA.acesa = acesa; relato(acesa ? 'TELA-ACESA' : 'TELA-APAGADA'); }
+  if(TELA.ondas.length && relogio - TELA.ondas[0].t0 > 6.0) TELA.ondas.shift();
+  if(!TELA.ver){ if(TELA.video && !TELA.video.paused) TELA.video.pause(); return; }
   if(!TELA.video){
     const v = document.createElement('video');
     v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', '');
@@ -1840,7 +1850,6 @@ function atualizarTela(){
       try{ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, v); }catch(e){}
     }
   } else if(!v.paused){ v.pause(); v.currentTime = 0; TELA.ultimoQuadro = -1; }
-  if(TELA.ondas.length && relogio - TELA.ondas[0].t0 > 6.0) TELA.ondas.shift();
 }
 
 function ondaNaTela(a, b, forca){
@@ -10252,7 +10261,10 @@ if(emTesteLocal){
     tela: {
       onde(){ return { pronta:TELA.pronta, origem:TELA.origem, w:+TELA.w.toFixed(2), h:+TELA.h.toFixed(2),
                        centro:TELA.centro.map(a => +a.toFixed(2)), presenca:+TELA.presenca.toFixed(2),
-                       video:TELA.videoOk, ondas:TELA.ondas.length, cravando:TELA.cravando, forcar:TELA.forcar }; },
+                       video:TELA.videoOk, ondas:TELA.ondas.length, cravando:TELA.cravando, forcar:TELA.forcar,
+                       visivel:TELA.ver }; },
+      /* ver a tela dentro do oculos (video e agua), so para conferir o encaixe */
+      ver(b){ TELA.ver = !!b; return TELA.ver; },
       cravar(){ TELA.cravando = 1; TELA.cantos = [];
                 relato('TELA-CRAVANDO belisque o canto de cima a esquerda, depois o da direita'); return 'esperando os cantos'; },
       /* uma tela ditada, para a bancada: rumo em graus (0 = de frente para quem olha para -z) */
@@ -11487,7 +11499,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   /* 1c) A TELA DE TULE (6.0): uma superficie com o video, depois do ceu e
      das paredes, escrevendo profundidade -- o que estiver na frente dela
      passa na frente. Dois lados, porque o tule se ve dos dois. */
-  if(TELA_DE_TULE && TELA.pronta && TELA.presenca > 0.005 && bTela){
+  if(TELA_DE_TULE && TELA.ver && TELA.pronta && TELA.presenca > 0.005 && bTela && TELA.tex){
     gl.useProgram(progTela); soltarAtributos();
     mandarMvp(locTl.mvp, mvp);
     gl.uniform1f(locTl.tempo, relogio);

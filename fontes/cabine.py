@@ -592,6 +592,8 @@ def agir(nome, dados):
         return r
     elif nome == "tela_soltar":
         return tela_js("raizes.tela.soltar()")
+    elif nome == "tela_ver":
+        return tela_js("raizes.tela.ver(%s)" % ("true" if dados.get("ver") else "false"))
     elif nome == "limpar_relatos":
         with TRAVA:
             ESTADO["relatos"] = []
