@@ -134,6 +134,18 @@ python fontes/estande.py            # adb reverse: no headset, http://localhost:
 ```
 
 Com dois aparelhos no `adb` (cabo + Wi-Fi), rodar com `ANDROID_SERIAL=<serial>`.
+
+As ferramentas do cabo, em `fontes/` (24/09):
+
+```bash
+node fontes/quest_eval.mjs localhost:8765 "raizes.onde()"                    # JS dentro do navegador do Quest
+node fontes/quest_eval.mjs localhost:8765 "document.getElementById('bIniciar').click()" gesto   # abre a RM sem ninguem tocar
+node fontes/quest_console.mjs localhost:8765 6                                # o console dele (erros de GL, contexto perdido)
+bash fontes/medir_quadros.sh v5.html                                          # os quadros nos cenarios 1 e 3
+```
+
+As folhas de contato desta semana (veias da mãe, o rosa acendendo, o v4 com a
+mesa, os quatro cenários da 5.0) estão em `fotos/2026-09-23-24/`.
 Os relatos (`RM-ABRIU`, `ESPACO-LIDO`, `PAREDES`, `TOCOU-…`, `PEGOU-O-ROSA`,
 `ENTROU-NO-ROSA`, `CAMADA`, `ERRO`, `CONTEXTO-PERDIDO`) são o que se lê de
 dentro do capacete. O DevTools do navegador do Quest fica em
