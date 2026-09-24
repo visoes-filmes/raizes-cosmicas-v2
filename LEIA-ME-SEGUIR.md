@@ -127,7 +127,33 @@ copiado (`_dev5.html`: `ESPACO_ESCANEADO`, `PAREDES_RACHADAS` e
 `NEBLINA_FATOR` trocados a mão) — na bancada a parede sai preta; no Quest é
 a sala real pela câmera.
 
-**O Quest pelo cabo:**
+**A Cabine — o computador do estande (24/09, no Lenovo):**
+
+```bash
+python fontes/cabine.py             # sobe a obra (servir.py em modo estande, 8765) e a página de controle em localhost:8790
+```
+
+No Lenovo há um atalho na área de trabalho, **"Raízes Cósmicas - Cabine"**,
+que faz isso sem janela (pythonw) e abre a página. A Cabine reúne, em botões,
+o que antes eram quatro terminais: a **rede interna** (o Ponto de Acesso
+Móvel deste Windows, por `fontes/hotspot.ps1` — nome e senha aparecem na
+página; o Quest entra nela e ganha 192.168.137.x), o **Quest** (achar pelo
+cabo ou pela Wi-Fi, *Liberar Wi-Fi* = `adb tcpip 5555` + `connect`, refazer
+túneis, ficar acordado na mesa, espelhar na tela com o scrcpy), a **obra**
+(abrir v2/v4/5.1/oficina no navegador do Quest, *Iniciar em RM* com gesto
+pelo DevTools, reiniciar, encerrar, saltar de cena) e a **leitura de dentro
+do capacete** (relatos `>>`, cena e segundo por `raizes.onde()`, quadros do
+`VrApi`, bateria, 18/18 programas do portão).
+
+Ela faz sozinha o trabalho do guardião quando o Quest aparece (túneis e, no
+cabo, a liberação da Wi-Fi), e guarda o ip no mesmo `guardiao_quest.ip`.
+O roteiro do dia está numerado na própria página: 1 ligar a rede · 2 o
+Quest entra nela · 3 cabo uma vez → Liberar Wi-Fi · 4 abrir a versão ·
+5 Iniciar em RM. Pela Wi-Fi o endereço no headset continua `localhost:8765`
+(o `adb reverse` vale pela rede também), por isso o botão de RM aparece sem
+certificado. Registro em `fontes/cabine.log`.
+
+**O Quest pelo cabo (à mão, sem a Cabine):**
 
 ```bash
 python fontes/estande.py            # adb reverse: no headset, http://localhost:8765 ; os relatos saem com >>

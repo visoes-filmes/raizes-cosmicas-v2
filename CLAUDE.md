@@ -143,7 +143,18 @@ Duas coisas fazem isso ser verdade, e as duas foram consertadas em 08/09:
   navegação nunca chega a consultar a rede, então não importa que o DNS não
   resolva.
 
-**Testar no aparelho é pelo cabo:**
+**No dia, o computador do estande roda a Cabine** (24/09):
+
+```bash
+python fontes/cabine.py       # obra em 8765 (modo estande) + página de controle em localhost:8790
+```
+
+Rede interna (o hotspot deste Windows), Quest (cabo → *Liberar Wi-Fi* →
+sem cabo), abrir a obra no capacete, *Iniciar em RM* daqui, relatos, cena,
+quadros e bateria — tudo em botões. No Lenovo há um atalho na área de
+trabalho. Detalhes no `LEIA-ME-SEGUIR.md`, seção 4.
+
+**Testar no aparelho à mão é pelo cabo:**
 
 ```bash
 python fontes/estande.py

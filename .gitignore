@@ -13,3 +13,8 @@ _prova.html
 
 # o adb baixado do Google, por maquina (LEIA-ME-SEGUIR: fica fora do git)
 fontes/platform-tools/
+
+# registros e ip de operacao (cabine e guardiao), por maquina
+fontes/*.log
+fontes/guardiao_quest.ip
+__pycache__/
