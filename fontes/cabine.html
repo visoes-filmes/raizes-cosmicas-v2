@@ -294,8 +294,8 @@ function desenhar(){
   $('pHora').lastChild.textContent = e.hora||'--:--:--';
   // rede
   $('hsSsid').textContent = hs.ssid || '—';
-  $('hsSenha').textContent = hs.senha ? (verSenha? hs.senha : '•'.repeat(hs.senha.length)) : '—';
-  $('hsEstado').textContent = hs.erro ? hs.erro : (hs.ligado ? 'ligada' : 'desligada');
+  $('hsSenha').textContent = hs.senha ? (verSenha? hs.senha : '•'.repeat(hs.senha.length)) : (hs.mac ? 'nos Ajustes > Compartilhamento de Internet > Wi-Fi' : '—');
+  $('hsEstado').textContent = hs.erro ? hs.erro : (hs.aviso ? hs.aviso : (hs.ligado ? 'ligada' : 'desligada'));
   $('hsEstado').style.color = hs.erro ? 'var(--erro)' : (hs.ligado ? 'var(--ok)' : 'var(--texto2)');
   $('hsClientes').textContent = hs.ligado ? (hs.clientes||0) : '—';
   $('hsIp').textContent = hs.ip || (hs.ligado?'…':'—');

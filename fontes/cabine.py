@@ -61,6 +61,13 @@ NOMES_CENAS = {1: "floresta", 2: "cosmos", 3: "planeta rosa", 4: "papel"}
 
 # no Windows sem console (pythonw), nenhum subprocesso pode abrir janela
 SEM_JANELA = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+# O MACBOOK (24/09): a Cabine roda igual no macOS. O que muda e o que o
+# sistema oferece -- nao ha "Ponto de Acesso Movel" por linha de comando (o
+# Compartilhamento de Internet se liga nos Ajustes do Sistema, e a Cabine so
+# abre a janela e le se esta ligado), os monitores vem do system_profiler
+# (sem posicao: o segundo e posto a direita do principal) e o navegador e o
+# Chrome/Edge do /Applications. adb e scrcpy vem do Homebrew (fontes/instalar_mac.sh).
+MAC = sys.platform == "darwin"
 
 ESTADO = {
     "hora": "", "servidor": {"porta": PORTA_OBRA, "de_pe": False},
@@ -267,7 +274,34 @@ def clicar(id_botao):
 
 # ── a rede ───────────────────────────────────────────────────────────────
 
+def hotspot_mac(acao="status"):
+    """O Compartilhamento de Internet do macOS. Ligado, ele cria a ponte
+    bridge100 com o ip 192.168.2.1 e os aparelhos ganham 192.168.2.x. Nao ha
+    como liga-lo por comando sem senha de administrador, entao 'on' e 'off'
+    abrem a janela certa dos Ajustes e o operador vira a chave."""
+    saida, _ = rodar(["ifconfig", "bridge100"], timeout=8)
+    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", saida)
+    ligado = bool(m)
+    if acao in ("on", "off"):
+        # Ventura/Sonoma/Sequoia; se a URL nao abrir, cai no painel geral
+        rodar(["open", "x-apple.systempreferences:com.apple.Sharing-Settings.extension"], timeout=8)
+        aviso = ("nos Ajustes do Sistema > Geral > Compartilhamento, vire a chave "
+                 "'Compartilhamento de Internet' " + ("para LIGADA (com Wi-Fi como saida)" if acao == "on" else "para DESLIGADA"))
+    else:
+        aviso = None
+    ssid = None
+    s2, _ = rodar(["defaults", "read", "/Library/Preferences/SystemConfiguration/com.apple.nat"], timeout=8)
+    m2 = re.search(r'"?SSID"?\s*=\s*"?([^";\n]+)', s2)
+    if m2:
+        ssid = m2.group(1).strip()
+    return {"ligado": ligado, "estado": "On" if ligado else "Off", "ssid": ssid or "(o nome da rede fica nos Ajustes > Compartilhamento de Internet > Wi-Fi)",
+            "senha": None, "clientes": None, "ip": m.group(1) if m else None,
+            "compartilha": "Compartilhamento de Internet do macOS", "erro": None, "aviso": aviso, "mac": True}
+
+
 def hotspot(acao="status", ssid=None, senha=None):
+    if MAC:
+        return hotspot_mac(acao)
     cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
            os.path.join(AQUI, "hotspot.ps1"), acao]
     if ssid:
@@ -281,7 +315,21 @@ def hotspot(acao="status", ssid=None, senha=None):
         return {"ligado": False, "erro": saida[-300:]}
 
 
+def wifi_do_mac():
+    """A Wi-Fi em que o Mac esta (nome e ip). O dispositivo (en0, en1...) vem
+    da lista de portas; o nome da rede, do networksetup."""
+    portas, _ = rodar(["networksetup", "-listallhardwareports"], timeout=10)
+    m = re.search(r"Hardware Port: Wi-Fi\s*\nDevice: (\w+)", portas)
+    dev = m.group(1) if m else "en0"
+    s1, _ = rodar(["networksetup", "-getairportnetwork", dev], timeout=10)
+    ssid = s1.split(":", 1)[1].strip() if ":" in s1 and "not associated" not in s1.lower() else None
+    ip, _ = rodar(["ipconfig", "getifaddr", dev], timeout=10)
+    return {"ssid": ssid, "ip": ip if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", ip or "") else None}
+
+
 def wifi_do_pc():
+    if MAC:
+        return wifi_do_mac()
     saida, _ = rodar(["netsh", "wlan", "show", "interfaces"], timeout=10)
     ssid = re.search(r"^\s*SSID\s*:\s*(.+)$", saida, re.M)
     ip = None
@@ -320,8 +368,38 @@ def espelhar(serial):
 
 # ── a projeção (6.0): o que vai para o projetor ──────────────────────────
 
+def monitores_mac():
+    """Os monitores pelo system_profiler. Ele nao diz a POSICAO de cada um;
+    o principal fica em 0,0 e os outros sao postos a direita dele, um apos o
+    outro -- e o arranjo padrao dos Ajustes. Se o projetor estiver arrumado
+    de outro jeito, a pagina em quiosque abre no monitor errado: arraste-a e
+    aperte F (tela cheia)."""
+    saida, _ = rodar(["system_profiler", "SPDisplaysDataType", "-json"], timeout=30)
+    lista, x = [], 0
+    try:
+        placas = json.loads(saida).get("SPDisplaysDataType", [])
+        telas = []
+        for placa in placas:
+            for d in placa.get("spdisplays_ndrvs", []):
+                res = d.get("_spdisplays_resolution") or d.get("spdisplays_resolution") or ""
+                m = re.search(r"(\d+)\s*x\s*(\d+)", res)
+                telas.append({"nome": d.get("_name", "monitor"), "w": int(m.group(1)) if m else 1920,
+                              "h": int(m.group(2)) if m else 1080,
+                              "principal": d.get("spdisplays_main") == "spdisplays_yes"})
+        telas.sort(key=lambda t: not t["principal"])
+        for t in telas:
+            t["x"], t["y"] = x, 0
+            x += t["w"]
+            lista.append(t)
+    except Exception:
+        pass
+    return lista
+
+
 def monitores():
-    """Os monitores do Windows, com posicao e tamanho (o projetor e um deles)."""
+    """Os monitores, com posicao e tamanho (o projetor e um deles)."""
+    if MAC:
+        return monitores_mac()
     saida, _ = rodar(["powershell", "-NoProfile", "-Command",
                       "Add-Type -AssemblyName System.Windows.Forms; "
                       "[System.Windows.Forms.Screen]::AllScreens | ForEach-Object { [pscustomobject]@{ nome=$_.DeviceName; "
@@ -335,6 +413,14 @@ def monitores():
 
 
 def achar_navegador():
+    if MAC:
+        for c in ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                  os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                  "/Applications/Chromium.app/Contents/MacOS/Chromium"]:
+            if os.path.exists(c):
+                return c
+        return None
     for c in [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
               r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
               os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe"),
@@ -363,7 +449,7 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         nav = achar_navegador()
         if not nav:
             return {"ok": False, "erro": "não achei Chrome nem Edge para abrir a projeção"}
-        perfil = os.path.join(os.environ.get("TEMP", AQUI), "raizes-projecao-perfil")
+        perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
                f"&cabine=http://localhost:{PORTA_CABINE}")
         PROJECAO = subprocess.Popen([nav, "--kiosk", f"--window-position={x},{y}", f"--window-size={w},{h}",
