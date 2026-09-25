@@ -306,7 +306,7 @@
 <div id="portao">
   <div class="portao-caixa">
     <h1 class="portao-nome">Raízes Cósmicas <em>5.2</em></h1>
-    <p class="portao-sub">Visões Filmes · dez minutos</p>
+    <p class="portao-sub">Visões Filmes · seis minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
     <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
@@ -3294,9 +3294,12 @@ const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, 
   d.juntas.forEach((j, k) => DANCA.i[j] = k);
   DANCA.ok = DANCA.n > 1;
 })();
-/* onde ela danca: a frente e a direita, a 2,3 m, o pe a meio metro do chao
-   (flutua), de frente para quem entra; 1,2 m de altura -- "um pouco menor" */
-const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 2.3, DANCA_PE = 0.5, DANCA_ALTURA = 1.05;   // 1,05 na junta da cabeca = 1,2 m no topo
+/* onde ela danca -- 25/09 (7.3), "longe, mais alta e com os pes no chao":
+   a frente e a direita, a 3,8 m (alem das paredes da sala de 3 x 3), os pes
+   NO CHAO (DANCA_PE = 0: a captura ja tem o piso em zero), de frente para
+   quem entra; 1,55 m na junta da cabeca = uns 1,75 m no topo. Era 2,3 m,
+   flutuando a meio metro, com 1,2 m de altura ("um pouco menor", 7.1). */
+const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 3.8, DANCA_PE = 0.0, DANCA_ALTURA = 1.55;
 /* os ossos: cada um vai da junta que o gira ate a filha; o ultimo numero e o
    quanto ele se estende alem da filha (a cabeca continua acima da junta) */
 const DANCA_OSSOS = [ ['pelvis','spine',0], ['spine','chest',0], ['chest','neck',0], ['neck','head',0.10],
@@ -3427,7 +3430,16 @@ function montarADeusaQueDanca(){
 const qA = new Float32Array(4), qB = new Float32Array(4), pA = new Float32Array(3), pB = new Float32Array(3);
 function lerADanca(){
   if(!DANCA.ok) return;
-  const f = (relogio * DANCA.fps) % DANCA.n, k0 = Math.floor(f), k1 = (k0 + 1) % DANCA.n, u = f - k0;
+  /* VAI E VOLTA -- 25/09 (7.3): "quando terminar, faca ela fazer a danca de
+     tras pra frente, batendo e voltando". A captura nao fecha em laco (a
+     bailarina termina longe de onde comecou), e o salto do fim para o
+     comeco era um corte. Agora o tempo bate no ultimo quadro e volta: o
+     periodo e o dobro, e na volta os mesmos dois quadros se interpolam ao
+     contrario -- nao ha emenda em lugar nenhum. */
+  const volta = 2 * (DANCA.n - 1);
+  let f = (relogio * DANCA.fps) % volta;
+  if(f > DANCA.n - 1) f = volta - f;
+  const k0 = Math.floor(f), k1 = Math.min(k0 + 1, DANCA.n - 1), u = f - k0;
   DANCA.quadro = k0;
   const esc = 1 / (DANCA.altura * 1000), nj = DANCA.nj, P = DANCA.pos, por = DANCA.por;
   for(let j = 0; j < nj; j++){
@@ -7533,6 +7545,13 @@ void main(){
   vec3 a1 = texture2D(pele, q * 0.17 + onda + vec2(tempo*0.006, tempo*0.004)).rgb;
   vec3 a2 = texture2D(pele, q * 0.31 - onda * 1.6 + vec2(-tempo*0.009, tempo*0.011)).rgb;
   vec3 agua = mix(a1, a2, 0.45);
+  /* SEM OS VEIOS DE ARCO-IRIS -- 25/09 (7.3), "deixe o mar translucido sem a
+     iridescencia". A pele e um recorte da pintura, e nela os veios sao
+     vermelhos, verdes e azuis lado a lado: na lamina isso lia como oleo
+     na agua. Fica so o CLARO-ESCURO dos veios (a luminancia), tingido de
+     um azul-rosa unico; o que da cor a agua e o reflexo do ceu. */
+  float luma = dot(agua, vec3(0.30, 0.59, 0.11));
+  agua = mix(vec3(luma), agua, 0.12) * vec3(0.60, 0.66, 0.82);   // escura: e o que deixa ver o fundo
 
   /* O REFLEXO. O raio que vem do olho bate na lamina e sobe: e so espelhar
      a componente vertical da direcao e ler o ceu ali. Reflexo de verdade,
@@ -7635,10 +7654,13 @@ void main(){
 
      A onda entra na conta junto com a agitacao: as cristas coloram mais que
      os vales, e assim a cor tem FORMA em vez de ser um filtro por cima. */
+  /* SEM IRIDESCENCIA -- 25/09 (7.3), "deixe o mar translucido sem a
+     iridescencia". O que acendia aqui era um cosseno em tres fases: cada
+     canal numa fase, e a agua mexida virava arco-iris. Agora o gesto so
+     CLAREIA a agua na propria cor -- as cristas continuam mais vivas que
+     os vales, mas sem trocar de matiz. */
   float vivo = clamp(agitacao * 1.4 + crista * 0.5, 0.0, 1.2);
-  vec3 acende = 0.5 + 0.5*cos(6.2831*(vOnda*7.0 + tempo*0.06
-                                      + vec3(0.0, 0.36, 0.68)));
-  cor = mix(cor, cor * (0.55 + 1.7*acende), vivo * 0.55);
+  cor = mix(cor, cor * 1.35, vivo * 0.45);
 
   /* A lamina cede longe, para nao ter borda. Como ela segue a pessoa, a
      borda nunca chega perto — mas se chegasse, seria uma linha reta no
@@ -7646,9 +7668,11 @@ void main(){
   float d = length(q - olhoPos.xz);
   float alcance = 1.0 - smoothstep(6.5, 9.0, d);
 
-  // 0,72 a pino, e nao 0,42: "olhando de cima nao se deve ver tanto o que
-  // esta debaixo da agua" (14/09); as pernas ainda se veem, mais fundas
-  float a = presenca * alcance * mix(0.72, 0.94, espelho);
+  /* TRANSLUCIDA -- 25/09 (7.3): 0,42 a pino e 0,80 de raspao. Era 0,72 a
+     pino desde 14/09 ("olhando de cima nao se deve ver tanto o que esta
+     debaixo"); o pedido novo e o contrario: "deixe o mar translucido". O
+     fundo do mar e as pernas se veem atraves dela; de raspao ainda espelha. */
+  float a = presenca * alcance * mix(0.42, 0.80, espelho);
   if(a < 0.004) discard;
   gl_FragColor = vec4(cor, a);
 }`;
@@ -8897,9 +8921,9 @@ function relatarTex(){
     b.disabled = false;
   }else if(texProntas >= TEX_TOTAL){
     d.textContent = CELULAR
-      ? 'Aponte o celular pela sala e toque nas coisas: os dez minutos correm sozinhos a partir daqui. '
+      ? 'Aponte o celular pela sala e toque nas coisas: os seis minutos correm sozinhos a partir daqui. '
         + 'Ele vai pedir a câmera e o movimento.'
-      : 'Ponha o capacete antes de iniciar: os dez minutos correm sozinhos a partir daqui.';
+      : 'Ponha o capacete antes de iniciar: os seis minutos correm sozinhos a partir daqui.';
     b.disabled = false;
   }else{
     d.textContent = 'carregando as imagens…  ' + texProntas + ' de ' + TEX_TOTAL;
@@ -9430,8 +9454,21 @@ const MOMENTOS = [
   [ 560, 4, 'a deusa que integra tudo'],
   [ 585, 4, 'a frase, sobre a deusa'],
 ];
-const DURACAO = 600;          // dez minutos
-const TRAVESSIA = 6;          // segundos de mistura entre cenarios
+const DURACAO = 600;          // a partitura, em segundos DE ROTEIRO: tudo abaixo esta escrito nela
+/* SEIS MINUTOS -- 25/09 (7.3), "faca a experiencia ter 6 minutos".
+
+   A partitura tem centenas de instantes escritos em segundos de roteiro
+   (rampa(40, 54, t), os MOMENTOS, as janelas, o fim aos 600). Reescrever
+   cada um seria uma tarde e um erro por linha. Em vez disso o relogio do
+   roteiro ANDA MAIS DEPRESSA: cada segundo real vale RITMO segundos de
+   roteiro. As proporcoes ficam -- a floresta continua sendo um terco, as
+   janelas continuam janelas --, so que tudo cabe em DURACAO_REAL. O que e
+   movimento de verdade (o relogio, as ondas, os seres, a fisica dos
+   planetas) le "relogio" e "dt", que sao reais, e nao acelera. A travessia
+   entre cenarios e o tempo da frase final ficam em segundos reais. */
+const DURACAO_REAL = 360;     // seis minutos, de verdade
+const RITMO = DURACAO / DURACAO_REAL;
+const TRAVESSIA = 6 * RITMO;  // seis segundos REAIS de mistura entre cenarios
 
 /* O ajuste de cada cenario. Nao sao gostos avulsos: cada linha e o clima
    descrito no roteiro, traduzido nos controles que ja existiam. */
@@ -9599,12 +9636,18 @@ const COGUMELOS = [];
        Repartir e somar um empurrao pequeno da a mesma desordem sem o
        amontoado. E o mesmo remedio que as pedras ja usavam. */
     const ang = (i / 13) * Math.PI * 2 + r() * 0.42;
-    const d = 0.55 + r() * 0.62;          // dentro do alcance da mao
+    const d = 1.15 + r() * 0.95;          // de 1,15 a 2,1 m: treze chapeus de 60 cm num anel de 1,3 m viravam um muro
     COGUMELOS.push({
       x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
-      /* Mais altos que antes. Na escala anterior o chapeu cobria o pe por
-         inteiro, e de pe so se via um disco no chao. */
-      alt: 0.15 + r() * 0.17,
+      /* ALTOS, PARA TOCAR DE PE -- 25/09 (7.3): "coloque cogumelos mais
+         altos para que possamos toca-los de pe" e com mais corpo. De
+         cinquenta a setenta e oito centimetros: o chapeu fica na altura da
+         mao pendurada, e a escala e uniforme -- engordam junto. Eram de 15
+         a 32 cm, e para toca-los era preciso agachar. A um metro de altura
+         e a 75 cm de quem entra, os chapeus tapavam a vista e se encostavam
+         num muro em volta (visto na bancada): por isso esta altura, e o
+         anel mais largo, com vao entre um e outro. */
+      alt: 0.50 + r() * 0.28,
       raio: 0.055 + r() * 0.055,
       tom: 0.55 + r() * 0.45,
       fase: r() * 6.283,
@@ -10792,8 +10835,9 @@ function alvosAgora(){
      responder no fim do cenario 1, quando ja sumiram e a mata ainda nao. */
   if(cogumeloCresce > 0.3){
     COGUMELOS.forEach((cg, i) => {
-      lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:(cg.y || 0) + 0.18, z:cg.z, raio:0.24,
-                   fazer(m){ pulsarEm(cg.x, (cg.y || 0) + 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7);
+      // o alvo e o chapeu (7.3): a 85 % da altura dele, e mais largo -- ele cresceu
+      lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:(cg.y || 0) + cg.alt * 0.85, z:cg.z, raio:0.32,
+                   fazer(m){ pulsarEm(cg.x, (cg.y || 0) + cg.alt * 0.8, cg.z); sinoDoToque(2 + (i % 4), 0.7);
                              relato('TOCOU-UM-COGUMELO ' + i); } });
     });
   }
@@ -11316,7 +11360,7 @@ function aproximar(atual, alvo, passo){ return atual + (alvo - atual) * passo; }
 
 function seguirPartitura(dt){
   if(andando){
-    t += dt;
+    t += dt * RITMO;          // o roteiro anda no seu ritmo (7.3: seis minutos)
     /* A OBRA ACABA, e nao volta sozinha.
 
        Aqui ela zerava o relogio e recomecava. Agora para e entra na ESPERA:
@@ -11328,10 +11372,10 @@ function seguirPartitura(dt){
        e quem fica ate o final nao ganha nada por isso.
 
        Os catorze segundos alem dos dez minutos sao o tempo da frase. */
-    if(t > DURACAO + 14){
+    if(t > DURACAO + 14 * RITMO){   // catorze segundos REAIS de frase
       andando = false;
       esperando = true;
-      t = DURACAO + 14;
+      t = DURACAO + 14 * RITMO;
     }
   }
   const c = cenaEm(t);
@@ -12308,7 +12352,7 @@ if(emTesteLocal){
       return this.onde();
     },
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
-    onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando,
+    onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), cena: cenaEm(t), andando,
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
                      estrelas: nEstrelas, fundoDoMar: (nFundoIdx + nFundoParadoIdx)/3,
                      algaNeon: nAlgaNeonIdx/3, seresDoCeu: nSeresCeuIdx/3,
@@ -12317,7 +12361,7 @@ if(emTesteLocal){
     pausar(){ andando = !andando; return andando ? 'andando' : 'parada'; },
     /* Ir direto para a espera. Sem isto so se chega la deixando os dez
        minutos correrem, e ninguem confere um fim assim. */
-    espera(){ t = DURACAO + 14; andando = false; esperando = true;
+    espera(){ t = DURACAO + 14 * RITMO; andando = false; esperando = true;
               seguirPartitura(0); return 'na espera'; }
   };
 }
@@ -12327,7 +12371,7 @@ if(emTesteLocal){
    DevTools do Quest). Sem isto a luz so seguia a obra servida pelo cabo, e
    no estande a obra mora no aparelho, carregada do endereco publicado. Os
    saltos no tempo continuam so fora do publicado. */
-if(!emTesteLocal) window.raizes = { onde(){ return {tempo: mmss(t), cena: cenaEm(t), andando}; } };
+if(!emTesteLocal) window.raizes = { onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), cena: cenaEm(t), andando}; } };
 
 const bReiniciar = document.getElementById('bReiniciar');
 const bParar     = document.getElementById('bParar');

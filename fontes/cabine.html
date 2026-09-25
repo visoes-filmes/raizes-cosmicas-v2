@@ -151,9 +151,9 @@
     <div class="passos"><b>4</b> abra a versão no Quest <b>5</b> <em>Iniciar em RM</em> (o operador aperta daqui; ninguém precisa tocar o capacete)</div>
     <div class="linha">
       <div class="seg" id="versoes">
-        <label><input type="radio" name="versao" value="v6" checked><span>7.2 · tela de tule</span></label>
+        <label><input type="radio" name="versao" value="v6" checked><span>7.3 · tela de tule</span></label>
         <label><input type="radio" name="versao" value="v52"><span>5.2 · céu + chão</span></label>
-        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 7.2)</span></label>
+        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 7.3)</span></label>
         <label><input type="radio" name="versao" value="v4"><span>v4 · espaço</span></label>
         <label><input type="radio" name="versao" value="v5"><span>5.1 · paredes</span></label>
         <label><input type="radio" name="versao" value="oficina"><span>oficina</span></label>
@@ -393,7 +393,7 @@ function desenhar(){
   if (onde){
     const nomes = {1:'floresta',2:'cosmos',3:'planeta rosa',4:'papel'};
     $('oCena').textContent = 'cena '+onde.cena+' · '+(nomes[onde.cena]||'')+(onde.andando===false?'  (parada)':'');
-    $('oTempo').textContent = onde.tempo || '--:--';
+    $('oTempo').textContent = onde.real ? `${onde.real}  (roteiro ${onde.tempo})` : (onde.tempo || '--:--');   // 7.3: seis minutos reais, dez de roteiro
     const [m,s] = String(onde.tempo||'0:00').split(':').map(Number); const seg = (m||0)*60+(s||0);
     $('oBarra').style.width = Math.min(100, 100*seg/(o.duracao||600))+'%';
     for (let i=1;i<=4;i++) $('c'+i).className = onde.cena===i?'ativa':'';
