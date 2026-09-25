@@ -687,9 +687,13 @@ const TELA_VIDEO            = './assets/video/odara-cosmos.mp4';
    (raizes.tela.ver(true) pela Cabine). */
 const TELA_VISIVEL          = true;
 const cv = document.getElementById('gl');
-const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true,
+const gl = cv.getContext('webgl', {antialias:true, depth:true, alpha:true, stencil:true,
                                    xrCompatible:true});
 if(!gl){ document.body.innerHTML='<p style="padding:24px">WebGL indisponível.</p>'; return; }
+/* O STENCIL (6.3): so o ser gigante usa, para pintar uma demao so. Na tela
+   se sabe agora; no headset, no primeiro quadro (null = ainda nao se sabe). */
+const stencilTela = (gl.getParameter(gl.STENCIL_BITS) || 0) > 0;
+let stencilXR = null;
 /* O CONTEXTO PODE CAIR SEM ERRO NENHUM -- 20/09, visto pelo cabo: o WebGL
    se perdeu no primeiro quadro em RM e a obra ficou parada em 0:00, muda,
    sem nada no console nem no portao. Um contexto perdido nao volta sozinho
@@ -2839,6 +2843,29 @@ let bFundo = [], nFundoIdx = 0;                 // o que a corrente dobra: algas
 let bFundoParado = [], nFundoParadoIdx = 0;     // o que fica: coral, conchas, a estrela, os cogumelos
 let bAlgaNeon = [], nAlgaNeonIdx = 0;
 let bSeresCeu = [], nSeresCeuIdx = 0;
+/* OS GIGANTES DO MAR E AS AGUAS-VIVAS, REGISTRADOS (6.3): onde cada um foi
+   plantado, para o toque e o chamado saberem onde eles estao. */
+const GIGANTES_DO_MAR = [], AGUAS_VIVAS = [];
+let bGigantes = [], nGigantesIdx = 0;
+/* ALISAR AS NORMAIS -- 25/09 (6.3), "deixa mais organicas as formas, pois
+   estao muito geometricas". Os modelos chegam com a normal de cada face nos
+   vertices repetidos da quina: cada face acende de um jeito, e o corpo le
+   como poliedro. Somando as normais de quem ocupa o mesmo ponto (a dois
+   milimetros e meio), a luz passa a correr continua pela superficie. */
+function alisarNormais(m){
+  const soma = new Map(), n = m.pos.length / 3;
+  const chave = (i) => Math.round(m.pos[i*3]*400) + ',' + Math.round(m.pos[i*3+1]*400) + ',' + Math.round(m.pos[i*3+2]*400);
+  for(let i = 0; i < n; i++){
+    const k = chave(i);
+    let t = soma.get(k);
+    if(!t){ t = [0, 0, 0]; soma.set(k, t); }
+    t[0] += m.nor[i*3]; t[1] += m.nor[i*3+1]; t[2] += m.nor[i*3+2];
+  }
+  for(let i = 0; i < n; i++){
+    const t = soma.get(chave(i)), L = Math.hypot(t[0], t[1], t[2]);
+    if(L > 1e-6){ m.nor[i*3] = t[0]/L; m.nor[i*3+1] = t[1]/L; m.nor[i*3+2] = t[2]/L; }
+  }
+}
 function montarFundoDoMar(){
   const rnd = prng(9277);
   /* EM ANEL, E NUNCA NO MEIO. O centro e a area caminhavel: objeto ali e
@@ -2850,17 +2877,22 @@ function montarFundoDoMar(){
     if(!m || m.pos.length / 3 > 58000){ m = vazio(); lista.push(m); }
     return m;
   };
-  const emAnel = (lista, quantos, prefixo, pecas, escMin, escMax, y0, y1) => {
+  /* raio0 e raioL: o anel (6.3 -- os gigantes vao mais longe). O NUMERO DE
+     SORTEIOS NAO MUDA com eles, e e isso que deixa o resto no mesmo lugar.
+     registro: onde guardar quem foi plantado, para o toque. */
+  const emAnel = (lista, quantos, prefixo, pecas, escMin, escMax, y0, y1, raio0, raioL, registro) => {
     const md = medidaDaMalha(prefixo, pecas);    // o modelo pode vir centrado: sobe o pe ao chao
     for(let i=0;i<quantos;i++){
       const ang = (i/quantos)*Math.PI*2 + (rnd()-0.5)*0.9;
-      const raio = 1.05 + rnd()*1.75;
+      const raio = (raio0 === undefined ? 1.05 : raio0) + rnd()*(raioL === undefined ? 1.75 : raioL);
       const esc = escMin + rnd()*(escMax-escMin);
       const base = [Math.sin(ang)*raio, y0 + rnd()*(y1-y0) - md.pe*esc, -Math.cos(ang)*raio];
       const giro = rnd()*Math.PI*2, fase = rnd()*6.283;
       for(let k=0;k<pecas;k++) plantarMedido(aberta(lista), prefixo + k, base, esc, giro, fase, md);
+      if(registro) registro.push({ prefixo, x: base[0], y: base[1] + md.pe*esc, z: base[2], esc, fase });
     }
   };
+  GIGANTES_DO_MAR.length = 0; AGUAS_VIVAS.length = 0;
   // sobe cada malha da lista para a placa; devolve [{b, n}] e o total de indices
   const subir = (lista) => {
     const bufs = [];
@@ -2917,9 +2949,17 @@ function montarFundoDoMar(){
      e a que e tipo uma arvore tambem, bem maior, saindo da agua, para
      criar um contraste de tamanho". Dois a tres metros: o dobro de quem
      olha, com o pe no fundo e a copa no ar. */
-  emAnel(f, 2, 'planta-fantasia-', 12, 2.0, 2.7, 0, 0);
-  emAnel(f, 2, 'planta-alien-',     2, 2.2, 3.0, 0, 0);
-  emAnel(q, 2, 'cogumelos-mar-',    6, 2.4, 3.2, 0, 0);
+  /* MAIS LONGE E MAIORES -- 25/09 (6.3): "o cogumelo e a planta gigante
+     podem ser um pouco mais afastados e maiores". O anel foi de 1,05-2,8 m
+     para 2,05-3,4 m (fora da area de andar, que vai a 1,5), e a escala
+     subiu um terco. Numa malha propria, alisada e respirando pela pele
+     (bolha), porque "estao muito geometricas". */
+  const g = [];
+  emAnel(g, 2, 'planta-fantasia-', 12, 2.6, 3.5, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
+  emAnel(g, 2, 'planta-alien-',     2, 2.9, 3.9, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
+  emAnel(g, 2, 'cogumelos-mar-',    6, 3.0, 4.0, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
+  for(const mg of g) alisarNormais(mg);
+  [bGigantes, nGigantesIdx] = subir(g);
   [bFundo, nFundoIdx] = subir(f);
   [bFundoParado, nFundoParadoIdx] = subir(q);
 
@@ -2940,7 +2980,7 @@ function montarFundoDoMar(){
   //    multiplicar as aguas-vivas"), e nadam: ver "nadar" no VS_SOLIDA
   const c = [];
   emAnel(c, 14, 'agua-viva-', 8, 0.20, 0.36,
-         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25);
+         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25, 1.05, 1.75, AGUAS_VIVAS);
   [bSeresCeu, nSeresCeuIdx] = subir(c);
 }
 
@@ -2960,6 +3000,164 @@ function montarFundoDoMar(){
    triangulos contra os poucos pontos de antes -- e a dez metros de altura,
    contra o ceu, o que se le delas e a silhueta. Seis silhuetas dizem o
    mesmo que dez e cabem no orcamento. */
+/* ═══════════ OS SERES DE LUZ (6.3) ═══════════
+   25/09, a direcao de arte: "gostaria que tivesse outros de formas
+   diferentes, com coisas luminosas interessantes dentro deles". Dois
+   corpos, feitos aqui mesmo, sem modelo:
+
+   A LANTERNA, o ctenoforo -- um ovo alongado de vidro de agua com oito
+   fileiras de pentes ao longo do corpo, e por elas o arco-iris CORRE, que e
+   o que os de verdade fazem; dentro, tres sementes de luz pulsando cada uma
+   no seu tempo.
+
+   O SINO DE SEMENTES -- uma campanula aberta embaixo, com sete sementes em
+   roda por dentro e seis fios de luz pendurados, acesos no pe.
+
+   Seis deles (tres de cada) nadam em volta de quem esta na agua, acima da
+   lamina, na altura do peito; a cor de cada um vem de uma familia vizinha
+   do mar. A mao chegando acende as luzes de dentro e acelera as sementes;
+   tocado, o bicho toca a sua nota e ESCAPA -- da um impulso para longe da
+   mao e volta devagar para o caminho dele. */
+const SERES_DE_LUZ = [];
+let bLuzCorpo = [null, null], nLuzCorpo = [0, 0], bLuzDentro = [null, null], nLuzDentro = [0, 0];
+let seresDeLuzPresenca = 0;
+function montarSeresDeLuz(){
+  const subirUma = (m) => {
+    const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
+    enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
+    enviar(b.fase,m.fase); enviar(b.borda,m.borda);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+    return b;
+  };
+  // uma esfera pequena (as sementes), fase propria
+  const semente = (m, cx, cy, cz, r, fase, altura) => {
+    const NA = 8, NV = 6, b0 = m.pos.length / 3;
+    for(let j = 0; j <= NV; j++){
+      const th = j / NV * Math.PI, st = Math.sin(th), ct = Math.cos(th);
+      for(let i = 0; i <= NA; i++){
+        const ph = i / NA * Math.PI * 2, nx = st * Math.cos(ph), ny = ct, nz = st * Math.sin(ph);
+        m.pos.push(cx + nx * r, cy + ny * r, cz + nz * r); m.nor.push(nx, ny, nz);
+        m.alt.push(altura); m.fase.push(fase); m.borda.push(1);
+      }
+    }
+    for(let j = 0; j < NV; j++) for(let i = 0; i < NA; i++){
+      const a = b0 + j * (NA + 1) + i, bb = a + NA + 1;
+      m.idx.push(a, bb, a + 1, a + 1, bb, bb + 1);
+    }
+  };
+  // uma fita ao longo de uma lista de pontos (as fileiras e os fios), larga "w" no lado dado
+  const fita = (m, pontos, lados, w, fase, alts) => {
+    const b0 = m.pos.length / 3;
+    pontos.forEach((q, k) => {
+      const l = lados[k];
+      m.pos.push(q[0] - l[0] * w, q[1] - l[1] * w, q[2] - l[2] * w);
+      m.pos.push(q[0] + l[0] * w, q[1] + l[1] * w, q[2] + l[2] * w);
+      m.nor.push(0, 1, 0, 0, 1, 0);
+      m.alt.push(alts[k], alts[k]); m.fase.push(fase, fase); m.borda.push(1, 1);
+    });
+    for(let k = 0; k < pontos.length - 1; k++){
+      const a = b0 + k * 2;
+      m.idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+  };
+  for(let tipo = 0; tipo < 2; tipo++){
+    const corpo = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+    const luz = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+    const H = tipo === 0 ? 0.46 : 0.30;
+    // o perfil de revolucao: [raio, altura] com v de 0 (embaixo) a 1 (em cima)
+    const perfil = tipo === 0
+      ? (v) => [0.13 * Math.pow(Math.sin(Math.PI * v), 0.75) * (0.85 + 0.3 * v), H * v]
+      : (v) => { const a = v * Math.PI / 2;
+                 return [0.19 * Math.pow(Math.cos(a), 0.6) * (1 - 0.12 * Math.pow(1 - v, 6)), H * Math.sin(a)]; };
+    const NA = 22, NV = 16;
+    for(let j = 0; j <= NV; j++){
+      const v = j / NV, pr = perfil(v);
+      const p2 = perfil(Math.min(1, v + 0.01)), p1 = perfil(Math.max(0, v - 0.01));
+      const dr = p2[0] - p1[0], dy = p2[1] - p1[1];      // a tangente do perfil
+      for(let i = 0; i <= NA; i++){
+        const a = i / NA * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        corpo.pos.push(pr[0] * ca, pr[1], pr[0] * sa);
+        const nx = dy * ca, ny = -dr, nz = dy * sa, L = Math.hypot(nx, ny, nz) || 1;
+        corpo.nor.push(nx / L, ny / L, nz / L);
+        corpo.alt.push(v); corpo.fase.push(0); corpo.borda.push(1);
+      }
+    }
+    for(let j = 0; j < NV; j++) for(let i = 0; i < NA; i++){
+      const a = j * (NA + 1) + i, bb = a + NA + 1;
+      corpo.idx.push(a, bb, a + 1, a + 1, bb, bb + 1);
+    }
+    if(tipo === 0){
+      // as oito fileiras de pentes, um fio acima da pele
+      for(let k = 0; k < 8; k++){
+        const a = k / 8 * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const pts = [], lds = [], als = [];
+        for(let j = 0; j <= 18; j++){
+          const v = 0.12 + 0.76 * j / 18, pr = perfil(v);
+          pts.push([pr[0] * 1.04 * ca, pr[1], pr[0] * 1.04 * sa]); lds.push([-sa, 0, ca]); als.push(v);
+        }
+        fita(luz, pts, lds, 0.008, k, als);
+      }
+      [0.32, 0.52, 0.72].forEach((v, k) =>
+        semente(luz, (k - 1) * 0.018, H * v, (k % 2 ? 1 : -1) * 0.012, 0.022 + 0.006 * (k % 2), 10 + k, v));
+    } else {
+      for(let k = 0; k < 6; k++){
+        const a = k / 6 * Math.PI * 2 + 0.3;
+        semente(luz, Math.cos(a) * 0.08, 0.09, Math.sin(a) * 0.08, 0.018, 10 + k, 0.3);
+      }
+      semente(luz, 0, 0.16, 0, 0.028, 16, 0.55);
+      // os seis fios pendurados da borda, ondulados
+      for(let k = 0; k < 6; k++){
+        const a = k / 6 * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const pts = [], lds = [], als = [];
+        for(let j = 0; j <= 14; j++){
+          const u = j / 14, r = 0.16 + 0.03 * Math.sin(u * 9 + k);
+          pts.push([r * ca, -0.36 * u, r * sa]); lds.push([-sa, 0, ca]); als.push(1 - u);
+        }
+        fita(luz, pts, lds, 0.005, 20 + k, als);
+      }
+    }
+    bLuzCorpo[tipo] = subirUma(corpo); nLuzCorpo[tipo] = corpo.idx.length;
+    bLuzDentro[tipo] = subirUma(luz); nLuzDentro[tipo] = luz.idx.length;
+  }
+  SERES_DE_LUZ.length = 0;
+  const rnd = prng(6300);
+  for(let k = 0; k < 6; k++)
+    SERES_DE_LUZ.push({ tipo: k % 2, raio: 1.55 + rnd() * 1.1, ang: (k / 6) * Math.PI * 2 + rnd() * 0.6,
+                        vel: (rnd() < 0.5 ? -1 : 1) * (0.05 + rnd() * 0.05), alt: 1.15 + rnd() * 0.75,
+                        fase: rnd() * 6.283, esc: 0.85 + rnd() * 0.5, cor: k * 1.37 + rnd(),
+                        p: [0, 0, 0], fuga: [0, 0, 0], meio: k % 2 ? 0.12 : 0.23, susto: 0 });
+}
+function andarSeresDeLuz(dt){
+  if(seresDeLuzPresenca < 0.004) return;
+  const volta = Math.exp(-dt / 2.2), calma = Math.exp(-dt / 0.8);
+  for(const sl of SERES_DE_LUZ){
+    const a = sl.ang + relogio * sl.vel;
+    sl.p[0] = Math.sin(a) * sl.raio + sl.fuga[0];
+    sl.p[1] = Math.max(NIVEL_AGUA + 0.25, sl.alt + 0.22 * Math.sin(relogio * 0.23 + sl.fase)
+                        + 0.06 * Math.sin(relogio * 0.9 + sl.fase * 2) + sl.fuga[1]);
+    sl.p[2] = -Math.cos(a) * sl.raio + sl.fuga[2];
+    sl.fuga[0] *= volta; sl.fuga[1] *= volta; sl.fuga[2] *= volta;
+    sl.susto *= calma;
+  }
+}
+// tocado, escapa: um impulso para longe da mao, e volta devagar
+function assustarSerDeLuz(sl, m){
+  const dx = sl.p[0] - m.x, dy = sl.p[1] + sl.meio - m.y, dz = sl.p[2] - m.z;
+  const L = Math.hypot(dx, dy, dz) || 1;
+  sl.fuga[0] += dx / L * 0.45; sl.fuga[1] += dy / L * 0.2 + 0.1; sl.fuga[2] += dz / L * 0.45;
+  sl.susto = 1;
+  pulsarEm(sl.p[0], sl.p[1] + sl.meio, sl.p[2]);
+}
+/* onde esta o meio de uma agua-viva agora: a MESMA conta do "nadar" do
+   VS_SOLIDA (copiada, nao parecida), para o toque cair onde ela esta */
+function ondeAguaViva(av){
+  const volta = ((relogio + av.fase * 3.8) / 24) % 1, k = volta * 8, fr = k - Math.floor(k);
+  const u = Math.min(1, Math.max(0, fr / 0.22)), degrau = Math.floor(k) + u * u * (3 - 2 * u);
+  const altura = volta < 0.5 ? degrau / 4 : 1 - (volta - 0.5) * 2;
+  return av.y + altura * 0.9 + 0.12;
+}
+
 /* ═══════════ O SER DE VIDRO ═══════════
 
    Mostrado em 14/09: a capa de "Forma Fluida" (Amelia Toledo) -- bolhas de
@@ -3934,6 +4132,9 @@ uniform float ondula;
    impulso -- os vertices recuam pela normal --, que e o que faz o impulso
    ser impulso e nao elevador. So quem pede (nadar = 1) recebe. */
 uniform float nadar;
+/* AS MAOS (6.3): xyz a ponta do indicador, w 1 se a mao existe. Aqui no
+   vertice so a agua-viva le: ela foge. No fragmento, o mar inteiro acende. */
+uniform vec4 maoA, maoB;
 /* BOLHA -- 14/09: "como uma bolha de sabao no ar, um movimento organico,
    nao simetrico". Amplitude em metros: cada vertice anda pela propria
    normal por tres ondas lentas e primas entre si, lidas na posicao do
@@ -4043,6 +4244,13 @@ void main(){
     // o sino contrai no comeco de cada impulso
     float contrai = volta < 0.5 ? exp(-pow((fract(k) - 0.06) / 0.10, 2.0)) : 0.0;
     p -= aNor * 0.035 * contrai;
+    /* E FOGE DA MAO -- 25/09 (6.3), "os seres aquaticos... interagir com o
+       usuario". A parte do corpo que a mao alcanca se afasta dela, ate dez
+       centimetros: o sino dobra para longe, como bicho mole que se esquiva. */
+    vec3 dA = p - maoA.xyz, dB = p - maoB.xyz;
+    float lA = length(dA), lB = length(dB);
+    p += dA / max(lA, 0.001) * maoA.w * (1.0 - smoothstep(0.06, 0.38, lA)) * 0.10;
+    p += dB / max(lB, 0.001) * maoB.w * (1.0 - smoothstep(0.06, 0.38, lB)) * 0.10;
   }
 
   vec3 nn = aNor;
@@ -4281,6 +4489,30 @@ uniform float aspectoCeu;
    tudo embaixo ter tom azul e diminui a opacidade" (14/09). Alta (99) em
    todo cenario sem agua: ai ninguem esta embaixo. */
 uniform float lamina;
+/* AS MAOS, para o que vive no mar responder a elas (6.3): xyz a ponta do
+   indicador, w 1 se a mao existe. */
+uniform vec4 maoA, maoB;
+/* A COR DE CADA SER DE LUZ (6.3): a malha e uma so para todos, e o que os
+   distingue vem daqui. */
+uniform float faseExtra;
+// quanto a mao mais perto esta deste ponto: um encostando, zero a meio metro
+float pertoDaMao(vec3 q){
+  float a = maoA.w * (1.0 - smoothstep(0.06, 0.50, distance(q, maoA.xyz)));
+  float b = maoB.w * (1.0 - smoothstep(0.06, 0.50, distance(q, maoB.xyz)));
+  return max(a, b);
+}
+/* AS CORES ANALOGAS DO MAR -- 25/09 (6.3), "os objetos 3D podem ter cores
+   analogas diferentes, os seres aquaticos tambem". Quatro familias
+   vizinhas no circulo de cores, cada uma com dois tons: rosa e coral,
+   magenta e violeta, turquesa e azul, lilas e rosa-claro. Cada corpo
+   sorteia a familia pela fase (f) e anda entre os dois tons (k). */
+vec3 familiaDoMar(float f, float k){
+  vec3 a = mix(mix(vec3(0.98, 0.50, 0.70), vec3(0.86, 0.36, 0.86), step(0.30, f)),
+               mix(vec3(0.24, 0.74, 0.78), vec3(0.80, 0.62, 0.95), step(0.80, f)), step(0.55, f));
+  vec3 b = mix(mix(vec3(1.00, 0.62, 0.52), vec3(0.66, 0.44, 0.96), step(0.30, f)),
+               mix(vec3(0.36, 0.58, 0.95), vec3(0.98, 0.70, 0.86), step(0.80, f)), step(0.55, f));
+  return mix(a, b, k);
+}
 
 /* O BATIMENTO QUE CHAMA A MAO.
 
@@ -4490,6 +4722,41 @@ void main(){
        nao ha o que descobrir; com mais que um fio, ele deixa de estar
        camuflado e passa a estar exposto. */
     c += vec3(0.17, 0.21, 0.30) * pow(raspaoC, 2.4);
+  } else if(materia > 19.5 && materia < 20.5){
+    /* 20 -- OS SERES DE LUZ, A PELE (6.3): "outros de formas diferentes,
+       com coisas luminosas interessantes dentro deles". Vidro de agua, na
+       cor da familia de cada um: de frente quase nada, na beira a parede
+       fecha e clareia. Com a mao chegando, acende por inteiro. */
+    float fs = fract(faseExtra * 0.2718 + 0.13);
+    vec3 corS = familiaDoMar(fs, vAlt);
+    float pertoS = max(proximidade, pertoDaMao(vMundo));
+    c = corS * (0.34 + 0.40 * pow(raspaoC, 1.3)) + vec3(1.0) * pow(raspaoC, 4.0) * 0.35;
+    c += corS * pertoS * 0.55;
+  } else if(materia > 20.5 && materia < 21.5){
+    /* 21 -- AS LUZES DE DENTRO, somando. A fase do vertice diz o que e:
+         0 a 9   as fileiras de pentes do ctenoforo -- o arco-iris que corre
+                 ao longo de cada fileira, como nos de verdade;
+         10 a 19 as sementes -- cada uma pulsa no seu tempo, como coracoes;
+         20 em diante os fios pendurados do sino -- acesos no pe, somem na ponta. */
+    float fl = fract(faseExtra * 0.2718 + 0.13);
+    float pertoL = max(proximidade, pertoDaMao(vMundo));
+    if(vFase < 9.5){
+      float hl = fract(vAlt * 1.4 - tempo * 0.45 + vFase * 0.11);
+      vec3 arco = 0.5 + 0.5 * cos(6.2831853 * (hl + vec3(0.0, 0.33, 0.67)));
+      float batL = pow(0.5 + 0.5 * sin(vAlt * 26.0 - tempo * 5.0 + vFase * 0.8), 3.0);
+      c = mix(arco, vec3(1.0), 0.25) * (0.25 + 1.1 * batL) * (0.8 + 0.8 * pertoL);
+    } else if(vFase < 19.5){
+      float sl = vFase - 10.0;
+      vec3 corL = mix(familiaDoMar(fract(fl + sl * 0.17), 0.5), vec3(1.0, 0.92, 0.70), 0.18);
+      float bl = pow(0.5 + 0.5 * sin(tempo * (1.6 + 1.4 * pertoL) + sl * 1.9 + faseExtra), 4.0);
+      /* globo de luz, e nao disco chapado: mais forte no miolo, sumindo na
+         beira -- somado sem isto, ele estourava em branco liso */
+      c = corL * (0.30 + 0.85 * bl) * (1.0 + 0.7 * pertoL) * pow(1.0 - raspaoC, 1.3) * 1.5;
+    } else {
+      vec3 corF = familiaDoMar(fl, 0.3);
+      c = corF * (0.20 + 0.55 * vAlt) * (1.0 + 0.6 * pertoL)
+        * (0.7 + 0.3 * sin(tempo * 2.0 - (1.0 - vAlt) * 9.0 + vFase));
+    }
   } else if(materia > 11.5 && materia < 12.5){
     /* A ALGA DE NEON ROSA, no fundo da agua.
 
@@ -4530,6 +4797,12 @@ void main(){
        diz "isto tem parede". */
     float veuV = rugas(vMundo * 1.7 + 11.3);
     c = mix(vec3(0.66, 0.26, 0.42), vec3(0.98, 0.70, 0.80), veuV);
+    /* CADA UMA NA SUA COR, E ACENDENDO COM A MAO -- 25/09 (6.3): continuam
+       do ceu, mas puxadas para uma familia vizinha cada (rosa, coral, lilas,
+       violeta...), e a mao chegando as acende na propria cor. */
+    vec3 tomAV = familiaDoMar(fract(vFase * 0.2718 + 0.5), veuV);
+    c = mix(c, c * tomAV * 1.55, 0.55);
+    c += tomAV * pertoDaMao(vMundo) * 0.9;
     estrelas = (estrelasEm(vMundo, n, 15.0, 0.34, 0.16, 1.70)
              + estrelasEm(vMundo, n, 38.0, 0.30, 0.19, 0.85)) * 0.6;
     c += vec3(1.00, 0.78, 0.86) * pow(raspaoC, 1.8) * 0.45;
@@ -4570,10 +4843,18 @@ void main(){
        transparente": bicho que se ve atraves inteiro deixa de ter corpo e
        vira reflexo. Aqui a parede sempre guarda dois tercos. */
     vec3 nervura = aMarmore(vMundo * 7.0);
-    float dentro = 0.34 + 0.66 * pow(0.5 + 0.5*sin(tempo*0.85 + vFase*2.3), 2.0);
-    c = mix(vec3(0.24, 0.70, 0.76), vec3(0.94, 0.54, 0.74), nervura.r);
+    /* CORES ANALOGAS, UMA FAMILIA POR CORPO -- 25/09 (6.3). Era um par so
+       (turquesa e rosa) para o fundo inteiro; agora cada alga, coral,
+       cogumelo e planta sorteia a familia pela fase dele, e a nervura anda
+       entre os dois tons dela. E A MAO CHEGANDO: a luz de dentro acelera e
+       o corpo acende na propria cor -- "podem pulsar com a cor do mar". */
+    vec3 corMar = familiaDoMar(fract(vFase * 0.2718), nervura.r);
+    float pertoMar = pertoDaMao(vMundo);
+    float dentro = 0.34 + 0.66 * pow(0.5 + 0.5*sin(tempo*(0.85 + 2.2*pertoMar) + vFase*2.3), 2.0);
+    c = corMar;
     c *= 0.46 + 0.74 * dentro;
-    c += vec3(0.30, 0.62, 0.68) * pow(raspaoC, 2.2) * 0.52;
+    c += mix(corMar, vec3(1.0), 0.4) * pow(raspaoC, 2.2) * 0.52;
+    c += corMar * pertoMar * 0.75;
   } else if(materia > 7.5){
     /* AS OUTRAS ARVORES: a casca e ceu noturno.
 
@@ -5104,6 +5385,11 @@ void main(){
     /* O COGUMELO ja e luz: somar ciano nele nao se ve. Nele o anel
        MULTIPLICA -- o chapeu clareia quando a onda passa, e volta. */
     if(materia > 4.5 && materia < 6.5) c *= 1.0 + anel * 1.1;
+    /* NO MAR O PULSO E DA COR DO MAR, e se ve (6.3, "podem pulsar com a cor
+       do mar"): rosa, e seis vezes mais forte que o fio ciano da floresta */
+    else if((materia > 8.5 && materia < 9.5) || (materia > 10.5 && materia < 11.5)
+            || (materia > 19.5 && materia < 21.5))
+      c += vec3(1.00, 0.52, 0.80) * anel * 0.85;
     else c += vec3(0.30, 0.85, 0.95) * anel * 0.15;
   }
 
@@ -5192,6 +5478,11 @@ void main(){
     alfa *= 0.50;
   else if(materia > 10.5 && materia < 11.5)
     alfa *= mix(0.22, 0.55, pow(raspaoC, 1.0)) * deFrente;
+  // os seres de luz (6.3): a pele como vidro de agua; as luzes, inteiras
+  else if(materia > 19.5 && materia < 20.5)
+    alfa *= mix(0.14, 0.62, pow(raspaoC, 1.4)) * deFrente;
+  else if(materia > 20.5 && materia < 21.5)
+    alfa *= 1.0;
   else
     alfa *= smoothstep(0.0, 0.10, 1.0 - raspaoC);
   /* Debaixo da lamina perde um quarto; e VISTO DE CIMA, com o olho fora
@@ -6404,6 +6695,9 @@ uniform float graduacao;        // a largura da graduacao das bordas, em fracao 
    asas  = raiz da asa esquerda (x), raiz da direita (x), y do meio das
            asas, meia-altura delas (zero na altura = nao ha asas). */
 uniform vec4 fluxo, asas;
+/* A VIDA (6.3): 0 = so o respiro de antes; 1 = manto e cabelo soltos ao
+   vento, o peito respirando e a luz subindo pelo corpo. */
+uniform float vida;
 /* Ruido de valor, duas oitavas: e o que faz a beira da pintura ondular em
    vez de terminar numa reta. Barato -- oito leituras de hash. */
 float ruidoFig(vec2 p){
@@ -6440,6 +6734,27 @@ void main(){
     float respira = 1.0 + 0.005 * sin(tempo * 0.25);
     vec2 corpo = elipse.xy + (uv - elipse.xy) / respira;
     uv = mix(fundo, corpo, figura);
+
+    /* A VIDA DO CORPO -- 25/09 (6.3), "as deusas vermelha e azul teriam uma
+       animacao melhor... elas nem se movem". Tinham so o respiro de meio por
+       cento, feito para quase nao se ver. Agora, na mesma pintura e sem
+       tinta nova:
+         O MANTO E O CABELO soltos -- quanto mais longe do miolo do corpo,
+         mais a leitura ondula, por dois ruidos que correm devagar (vento
+         lento e pesado, nao tremor), ate doze milesimos do quadro;
+         O PEITO RESPIRA -- o miolo cresce e volta num folego de sete
+         segundos, um por cento e pouco. */
+    if(vida > 0.0){
+      vec2 dvv = (uv - elipse.xy) / elipse.zw;
+      float rv = length(dvv);
+      float solto = smoothstep(0.25, 0.95, rv) * figura;
+      float n1 = ruidoFig(uv * 7.0 + vec2(tempo * 0.07, -tempo * 0.16));
+      float n2 = ruidoFig(uv * 13.0 - vec2(tempo * 0.11, tempo * 0.05));
+      vec2 sopro = vec2(n1 - 0.5, (n2 - 0.5) * 0.7) + 0.35 * vec2(sin(tempo * 0.53 + uv.y * 11.0), 0.0);
+      uv += sopro * solto * vida * 0.012;
+      float folego = sin(tempo * 0.9);
+      uv -= (uv - elipse.xy) * (1.0 - smoothstep(0.0, 0.8, rv)) * figura * vida * 0.012 * folego;
+    }
 
     /* A INTEGRA SE MEXE -- 14/09: "uma sensacao de movimento no corpo,
        principalmente na regiao central, que parece um liquido escorrendo
@@ -6479,6 +6794,15 @@ void main(){
   vec4 c = texture2D(figura, uv);
   // a luz que escorre com o liquido: fraca, e so onde ele corre
   c.rgb *= 1.0 + liq * 0.10 * sin(uv.y * 30.0 - tempo * 0.8);
+  /* E A LUZ SOBE PELO CORPO (6.3): uma faixa de luz dos pes a cabeca a cada
+     nove segundos, so dentro do corpo -- a energia dela, visivel. */
+  if(vida > 0.0 && inteira > 0.5){
+    vec2 dcl = (vUV - elipse.xy) / elipse.zw;
+    float noCorpo = 1.0 - smoothstep(0.6, 1.1, length(dcl));
+    float sobe = elipse.y + elipse.w * (1.2 - 2.4 * fract(tempo / 9.0));
+    float faixa = exp(-pow((vUV.y - sobe) / (elipse.w * 0.12), 2.0));
+    c.rgb *= 1.0 + vida * 0.22 * faixa * noCorpo;
+  }
 
   /* A PINTURA INTEIRA -- direcao de arte, 11/09: "a imagem nao foi
      preservada; eu so pedi para esmaecer as bordas". O recorte por
@@ -8572,6 +8896,7 @@ const COGUMELOS = [];
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
+montarSeresDeLuz();  // 6.3
 montarHorizonteSolido();   // idem
 montarSerDeVidro();
 montarSerpentes();
@@ -8667,7 +8992,7 @@ const FIGURAS = [
      antes e a nebulosa ir ate onde a pintura vai. Do azimute -23 ao +95;
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
-    de:206, ate:376, balanco:0.3, espelha:false, inteira:true,
+    de:206, ate:376, balanco:0.3, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
     elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09] },
   /* A VERMELHA E A INTEGRA, PELO MESMO METODO -- 12/09: o quadro inteiro
      do mesmo momento do recorte antigo (91 s e 152 s da animacao),
@@ -8691,7 +9016,7 @@ const FIGURAS = [
      quadro abaixo do horizonte, onde a pintura ja e preta. Entra depois
      que os planetas descem. Sem reflexo: nao ha agua no cosmos. */
   { nome:'deusa',     tex:1, centro:[-39.1, 14.6, -8.3], tam:[42.0, 26.25],
-    de:226, ate:376, balanco:0.4, espelha:false, inteira:true,
+    de:226, ate:376, balanco:0.4, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
     elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09] },
   /* EXPANDIDA DE NOVO em 13/09 ("expande mais o cenario ao redor da imagem
      e faz a graduacao de novo"): de 2048 x 1280 para 2536 x 1584 no site,
@@ -8704,7 +9029,7 @@ const FIGURAS = [
      ruido atras de cada pintura foi tentada em 13/09 e saiu: no escuro do
      cenario ela lia como "formas cinza estranhas". */
   { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
-    de:556, ate:640, balanco:0.3, espelha:false, inteira:true,   // ate o fim: a frase fica sobre ela (24/09)
+    de:556, ate:640, balanco:0.3, espelha:false, inteira:true, vida:0.5,   // ate o fim: a frase fica sobre ela (24/09)
     elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26,
     /* medido no arquivo: a boca em (0,502, 0,405); o vestido alarga de 0,02
        de meia-largura na boca a 0,09 no pe; as asas encostam no corpo em
@@ -9496,6 +9821,31 @@ function alvosAgora(){
     lista.push({ id:'vidro', nota:5, x:v[0], y:v[1] + 0.25, z:v[2], raio:0.40,
                  fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(5, 0.8); relato('TOCOU-O-SER-DE-VIDRO'); } });
   }
+  /* O MAR RESPONDE -- 25/09 (6.3), "lembra de fazer eles interagirem".
+     Os gigantes (cogumelo e plantas) pelo tronco: a mao dentro do corpo
+     deles, ate a altura deles. As aguas-vivas onde estao AGORA (o nado e a
+     mesma conta do shader). Os seres de luz escapam. Cada um com a sua
+     nota; o chamado de todos acende o bicho no shader antes do toque. */
+  if(fundoDoMar > 0.3){
+    GIGANTES_DO_MAR.forEach((gm, k) => {
+      const rg = 0.14 * gm.esc, hg = 0.85 * gm.esc;
+      lista.push({ id:'gigante-' + k, nota:(k + 2) % 6, px:gm.x, py:Math.min(1.3, hg * 0.5), pz:gm.z, praio:rg,
+                   dentro(m){ const dx = m.x - gm.x, dz = m.z - gm.z;
+                              return m.y < hg && dx*dx + dz*dz < (rg + 0.05) * (rg + 0.05); },
+                   fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque((k + 2) % 6, 0.8);
+                             relato('TOCOU-UM-GIGANTE-DO-MAR ' + gm.prefixo + k); } });
+    });
+    AGUAS_VIVAS.forEach((av, k) => {
+      const ya = ondeAguaViva(av);
+      lista.push({ id:'agua-viva-' + k, nota:k % 6, x:av.x, y:ya, z:av.z, raio:0.10 + 0.5 * av.esc,
+                   fazer(m){ pulsarEm(av.x, ya, av.z); sinoDoToque(k % 6, 0.55); relato('TOCOU-UMA-AGUA-VIVA ' + k); } });
+    });
+  }
+  if(seresDeLuzPresenca > 0.3)
+    SERES_DE_LUZ.forEach((sl, k) => {
+      lista.push({ id:'luz-' + k, nota:(k + 3) % 6, x:sl.p[0], y:sl.p[1] + sl.meio, z:sl.p[2], raio:0.24,
+                   fazer(m){ assustarSerDeLuz(sl, m); sinoDoToque((k + 3) % 6, 0.9); relato('TOCOU-UM-SER-DE-LUZ ' + k); } });
+    });
 
   return lista;
 }
@@ -10125,6 +10475,7 @@ function seguirPartitura(dt){
   conchaPresenca  = rampa(432, 456, t) * (1 - rampa(508, 522, t));
   vidroPresenca   = rampa(408, 432, t) * (1 - rampa(508, 522, t));   // o ser de vidro
   seresPresenca   = rampa(402, 432, t) * (1 - rampa(504, 520, t));
+  seresDeLuzPresenca = rampa(412, 436, t) * (1 - rampa(505, 522, t));   // 6.3
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
      por dt parece resolver, mas nao resolve: a fracao que falta encolhe
@@ -10720,6 +11071,13 @@ if(emTesteLocal){
     /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
        raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
     chamado(id){ return chamadoDe(id); },
+    /* o mar vivo (6.3), para a bancada: onde estao os gigantes, as aguas-vivas
+       agora e os seres de luz agora */
+    mar(){ const r2 = (a) => a.map(x => +x.toFixed(2));
+           return { gigantes: GIGANTES_DO_MAR.map(g => ({ p:g.prefixo, x:+g.x.toFixed(2), z:+g.z.toFixed(2), esc:+g.esc.toFixed(2) })),
+                    aguasVivas: AGUAS_VIVAS.map(a => r2([a.x, ondeAguaViva(a), a.z])),
+                    luz: SERES_DE_LUZ.map(sl => r2([sl.p[0], sl.p[1] + sl.meio, sl.p[2]])),
+                    presencaLuz: +seresDeLuzPresenca.toFixed(2) }; },
     /* o menu da mao, para a bancada e a Cabine: raizes.menu() diz o estado;
        raizes.menu('atualizar'|'sair'|'remapear') escolhe como se fosse o dedo */
     menu(id){ if(id) { escolherNoMenu(id); return 'escolhido ' + id; }
@@ -11208,7 +11566,9 @@ async function entrarXR(aoEntrar){
      ha suporte, mas escrever deixa a intencao no codigo — e e a diferenca
      entre borda macia e a serra que aparece em toda geometria fina. */
   relato('PASSO-2 webgl ligado, criando a camada');
-  camadaXR = new XRWebGLLayer(sessao, gl, { antialias: SUAVIZAR_RM, framebufferScaleFactor: ESCALA_DESENHO });
+  camadaXR = new XRWebGLLayer(sessao, gl, { antialias: SUAVIZAR_RM, framebufferScaleFactor: ESCALA_DESENHO,
+                                            stencil: true });
+  stencilXR = null;
   relato('CAMADA ' + camadaXR.framebufferWidth + 'x' + camadaXR.framebufferHeight +
          ' escala=' + ESCALA_DESENHO + ' suavizar=' + SUAVIZAR_RM);
   // a foveacao fixa (ver FOVEACAO); aparelho sem ela ignora a propriedade
@@ -11397,7 +11757,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                aspectoCeu:uSo('aspectoCeu'), ondula:uSo('ondula'), nadar:uSo('nadar'),
                bolha:uSo('bolha'), lamina:uSo('lamina'),
                serpente:uSo('serpente'), serpentes:uSo('serpentes[0]'),
-               corrente:uSo('corrente')};
+               corrente:uSo('corrente'),
+               maoA:uSo('maoA'), maoB:uSo('maoB'), faseExtra:uSo('faseExtra')};
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -11694,7 +12055,8 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                balanco:uFi('balanco'), tempo:uFi('tempo'), figura:uFi('figura'),
                presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira'),
                elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
-               graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas')};
+               graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas'),
+               vida:uFi('vida')};
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -12675,16 +13037,25 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         const aosPoucos = cenaAtual === 3 ? rampa(400, 470, t) : 1;
         gl.uniform1f(locSo.presenca, (0.26 + 0.06*Math.sin(relogio*0.21)) * Math.min(1, tinta / 0.5) * aosPoucos);
         gl.uniform1f(locSo.inverte, 0.0);
-        gl.uniform3f(locSo.desloca, 0, 0, 0);
+        /* ELE NADA -- 25/09 (6.3), "o ser gigante esta totalmente imovel, por
+           que?". Estava, por decisao de 14/09 ("movimento que se ve denuncia
+           o bicho"): meio metro de ondulacao num corpo de sessenta, e oito
+           centimetros de respiro. Agora ele deriva devagar pelo ceu -- sete
+           metros para os lados, dois de altura, tres de fundo, em voltas de
+           dois a tres minutos --, os bracos ondulam dois metros e o peito
+           respira trinta e cinco centimetros. Continua camuflado: o que muda
+           e que agora ele esta vivo. */
+        gl.uniform3f(locSo.desloca, Math.sin(relogio * 0.035) * 7.0,
+                     Math.sin(relogio * 0.05 + 1.1) * 2.0, Math.sin(relogio * 0.043 + 2.3) * 3.0);
         gl.uniform1f(locSo.escalaObj, 1.0);
-        gl.uniform1f(locSo.inflar, 0.08 * Math.sin(relogio*0.21));
+        gl.uniform1f(locSo.inflar, 0.35 * Math.sin(relogio*0.21));
         gl.uniform3fv(locSo.focos, FOCOS);
         gl.uniform1f(locSo.escalaTinta, 1.0);
         gl.uniform1f(locSo.balanca, 0.0);
         /* MEIO METRO DE ONDULACAO. Num corpo de vinte e seis metros e dois
            por cento -- perto do que o proprio ar faz com uma arvore --, e a
            quase quarenta metros de distancia sao poucos pixels por minuto. */
-        gl.uniform1f(locSo.ondula, 0.5);
+        gl.uniform1f(locSo.ondula, 2.2);   // 6.3: dois metros nos bracos, e nao meio
         gl.uniform1f(locSo.materia, 13.0);
         gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
         gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
@@ -12695,7 +13066,32 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         ligar(aSo.alt, bAlien.alt, 1); ligar(aSo.fase, bAlien.fase, 1);
         ligar(aSo.borda, bAlien.borda, 1);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bAlien.idx);
+        /* UMA DEMAO SO -- 25/09 (6.3). As manchas escuras e poligonais que
+           se viam nele no espelho do oculos eram as DOBRAS: o corpo e
+           translucido, e onde um braco passa na frente do tronco a tinta do
+           ceu e posta duas vezes -- em RM, sobre a sala clara, duas demaos de
+           rosa escurecem. Com o stencil, cada pixel dele recebe a camuflagem
+           uma vez so (o primeiro a chegar marca, os outros nao pintam), e uma
+           segunda passada sem cor apaga a marca. Nada de profundidade: ele
+           nao esconde nada que venha depois. Sem stencil, fica como era. */
+        const umaDemao = dentroDeXR ? stencilXR === true : stencilTela;
+        if(umaDemao){
+          gl.enable(gl.STENCIL_TEST);
+          gl.stencilMask(0x80);
+          gl.stencilFunc(gl.NOTEQUAL, 0x80, 0x80);
+          gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+        }
         gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
+        if(umaDemao){
+          gl.colorMask(false, false, false, false);
+          gl.stencilFunc(gl.ALWAYS, 0, 0x80);
+          gl.stencilOp(gl.KEEP, gl.KEEP, gl.ZERO);
+          gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
+          gl.colorMask(true, true, true, true);
+          gl.stencilMask(0xFF);
+          gl.disable(gl.STENCIL_TEST);
+        }
+        gl.uniform3f(locSo.desloca, 0, 0, 0);
         gl.uniform1f(locSo.materia, 0.0);
         gl.uniform1f(locSo.inflar, 0.0);
         /* E DEVOLVE A ONDULACAO A ZERO. Uniforme e estado: deixada ligada,
@@ -13055,6 +13451,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
       gl.uniform1i(locSo.casca, 2);
+      /* AS MAOS E O TOQUE, para o mar responder (6.3). O toque vinha da mata
+         -- que aqui esta em zero e nao passa por la --, entao o pulso do mar
+         nunca aparecia. */
+      gl.uniform4f(locSo.maoA, MAOS[0].x, MAOS[0].y, MAOS[0].z, MAOS[0].tem ? 1 : 0);
+      gl.uniform4f(locSo.maoB, MAOS[1].x, MAOS[1].y, MAOS[1].z, MAOS[1].tem ? 1 : 0);
+      gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
       /* O HORIZONTE PRIMEIRO, que e o plano mais distante que ha aqui.
          Presenca menor: a dez metros o ar ja comeu parte da diferenca entre
          a pedra e o ceu, e e essa perda que diz QUAO longe ela esta. */
@@ -13105,6 +13507,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       // coral, conchas, a estrela e os cogumelos parados
       gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR);
       for(const r of bFundo) porMalha(r.b, r.n, 9.0);
+      // os gigantes (6.3): na corrente, mais devagar, e respirando pela pele
+      gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR * 0.6);
+      gl.uniform1f(locSo.bolha, 0.05);
+      /* OS DOIS LADOS: sao folhas finas, e com o verso descartado cada dobra
+         abria uma fresta escura -- era metade do "muito geometricas" */
+      gl.disable(gl.CULL_FACE);
+      for(const r of bGigantes) porMalha(r.b, r.n, 9.0);
+      gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+      gl.uniform1f(locSo.bolha, 0.0);
       gl.uniform1f(locSo.corrente, 0.0);
       for(const r of bFundoParado) porMalha(r.b, r.n, 9.0);
       gl.uniform1f(locSo.nadar, 1.0);
@@ -13123,6 +13534,31 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       // no ceu: o rosa do ceu, e nadando -- o nadar e o movimento delas, sem balanco
       for(const r of bSeresCeu) porMalha(r.b, r.n, 11.0);
       gl.uniform1f(locSo.nadar, 0.0);
+      /* OS SERES DE LUZ (6.3): a pele em duas demaos (a parede de tras, depois
+         a da frente), e as luzes de dentro somando por cima. Um de cada vez,
+         no lugar dele, com a cor e a proximidade dele. */
+      if(seresDeLuzPresenca > 0.004 && bLuzCorpo[0]){
+        for(let k = 0; k < SERES_DE_LUZ.length; k++){
+          const sl = SERES_DE_LUZ[k], tp = sl.tipo;
+          gl.uniform3f(locSo.desloca, sl.p[0], sl.p[1], sl.p[2]);
+          gl.uniform1f(locSo.escalaObj, sl.esc * (1 + 0.045 * Math.sin(relogio * 1.3 + sl.fase)));
+          gl.uniform1f(locSo.faseExtra, sl.cor);
+          gl.uniform1f(locSo.proximidade, Math.max(chamadoDe('luz-' + k), sl.susto));
+          gl.uniform1f(locSo.presenca, seresDeLuzPresenca);
+          sobrepor(); gl.enable(gl.CULL_FACE);
+          gl.cullFace(gl.FRONT); porMalha(bLuzCorpo[tp], nLuzCorpo[tp], 20.0);
+          gl.cullFace(gl.BACK);  porMalha(bLuzCorpo[tp], nLuzCorpo[tp], 20.0);
+          somarLuz(); gl.disable(gl.CULL_FACE);
+          porMalha(bLuzDentro[tp], nLuzDentro[tp], 21.0);
+          gl.enable(gl.CULL_FACE);
+        }
+        sobrepor();
+        gl.uniform3f(locSo.desloca, 0, 0, 0);
+        gl.uniform1f(locSo.escalaObj, 1.0);
+        gl.uniform1f(locSo.faseExtra, 0.0);
+        gl.uniform1f(locSo.proximidade, 0.0);
+        gl.uniform1f(locSo.presenca, fundoDoMar);
+      }
       /* A CONCHA, que acende quando pode ser tocada. O deslocamento e por
          uniforme porque ela nao esta plantada onde nasceu -- e o unico
          objeto do cenario que a pessoa alcanca. */
@@ -13172,6 +13608,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.materia, 0.0);
       gl.uniform1f(locSo.balanca, 1.0);   // devolve o vento a quem vem depois
       gl.uniform1f(locSo.lamina, 99.0);   // devolve: fora daqui nao ha agua
+      gl.uniform4f(locSo.maoA, 0, 0, 0, 0); gl.uniform4f(locSo.maoB, 0, 0, 0, 0);
 
       /* O HORIZONTE E A CONCHA SEGUEM EM NUVEM, e de proposito: o horizonte
          esta a dezenas de metros, onde forma nao se le, e a concha nao foi
@@ -13448,6 +13885,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       const fl = f.fluxo || [0, 0, 0, 0], as = f.asas || [0, 0, 0, 0];
       gl.uniform4f(locFi.fluxo, fl[0], fl[1], fl[2], fl[3]);
       gl.uniform4f(locFi.asas, as[0], as[1], as[2], as[3]);
+      gl.uniform1f(locFi.vida, f.vida || 0);
       gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
@@ -14146,12 +14584,13 @@ function quadro(){
   tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
+  andarSeresDeLuz(dt);
   if(neblinaOn) assarTinta();
   atualizarTela();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.03,0.025,0.055,1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   const proj = perspectiva(fov, cv.width/cv.height, 0.05, LONGE);
   const vis = visaoOrbita(yaw, pitch, OLHO);
   // escala do ponto: metade da altura em pixels vezes o termo vertical
@@ -14218,6 +14657,7 @@ function quadroXR(t, frame){
   tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
+  andarSeresDeLuz(dt);
   andarGlitter(dt);
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
@@ -14252,9 +14692,13 @@ function quadroXR(t, frame){
   atualizarTela();
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, camadaXR.framebuffer);
+  if(stencilXR === null){
+    stencilXR = (gl.getParameter(gl.STENCIL_BITS) || 0) > 0;
+    relato('STENCIL ' + (stencilXR ? 'sim' : 'nao'));
+  }
   // alfa zero: o que não for desenhado deixa passar a câmera do headset
   gl.clearColor(0,0,0,0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
   for(const vista of pose.views){
     // a resolucao que cede: pedida antes do getViewport, vale neste quadro
