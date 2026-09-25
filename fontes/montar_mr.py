@@ -57,6 +57,16 @@ def embutir(nome, medidas, qualidade=90, com_alfa=False):
 ASPECTOS = []
 
 
+def embutir_mocap(caminho):
+    """O JSON da captura vai inteiro, como literal de JavaScript."""
+    if not os.path.exists(caminho):
+        print("  (sem assets/mocap/deusa-danca.json: a deusa que danca fica de fora)")
+        return "null"
+    txt = open(caminho, encoding="utf-8").read()
+    print(f"  {os.path.basename(caminho):22} {len(txt)//1024:4d} KB  mocap")
+    return txt
+
+
 def embutir_ceu(nome, largura=2048, qualidade=86):
     caminho = nome if os.path.isabs(nome) else os.path.abspath(nome)
     img = Image.open(caminho)
@@ -86,6 +96,9 @@ mapa = {
     # embutir_ceu e chamado, entao acrescentar no meio renumeraria os ceus
     # sem avisar. Novo ceu entra no fim.
     "__CEU_MATA__":     embutir_ceu(bem("ceus", "ceu-mata-2048.png")),
+    # A DEUSA QUE DANCA (7.1): a captura de movimento, ja compactada pelo
+    # fontes/mocap_para_obra.py. Sem o arquivo, entra "null" e ela nao existe.
+    "__MOCAP_DEUSA__":  embutir_mocap(bem("mocap", "deusa-danca.json")),
     # As peles dos planetas: recorte da propria pintura, ja tratado para
     # repetir. 512x512 e potencia de dois, entao aceita repeticao no WebGL 1.
     "__TEX_MARMORE__":  embutir(bem("texturas", "tex-marmore.png"),
@@ -319,9 +332,9 @@ if saida == os.path.join(RAIZ, "index.html"):
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
              .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
-             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.0</title>")
-             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.0</h1>")
-             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.0</em>')
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.1</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.1</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.1</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
             or "const ESPACO_ESCANEADO      = true;" not in v6

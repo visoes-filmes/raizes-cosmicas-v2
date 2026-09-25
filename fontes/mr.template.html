@@ -612,6 +612,17 @@ const PAPEL_NO_CENARIO      = true;
    LINHA DO HORIZONTE, que e a altura dos olhos -- abaixo dela continua a
    sala, e o chao nunca e tapado. false volta o modelo. */
 const HORIZONTE_DESENHADO   = true;
+/* A DEUSA QUE DANCA -- 25/09 (7.1): "tem um motion capture num projeto no
+   Unreal que gostaria de ter em uma deusa, em escala um pouco menor, que
+   fique dancando no espaco". A captura e a PraiaC0094 do SketchbookGabi
+   (MetaHuman Animator), exportada pelo Unreal sem interface como posicoes
+   de 21 juntas a 15 quadros por segundo (fontes/exportar_mocap_unreal.py e
+   fontes/mocap_para_obra.py), e embutida em assets/mocap/deusa-danca.json.
+   Ela danca na floresta do comeco, a frente e a direita, flutuando, com um
+   metro e vinte de altura -- "um pouco menor" que gente --, como uma
+   silhueta de vidro de agua (a materia 20 dos seres de luz) com um coracao
+   de luz. Tocada, pulsa e toca a nota dela. */
+const DEUSA_QUE_DANCA       = true;
 /* A VERSAO PARA CELULAR -- 25/09 (7.0), "implemente uma versao para celular
    com as funcionalidades adaptadas". Um celular nao tem RM nem maos
    rastreadas; o que ele tem e camera, giroscopio e toque. Entao a obra vira
@@ -3242,6 +3253,128 @@ function ondeAguaViva(av){
   const u = Math.min(1, Math.max(0, fr / 0.22)), degrau = Math.floor(k) + u * u * (3 - 2 * u);
   const altura = volta < 0.5 ? degrau / 4 : 1 - (volta - 0.5) * 2;
   return av.y + altura * 0.9 + 0.12;
+}
+
+/* ═══════════ A DEUSA QUE DANCA (7.1) ═══════════
+   Ver DEUSA_QUE_DANCA. Os dados vem do montador: 21 juntas por quadro, em
+   milimetros de 16 bits, base64. A obra le o quadro do relogio (o take
+   tem 65 s e volta ao comeco), interpola entre dois quadros vizinhos, e
+   faz o CORPO a cada quadro: uma capsula por osso, de raio proprio, numa
+   malha que e reescrita no buffer -- vinte capsulas de quarenta e oito
+   vertices, nada que se sinta. A capsula tem seis aneis: ponta, ombro, e
+   dois de cada lado -- e o bastante para uma casca que o shader amacia. */
+const DANCA = { ok:false, fps:15, n:0, nj:0, i:{}, pos:null, altura:0.8, presenca:0,
+                quadro:0, peito:[0, 1.2, 0], cor:1.913 };
+(function(){
+  const d = __MOCAP_DEUSA__;
+  if(!d || !d.dados) return;
+  const bin = atob(d.dados), n = bin.length >> 1, a = new Int16Array(n);
+  for(let k = 0; k < n; k++) a[k] = ((bin.charCodeAt(2*k) | (bin.charCodeAt(2*k+1) << 8)) << 16) >> 16;
+  DANCA.pos = a; DANCA.fps = d.fps; DANCA.n = d.quadros; DANCA.nj = d.juntas.length; DANCA.altura = d.altura || 0.8;
+  d.juntas.forEach((j, k) => DANCA.i[j] = k);
+  DANCA.ok = DANCA.n > 1;
+})();
+/* onde ela danca: a frente e a direita, a 2,3 m, o pe a meio metro do chao
+   (flutua), de frente para quem entra; 1,2 m de altura */
+const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 2.3, DANCA_PE = 0.5, DANCA_ALTURA = 1.2;
+const DANCA_OSSOS = [ ['pelvis','spine',0.075], ['spine','chest',0.085], ['chest','neck',0.07], ['neck','head',0.085],
+                      ['chest','shoulder_l',0.05], ['shoulder_l','upperarm_l',0.045], ['upperarm_l','lowerarm_l',0.04], ['lowerarm_l','hand_l',0.032],
+                      ['chest','shoulder_r',0.05], ['shoulder_r','upperarm_r',0.045], ['upperarm_r','lowerarm_r',0.04], ['lowerarm_r','hand_r',0.032],
+                      ['pelvis','thigh_l',0.06], ['thigh_l','calf_l',0.055], ['calf_l','foot_l',0.045], ['foot_l','toe_l',0.03],
+                      ['pelvis','thigh_r',0.06], ['thigh_r','calf_r',0.055], ['calf_r','foot_r',0.045], ['foot_r','toe_r',0.03] ];
+const DANCA_SEG = 8, DANCA_ANEIS = 6;
+const dancaJuntas = new Float32Array(21 * 3);              // as juntas deste quadro, no mundo
+const dancaPos = new Float32Array(DANCA_OSSOS.length * DANCA_ANEIS * DANCA_SEG * 3);
+const dancaNor = new Float32Array(dancaPos.length);
+let bDanca = null, nDancaIdx = 0, bDancaCoracao = null, nDancaCoracaoIdx = 0;
+function montarADeusaQueDanca(){
+  if(!DANCA.ok) return;
+  // os atributos que nao mudam: altura (0 no pe de cada osso, 1 na cabeca), fase, borda, indices
+  const alt = [], fase = [], borda = [], idx = [];
+  DANCA_OSSOS.forEach((o, b) => {
+    for(let r = 0; r < DANCA_ANEIS; r++) for(let k = 0; k < DANCA_SEG; k++){ alt.push(r / (DANCA_ANEIS - 1)); fase.push(b * 0.7); borda.push(1); }
+    const b0 = b * DANCA_ANEIS * DANCA_SEG;
+    for(let r = 0; r < DANCA_ANEIS - 1; r++) for(let k = 0; k < DANCA_SEG; k++){
+      const a = b0 + r * DANCA_SEG + k, a2 = b0 + r * DANCA_SEG + (k + 1) % DANCA_SEG;
+      idx.push(a, a + DANCA_SEG, a2, a2, a + DANCA_SEG, a2 + DANCA_SEG);
+    }
+  });
+  bDanca = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bDanca.alt, alt); enviar(bDanca.fase, fase); enviar(bDanca.borda, borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bDanca.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  nDancaIdx = idx.length;
+  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.pos); gl.bufferData(gl.ARRAY_BUFFER, dancaPos, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.nor); gl.bufferData(gl.ARRAY_BUFFER, dancaNor, gl.DYNAMIC_DRAW);
+  // o coracao: uma esfera pequena, semente (fase 12) da materia 21; vai com o desloca
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const NA = 10, NV = 7;
+  for(let j = 0; j <= NV; j++){
+    const th = j / NV * Math.PI, st = Math.sin(th), ct = Math.cos(th);
+    for(let i = 0; i <= NA; i++){
+      const ph = i / NA * Math.PI * 2, nx = st * Math.cos(ph), ny = ct, nz = st * Math.sin(ph);
+      m.pos.push(nx * 0.045, ny * 0.045, nz * 0.045); m.nor.push(nx, ny, nz); m.alt.push(0.5); m.fase.push(12); m.borda.push(1);
+    }
+  }
+  for(let j = 0; j < NV; j++) for(let i = 0; i < NA; i++){ const a = j * (NA + 1) + i, bb = a + NA + 1; m.idx.push(a, bb, a + 1, a + 1, bb, bb + 1); }
+  bDancaCoracao = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bDancaCoracao.pos, m.pos); enviar(bDancaCoracao.nor, m.nor); enviar(bDancaCoracao.alt, m.alt);
+  enviar(bDancaCoracao.fase, m.fase); enviar(bDancaCoracao.borda, m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bDancaCoracao.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nDancaCoracaoIdx = m.idx.length;
+}
+/* as juntas deste instante, no mundo: le dois quadros e interpola; escala
+   para DANCA_ALTURA, gira para encarar quem entra, poe no lugar */
+function lerADanca(){
+  if(!DANCA.ok) return;
+  const f = (relogio * DANCA.fps) % DANCA.n, k0 = Math.floor(f), k1 = (k0 + 1) % DANCA.n, u = f - k0;
+  DANCA.quadro = k0;
+  const esc = DANCA_ALTURA / DANCA.altura / 1000, nj = DANCA.nj, P = DANCA.pos;
+  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  for(let j = 0; j < nj; j++){
+    const a = (k0 * nj + j) * 3, b = (k1 * nj + j) * 3;
+    const x = (P[a] + (P[b] - P[a]) * u) * esc, y = (P[a+1] + (P[b+1] - P[a+1]) * u) * esc, z = (P[a+2] + (P[b+2] - P[a+2]) * u) * esc;
+    dancaJuntas[j*3]   = cx + x * cy + z * sy;
+    dancaJuntas[j*3+1] = DANCA_PE + y;
+    dancaJuntas[j*3+2] = cz - x * sy + z * cy;
+  }
+  const ip = DANCA.i.chest * 3;
+  DANCA.peito[0] = dancaJuntas[ip]; DANCA.peito[1] = dancaJuntas[ip+1]; DANCA.peito[2] = dancaJuntas[ip+2];
+}
+// o corpo: uma capsula por osso, escrita no buffer
+function fazerOCorpoQueDanca(){
+  let v = 0;
+  const perfil = [0, 0.55, 1, 1, 0.55, 0], ao = [0, 0.18, 0.5, 0.5, 0.18, 0];   // raio relativo e recuo relativo, por anel
+  for(const [na, nb, raio] of DANCA_OSSOS){
+    const ia = DANCA.i[na] * 3, ib = DANCA.i[nb] * 3;
+    const ax = dancaJuntas[ia], ay = dancaJuntas[ia+1], az = dancaJuntas[ia+2];
+    let dx = dancaJuntas[ib] - ax, dy = dancaJuntas[ib+1] - ay, dz = dancaJuntas[ib+2] - az;
+    const L = Math.hypot(dx, dy, dz) || 0.001; dx /= L; dy /= L; dz /= L;
+    // um eixo perpendicular
+    let ux = -dz, uy = 0, uz = dx; let Lu = Math.hypot(ux, uy, uz);
+    if(Lu < 0.01){ ux = 1; uy = 0; uz = 0; Lu = 1; }
+    ux /= Lu; uy /= Lu; uz /= Lu;
+    const wx = dy * uz - dz * uy, wy = dz * ux - dx * uz, wz = dx * uy - dy * ux;
+    const r = raio * (DANCA_ALTURA / 1.2), rec = Math.min(r, L * 0.45);
+    for(let ring = 0; ring < DANCA_ANEIS; ring++){
+      const rr = perfil[ring] * r, meio = ring < 3 ? -rec + ao[ring] * 2 * rec : L + rec - ao[ring] * 2 * rec;
+      const ex = ax + dx * meio, ey = ay + dy * meio, ez = az + dz * meio;
+      const nAlong = ring < 3 ? -(1 - perfil[ring]) : (1 - perfil[ring]);
+      for(let k = 0; k < DANCA_SEG; k++){
+        const th = k / DANCA_SEG * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+        const nx = ux * c + wx * sn, ny = uy * c + wy * sn, nz = uz * c + wz * sn;
+        dancaPos[v] = ex + nx * rr; dancaPos[v+1] = ey + ny * rr; dancaPos[v+2] = ez + nz * rr;
+        let mx = nx * perfil[ring] + dx * nAlong, my = ny * perfil[ring] + dy * nAlong, mz = nz * perfil[ring] + dz * nAlong;
+        const Lm = Math.hypot(mx, my, mz) || 1;
+        dancaNor[v] = mx / Lm; dancaNor[v+1] = my / Lm; dancaNor[v+2] = mz / Lm;
+        v += 3;
+      }
+    }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.pos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaPos);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.nor); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaNor);
 }
 
 /* ═══════════ O SER DE VIDRO ═══════════
@@ -9366,6 +9499,7 @@ montarCogumelos();   // depende da lista COGUMELOS, logo acima
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarSeresDeLuz();  // 6.3
+if(DEUSA_QUE_DANCA) montarADeusaQueDanca();   // 7.1
 montarHorizonteSolido();   // idem
 montarSerDeVidro();
 montarSerpentes();
@@ -10629,6 +10763,10 @@ function alvosAgora(){
                    fazer(m){ pulsarEm(av.x, ya, av.z); sinoDoToque(k % 6, 0.55); relato('TOCOU-UMA-AGUA-VIVA ' + k); } });
     });
   }
+  // a deusa que danca (7.1): pelo peito, com folga para os bracos
+  if(DANCA.presenca > 0.3)
+    lista.push({ id:'deusa-danca', nota:4, x:DANCA.peito[0], y:DANCA.peito[1], z:DANCA.peito[2], raio:0.38,
+                 fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(4, 0.85); relato('TOCOU-A-DEUSA-QUE-DANCA'); } });
   if(seresDeLuzPresenca > 0.3)
     SERES_DE_LUZ.forEach((sl, k) => {
       lista.push({ id:'luz-' + k, nota:(k + 3) % 6, x:sl.p[0], y:sl.p[1] + sl.meio, z:sl.p[2], raio:0.24,
@@ -11266,6 +11404,9 @@ function seguirPartitura(dt){
   vidroPresenca   = rampa(408, 432, t) * (1 - rampa(508, 522, t));   // o ser de vidro
   seresPresenca   = rampa(402, 432, t) * (1 - rampa(504, 520, t));
   seresDeLuzPresenca = rampa(412, 436, t) * (1 - rampa(505, 522, t));   // 6.3
+  // 7.1: a deusa que danca vem com a floresta feita e vai com ela
+  DANCA.presenca = (DEUSA_QUE_DANCA && DANCA.ok && c === 1) ? rampa(40, 54, t) * (1 - rampa(186, 196, t)) : 0;
+  if(DANCA.presenca > 0.004) lerADanca();
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
      por dt parece resolver, mas nao resolve: a fracao que falta encolhe
@@ -11908,6 +12049,8 @@ if(emTesteLocal){
     },
     /* onde um astro esta agora, para a bancada pousar a mao nele (23/09) */
     astro(i){ return ondeEsta(i | 0, t); },
+    // a deusa que danca (7.1): o quadro da captura, o peito, a presenca
+    danca(){ return { ok:DANCA.ok, quadros:DANCA.n, quadro:DANCA.quadro, peito:DANCA.peito.map(v => +v.toFixed(2)), presenca:+DANCA.presenca.toFixed(2) }; },
     /* UMA SALA DE MENTIRA, para provar o v4 sem o headset (23/09).
 
        O escaneamento so existe dentro da RM, e dentro da RM nao ha como
@@ -14004,6 +14147,58 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     gl.depthMask(true);
     gl.disable(gl.CULL_FACE);
+  }
+
+  /* 2a-bis) A DEUSA QUE DANCA (7.1). Silhueta de vidro de agua (materia 20,
+     a mesma pele dos seres de luz) em duas demaos -- a parede de tras e a da
+     frente, que e o que da espessura --, e o coracao de luz por cima,
+     somando. Acende com a mao chegando (chamado) e com a mao perto. */
+  if(DANCA.presenca > 0.004 && bDanca){
+    fazerOCorpoQueDanca();
+    gl.enable(gl.DEPTH_TEST);
+    gl.useProgram(progSolida);
+    soltarAtributos();
+    bordaCheia();
+    mandarMvp(locSo.mvp, mvp);
+    gl.uniform1f(locSo.tempo, relogio);
+    gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.uniform1f(locSo.inverte, 0.0);
+    gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.escalaObj, 1.0);
+    gl.uniform1f(locSo.inflar, 0.0);
+    gl.uniform1f(locSo.brota, 0.0);
+    gl.uniform1f(locSo.balanca, 0.0);
+    gl.uniform1f(locSo.ondula, 0.0);
+    gl.uniform1f(locSo.bolha, 0.0);
+    gl.uniform1f(locSo.crescimento, 9.0);
+    gl.uniform1f(locSo.escalaTinta, 1.25);
+    gl.uniform3fv(locSo.focos, FOCOS);
+    gl.uniform4f(locSo.luzCasulo, 0, 0, 0, 0);
+    gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
+    gl.uniform4f(locSo.maoA, MAOS[0].x, MAOS[0].y, MAOS[0].z, MAOS[0].tem ? 1 : 0);
+    gl.uniform4f(locSo.maoB, MAOS[1].x, MAOS[1].y, MAOS[1].z, MAOS[1].tem ? 1 : 0);
+    gl.uniform1f(locSo.faseExtra, DANCA.cor);
+    gl.uniform1f(locSo.proximidade, chamadoDe('deusa-danca'));
+    gl.uniform1f(locSo.presenca, DANCA.presenca);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1i(locSo.casca, 2);
+    gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.FRONT); porMalha(bDanca, nDancaIdx, 20.0);
+    gl.cullFace(gl.BACK);  porMalha(bDanca, nDancaIdx, 20.0);
+    // o coracao, no peito
+    gl.uniform3f(locSo.desloca, DANCA.peito[0], DANCA.peito[1], DANCA.peito[2]);
+    somarLuz(); gl.disable(gl.CULL_FACE);
+    porMalha(bDancaCoracao, nDancaCoracaoIdx, 21.0);
+    gl.enable(gl.CULL_FACE); sobrepor();
+    gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.faseExtra, 0.0);
+    gl.uniform1f(locSo.proximidade, 0.0);
+    gl.uniform1f(locSo.brota, 1.0);
+    gl.uniform1f(locSo.balanca, 1.0);
+    gl.uniform1f(locSo.materia, 0.0);
+    gl.uniform4f(locSo.maoA, 0, 0, 0, 0); gl.uniform4f(locSo.maoB, 0, 0, 0, 0);
+    gl.depthMask(true); gl.disable(gl.BLEND);
   }
 
   /* 2b) OS ASTROS. Opacos e com profundidade: sao corpos, nao vapor —
