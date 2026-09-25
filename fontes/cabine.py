@@ -555,13 +555,22 @@ def vigiar():
                     relatar(f"Quest apareceu pelo {alvo['via']} ({s})")
                     tuneis(s)
                     relatar(f"túneis refeitos: {PORTA_OBRA} (obra) e {PORTA_DEVTOOLS} (DevTools)")
-                    if alvo["via"] == "cabo":
-                        r = liberar_wifi(s)
-                        if not r.get("ok"):
-                            relatar(r.get("erro") or r.get("resposta", ""))
+                    # NAO libera a Wi-Fi sozinha (24/09, "consegue evitar que
+                    # fique pedindo permissao toda hora?"). O "adb tcpip" reinicia
+                    # o adb do oculos: derruba os tuneis no meio da obra (a aba
+                    # que carregou nesse instante ficou quebrada) e, sem o
+                    # "Sempre permitir", faz o Quest pedir a autorizacao de novo.
+                    # A Wi-Fi so se libera pelo botao, quando alguem quer.
                     vistos[s] = boot
                 q.update(escolhido=s, via=alvo["via"], ip=ip_do_quest(s),
                          tuneis=f"tcp:{PORTA_OBRA}" in adb("reverse", "--list", serial=s, timeout=8))
+                # TUNEL CAIDO SE REFAZ SOZINHO: antes so se refazia quando o Quest
+                # reiniciava (boot novo); um adb que reiniciou no meio deixava a
+                # obra sem servidor ate alguem apertar "Refazer tuneis".
+                if not q["tuneis"]:
+                    tuneis(s)
+                    q["tuneis"] = f"tcp:{PORTA_OBRA}" in adb("reverse", "--list", serial=s, timeout=8)
+                    relatar("túnel da obra tinha caído — refeito" if q["tuneis"] else "túnel da obra caiu e não voltou")
                 if ciclo % 5 == 1:
                     q["bateria"] = bateria(s)
                 else:

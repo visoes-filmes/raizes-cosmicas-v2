@@ -72,13 +72,13 @@ aceita depuracao, e o tunel nao sobe.
 
 
 def achar_adb():
-    do_path = shutil.which("adb")
-    if do_path:
-        return do_path
+    # O DO PROJETO PRIMEIRO (24/09). O scrcpy instala o adb dele no PATH, de
+    # outra versao; dois adb de versoes diferentes derrubam o servidor um do
+    # outro a cada chamada -- e cada queda derruba os tuneis e a conexao.
     for c in CANTOS:
         if os.path.exists(c):
             return c
-    return None
+    return shutil.which("adb")
 
 
 def falar(adb, *args):
