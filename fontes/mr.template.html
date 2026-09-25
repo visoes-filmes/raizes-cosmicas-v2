@@ -12643,11 +12643,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          iridescencia, e agora a pele erguida -- e NUNCA foi enviado: o
          uniforme ficava em zero e o ramo nunca rodava. Achado em 11/09 ao
          medir por que a pele do Sol continuava com os redemoinhos escuros. */
-      gl.uniform1f(locAst.iris, 1.0);
-      gl.uniform1f(locAst.tempoIris, relogio);
-      gl.depthMask(pSol > 0.92);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-      gl.uniform1f(locAst.iris, 0.0);
+      /* A CORONA VEM ANTES DO CORPO -- 25/09, "consegue ver a linha preta ao
+         redor do sol?". O corpo ESCREVE PROFUNDIDADE, e escreve ate na borda
+         macia, onde ele ja e quase transparente. A corona, desenhada depois
+         e pela parede de tras (atras do corpo), perdia o teste de
+         profundidade justamente nessa faixa: pela borda transparente nao
+         aparecia a corona, aparecia o fundo escuro -- um fio preto, e
+         pontilhado, porque a silhueta e de poligonos. Desenhada ANTES, ela
+         ja esta no quadro quando o corpo chega, e a borda macia mistura o
+         disco com a corona, como devia. O corpo e desenhado logo abaixo. */
 
       /* A LUZ QUE O SOL DERRAMA. Sem isto ele era uma bola clara: brilhava
          na propria pele e acabava na borda, que e o que uma pedra acesa
@@ -12690,6 +12694,20 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.cullFace(gl.BACK);
       gl.uniform1f(locAst.halo, 0.0);
       sobrepor();
+
+      // O CORPO, por cima da corona (ver acima): o raio, a cor e o brilho dele
+      gl.uniform1f(locAst.raio, raioSol);
+      gl.uniform3f(locAst.cor,
+        fria[0] + (quente[0] - fria[0]) * kSol + respiro,
+        fria[1] + (quente[1] - fria[1]) * kSol,
+        fria[2] + (quente[2] - fria[2]) * kSol - respiro);
+      gl.uniform1f(locAst.brilho, 0.16);
+      gl.uniform1f(locAst.iris, 1.0);
+      gl.uniform1f(locAst.tempoIris, relogio);
+      gl.depthMask(pSol > 0.92);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locAst.iris, 0.0);
+      gl.depthMask(false);
     }
 
     // OS PLANETAS
@@ -12722,17 +12740,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          que se ve de dentro da obra tem que continuar existindo no lado
          que nao esta iluminado — e nesta obra a materia e viva, nao rocha
          morta. A pele ja chega colorida, entao o proprio brilho e dela. */
-      gl.uniform1f(locAst.brilho, 0.16);
-      gl.uniform1f(locAst.halo, 0.0);
-      gl.uniform1f(locAst.gas, pl.gas || 0.0);
-      /* o gasoso nao escreve profundidade: a borda translucida dele
-         recortaria o que passasse atras */
-      gl.depthMask(pr > 0.92 && !pl.gas);
-      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
-      gl.uniform1f(locAst.gas, 0.0);
-
       // E cada um derrama a sua propria cor no ar em volta, de leve — uma
       // casca so, porque cinco coronas do tamanho da do Sol viravam sopa.
+      /* ANTES DO CORPO, como a corona do Sol (25/09): o corpo que escreve
+         profundidade recortava a casca na propria borda macia, e ali ficava
+         um fio escuro -- a "sombra escura ao redor" dos planetas. */
       somarLuz();
       gl.depthMask(false);
       gl.cullFace(gl.FRONT);           // a parede de tras: so em volta do corpo
@@ -12762,6 +12774,16 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locAst.halo, 0.0);
       gl.uniform1f(locAst.raio, raio);
       sobrepor();
+
+      // O CORPO, por cima da casca
+      gl.uniform1f(locAst.brilho, 0.16);
+      gl.uniform1f(locAst.gas, pl.gas || 0.0);
+      /* o gasoso nao escreve profundidade: a borda translucida dele
+         recortaria o que passasse atras */
+      gl.depthMask(pr > 0.92 && !pl.gas);
+      gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locAst.gas, 0.0);
+      gl.depthMask(false);
 
       // AS LUAS DELE: pele de asteroide, acesas pelo Sol, sem halo
       if(pl.luas.length){
