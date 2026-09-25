@@ -115,7 +115,7 @@ Serial: `2G0YC1ZG2307ZW`. Modo de desenvolvedor já está ligado nele.
 | versão | arquivo | o que é |
 |---|---|---|
 | **5.2** | `v52.html` | sem escaneamento; céu em *fade* com as paredes reais; **chão visível** até o cenário 4; névoa 0,5; escala 0,7 |
-| **6.0** | `v6.html` | a 5.2 + **a tela de tule**: o óculos reconhece a tela (plano rotulado tela/janela na Configuração de Espaço, ou dois cantos beliscados via Cabine) e lê o toque; o vídeo "Odara - Cosmos" é **projetado** pela `projecao.html` e ondula a cada toque. **Invisível dentro do óculos** |
+| **6.0** | `v6.html` **e `index.html` (no ar)** | a 5.2 + **o espaço lido** (o v4: cogumelo na mesa, árvore em chão livre; sem espaço configurado, a obra abre a Configuração de Espaço do Quest sozinha) + **a tela de tule**: o óculos reconhece a tela (plano rotulado tela/janela na Configuração de Espaço, ou dois cantos beliscados via Cabine) e lê o toque; o vídeo "Odara - Cosmos" é **projetado** pela `projecao.html` e ondula a cada toque. **Invisível dentro do óculos** |
 | v2, v4, 5.1 | `index.html`, `v4.html`, `v5.html` | as anteriores (a 5.1 foi descartada: chão preto) |
 
 Último commit ao escrever isto: ver `git log -1`. Marcas: `v2.0`, `v4.0`,

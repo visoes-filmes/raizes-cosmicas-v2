@@ -608,7 +608,7 @@ const PAPEL_NO_CENARIO      = true;
    esta: quem nao tem o espaco configurado no Quest nao ganha plano nenhum,
    e uma obra que depende de um escaneamento que pode nao vir seria uma obra
    que as vezes nao abre. Sem planos, o v4 e identico ao v2. */
-const ESPACO_ESCANEADO      = false;
+const ESPACO_ESCANEADO      = false;   // a 6.0 sai com true (24/09: 'e importante para reconhecer os espacos e objetos')
 /* OS QUADROS -- 24/09, "ainda esta com um pouco de travamento quando eu
    mexo a cabeca". Medido em 20/09: floresta e planeta rosa a 17-34 de 72,
    GPU a 99 %, e abaixo de 36 o timewarp deixa de disfarcar -- e isso que se
@@ -1547,6 +1547,47 @@ const FIO_ALTO = CASULO[1] + 0.085 + 0.058;
    deste ponto, e a que altura". Poligono responde isso com uma conta de
    escola. */
 const SALA = { pronta:false, planos:0, chaoY:0, chao:null, moveis:[], paredes:[] };
+
+/* PEDIR O ESCANEAMENTO AO QUEST -- 24/09, "o Meta Quest nao esta escaneando o
+   espaco na primeira abertura da sessao; e importante para reconhecer os
+   espacos e objetos".
+
+   O Quest so entrega planos de um espaco que ja foi configurado. Sem
+   Configuracao de Espaco feita, detectedPlanes chega VAZIO e fica vazio --
+   a obra abre, mas nao le sala nenhuma, e nem a tela de tule. O navegador
+   do Quest tem XRSession.initiateRoomCapture(): abre a Configuracao de
+   Espaco por cima da sessao e devolve quando a pessoa termina.
+
+   Regras da casa: NAO se espera por ela (nunca await no que a obra nao
+   precisa para existir), pede-se UMA vez por sessao, e so depois de seis
+   segundos sem plano nenhum -- um espaco configurado manda planos nos
+   primeiros quadros, entao seis segundos de silencio e "nao ha espaco".
+   Quando ela volta, a sala e a tela sao lidas de novo do zero. Pela Cabine:
+   raizes.escanear(). */
+let escaneamentoPedidoEm = 0, semPlanosDesde = 0;
+function pedirOEscaneamento(frame){
+  if(!(ESPACO_ESCANEADO || TELA_DE_TULE) || !sessao || !frame || !frame.detectedPlanes) return;
+  if(frame.detectedPlanes.size){ semPlanosDesde = 0; return; }
+  if(!semPlanosDesde){ semPlanosDesde = relogio || 0.001; return; }
+  if(escaneamentoPedidoEm || relogio - semPlanosDesde < 6.0) return;
+  escanearOEspaco('sozinho');
+}
+function escanearOEspaco(motivo){
+  if(!sessao) return 'fora da RM';
+  if(typeof sessao.initiateRoomCapture !== 'function'){
+    relato('ESCANEAMENTO-INDISPONIVEL'); return 'este navegador nao tem initiateRoomCapture';
+  }
+  escaneamentoPedidoEm = relogio || 0.001;
+  relato('ESCANEAMENTO-PEDIDO ' + (motivo || ''));
+  try{
+    sessao.initiateRoomCapture()
+      .then(()=>{ relato('ESCANEAMENTO-VOLTOU');
+                  SALA.pronta = false; primeiroPlanoEm = 0; semPlanosDesde = 0;
+                  TELA.pronta = false; TELA.buscaDesde = 0; })
+      .catch(e=>relato('ESCANEAMENTO-RECUSOU ' + (e && e.name)));
+  }catch(e){ relato('ESCANEAMENTO-ERRO ' + (e && e.name)); }
+  return 'pedido';
+}
 
 /* Ponto dentro do poligono, pelo numero de cruzamentos (o algoritmo do
    raio). O poligono vem achatado: x,z,x,z... */
@@ -10249,6 +10290,8 @@ if(emTesteLocal){
     /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
        raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
     chamado(id){ return chamadoDe(id); },
+    /* abrir a Configuracao de Espaco do Quest por cima da sessao (24/09) */
+    escanear(){ return escanearOEspaco('cabine'); },
     /* A TELA DE TULE (6.0) -- pela Cabine (DevTools) e pela bancada. */
     tela: {
       onde(){ return { pronta:TELA.pronta, origem:TELA.origem, w:+TELA.w.toFixed(2), h:+TELA.h.toFixed(2),
@@ -10838,7 +10881,7 @@ async function entrarXR(aoEntrar){
   bXR.textContent = 'Sair da RM';
   vXR.textContent = 'em RM'; vXR.className = 'ok';
   sessao.addEventListener('end', ()=>{
-    emXR=false; sessao=null;
+    emXR=false; sessao=null; escaneamentoPedidoEm = 0; semPlanosDesde = 0;
     bXR.textContent='Entrar em RM';
     vXR.textContent='pronto'; vXR.className='ok';
     /* Tirou o capacete: a obra PARA e o portao volta. Numa fila de feira e
@@ -13570,6 +13613,7 @@ function quadroXR(t, frame){
   // v4: le o espaco e replanta a obra nele, uma vez (nada fora do v4)
   lerOEspaco(frame, espaco);
   lerATela(frame, espaco);          // 6.0: so o plano rotulado como tela
+  pedirOEscaneamento(frame);        // sem plano nenhum em 6 s: abre a Configuracao de Espaco (uma vez)
 
   // Uma assadura por quadro, antes de trocar para o alvo do headset.
   // Assar dentro do laço dos olhos custaria o dobro e daria a mesma

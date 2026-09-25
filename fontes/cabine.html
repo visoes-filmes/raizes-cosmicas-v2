@@ -143,7 +143,7 @@
       <div class="seg" id="versoes">
         <label><input type="radio" name="versao" value="v6" checked><span>6.0 · tela de tule</span></label>
         <label><input type="radio" name="versao" value="v52"><span>5.2 · céu + chão</span></label>
-        <label><input type="radio" name="versao" value="v2"><span>v2</span></label>
+        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 6.0)</span></label>
         <label><input type="radio" name="versao" value="v4"><span>v4 · espaço</span></label>
         <label><input type="radio" name="versao" value="v5"><span>5.1 · paredes</span></label>
         <label><input type="radio" name="versao" value="oficina"><span>oficina</span></label>
@@ -152,6 +152,7 @@
     </div>
     <div class="linha">
       <button class="primario" style="font-size:16px;padding:12px 18px" onclick="acao('iniciar')"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Iniciar em RM</button>
+      <button onclick="acao('escanear')" title="abre a Configuração de Espaço do Quest por cima da sessão; a obra já pede sozinha se em 6 s não vier plano nenhum">Escanear o espaço</button>
       <button onclick="acao('reiniciar')"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>Reiniciar</button>
       <button class="perigo" onclick="acao('encerrar')"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>Encerrar</button>
       <button onclick="acao('recarregar')">Recarregar página</button>

@@ -312,18 +312,38 @@ if saida == os.path.join(RAIZ, "index.html"):
     # estica nela o video "Odara - Cosmos" e cada toque vira onda; a pagina
     # projecao.html joga a mesma agua no projetor. O video NAO e embutido:
     # fica em assets/video/ e e servido ao lado (70 MB nao cabem num data:).
+    # E LE O ESPACO (24/09, a noite): "e importante para reconhecer os espacos e
+    # objetos" -- a 6.0 volta a plantar a obra na sala lida (o v4: cogumelo na
+    # mesa, arvore em chao livre), SEM as paredes rachadas da 5.1. Sem espaco
+    # configurado, a obra pede o escaneamento ao Quest (initiateRoomCapture).
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
+             .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
              .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 6.0</title>")
              .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 6.0</h1>")
              .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>6.0</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
+            or "const ESPACO_ESCANEADO      = true;" not in v6
             or "const TELA_VISIVEL          = false;" not in v6):
         print("AVISO: os interruptores da 6.0 nao foram todos achados")
     with open(os.path.join(RAIZ, "v6.html"), "w", encoding="utf-8") as f:
         f.write(v6)
-    print("6.0: v6.html (a 5.2 + a tela de tule: video da Odara na tela real, agua ao toque)")
+    print("6.0: v6.html (a 5.2 + a tela de tule + o espaco lido: video da Odara na tela real, agua ao toque)")
+
+    # A CAPA DO SITE E A 6.0 (24/09, a noite): "estamos na V6, atualize na capa
+    # do site; no que esta no ar esta como v2". O index.html -- o endereco
+    # publicado, o que o headset guarda -- passa a ser a 6.0, com o prefixo de
+    # cache de sempre (o sw.js so conhece esse). O v6.html continua saindo ao
+    # lado, para a Cabine; e o mesmo corpo com outro nome de cache.
+    no_ar = v6.replace("var PREFIXO_CACHE = 'raizes-cosmicas-v6-';", "var PREFIXO_CACHE = 'raizes-cosmicas-';")
+    if no_ar == v6:
+        print("AVISO: nao achei o prefixo de cache da 6.0 -- o index.html ficou na v2")
+    else:
+        with open(saida, "w", encoding="utf-8") as f:
+            f.write(no_ar)
+        shutil.copy(saida, os.path.join(RAIZ, "nova.html"))
+        print("No ar: index.html (e nova.html) = a 6.0, com o cache de sempre")
 
     # A PAGINA DE PROJECAO leva o MESMO shader da agua: copiado do template,
     # para o oculos e o projetor fazerem a mesma conta.

@@ -654,6 +654,15 @@ def agir(nome, dados):
         return {"ok": r == "foi", "resposta": r or e}
     elif nome == "acordado":
         return acordado(s, bool(dados.get("ligar")))
+    elif nome == "escanear":
+        aba = aba_da_obra()
+        if not aba:
+            return {"ok": False, "erro": "a obra não está aberta no navegador do Quest"}
+        trazer_aba(aba)
+        time.sleep(0.6)
+        r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
+        relatar(f"escaneamento do espaço: {r or e}")
+        return {"ok": r == "pedido", "resposta": r or e}
     elif nome == "espelhar":
         return espelhar(s)
     elif nome == "projetar":

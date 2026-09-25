@@ -8,8 +8,9 @@ headset — não precisa instalar nada.
 
 Visões Filmes · FIL 2026
 
-**No ar:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/>
-É esse o endereço que se digita no navegador do Quest 3.
+**No ar:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/> — **Raízes Cósmicas 6.0**
+(o repositório se chama v2; a obra publicada é a 6.0: a tela de tule e o
+espaço lido). É esse o endereço que se digita no navegador do Quest 3.
 
 **Roteiro de sala:** <https://visoes-filmes.github.io/raizes-cosmicas-v2/roteiro.html>
 Os tempos, as regras, as decisões e as tabelas de erros. É o `roteiro.html`
