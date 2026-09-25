@@ -619,9 +619,10 @@ const HORIZONTE_DESENHADO   = true;
    de 21 juntas a 15 quadros por segundo (fontes/exportar_mocap_unreal.py e
    fontes/mocap_para_obra.py), e embutida em assets/mocap/deusa-danca.json.
    Ela danca na floresta do comeco, a frente e a direita, flutuando, com um
-   metro e vinte de altura -- "um pouco menor" que gente --, como uma
-   silhueta de vidro de agua (a materia 20 dos seres de luz) com um coracao
-   de luz. Tocada, pulsa e toca a nota dela. */
+   metro e vinte de altura -- "um pouco menor" que gente. Desde a 7.2 e o
+   que foi pedido de verdade: "uma copia daquela deusa gigante em escala
+   menor" -- a malha do ser do ceu, com a pele camuflada dele, vestida nos
+   ossos da captura por proximidade. Tocada, pulsa e toca a nota dela. */
 const DEUSA_QUE_DANCA       = true;
 /* A VERSAO PARA CELULAR -- 25/09 (7.0), "implemente uma versao para celular
    com as funcionalidades adaptadas". Um celular nao tem RM nem maos
@@ -3255,123 +3256,201 @@ function ondeAguaViva(av){
   return av.y + altura * 0.9 + 0.12;
 }
 
-/* ═══════════ A DEUSA QUE DANCA (7.1) ═══════════
-   Ver DEUSA_QUE_DANCA. Os dados vem do montador: 21 juntas por quadro, em
-   milimetros de 16 bits, base64. A obra le o quadro do relogio (o take
-   tem 65 s e volta ao comeco), interpola entre dois quadros vizinhos, e
-   faz o CORPO a cada quadro: uma capsula por osso, de raio proprio, numa
-   malha que e reescrita no buffer -- vinte capsulas de quarenta e oito
-   vertices, nada que se sinta. A capsula tem seis aneis: ponta, ombro, e
-   dois de cada lado -- e o bastante para uma casca que o shader amacia. */
-const DANCA = { ok:false, fps:15, n:0, nj:0, i:{}, pos:null, altura:0.8, presenca:0,
-                quadro:0, peito:[0, 1.2, 0], cor:1.913 };
+/* ═══════════ A DEUSA QUE DANCA (7.1, refeita na 7.2) ═══════════
+   Ver DEUSA_QUE_DANCA. 25/09: "eu queria na verdade que uma copia daquela
+   deusa gigante em escala menor dancasse". Entao o corpo nao e mais feito de
+   capsulas: e A MALHA DO SER DO CEU (alien-0, a mesma que esta a sessenta
+   metros no alto), com a mesma pele camuflada, VESTIDA nos ossos da captura.
+
+   O esqueleto do modelo e automatico (nomes sem sentido) e nao casa com o da
+   captura; o que casa e a GEOMETRIA. Ao carregar, o modelo em repouso e
+   posto sobre o esqueleto da captura no quadro de descanso (o de maos mais
+   baixas, escolhido pelo conversor), na mesma altura e de frente para o
+   mesmo lado, e cada vertice se prende aos DOIS ossos mais proximos, com
+   peso pelo inverso do quadrado da distancia -- a pele acompanha a junta
+   sem rasgar. A cada quadro, cada osso tem a rotacao de agora vezes o
+   inverso da de descanso, e o vertice vai com os dois ossos dele.
+
+   Os dados vem do montador: 21 juntas por quadro, posicao em milimetros e
+   quaternio em dez-milesimos, 16 bits, base64. Vinte e cinco mil vertices
+   por quadro na CPU: um milissegundo, medido na bancada. */
+const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, descanso:0, presenca:0,
+                quadro:0, peito:[0, 1.2, 0] };
 (function(){
   const d = __MOCAP_DEUSA__;
-  if(!d || !d.dados) return;
+  if(!d || !d.dados || !d.rotacao) return;
   const bin = atob(d.dados), n = bin.length >> 1, a = new Int16Array(n);
   for(let k = 0; k < n; k++) a[k] = ((bin.charCodeAt(2*k) | (bin.charCodeAt(2*k+1) << 8)) << 16) >> 16;
-  DANCA.pos = a; DANCA.fps = d.fps; DANCA.n = d.quadros; DANCA.nj = d.juntas.length; DANCA.altura = d.altura || 0.8;
+  DANCA.pos = a; DANCA.fps = d.fps; DANCA.n = d.quadros; DANCA.nj = d.juntas.length; DANCA.por = d.por || 7;
+  DANCA.altura = d.altura || 0.8; DANCA.descanso = d.descanso || 0;
   d.juntas.forEach((j, k) => DANCA.i[j] = k);
   DANCA.ok = DANCA.n > 1;
 })();
 /* onde ela danca: a frente e a direita, a 2,3 m, o pe a meio metro do chao
-   (flutua), de frente para quem entra; 1,2 m de altura */
+   (flutua), de frente para quem entra; 1,2 m de altura -- "um pouco menor" */
 const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 2.3, DANCA_PE = 0.5, DANCA_ALTURA = 1.2;
-const DANCA_OSSOS = [ ['pelvis','spine',0.075], ['spine','chest',0.085], ['chest','neck',0.07], ['neck','head',0.085],
-                      ['chest','shoulder_l',0.05], ['shoulder_l','upperarm_l',0.045], ['upperarm_l','lowerarm_l',0.04], ['lowerarm_l','hand_l',0.032],
-                      ['chest','shoulder_r',0.05], ['shoulder_r','upperarm_r',0.045], ['upperarm_r','lowerarm_r',0.04], ['lowerarm_r','hand_r',0.032],
-                      ['pelvis','thigh_l',0.06], ['thigh_l','calf_l',0.055], ['calf_l','foot_l',0.045], ['foot_l','toe_l',0.03],
-                      ['pelvis','thigh_r',0.06], ['thigh_r','calf_r',0.055], ['calf_r','foot_r',0.045], ['foot_r','toe_r',0.03] ];
-const DANCA_SEG = 8, DANCA_ANEIS = 6;
-const dancaJuntas = new Float32Array(21 * 3);              // as juntas deste quadro, no mundo
-const dancaPos = new Float32Array(DANCA_OSSOS.length * DANCA_ANEIS * DANCA_SEG * 3);
-const dancaNor = new Float32Array(dancaPos.length);
-let bDanca = null, nDancaIdx = 0, bDancaCoracao = null, nDancaCoracaoIdx = 0;
+/* os ossos: cada um vai da junta que o gira ate a filha; o ultimo numero e o
+   quanto ele se estende alem da filha (a cabeca continua acima da junta) */
+const DANCA_OSSOS = [ ['pelvis','spine',0], ['spine','chest',0], ['chest','neck',0], ['neck','head',0.10],
+                      ['chest','shoulder_l',0], ['shoulder_l','upperarm_l',0], ['upperarm_l','lowerarm_l',0], ['lowerarm_l','hand_l',0.06],
+                      ['chest','shoulder_r',0], ['shoulder_r','upperarm_r',0], ['upperarm_r','lowerarm_r',0], ['lowerarm_r','hand_r',0.06],
+                      ['pelvis','thigh_l',0], ['thigh_l','calf_l',0], ['calf_l','foot_l',0], ['foot_l','toe_l',0.03],
+                      ['pelvis','thigh_r',0], ['thigh_r','calf_r',0], ['calf_r','foot_r',0], ['foot_r','toe_r',0.03] ];
+const dancaJuntas = new Float32Array(21 * 3), dancaQuat = new Float32Array(21 * 4);   // agora, no mundo
+const dancaBindPos = new Float32Array(21 * 3), dancaBindQuat = new Float32Array(21 * 4);   // o descanso, altura 1
+const dancaMat = new Float32Array(DANCA_OSSOS.length * 12);   // por osso: 3x3 e a translacao, no mundo
+let dancaN = 0, dancaRest = null, dancaRestNor = null, dancaOsso = null, dancaPeso = null;
+let dancaPos = null, dancaNor = null, bDanca = null, nDancaIdx = 0;
+
+function lerJunta(f, j, saidaPos, saidaQuat, esc){
+  const a = (f * DANCA.nj + j) * DANCA.por, P = DANCA.pos;
+  saidaPos[j*3] = P[a] * esc; saidaPos[j*3+1] = P[a+1] * esc; saidaPos[j*3+2] = P[a+2] * esc;
+  saidaQuat[j*4] = P[a+3] / 1e4; saidaQuat[j*4+1] = P[a+4] / 1e4; saidaQuat[j*4+2] = P[a+5] / 1e4; saidaQuat[j*4+3] = P[a+6] / 1e4;
+}
 function montarADeusaQueDanca(){
   if(!DANCA.ok) return;
-  // os atributos que nao mudam: altura (0 no pe de cada osso, 1 na cabeca), fase, borda, indices
-  const alt = [], fase = [], borda = [], idx = [];
-  DANCA_OSSOS.forEach((o, b) => {
-    for(let r = 0; r < DANCA_ANEIS; r++) for(let k = 0; k < DANCA_SEG; k++){ alt.push(r / (DANCA_ANEIS - 1)); fase.push(b * 0.7); borda.push(1); }
-    const b0 = b * DANCA_ANEIS * DANCA_SEG;
-    for(let r = 0; r < DANCA_ANEIS - 1; r++) for(let k = 0; k < DANCA_SEG; k++){
-      const a = b0 + r * DANCA_SEG + k, a2 = b0 + r * DANCA_SEG + (k + 1) % DANCA_SEG;
-      idx.push(a, a + DANCA_SEG, a2, a2, a + DANCA_SEG, a2 + DANCA_SEG);
-    }
+  const o = decodificarMalha('alien-0');
+  if(!o) return;
+  dancaN = o.n;
+  // o esqueleto de descanso, na altura do modelo (1 m)
+  const esc0 = 1 / (DANCA.altura * 1000);
+  for(let j = 0; j < DANCA.nj; j++) lerJunta(DANCA.descanso, j, dancaBindPos, dancaBindQuat, esc0);
+  /* O ESQUELETO DE DESCANSO VEM PARA DEBAIXO DO MODELO: a bailarina andou, e no
+     quadro de descanso o quadril dela esta a meio metro da origem -- o modelo
+     esta na origem. Sem isto cada vertice se prendia a ossos longe dele, e o
+     braco de alavanca explodia a pele quando o osso girava (medido na
+     bancada: o centro da malha a 1,7 m do peito). Deslocar o descanso e o
+     mesmo que trazer o modelo para cima do esqueleto. */
+  const ipx = DANCA.i.pelvis * 3, dxq = dancaBindPos[ipx], dzq = dancaBindPos[ipx+2];
+  for(let j = 0; j < DANCA.nj; j++){ dancaBindPos[j*3] -= dxq; dancaBindPos[j*3+2] -= dzq; }
+  /* O MODELO ENCARA -X; o esqueleto da captura, no quadro de descanso, encara
+     para onde os quadris dizem (cima x (quadril direito - esquerdo)) -- a
+     bailarina gira durante o take, entao nao se supoe -Z: mede-se. O modelo e
+     girado em Y para encarar o mesmo lado. E a largura dele contra a da
+     captura, para os bracos cairem nos bracos. */
+  const tl = DANCA.i.thigh_l * 3, trr = DANCA.i.thigh_r * 3;
+  const rx = dancaBindPos[trr] - dancaBindPos[tl], rz = dancaBindPos[trr+2] - dancaBindPos[tl+2];
+  const fx = rz, fz = -rx;                                   // a frente: cima x direita
+  const giroModelo = Math.atan2(fz, -fx);                    // -X do modelo vai para (fx, fz)
+  const c = Math.cos(giroModelo), sn = Math.sin(giroModelo);
+  // sem ajuste de largura: as claviculas do rig Mixamo nascem quase no mesmo
+  // ponto, e a distancia entre elas nao mede ombro nenhum
+  const largura = 1;
+  dancaRest = new Float32Array(dancaN * 3); dancaRestNor = new Float32Array(dancaN * 3);
+  for(let v = 0; v < dancaN; v++){
+    const x = o.pos[v*3] / 8000, y = o.pos[v*3+1] / 8000, z = o.pos[v*3+2] / 8000;
+    dancaRest[v*3]   = (x * c + z * sn) * largura;
+    dancaRest[v*3+1] = y;
+    dancaRest[v*3+2] = (-x * sn + z * c) * largura;
+    const nx = o.nor[v*3] / 127, ny = o.nor[v*3+1] / 127, nz = o.nor[v*3+2] / 127;
+    dancaRestNor[v*3] = nx * c + nz * sn; dancaRestNor[v*3+1] = ny; dancaRestNor[v*3+2] = -nx * sn + nz * c;
+  }
+  // cada vertice se prende aos dois ossos mais proximos
+  dancaOsso = new Uint8Array(dancaN * 2); dancaPeso = new Float32Array(dancaN * 2);
+  const seg = DANCA_OSSOS.map(([na, nb, ext]) => {
+    const ia = DANCA.i[na] * 3, ib = DANCA.i[nb] * 3;
+    const ax = dancaBindPos[ia], ay = dancaBindPos[ia+1], az = dancaBindPos[ia+2];
+    let dx = dancaBindPos[ib] - ax, dy = dancaBindPos[ib+1] - ay, dz = dancaBindPos[ib+2] - az;
+    const L = Math.hypot(dx, dy, dz) || 0.001;
+    return { ax, ay, az, dx: dx / L, dy: dy / L, dz: dz / L, L: L + ext };
   });
+  for(let v = 0; v < dancaN; v++){
+    const px = dancaRest[v*3], py = dancaRest[v*3+1], pz = dancaRest[v*3+2];
+    let b0 = 0, d0 = 1e9, b1 = 0, d1 = 1e9;
+    for(let k = 0; k < seg.length; k++){
+      const g = seg[k];
+      let u = (px - g.ax) * g.dx + (py - g.ay) * g.dy + (pz - g.az) * g.dz;
+      u = u < 0 ? 0 : u > g.L ? g.L : u;
+      const d = Math.hypot(px - g.ax - g.dx * u, py - g.ay - g.dy * u, pz - g.az - g.dz * u);
+      if(d < d0){ b1 = b0; d1 = d0; b0 = k; d0 = d; } else if(d < d1){ b1 = k; d1 = d; }
+    }
+    /* os dois ossos, com o peso caindo DEPRESSA (quarta potencia): o braco
+       em repouso encosta no tronco, e com peso macio metade dele ia com a
+       coluna quando o braco subia -- a pele esticava em tiras. Assim cada
+       vertice vai quase inteiro com o osso mais proximo, e so quem esta
+       mesmo entre dois (a articulacao) divide. */
+    const w0 = 1 / Math.pow(d0 + 0.015, 4), w1 = 1 / Math.pow(d1 + 0.015, 4);
+    dancaOsso[v*2] = b0; dancaOsso[v*2+1] = b1;
+    dancaPeso[v*2] = w0 / (w0 + w1); dancaPeso[v*2+1] = w1 / (w0 + w1);
+  }
+  dancaPos = new Float32Array(dancaN * 3); dancaNor = new Float32Array(dancaN * 3);
+  const alt = new Float32Array(dancaN), fase = new Float32Array(dancaN), borda = new Float32Array(dancaN);
+  for(let v = 0; v < dancaN; v++){ alt[v] = dancaRest[v*3+1]; borda[v] = 1; }
   bDanca = criarBufs(['pos','nor','alt','fase','borda','idx']);
-  enviar(bDanca.alt, alt); enviar(bDanca.fase, fase); enviar(bDanca.borda, borda);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bDanca.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
-  nDancaIdx = idx.length;
   gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.pos); gl.bufferData(gl.ARRAY_BUFFER, dancaPos, gl.DYNAMIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.nor); gl.bufferData(gl.ARRAY_BUFFER, dancaNor, gl.DYNAMIC_DRAW);
-  // o coracao: uma esfera pequena, semente (fase 12) da materia 21; vai com o desloca
-  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const NA = 10, NV = 7;
-  for(let j = 0; j <= NV; j++){
-    const th = j / NV * Math.PI, st = Math.sin(th), ct = Math.cos(th);
-    for(let i = 0; i <= NA; i++){
-      const ph = i / NA * Math.PI * 2, nx = st * Math.cos(ph), ny = ct, nz = st * Math.sin(ph);
-      m.pos.push(nx * 0.045, ny * 0.045, nz * 0.045); m.nor.push(nx, ny, nz); m.alt.push(0.5); m.fase.push(12); m.borda.push(1);
-    }
-  }
-  for(let j = 0; j < NV; j++) for(let i = 0; i < NA; i++){ const a = j * (NA + 1) + i, bb = a + NA + 1; m.idx.push(a, bb, a + 1, a + 1, bb, bb + 1); }
-  bDancaCoracao = criarBufs(['pos','nor','alt','fase','borda','idx']);
-  enviar(bDancaCoracao.pos, m.pos); enviar(bDancaCoracao.nor, m.nor); enviar(bDancaCoracao.alt, m.alt);
-  enviar(bDancaCoracao.fase, m.fase); enviar(bDancaCoracao.borda, m.borda);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bDancaCoracao.idx);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
-  nDancaCoracaoIdx = m.idx.length;
+  enviar(bDanca.alt, alt); enviar(bDanca.fase, fase); enviar(bDanca.borda, borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bDanca.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, o.idx, gl.STATIC_DRAW);
+  nDancaIdx = o.idx.length;
 }
-/* as juntas deste instante, no mundo: le dois quadros e interpola; escala
-   para DANCA_ALTURA, gira para encarar quem entra, poe no lugar */
+/* as juntas deste instante: dois quadros interpolados (posicao linear,
+   quaternio nlerp), na altura do modelo, giradas para encarar quem entra */
+const qA = new Float32Array(4), qB = new Float32Array(4), pA = new Float32Array(3), pB = new Float32Array(3);
 function lerADanca(){
   if(!DANCA.ok) return;
   const f = (relogio * DANCA.fps) % DANCA.n, k0 = Math.floor(f), k1 = (k0 + 1) % DANCA.n, u = f - k0;
   DANCA.quadro = k0;
-  const esc = DANCA_ALTURA / DANCA.altura / 1000, nj = DANCA.nj, P = DANCA.pos;
-  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw);
-  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  const esc = 1 / (DANCA.altura * 1000), nj = DANCA.nj, P = DANCA.pos, por = DANCA.por;
   for(let j = 0; j < nj; j++){
-    const a = (k0 * nj + j) * 3, b = (k1 * nj + j) * 3;
-    const x = (P[a] + (P[b] - P[a]) * u) * esc, y = (P[a+1] + (P[b+1] - P[a+1]) * u) * esc, z = (P[a+2] + (P[b+2] - P[a+2]) * u) * esc;
-    dancaJuntas[j*3]   = cx + x * cy + z * sy;
-    dancaJuntas[j*3+1] = DANCA_PE + y;
-    dancaJuntas[j*3+2] = cz - x * sy + z * cy;
+    const a = (k0 * nj + j) * por, b = (k1 * nj + j) * por;
+    dancaJuntas[j*3]   = (P[a]   + (P[b]   - P[a])   * u) * esc;
+    dancaJuntas[j*3+1] = (P[a+1] + (P[b+1] - P[a+1]) * u) * esc;
+    dancaJuntas[j*3+2] = (P[a+2] + (P[b+2] - P[a+2]) * u) * esc;
+    let x = P[a+3], y = P[a+4], z = P[a+5], w = P[a+6], x2 = P[b+3], y2 = P[b+4], z2 = P[b+5], w2 = P[b+6];
+    if(x*x2 + y*y2 + z*z2 + w*w2 < 0){ x2 = -x2; y2 = -y2; z2 = -z2; w2 = -w2; }
+    x += (x2 - x) * u; y += (y2 - y) * u; z += (z2 - z) * u; w += (w2 - w) * u;
+    const L = Math.hypot(x, y, z, w) || 1;
+    dancaQuat[j*4] = x / L; dancaQuat[j*4+1] = y / L; dancaQuat[j*4+2] = z / L; dancaQuat[j*4+3] = w / L;
   }
-  const ip = DANCA.i.chest * 3;
-  DANCA.peito[0] = dancaJuntas[ip]; DANCA.peito[1] = dancaJuntas[ip+1]; DANCA.peito[2] = dancaJuntas[ip+2];
+  // o peito no mundo, para o toque
+  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), ip = DANCA.i.chest * 3;
+  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  const px = dancaJuntas[ip] * DANCA_ALTURA, py = dancaJuntas[ip+1] * DANCA_ALTURA, pz = dancaJuntas[ip+2] * DANCA_ALTURA;
+  DANCA.peito[0] = cx + px * cy + pz * sy; DANCA.peito[1] = DANCA_PE + py; DANCA.peito[2] = cz - px * sy + pz * cy;
 }
-// o corpo: uma capsula por osso, escrita no buffer
+// a matriz de cada osso (rotacao de agora x inversa da de descanso, depois o giro e a escala), e o corpo
 function fazerOCorpoQueDanca(){
-  let v = 0;
-  const perfil = [0, 0.55, 1, 1, 0.55, 0], ao = [0, 0.18, 0.5, 0.5, 0.18, 0];   // raio relativo e recuo relativo, por anel
-  for(const [na, nb, raio] of DANCA_OSSOS){
-    const ia = DANCA.i[na] * 3, ib = DANCA.i[nb] * 3;
-    const ax = dancaJuntas[ia], ay = dancaJuntas[ia+1], az = dancaJuntas[ia+2];
-    let dx = dancaJuntas[ib] - ax, dy = dancaJuntas[ib+1] - ay, dz = dancaJuntas[ib+2] - az;
-    const L = Math.hypot(dx, dy, dz) || 0.001; dx /= L; dy /= L; dz /= L;
-    // um eixo perpendicular
-    let ux = -dz, uy = 0, uz = dx; let Lu = Math.hypot(ux, uy, uz);
-    if(Lu < 0.01){ ux = 1; uy = 0; uz = 0; Lu = 1; }
-    ux /= Lu; uy /= Lu; uz /= Lu;
-    const wx = dy * uz - dz * uy, wy = dz * ux - dx * uz, wz = dx * uy - dy * ux;
-    const r = raio * (DANCA_ALTURA / 1.2), rec = Math.min(r, L * 0.45);
-    for(let ring = 0; ring < DANCA_ANEIS; ring++){
-      const rr = perfil[ring] * r, meio = ring < 3 ? -rec + ao[ring] * 2 * rec : L + rec - ao[ring] * 2 * rec;
-      const ex = ax + dx * meio, ey = ay + dy * meio, ez = az + dz * meio;
-      const nAlong = ring < 3 ? -(1 - perfil[ring]) : (1 - perfil[ring]);
-      for(let k = 0; k < DANCA_SEG; k++){
-        const th = k / DANCA_SEG * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
-        const nx = ux * c + wx * sn, ny = uy * c + wy * sn, nz = uz * c + wz * sn;
-        dancaPos[v] = ex + nx * rr; dancaPos[v+1] = ey + ny * rr; dancaPos[v+2] = ez + nz * rr;
-        let mx = nx * perfil[ring] + dx * nAlong, my = ny * perfil[ring] + dy * nAlong, mz = nz * perfil[ring] + dz * nAlong;
-        const Lm = Math.hypot(mx, my, mz) || 1;
-        dancaNor[v] = mx / Lm; dancaNor[v+1] = my / Lm; dancaNor[v+2] = mz / Lm;
-        v += 3;
-      }
+  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), S = DANCA_ALTURA;
+  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  for(let k = 0; k < DANCA_OSSOS.length; k++){
+    const j = DANCA.i[DANCA_OSSOS[k][0]];
+    // r = q_agora * conj(q_descanso)
+    const ax = dancaQuat[j*4], ay = dancaQuat[j*4+1], az = dancaQuat[j*4+2], aw = dancaQuat[j*4+3];
+    const bx = -dancaBindQuat[j*4], by = -dancaBindQuat[j*4+1], bz = -dancaBindQuat[j*4+2], bw = dancaBindQuat[j*4+3];
+    const x = ax*bw + aw*bx + ay*bz - az*by, y = ay*bw + aw*by + az*bx - ax*bz, z = az*bw + aw*bz + ax*by - ay*bx, w = aw*bw - ax*bx - ay*by - az*bz;
+    // 3x3 do quaternio
+    const m00 = 1 - 2*(y*y + z*z), m01 = 2*(x*y - w*z), m02 = 2*(x*z + w*y);
+    const m10 = 2*(x*y + w*z), m11 = 1 - 2*(x*x + z*z), m12 = 2*(y*z - w*x);
+    const m20 = 2*(x*z - w*y), m21 = 2*(y*z + w*x), m22 = 1 - 2*(x*x + y*y);
+    // Ry(yaw) * m, vezes a escala
+    const o = k * 12;
+    dancaMat[o]   = (cy*m00 + sy*m20) * S; dancaMat[o+1] = (cy*m01 + sy*m21) * S; dancaMat[o+2] = (cy*m02 + sy*m22) * S;
+    dancaMat[o+3] = m10 * S;               dancaMat[o+4] = m11 * S;               dancaMat[o+5] = m12 * S;
+    dancaMat[o+6] = (-sy*m00 + cy*m20) * S; dancaMat[o+7] = (-sy*m01 + cy*m21) * S; dancaMat[o+8] = (-sy*m02 + cy*m22) * S;
+    // a translacao: a junta de agora no mundo
+    const px = dancaJuntas[j*3] * S, py = dancaJuntas[j*3+1] * S, pz = dancaJuntas[j*3+2] * S;
+    dancaMat[o+9] = cx + px * cy + pz * sy; dancaMat[o+10] = DANCA_PE + py; dancaMat[o+11] = cz - px * sy + pz * cy;
+  }
+  for(let v = 0; v < dancaN; v++){
+    let X = 0, Y = 0, Z = 0, NX = 0, NY = 0, NZ = 0;
+    const rx = dancaRest[v*3], ry = dancaRest[v*3+1], rz = dancaRest[v*3+2];
+    const nx = dancaRestNor[v*3], ny = dancaRestNor[v*3+1], nz = dancaRestNor[v*3+2];
+    for(let h = 0; h < 2; h++){
+      const wgt = dancaPeso[v*2+h];
+      if(wgt <= 0) continue;
+      const k = dancaOsso[v*2+h], o = k * 12, j = DANCA.i[DANCA_OSSOS[k][0]] * 3;
+      const lx = rx - dancaBindPos[j], ly = ry - dancaBindPos[j+1], lz = rz - dancaBindPos[j+2];
+      X += wgt * (dancaMat[o]*lx + dancaMat[o+1]*ly + dancaMat[o+2]*lz + dancaMat[o+9]);
+      Y += wgt * (dancaMat[o+3]*lx + dancaMat[o+4]*ly + dancaMat[o+5]*lz + dancaMat[o+10]);
+      Z += wgt * (dancaMat[o+6]*lx + dancaMat[o+7]*ly + dancaMat[o+8]*lz + dancaMat[o+11]);
+      NX += wgt * (dancaMat[o]*nx + dancaMat[o+1]*ny + dancaMat[o+2]*nz);
+      NY += wgt * (dancaMat[o+3]*nx + dancaMat[o+4]*ny + dancaMat[o+5]*nz);
+      NZ += wgt * (dancaMat[o+6]*nx + dancaMat[o+7]*ny + dancaMat[o+8]*nz);
     }
+    dancaPos[v*3] = X; dancaPos[v*3+1] = Y; dancaPos[v*3+2] = Z;
+    const L = Math.hypot(NX, NY, NZ) || 1;
+    dancaNor[v*3] = NX / L; dancaNor[v*3+1] = NY / L; dancaNor[v*3+2] = NZ / L;
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.pos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaPos);
   gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.nor); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaNor);
@@ -12051,6 +12130,30 @@ if(emTesteLocal){
     astro(i){ return ondeEsta(i | 0, t); },
     // a deusa que danca (7.1): o quadro da captura, o peito, a presenca
     danca(){ return { ok:DANCA.ok, quadros:DANCA.n, quadro:DANCA.quadro, peito:DANCA.peito.map(v => +v.toFixed(2)), presenca:+DANCA.presenca.toFixed(2) }; },
+    /* a prova da pele (7.2): cada osso, levado pela propria matriz, tem de cair
+       na junta filha de agora; e o centro da malha tem de estar perto do peito */
+    dancaProva(){
+      if(!bDanca) return 'sem corpo';
+      const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), S = DANCA_ALTURA;
+      const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+      let pior = 0, ossoPior = '';
+      DANCA_OSSOS.forEach(([na, nb], k) => {
+        const ja = DANCA.i[na] * 3, jb = DANCA.i[nb] * 3, o = k * 12;
+        const lx = dancaBindPos[jb] - dancaBindPos[ja], ly = dancaBindPos[jb+1] - dancaBindPos[ja+1], lz = dancaBindPos[jb+2] - dancaBindPos[ja+2];
+        const X = dancaMat[o]*lx + dancaMat[o+1]*ly + dancaMat[o+2]*lz + dancaMat[o+9];
+        const Y = dancaMat[o+3]*lx + dancaMat[o+4]*ly + dancaMat[o+5]*lz + dancaMat[o+10];
+        const Z = dancaMat[o+6]*lx + dancaMat[o+7]*ly + dancaMat[o+8]*lz + dancaMat[o+11];
+        const px = dancaJuntas[jb] * S, py = dancaJuntas[jb+1] * S, pz = dancaJuntas[jb+2] * S;
+        const wx = cx + px * cy + pz * sy, wy = DANCA_PE + py, wz = cz - px * sy + pz * cy;
+        const e = Math.hypot(X - wx, Y - wy, Z - wz);
+        if(e > pior){ pior = e; ossoPior = na + '>' + nb; }
+      });
+      let mx = 0, my = 0, mz = 0, mn = [1e9, 1e9, 1e9], mxx = [-1e9, -1e9, -1e9];
+      for(let v = 0; v < dancaN; v++){ mx += dancaPos[v*3]; my += dancaPos[v*3+1]; mz += dancaPos[v*3+2];
+        for(let c = 0; c < 3; c++){ mn[c] = Math.min(mn[c], dancaPos[v*3+c]); mxx[c] = Math.max(mxx[c], dancaPos[v*3+c]); } }
+      return { erroOsso:+pior.toFixed(3), ossoPior, centro:[+(mx/dancaN).toFixed(2), +(my/dancaN).toFixed(2), +(mz/dancaN).toFixed(2)],
+               peito:DANCA.peito.map(v => +v.toFixed(2)), caixa:[mn.map(v => +v.toFixed(2)), mxx.map(v => +v.toFixed(2))], descanso:DANCA.descanso };
+    },
     /* UMA SALA DE MENTIRA, para provar o v4 sem o headset (23/09).
 
        O escaneamento so existe dentro da RM, e dentro da RM nao ha como
@@ -14149,10 +14252,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.CULL_FACE);
   }
 
-  /* 2a-bis) A DEUSA QUE DANCA (7.1). Silhueta de vidro de agua (materia 20,
-     a mesma pele dos seres de luz) em duas demaos -- a parede de tras e a da
-     frente, que e o que da espessura --, e o coracao de luz por cima,
-     somando. Acende com a mao chegando (chamado) e com a mao perto. */
+  /* 2a-bis) A DEUSA QUE DANCA (7.2). A copia do ser do ceu, pequena: a
+     mesma pele camuflada (materia 13, o ceu do cenario amostrado na direcao
+     de cada pixel), mais presente que a do gigante -- a dois metros, um
+     quarto seria vidro invisivel -- e respirando pela normal como ele.
+     Acende com a mao chegando. */
   if(DANCA.presenca > 0.004 && bDanca){
     fazerOCorpoQueDanca();
     gl.enable(gl.DEPTH_TEST);
@@ -14165,39 +14269,31 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.inverte, 0.0);
     gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.uniform1f(locSo.escalaObj, 1.0);
-    gl.uniform1f(locSo.inflar, 0.0);
+    gl.uniform1f(locSo.inflar, 0.004 * Math.sin(relogio * 0.9));
     gl.uniform1f(locSo.brota, 0.0);
     gl.uniform1f(locSo.balanca, 0.0);
     gl.uniform1f(locSo.ondula, 0.0);
     gl.uniform1f(locSo.bolha, 0.0);
     gl.uniform1f(locSo.crescimento, 9.0);
-    gl.uniform1f(locSo.escalaTinta, 1.25);
+    gl.uniform1f(locSo.escalaTinta, 1.0);
     gl.uniform3fv(locSo.focos, FOCOS);
     gl.uniform4f(locSo.luzCasulo, 0, 0, 0, 0);
     gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
-    gl.uniform4f(locSo.maoA, MAOS[0].x, MAOS[0].y, MAOS[0].z, MAOS[0].tem ? 1 : 0);
-    gl.uniform4f(locSo.maoB, MAOS[1].x, MAOS[1].y, MAOS[1].z, MAOS[1].tem ? 1 : 0);
-    gl.uniform1f(locSo.faseExtra, DANCA.cor);
-    gl.uniform1f(locSo.proximidade, chamadoDe('deusa-danca'));
-    gl.uniform1f(locSo.presenca, DANCA.presenca);
-    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    const chegando = chamadoDe('deusa-danca');
+    gl.uniform1f(locSo.presenca, DANCA.presenca * (0.80 + 0.20 * chegando) * Math.min(1, tinta / 0.5 + 0.35));
+    gl.uniform1f(locSo.materia, 13.0);
+    gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
     gl.uniform1i(locSo.casca, 2);
     gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false);
-    gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.FRONT); porMalha(bDanca, nDancaIdx, 20.0);
-    gl.cullFace(gl.BACK);  porMalha(bDanca, nDancaIdx, 20.0);
-    // o coracao, no peito
-    gl.uniform3f(locSo.desloca, DANCA.peito[0], DANCA.peito[1], DANCA.peito[2]);
-    somarLuz(); gl.disable(gl.CULL_FACE);
-    porMalha(bDancaCoracao, nDancaCoracaoIdx, 21.0);
-    gl.enable(gl.CULL_FACE); sobrepor();
-    gl.uniform3f(locSo.desloca, 0, 0, 0);
-    gl.uniform1f(locSo.faseExtra, 0.0);
-    gl.uniform1f(locSo.proximidade, 0.0);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    porMalha(bDanca, nDancaIdx, 13.0);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1f(locSo.inflar, 0.0);
     gl.uniform1f(locSo.brota, 1.0);
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
-    gl.uniform4f(locSo.maoA, 0, 0, 0, 0); gl.uniform4f(locSo.maoB, 0, 0, 0, 0);
+    gl.uniform1f(locSo.escalaTinta, 1.25);
     gl.depthMask(true); gl.disable(gl.BLEND);
   }
 

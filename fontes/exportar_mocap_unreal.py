@@ -111,6 +111,13 @@ for f in range(0, n_quadros, passo):
         # Unreal e cm, Z para cima, X para a frente, Y para a direita (mao esquerda).
         # A obra e metros, Y para cima, -Z para a frente (mao direita): (x, y, z) -> (y, z, -x)/100
         linha.extend([round(loc.y / 100.0, 4), round(loc.z / 100.0, 4), round(-loc.x / 100.0, 4)])
+        # E A ROTACAO, como os tres eixos do osso girados (em coordenadas do
+        # Unreal; o conversor monta a matriz na base da obra). Eixos, e nao
+        # quaternio: a troca de mao entre os dois sistemas e traicoeira num
+        # quaternio e obvia em vetores.
+        for eixo in (unreal.Vector(1, 0, 0), unreal.Vector(0, 1, 0), unreal.Vector(0, 0, 1)):
+            v = tr.transform_direction(eixo)
+            linha.extend([round(v.x, 4), round(v.y, 4), round(v.z, 4)])
     quadros.append(linha)
     if f % (passo * 150) == 0:
         log("quadro %d/%d" % (f, n_quadros))
