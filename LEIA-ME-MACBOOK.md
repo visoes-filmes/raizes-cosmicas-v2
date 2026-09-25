@@ -184,6 +184,16 @@ app Smart Life/Tuya, **na mesma rede do Mac**; (2) as chaves em
 `python3 -m tinytuya wizard` com a conta Tuya IoT (re-parear pode trocar a
 chave local).
 
+### O espelho do óculos, endireitado (25/09)
+
+O espelho do scrcpy sai **torto**: o painel do Quest 3 é lido cru, e o
+olho vem inclinado. Medido com o óculos na cabeça, pelas verticais da sala
+(tule, tripés, pessoas; 20 quadros, mediana): **27° no sentido horário**
+deixam a sala reta. Na Cabine: card do Quest → *giro do espelho* → Girar
+(vale para o espelho e para a projeção; guardado em
+`fontes/espelho_angulo.txt`, por máquina). O resto de inclinação que sobra
+é a cabeça de quem está com o óculos -- um giro fixo não a segue.
+
 ## 7. Se o Mac não servir como Cabine
 
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O
