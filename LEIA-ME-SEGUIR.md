@@ -1,8 +1,19 @@
-# Seguir em outro computador — 24/09/2026
+# Seguir em outro computador — 24/09/2026 (atualizado em 25/09, 6.2)
 
 Este é o arquivo para **mudar de máquina sem perder nada**: o que instalar,
 como trazer o projeto, em que estado a obra está, como se trabalha e o que
-está em aberto. Ele completa os outros; não os substitui:
+está em aberto. Ele completa os outros; não os substitui.
+
+> **Num PC novo, o primeiro comando é sempre:**
+>
+> ```bash
+> python fontes/conferir_pc.py
+> ```
+>
+> Ele confere cada peça da seção 1 e diz o que falta e como resolver. Pedido
+> da direção de arte em 25/09: *"pra garantir que tudo isso vai ser lembrado
+> e requisitado"*. Um chat do Claude Code aberto na pasta roda isso sozinho
+> (está no `CLAUDE.md`) e **pede** o que só a pessoa pode fazer.
 
 | arquivo | o que é |
 |---|---|
@@ -16,26 +27,83 @@ de mexer no código.
 
 ---
 
-## 1. Instalar
+## 1. O padrão de instalação (conferido por `fontes/conferir_pc.py`)
 
-| o quê | para quê | conferir |
+**a) Programas**
+
+| o quê | para quê | instalar |
 |---|---|---|
-| Git | trazer e publicar | `git --version` |
-| Python 3 (3.12 serve) + `pip install Pillow` | verificar, montar, publicar, bancada | `python --version` |
-| Node.js | o verificador confere cada `<script>` com `node --check`; os scripts do DevTools do Quest | `node --version` |
-| Chrome ou Edge | a oficina e a bancada | — |
-| `platform-tools` (adb) | o Quest pelo cabo e pela Wi-Fi | baixar de developer.android.com/studio/releases/platform-tools e largar a pasta em `fontes/platform-tools/` (fica fora do git) |
+| Git | trazer e publicar | `winget install --id Git.Git -e` |
+| Python 3.10+ (3.12 serve) + Pillow | verificar, montar, publicar, bancada, Cabine | `winget install --id Python.Python.3.12 -e` e `python -m pip install Pillow` |
+| Node.js | o verificador (`node --check`) e as ferramentas do DevTools do Quest (`quest_eval.mjs`) | `winget install --id OpenJS.NodeJS.LTS -e` |
+| Chrome ou Edge | oficina, bancada e a projeção em quiosque | — |
+| `platform-tools` (adb) | o Quest pelo cabo e pela Wi-Fi | baixar de developer.android.com/studio/releases/platform-tools e largar a pasta em **`fontes/platform-tools/`** (fora do git). **Um adb só**: a Cabine e o scrcpy usam este (`ADB=`); dois adbs diferentes derrubam o servidor um do outro, e com ele os túneis |
+| scrcpy | espelho do óculos e projeção do espelho | `winget install --id Genymobile.scrcpy -e` |
 | Claude Code | o trabalho | abrir na pasta do projeto |
 
 Login do GitHub: pedido na primeira vez que se empurra (o Git abre o
 navegador). Conta **Crisia-poria**, owner da organização `visoes-filmes`.
-
 Git precisa saber quem você é, uma vez, dentro da pasta:
 
 ```bash
 git config user.name "Crisia-poria"
 git config user.email "admcrisia@gmail.com"
 ```
+
+**b) O Quest, uma vez por aparelho e por computador**
+
+1. Modo de desenvolvedor ligado (app Meta Horizon no celular).
+2. Cabo USB-C no computador → no capacete, **"Permitir depuração USB"
+   marcando "Sempre permitir deste computador"**. Sem a caixinha, cada
+   reinício do Quest pede de novo — e de longe ninguém aceita.
+3. Se a caixa não aparece: o sino de notificações; Configurações → Sistema →
+   Desenvolvedor → **Caixa de diálogo de conexão USB** ligada; reencaixar o cabo.
+4. **Meta Quest Link desligado no PC.** Ele toma o cabo e esconde a caixa.
+   Neste desktop o serviço está parado e desativado; num PC novo, no
+   PowerShell **como administrador**:
+   `Stop-Service OVRService; Set-Service OVRService -StartupType Disabled`.
+5. A Wi-Fi é a reserva do cabo: com o Quest no cabo e a obra parada, a
+   Cabine liga o `adb tcpip 5555` uma vez por inicialização, e daí em
+   diante acha o óculos pelo ip (neste apartamento, `192.168.15.133`).
+   Depois de reiniciar o Quest, a Wi-Fi só volta passando pelo cabo uma vez.
+
+**c) A Cabine — o controle pelo computador** (`python fontes/cabine.py`,
+página em `localhost:8790`): abre a obra no Quest, *Iniciar em RM* sem
+ninguém tocar, relatos, cena, quadros, bateria, espelho e projeção. **Dois
+caminhos, cabo e Wi-Fi**: se um cai, ela tenta o outro e diz na página por
+que cada um falhou (cabo sem autorização, Wi-Fi fechada, sem resposta…).
+A rede interna (hotspot) só existe em PC **com adaptador Wi-Fi** — este
+desktop não tem; em casa não precisa (Quest e PC no mesmo roteador).
+
+**d) Espelho e projeção**
+- **Espelho** (card do Quest): janela com **um olho só** — o Quest 3 manda
+  os dois olhos lado a lado (4128 × 2208), e a Cabine recorta o miolo do
+  olho esquerdo em 16:9 (`1816:1020:124:594`, calculado do `wm size`).
+- **Projetar** (card da Projeção): o mesmo olho em **tela cheia no monitor
+  escolhido**. Ligar o projetor, **Windows + P → Estender**, escolher
+  *espelho do óculos* e o monitor, *Projetar*. *Espelhar horizontalmente* só
+  para retroprojeção (projetor atrás do tule). Com um monitor só, a Cabine
+  avisa — a projeção cobriria a própria Cabine.
+- **Testar numa janela**: o mesmo que iria ao projetor, numa janela comum
+  que se arrasta e redimensiona — para conferir sem projetor.
+- **Cada espelho aberto custa ao Quest**: ele codifica vídeo enquanto roda
+  a obra. Um de cada vez; fechar o teste antes de medir quadros.
+
+**e) O atalho da obra no Quest, como app**: no navegador do Quest abrir
+`visoes-filmes.github.io/raizes-cosmicas-v2/`, esperar o portão, menu **⋮ →
+Instalar app**. Abre sem rede depois disso. O escaneamento automático da
+sala acontece **uma vez por aparelho e por endereço** (localStorage): uma no
+endereço publicado, outra no da Cabine (`localhost:8765`).
+
+**f) De longe (opcional)**: **AnyDesk** neste PC (instalado como serviço,
+liga com o Windows). Falta sempre uma coisa que só a pessoa faz: no AnyDesk,
+Configurações → Segurança → **Acesso não supervisionado**, com uma senha
+dela. O ID do PC fica com ela — **não vai para este repositório, que é
+público**. De longe: AnyDesk → este PC → a Cabine. O Quest precisa estar
+ligado e no cabo (ou na Wi-Fi já liberada).
+
+**g) Desligar o Quest pelo computador**: `adb shell reboot -p` (depois de
+*Encerrar* a obra na Cabine). Religar é só no botão do capacete.
 
 ## 2. Trazer o projeto
 
@@ -69,6 +137,8 @@ engasga no bash em alguns comandos). **Não publique só por ter montado.**
 | **5.1** | v4 + paredes lidas com rachaduras e buracos por onde a outra realidade aparece; só o teto é 100 % VR; metade da névoa; escala de desenho 0,7 (floresta 54, planeta rosa 45 quadros no Quest); toque com respiro | `…/raizes-cosmicas-v2/v5.html` | `v5.1` (a 5.0 em `v5.0`) |
 | **6.0** | **a 5.2 + a tela de tule** (24/09): o óculos acha a tela real (plano rotulado como tela/janela na Configuração de Espaço, ou dois cantos beliscados a pedido da Cabine) e lê o toque da mão nela; cada toque vira onda no vídeo "Odara - Cosmos" **projetado no tule** pela `projecao.html`, que recebe os toques da Cabine (`/eventos`). **Dentro do óculos a tela é invisível** (`TELA_VISIVEL = false`: "o vídeo já vai ser visto na realidade") — o Quest nem baixa o vídeo; `raizes.tela.ver(true)` liga só para conferir o encaixe. Provada na bancada (tela ditada, cosmos, toque, projeção recebendo); **nada visto no Quest** | `…/raizes-cosmicas-v2/v6.html` · projeção em `…/projecao.html` | `v6.0` |
 | **5.2** | **um passo atrás na sala** (24/09, depois de ela ver a 5.1 no capacete): sem escaneamento e sem paredes rachadas — o céu volta a fazer *fade* com as paredes reais no degradê de sempre, e **o chão real aparece o tempo todo** até o cenário 4. Fica o que não tem a ver com a sala: metade da névoa, escala 0,7, toque com folga e respiro | `…/raizes-cosmicas-v2/v52.html` | `v5.2` |
+| **6.1** | a 6.0 + (24–25/09): escaneamento **uma vez por aparelho**; **menu da mão** (Atualizar · Sair da experiência · Remapear o espaço); sem "rizomar" — a frase fica sobre a deusa até o fim; chão do cenário 4 mais transparente (segurança); fora da área mapeada a obra esmaece em vez de sumir; halos dos astros sem sombra escura e esfera mais lisa; **tudo responde ao toque** (pedras, planetas, ser de vidro, água, gesto no ar) | é o `index` | `v6.1` |
+| **6.2** | **a que está no ar** (25/09, madrugada): no cenário da deusa a floresta **continua pendurada no teto**, agora **sólida**, com o pé se desfazendo no céu e **folhinhas nas copas**; **os cogumelos voltam** no chão desse cenário; **sem a linha preta em volta do Sol** (a corona passa a ser desenhada antes do corpo); **conforto**: neblina com 4 camadas em RM (era metade da placa de vídeo), foveação fixa 0,75, resolução que cede sozinha (piso 0,75); **menu pela seta da mão + pinça-e-solta**, mais longe e com texto nítido | `index` e `v6.html` | `v6.2` (a marca ficou no primeiro envio da 6.2; as correções da mesma noite vieram logo depois, em `main`) |
 
 > **Por que o chão ficou preto na 5.1.** Com paredes lidas, o céu recebia
 > `inicio/fim` negativos para descer abaixo do horizonte; mas o `FS_CEU`
@@ -87,13 +157,14 @@ sussurra uma vez), as veias da árvore-mãe acendendo com a aproximação, os
 planetas acendendo, o rosa pegável por pousar a mão e a entrada nele por
 crescer ou trazê-lo ao rosto.
 
-Último commit: `d7b01c7`. Versão de cache da v2 no ar: `raizes-cosmicas-2026-09-24f`.
 **Toda publicação marca a anterior** (`publicado-<versão>`); voltar é
-`git checkout publicado-…`.
+`git checkout publicado-…`. O número do commit e da versão de cache no ar
+se leem com `git log -1` e no `sw.js` — não se escrevem aqui, envelhecem.
 
-**Regras que a direção de arte deu nesta semana e que valem sempre:**
+**Regras que a direção de arte deu e que valem sempre:**
 - tudo o que for feito localmente vai para o repositório na hora (commit + push), sem esperar pedido;
-- cada rodada grande ganha **número de versão novo** e uma marca (`git tag`) antes de começar — próxima: 5.2 ou 6.0, ela decide o nome.
+- cada rodada grande ganha **número de versão novo** e uma marca (`git tag`) — a próxima é a **6.3**;
+- o padrão de instalação desta seção 1 é conferido em todo PC novo (`fontes/conferir_pc.py`), e o que faltar é **pedido** a ela.
 
 ## 4. Como se trabalha
 
@@ -172,10 +243,11 @@ pelo DevTools (`raizes.tela.*`): cravar pelos cantos, acender/apagar/seguir
 a partitura, ditar uma tela de teste, toque de teste (sem óculos, o toque
 vai só à projeção), soltar. Na página de projeção: F tela cheia, M espelho,
 A acende sem esperar o óculos (para enquadrar o projetor), clique = onda.
-**Atenção:** `adb tcpip 5555` (que a Cabine roda ao ver o Quest no cabo)
-reinicia o adb do óculos; se a caixa de depuração foi aceita sem "Sempre
-permitir", a autorização cai e volta a "unauthorized" — aceitar de novo,
-marcando a caixinha.
+**Atenção:** `adb tcpip 5555` reinicia o adb do óculos; se a caixa de
+depuração foi aceita sem "Sempre permitir", a autorização cai e volta a
+"unauthorized". Por isso, desde 25/09, a Cabine **não** roda o `tcpip` a
+cada vez que vê o cabo: só uma vez por inicialização do Quest, e só com a
+obra parada.
 O roteiro do dia está numerado na própria página: 1 ligar a rede · 2 o
 Quest entra nela · 3 cabo uma vez → Liberar Wi-Fi · 4 abrir a versão ·
 5 Iniciar em RM. Pela Wi-Fi o endereço no headset continua `localhost:8765`
@@ -236,8 +308,48 @@ mesa). `fontes/guardiao_quest.ps1` registra a tarefa de logon do Windows —
   `adb shell settings put global stay_on_while_plugged_in 7`.
 - WebGL 1 + `depth-sensing` em texture-array derruba o contexto — o contorno
   pela profundidade fica desligado (`CONTORNO_PROFUNDIDADE`).
+- **Servidor da Cabine com `no-cache`**, nunca `max-age`: com uma hora de
+  validade o Quest continuou abrindo a 6.0 com a 6.1 no ar. O portão diz a
+  versão no título — conferir antes de avaliar qualquer mudança.
+- **Enjoo é quadro perdido.** Medir assim, com a pessoa dentro da obra:
+  `adb logcat -d -s VrApi | tail` → `FPS=` (quadros), `App=` (tempo da
+  **placa de vídeo** da obra, o limite a 72 Hz é 13,9 ms), `GPU%`/`CPU%`
+  (quem é o gargalo), `Stale=` (quadros repetidos — é o que enjoa), `SF=`
+  (a escala de resolução em uso), `Fov=` (foveação). Para achar o culpado,
+  desligar uma camada por vez pelos botões da página (`bFiguras` = neblina,
+  `bPoeira`) com `node fontes/quest_eval.mjs` e ler de novo. Em 25/09 isso
+  mostrou em um minuto que **a neblina custava metade da placa** (15 → 8 ms)
+  e a poeira nada. Nesta obra o gargalo é a placa de vídeo (GPU 99 %, CPU 15 %).
+- A RM leva uns dois segundos para assentar (o Quest lê a sala): quadros
+  medidos nesse começo não valem.
 
 ## 6. Em aberto
+
+**Pedidos de 25/09, madrugada, ainda não feitos — a rodada 6.3:**
+
+a. **Medir de novo os quadros da 6.2 no Quest** (a neblina leve, a
+   resolução que cede) nos quatro cenários, com a pessoa dentro. Se o
+   cenário do mar rosa ainda cair, repetir a medição camada a camada ali.
+b. **O fundo do mar** (cenário 3): o **cogumelo** e a **planta gigante**
+   (`cogumelos-mar-`, `planta-fantasia-`, `planta-alien-` em
+   `montarFundoDoMar`) **mais afastados e maiores**, com **formas mais
+   orgânicas** ("estão muito geométricas"), **interagindo** — pulsar com a
+   cor do mar ao toque/aproximação. Os objetos 3D de baixo e os **seres
+   aquáticos** com **cores análogas diferentes** entre si, variando e
+   reagindo à pessoa; e **seres novos, de formas diferentes, com coisas
+   luminosas interessantes dentro deles**. (O `emAnel` sorteia na ordem das
+   chamadas: mudar raio/escala de um tipo sem mudar o número de sorteios.)
+c. **"O ser gigante está totalmente imóvel"** — o grande ser rosa que deita
+   sobre a lâmina da água no cenário 3 (foto do espelho, 25/09 00:24): dar
+   movimento. Nessa foto ele também tinha **manchas escuras poligonais** por
+   dentro — conferir se é o mesmo defeito do aro do Sol (profundidade escrita
+   em parte transparente).
+d. **As deusas vermelha e azul** "teriam uma animação melhor… elas nem se
+   movem" (as `FIGURAS` do céu).
+e. Conferir no Quest a floresta do teto sólida com folhinhas e os
+   cogumelos no cenário da deusa, e o menu pela seta.
+
+**De antes:**
 
 1. **Ver a 5.1 dentro do capacete** — as rachaduras nas paredes de verdade,
    a onda de luz da leitura, e onde a árvore-mãe caiu (nesta casa ela girou

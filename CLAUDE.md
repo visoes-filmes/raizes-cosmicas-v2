@@ -10,6 +10,16 @@ estado, como se trabalha). O mapa completo está em `LEIA-ME-ACER.md` — **leia
 código de verdade.** Este arquivo tem só o que não pode ser esquecido nem
 por um minuto.
 
+> **No começo de toda sessão, num computador que ainda não foi conferido:**
+> rode `python fontes/conferir_pc.py` e **peça à pessoa**, uma a uma, as
+> peças que ele apontar como faltando e que só ela pode fazer (administrador,
+> senha, aceitar a depuração no capacete marcando "Sempre permitir",
+> desligar o Meta Quest Link, a senha de acesso não supervisionado do
+> AnyDesk). O resto, instale você. O padrão completo — programas, Quest,
+> Cabine, espelho de um olho só, projeção e janela de teste, atalho como
+> app, acesso de longe — está no `LEIA-ME-SEGUIR.md`, seção 1. Pedido dela
+> em 25/09: "pra garantir que tudo isso vai ser lembrado e requisitado".
+
 ---
 
 ## As três regras invioláveis
@@ -226,13 +236,16 @@ Todos no alto de `fontes/mr.template.html`, e todos pedem montar de novo.
 | `PAREDES_RACHADAS` | `false` | **a 5.0** (pede `ESPACO_ESCANEADO`): as paredes lidas viram tampa — alfa zero (a câmera) escrevendo profundidade — com rachaduras e buracos descartados por onde a outra realidade aparece, e um fio de luz na borda. Abrem cenário a cenário (`aberturaDasParedes`) e no papel quase somem. O teto não recebe tampa: é o único espaço 100 % VR. Sem paredes lidas, nada muda |
 | `NEBLINA_FATOR` | `1.0` | multiplica a neblina de todos os cenários; a 5.0 sai com 0,5 ("diminua a névoa para ficar mais limpo") |
 | `TELA_DE_TULE` | `false` | **a 6.0** (o montador liga em `v6.html`, sobre a 5.2): a obra acha a tela de tule real (o plano vertical que a Configuração de Espaço do Quest rotula como tela/janela/quadro, ou dois cantos beliscados pelo operador via Cabine), estica nela o vídeo `assets/video/odara-cosmos.mp4` e cada toque da mão vira onda. As ondas são soma de anéis no shader (`FS_TELA`), sem simulação em textura, de propósito: a página `projecao.html` faz a mesma conta a partir dos relatos `TOCOU-A-TELA` e joga a mesma água no projetor. **O vídeo não é embutido** (70 MB): mora em `assets/video/` e é servido ao lado |
-| — | — | **O que está no ar (`index.html`) é a 6.0** desde 24/09 à noite: o montador escreve o index com o corpo da 6.0 e o prefixo de cache de sempre; `v6.html` é o mesmo corpo com cache próprio, para a Cabine |
+| — | — | **O que está no ar (`index.html`) é a 6.2** (25/09; o corpo da 6.x desde 24/09 à noite): o montador escreve o index com o corpo da 6.x e o prefixo de cache de sempre; `v6.html` é o mesmo corpo com cache próprio, para a Cabine. O número da versão está em `montar_mr.py` (título, portão) e nos rótulos de `cabine.html` — trocar os dois a cada rodada |
 | `TELA_VISIVEL` | `true` | o vídeo e a água **dentro do óculos**. O `v6.html` sai com `false` — "o vídeo não precisa aparecer dentro do óculos, ele já vai ser visto na realidade; a tela tem que ser reconhecida para, ao tocar, o vídeo reagir como água" (24/09). Invisível, o Quest nem baixa o vídeo: reconhece a tela, lê o toque, e a água é do projetor. `raizes.tela.ver(true)` pela Cabine liga só para conferir o encaixe |
 | `TELA_LARGURA` / `TELA_ALTURA` | `3.0` / `2.0` | metros, quando a tela é cravada pelos cantos ou ditada; o escaneamento traz a medida real |
 | `TELA_QUANDO` | `'cosmos'` | quando a tela acende: `'cosmos'` (3:06 a 6:32), `'papel'` (8:40 em diante) ou `'sempre'`; a Cabine força acesa/apagada por cima |
 | `TELA_VIDEO` | `./assets/video/odara-cosmos.mp4` | o desenho da Odara (1920×1080, 24 fps, 4 min, sem som, em loop) |
 | `ESCALA_DESENHO` | `1.0` | fração da resolução nativa do olho em que a obra é desenhada (`framebufferScaleFactor`). **Medido no Quest em 24/09:** 1,0 → floresta 35, planeta rosa 17 quadros; 0,8 → 46/23; **0,7 → 54/26, e com as paredes tampando o que está atrás, 58/47**. A 5.0 sai com 0,7 |
 | `SUAVIZAR_RM` | `true` | o multisample 4× da camada do headset. Medido: desligar **não** muda os quadros (32/17) — fica ligado |
+| `FOVEACAO` | `0.75` | foveação fixa da camada do headset (`fixedFoveation`): a borda de cada olho com menos pixels. 1,0 borrava o que se vê de canto ("qualidade baixa", 25/09) |
+| `ESCALA_VIVA_MIN` | `0.75` | a resolução que cede: por cima da `ESCALA_DESENHO`, cada olho encolhe um degrau (`requestViewportScale`) quando os quadros caem abaixo do alvo por um segundo, e cresce de volta depois de seis segundos com folga; ignora os 5 s da partida. Relato `RESOLUCAO` |
+| `NEBLINA_CAMADAS_RM` / `NEBLINA_DENSA_RM` | `4` / `1.45` | a neblina marmorizada em RM: quatro das sete camadas, mais densas. **Medido no Quest em 25/09: a neblina era metade da placa de vídeo** (15 → 8 ms por quadro só desligando ela). Na tela do computador, as sete |
 
 Fora do arquivo:
 
