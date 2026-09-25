@@ -618,6 +618,13 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         recorte = recorte or recorte_de_um_olho(s)
         if recorte:
             args += ["--crop", recorte]
+        # retroprojecao (projetor atras do tule): a imagem sai espelhada na
+        # horizontal, como a pagina ja fazia
+        if espelhar:
+            args += ["--display-orientation=flip0"]
+        # so um monitor ligado: o espelho cobriria a propria tela da Cabine
+        if alvo.get("principal") and len(lista) == 1:
+            relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
         PROJECAO = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), creationflags=SEM_JANELA)
         relatar(f"projeção (espelho do óculos) aberta no monitor {alvo.get('nome', '?')}")
     else:
