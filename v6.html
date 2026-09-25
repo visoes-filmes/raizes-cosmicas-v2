@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 6.5</title>
+<title>Raízes Cósmicas 6.6</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 6.5</h1>
+  <h1>Raízes Cósmicas 6.6</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>6.5</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>6.6</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -6757,6 +6757,7 @@ uniform vec2 tamanho;
 uniform float espelho, balanco, tempo;
 varying vec2 vUV;
 varying float vAltura;
+varying float vElev;        // a altura angular deste ponto vista do olho (6.6)
 void main(){
   vec2 q = aXY;
   // o balanco cresce com a altura: o pe fica, a cabeca oscila
@@ -6786,6 +6787,8 @@ void main(){
 
   vec3 p = centro + lado * (q.x * tamanho.x) + cima * (q.y * tamanho.y);
   vAltura = p.y;
+  vec3 dv = p - olhoPos;
+  vElev = atan(dv.y, max(length(dv.xz), 0.001));
   vUV = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5);
   gl_Position = mvp * vec4(p, 1.0);
 }`;
@@ -6826,6 +6829,7 @@ uniform float mergulho;         // quantos metros abaixo da linha d'agua o refle
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
 varying vec2 vUV;
 varying float vAltura;
+varying float vElev;
 void main(){
   /* DOIS TEMPOS -- 11/09, "uma ilusao de otica para parecer que a Deusa
      esta se movimentando num tempo diferente do fundo dela". Nao ha duas
@@ -6977,6 +6981,12 @@ void main(){
     // "escuro" vem por figura: na galactica o preto vira noite entre 0,012
     // e 0,09; na integra, cuja noite e azul e tem ondas, so o preto puro
     float a = beira * smoothstep(escuro.x, escuro.y, lum) * presenca;
+    /* A LINHA DOS OLHOS E DA SALA (6.6): a pintura cede do horizonte para
+       baixo e so e inteira a oito graus acima dele. Uma deusa a quarenta
+       metros desenhada na altura dos olhos tapa a parede de verdade, e na
+       cena final a integra descia ate o horizonte -- era parte do "tudo em
+       RV". Vale para as tres: o pe de todas ja era noite. */
+    a *= smoothstep(-0.03, 0.14, vElev);
     /* O REFLEXO DA INTEIRA: a copia espelhada abaixo da linha d'agua se
        apaga com a profundidade, como o das outras -- so que numa pintura
        de quarenta metros de altura o alcance e proporcional (mergulho),
@@ -7350,7 +7360,9 @@ uniform vec2 tamanho;      // meia-largura, meia-altura, em metros
 uniform vec2 faixa;        // v0, v1 da faixa no atlas
 uniform float subir;       // 0 = ainda embaixo, 1 = no lugar
 uniform float tempo, fase, folego;   // o balanco de papel no ar: amplitude em metros
+uniform vec3 olho;                   // de onde se olha (6.6): para saber o que esta abaixo da linha dos olhos
 varying vec2 vUV;
+varying float vElev;
 void main(){
   vUV = vec2(aXY.x * 0.5 + 0.5, mix(faixa.y, faixa.x, aXY.y * 0.5 + 0.5));
   /* PAPEL NO AR -- 13/09, "tem que parecer que a imagem esta dentro do
@@ -7358,6 +7370,8 @@ void main(){
      separa uma folha pendurada de uma imagem colada. */
   vec2 balanco = folego * vec2(sin(tempo * 0.27 + fase), sin(tempo * 0.35 + fase * 1.7));
   vec3 p = centro + vec3(aXY.x * tamanho.x + balanco.x, aXY.y * tamanho.y + balanco.y - (1.0 - subir) * 8.0, 0.0);
+  vec3 dv = p - olho;
+  vElev = atan(dv.y, max(length(dv.xz), 0.001));
   gl_Position = mvp * vec4(p, 1.0);
 }`;
 const FS_TEATRO = `
@@ -7366,9 +7380,18 @@ uniform sampler2D cor, mascara;
 uniform float presenca;
 uniform vec3 ar;           // a cor do ar do cenario
 uniform float bruma;       // quanto o ar entre a pessoa e a camada a esmaece: mais no fundo
+uniform float velado;      // 6.6: 1 no oculos -- o papel vira papel de seda, a sala aparece por ele
 varying vec2 vUV;
+varying float vElev;
 void main(){
   float a = texture2D(mascara, vUV).r * presenca;
+  /* PAPEL DE SEDA NO OCULOS (6.6, "faca virar RA"). As cinco camadas ficam
+     numa faixa de dez graus em volta da linha dos olhos, a frente -- a
+     altura da parede de verdade. Inteiras, eram parede pintada por cima da
+     parede. Agora, no oculos, a setenta por cento; e a parte abaixo da
+     linha dos olhos a quarenta por cento disso, porque e para la que se
+     olha antes de dar um passo. Na tela do computador, inteiras. */
+  a *= mix(1.0, 0.70 * mix(0.40, 1.0, smoothstep(-0.10, 0.02, vElev)), velado);
   if(a < 0.004) discard;
   /* A BRUMA -- e o ar que faz a camada pertencer ao lugar: quanto mais
      longe, mais a cor cede ao ar do cenario e escurece, como tudo o que
@@ -9115,10 +9138,16 @@ const CENAS = {
      noite. E o unico cenario sem a sala: estamos no espaco. */
   4: { ceu:1, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
        /* 24/09: "o chao precisa ter mais transparencia, ficou totalmente
-          realidade virtual -- e perigoso, a pessoa pode cair". O ceu fica
-          inteiro ate um pouco abaixo do horizonte e cede dali para baixo:
-          do chao a uns dois metros dos pes para dentro, a sala real. */
-       poeira:2000, sopro:0.8, raizes:0, ini:-0.50, fim:-0.15 },
+          realidade virtual -- e perigoso, a pessoa pode cair". O ceu foi
+          para -0,50/-0,15, e nao bastou: ele ainda cobria o chao de 1,6 a 3
+          metros dos pes -- justo onde se pisa -- e as paredes inteiras.
+          25/09 (6.6): "na cena final esta completamente em RV, o que e
+          perigoso -- faca virar RA". O ceu fica SO NO ALTO, como nos outros:
+          comeca a uns nove graus acima do horizonte e e cheio a quarenta e
+          cinco. Chao e paredes sao a sala real. O "estamos no espaco" do
+          cenario passa a morar no alto -- o ceu, a deusa e a floresta que
+          desce do teto. */
+       poeira:2000, sopro:0.8, raizes:0, ini:0.10, fim:0.50 },
 };
 
 function cenaEm(t){
@@ -12414,7 +12443,8 @@ const aSa = {xy: gl.getAttribLocation(progSoloAgua,'aXY')};
 const uTe = n=>gl.getUniformLocation(progTeatro,n);
 const locTe = {mvp:uTe('mvp'), centro:uTe('centro'), tamanho:uTe('tamanho'), faixa:uTe('faixa'),
                subir:uTe('subir'), cor:uTe('cor'), mascara:uTe('mascara'), presenca:uTe('presenca'),
-               tempo:uTe('tempo'), fase:uTe('fase'), folego:uTe('folego'), ar:uTe('ar'), bruma:uTe('bruma')};
+               tempo:uTe('tempo'), fase:uTe('fase'), folego:uTe('folego'), ar:uTe('ar'), bruma:uTe('bruma'),
+               olho:uTe('olho'), velado:uTe('velado')};
 const aTe = {xy: gl.getAttribLocation(progTeatro,'aXY')};
 
 const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
@@ -12929,6 +12959,52 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
       mandarMvp(locFio.mvp, m2);
       for(const [ini, n] of E.linhas) gl.drawArrays(gl.LINE_STRIP, ini, n);
+    }
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  /* 1a-ter) O TEATRO DE PAPEL, NO FUNDO (6.6) -- era a "2c", depois do
+     texto: as camadas estao a doze, vinte e dois metros, e desenhadas depois
+     da frase do fim ("Raizes do universo estao em nos", a 2,2 m) passavam
+     por cima dela. Aqui, logo depois das deusas (que estao atras dele), tudo
+     o que e perto -- a frase, a borboleta, a floresta do teto -- vem depois
+     e fica na frente.
+
+     O TEATRO DE PAPEL. Do fundo para a frente, que e obrigatorio: as
+     camadas nao escrevem profundidade (sao recortes com alfa macio), entao
+     a ordem de desenho E a ordem de profundidade. Cede no fecho como tudo. */
+  if(PAPEL_NO_CENARIO && (cenaAtual === 4 || t > 520) && fecho < 0.97){
+    gl.enable(gl.BLEND);
+    sobrepor();
+    gl.depthMask(false);
+    gl.disable(gl.CULL_FACE);
+    gl.useProgram(progTeatro);
+    soltarAtributos();
+    mandarMvp(locTe.mvp, mvp);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, texTeatroCor);
+    gl.uniform1i(locTe.cor, 6);
+    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, texTeatroMascara);
+    gl.uniform1i(locTe.mascara, 7);
+    ligar(aTe.xy, bQ.xy, 2);
+    gl.uniform1f(locTe.tempo, relogio);
+    gl.uniform3f(locTe.ar, AR_DO_TEATRO[0], AR_DO_TEATRO[1], AR_DO_TEATRO[2]);
+    gl.uniform3f(locTe.olho, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.uniform1f(locTe.velado, dentroDeXR ? 1.0 : 0.0);
+    for(let i = 0; i < CAMADAS_TEATRO.length; i++){
+      const c = CAMADAS_TEATRO[i], sb = subidaTeatro(i, t);
+      if(sb < 0.004) continue;
+      const px = c.dist * TEATRO_PX;                       // um pixel do quadro, em metros, a esta distancia
+      const yc = c.topo + c.altura * 0.5;
+      gl.uniform3f(locTe.centro, 0, 1.6 + c.dist * Math.tan(TEATRO_CHAO_ANG) + (TEATRO_CHAO_PX - yc) * px, -c.dist);
+      gl.uniform2f(locTe.tamanho, 1280 * px, c.altura * 0.5 * px);
+      gl.uniform2f(locTe.faixa, c.v0, c.v1);
+      gl.uniform1f(locTe.subir, sb);
+      gl.uniform1f(locTe.fase, i * 1.9);
+      gl.uniform1f(locTe.folego, 0.003 * c.dist);          // um decimo de grau, de qualquer distancia
+      gl.uniform1f(locTe.bruma, c.bruma);
+      gl.uniform1f(locTe.presenca, sb * (1 - fecho));
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
@@ -14707,43 +14783,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       porTexto(texTempo, [0, 0.92, -1.9], 0.13, 0.049,
                esperando ? esperaPresenca * 0.5 : 0.22);
 
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
-  }
-
-  /* 2c) O TEATRO DE PAPEL. Do fundo para a frente, que e obrigatorio: as
-     camadas nao escrevem profundidade (sao recortes com alfa macio), entao
-     a ordem de desenho E a ordem de profundidade. Cede no fecho como tudo. */
-  if(PAPEL_NO_CENARIO && (cenaAtual === 4 || t > 520) && fecho < 0.97){
-    gl.enable(gl.BLEND);
-    sobrepor();
-    gl.depthMask(false);
-    gl.disable(gl.CULL_FACE);
-    gl.useProgram(progTeatro);
-    soltarAtributos();
-    mandarMvp(locTe.mvp, mvp);
-    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, texTeatroCor);
-    gl.uniform1i(locTe.cor, 6);
-    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, texTeatroMascara);
-    gl.uniform1i(locTe.mascara, 7);
-    ligar(aTe.xy, bQ.xy, 2);
-    gl.uniform1f(locTe.tempo, relogio);
-    gl.uniform3f(locTe.ar, AR_DO_TEATRO[0], AR_DO_TEATRO[1], AR_DO_TEATRO[2]);
-    for(let i = 0; i < CAMADAS_TEATRO.length; i++){
-      const c = CAMADAS_TEATRO[i], sb = subidaTeatro(i, t);
-      if(sb < 0.004) continue;
-      const px = c.dist * TEATRO_PX;                       // um pixel do quadro, em metros, a esta distancia
-      const yc = c.topo + c.altura * 0.5;
-      gl.uniform3f(locTe.centro, 0, 1.6 + c.dist * Math.tan(TEATRO_CHAO_ANG) + (TEATRO_CHAO_PX - yc) * px, -c.dist);
-      gl.uniform2f(locTe.tamanho, 1280 * px, c.altura * 0.5 * px);
-      gl.uniform2f(locTe.faixa, c.v0, c.v1);
-      gl.uniform1f(locTe.subir, sb);
-      gl.uniform1f(locTe.fase, i * 1.9);
-      gl.uniform1f(locTe.folego, 0.003 * c.dist);          // um decimo de grau, de qualquer distancia
-      gl.uniform1f(locTe.bruma, c.bruma);
-      gl.uniform1f(locTe.presenca, sb * (1 - fecho));
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
