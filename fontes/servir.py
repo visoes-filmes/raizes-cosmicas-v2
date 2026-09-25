@@ -109,7 +109,12 @@ class Servidor(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         if ESTANDE:
-            self.send_header("Cache-Control", "public, max-age=3600")
+            # "no-cache" e nao "max-age=3600" (25/09): com uma hora de validade
+            # o Quest guardou a 6.0 e continuou abrindo a 6.0 depois de a 6.1
+            # estar no ar aqui. no-cache guarda do mesmo jeito, mas pergunta
+            # antes de usar; se nada mudou a resposta e um 304 sem corpo -- o
+            # segundo visitante continua sem esperar download.
+            self.send_header("Cache-Control", "no-cache")
         else:
             self.send_header("Cache-Control", "no-store, must-revalidate")
             self.send_header("Pragma", "no-cache")
