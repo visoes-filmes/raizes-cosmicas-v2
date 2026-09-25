@@ -293,7 +293,7 @@ const CENAS = {
   1: { ceu:3, tinta:0.85, neblina:0.20, ... ini:0.22, fim:0.72 },
   2: { ceu:2, tinta:0.0,  neblina:0.18, ... ini:0.12, fim:0.58 },
   3: { ceu:2, tinta:0.60, neblina:0.16, ... ini:0.0,  fim:0.85, longe:0.80 },
-  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:-1.0, fim:-0.5 },
+  4: { ceu:1, tinta:0.82, neblina:0.11, ... ini:0.16, fim:0.42 },   // 6.6; era -1.0/-0.5 (ver abaixo)
 };
 ```
 
@@ -312,7 +312,16 @@ const CENAS = {
   cheio no teto e some ao descer. No cenário 3 ele só começa a 0,84 m,
   porque a água tapa o resto.
 
-  > **O cenário 4 é céu inteiro** desde 13/09: `ini` e `fim` negativos, os
+  > **Não é mais céu inteiro (25/09, 6.6).** A direção de arte: "na cena
+  > final está completamente em RV, o que é perigoso — faça virar RA". O
+  > céu cobria o chão de 1,6 a 3 m dos pés e as paredes. Agora vai de 14°
+  > (transparente) a 38° (cheio): a linha dos olhos e o chão são a sala
+  > real, e a faixa meio transparente fica acima da cabeça — não na altura
+  > dos olhos, que era o que fazia a "mancha cinza" de 13/09. As deusas
+  > cedem do horizonte para baixo e o teatro de papel é papel de seda no
+  > óculos. O que segue é a história de antes:
+  >
+  > **O cenário 4 era céu inteiro** de 13/09 a 25/09: `ini` e `fim` negativos, os
   > dois abaixo do horizonte, e a cúpula fica opaca na volta toda. É o
   > único cenário **sem a sala** — "tem que ser todo um céu escuro; está
   > parecendo uma mancha cinza". Com o degradê de antes (9° a 50°) a
