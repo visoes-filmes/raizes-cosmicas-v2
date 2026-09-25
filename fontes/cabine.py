@@ -896,6 +896,12 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome == "alinhar":
+        # O ESPELHO ALINHADO (25/09): "o espelhamento fica torto". A pagina
+        # captura a janela do espelho e a redesenha com giro fino, zoom,
+        # deslocamento e a curvatura da lente desfeita (fontes/espelho.html).
+        abrir_pagina(f"http://localhost:{PORTA_OBRA}/fontes/espelho.html")
+        return {"ok": True, "resposta": "escolha a janela 'Quest — espelho' na captura"}
     elif nome == "transmitir":
         # A TELA HORIZONTAL DO APP META (25/09): "na visualizacao do oculos
         # gostaria de ver uma tela horizontal como vejo no app Meta Horizon".

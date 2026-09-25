@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Espelho alinhado · Raízes Cósmicas</title>
+<!--
+  O ESPELHO ALINHADO -- 25/09. "Tem como fazer um alinhamento quando
+  espelhar, uma compensacao, pois o espelhamento fica torto."
+
+  O scrcpy le o painel cru do Quest: um olho, com a curvatura da lente, e
+  so gira de 90 em 90 graus. Esta pagina CAPTURA a janela do espelho (a do
+  scrcpy ou a da transmissao Meta, pelo getDisplayMedia do navegador) e a
+  redesenha num shader: rotacao fina, zoom, deslocamento e a curvatura da
+  lente desfeita (k1, k2). Os ajustes ficam guardados neste navegador; em
+  tela cheia no projetor, o painel some.
+
+  Teclas: [ ] giram 0,1 grau (com Shift, 1), setas deslocam, + - zoom,
+  M espelha, F tela cheia, H esconde o painel, R zera.
+-->
+<style>
+  :root{ --fundo:#000; --painel:rgba(14,16,24,.92); --texto:#e8e9ee; --texto2:#9aa1b4; --acento:#e6b3ff; --linha:#2a3150; }
+  html,body{ margin:0; height:100%; background:var(--fundo); color:var(--texto);
+             font:14px/1.4 -apple-system,system-ui,"Segoe UI",sans-serif; overflow:hidden; }
+  canvas{ position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #painel{ position:fixed; top:16px; left:16px; width:300px; max-width:calc(100vw - 32px);
+           background:var(--painel); border:1px solid var(--linha); border-radius:14px; padding:14px; z-index:2; }
+  #painel.fora{ display:none; }
+  h1{ font-size:15px; margin:0 0 4px; font-weight:600; }
+  .nota{ color:var(--texto2); font-size:12px; margin:0 0 10px; }
+  label{ display:grid; grid-template-columns:92px 1fr 48px; gap:8px; align-items:center; margin:6px 0; font-size:12px; color:var(--texto2); }
+  input[type=range]{ width:100%; accent-color:var(--acento); }
+  output{ font-family:ui-monospace,Menlo,monospace; font-size:12px; text-align:right; color:var(--texto); }
+  .botoes{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  button{ background:#1a1f33; color:var(--texto); border:1px solid var(--linha); border-radius:9px; padding:7px 10px; font:inherit; font-size:12px; cursor:pointer; }
+  button:hover{ border-color:var(--acento); }
+  button.primario{ background:var(--acento); color:#1a0f22; border-color:transparent; font-weight:600; }
+  #grade{ position:fixed; inset:0; pointer-events:none; z-index:1; display:none;
+          background:
+            linear-gradient(to right, transparent calc(50% - .5px), rgba(230,179,255,.55) calc(50% - .5px), rgba(230,179,255,.55) calc(50% + .5px), transparent calc(50% + .5px)),
+            linear-gradient(to bottom, transparent calc(50% - .5px), rgba(230,179,255,.55) calc(50% - .5px), rgba(230,179,255,.55) calc(50% + .5px), transparent calc(50% + .5px)),
+            repeating-linear-gradient(to right, rgba(255,255,255,.12) 0 1px, transparent 1px 10%),
+            repeating-linear-gradient(to bottom, rgba(255,255,255,.12) 0 1px, transparent 1px 10%); }
+  #grade.sim{ display:block; }
+  #vazio{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:var(--texto2); font-size:13px; text-align:center; padding:16px; }
+</style>
+</head>
+<body>
+<canvas id="tela"></canvas>
+<div id="grade"></div>
+<div id="vazio">Clique em <b>&nbsp;Capturar o espelho&nbsp;</b> e escolha a janela “Quest — espelho” (ou a aba da transmissão Meta).</div>
+<div id="painel">
+  <h1>Espelho alinhado</h1>
+  <p class="nota">Endireite com a grade ligada: o horizonte da sala na linha do meio.</p>
+  <label>girar (°)   <input type="range" id="ang"  min="-30"  max="30"  step="0.1"><output id="oAng"></output></label>
+  <label>zoom        <input type="range" id="zoom" min="0.5"  max="3"   step="0.01"><output id="oZoom"></output></label>
+  <label>para o lado <input type="range" id="dx"   min="-0.5" max="0.5" step="0.002"><output id="oDx"></output></label>
+  <label>para cima   <input type="range" id="dy"   min="-0.5" max="0.5" step="0.002"><output id="oDy"></output></label>
+  <label>lente k1    <input type="range" id="k1"   min="-0.8" max="0.8" step="0.01"><output id="oK1"></output></label>
+  <label>lente k2    <input type="range" id="k2"   min="-0.5" max="0.5" step="0.01"><output id="oK2"></output></label>
+  <div class="botoes">
+    <button class="primario" id="bCap">Capturar o espelho</button>
+    <button id="bGrade">Grade</button>
+    <button id="bEsp">Espelhar (M)</button>
+    <button id="bCheia">Tela cheia (F)</button>
+    <button id="bZero">Zerar (R)</button>
+  </div>
+  <p class="nota" style="margin:10px 0 0">[ ] girar · setas deslocar · + − zoom · H esconde o painel</p>
+</div>
+
+<video id="fonte" autoplay muted playsinline style="display:none"></video>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CHAVE = 'raizes-espelho-alinhado';
+const PADRAO = { ang:0, zoom:1, dx:0, dy:0, k1:0, k2:0, espelhar:false };
+let A = Object.assign({}, PADRAO);
+try{ Object.assign(A, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }catch(e){}
+const guardar = () => { try{ localStorage.setItem(CHAVE, JSON.stringify(A)); }catch(e){} };
+
+const CAMPOS = { ang:[v=>v.toFixed(1)+'°'], zoom:[v=>v.toFixed(2)+'×'], dx:[v=>v.toFixed(3)], dy:[v=>v.toFixed(3)],
+                 k1:[v=>v.toFixed(2)], k2:[v=>v.toFixed(2)] };
+function mostrar(){
+  for (const k in CAMPOS){ $(k).value = A[k]; $('o' + k[0].toUpperCase() + k.slice(1)).textContent = CAMPOS[k][0](+A[k]); }
+  $('bEsp').textContent = A.espelhar ? 'Espelhado (M)' : 'Espelhar (M)';
+}
+for (const k in CAMPOS) $(k).addEventListener('input', e => { A[k] = +e.target.value; mostrar(); guardar(); });
+
+/* ── o desenho ─────────────────────────────────────────────────────────── */
+const cv = $('tela'), gl = cv.getContext('webgl', { antialias:false, preserveDrawingBuffer:false });
+const VS = 'attribute vec2 p; varying vec2 uv; void main(){ uv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }';
+/* Para cada pixel da saida: centro, proporcao da saida, desfaz o zoom e o
+   giro, desfaz a curvatura da lente (p * (1 + k1 r2 + k2 r4)), desloca, e
+   volta para as coordenadas da fonte na proporcao dela. Fora da fonte: preto. */
+const FS = `precision highp float;
+varying vec2 uv;
+uniform sampler2D fonte;
+uniform vec2 saida, entrada;
+uniform float ang, zoom, k1, k2, espelhar;
+uniform vec2 desl;
+void main(){
+  vec2 p = uv - 0.5;
+  if(espelhar > 0.5) p.x = -p.x;
+  p.x *= saida.x / saida.y;
+  p /= zoom;
+  float c = cos(ang), s = sin(ang);
+  p = vec2(c*p.x - s*p.y, s*p.x + c*p.y);
+  float r2 = dot(p, p);
+  p *= 1.0 + k1*r2 + k2*r2*r2;
+  p -= vec2(desl.x, -desl.y);
+  p.x /= entrada.x / entrada.y;
+  vec2 q = p + 0.5;
+  q.y = 1.0 - q.y;
+  if(q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0){ gl_FragColor = vec4(0.,0.,0.,1.); return; }
+  gl_FragColor = vec4(texture2D(fonte, q).rgb, 1.0);
+}`;
+function compilar(tipo, src){ const s = gl.createShader(tipo); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, compilar(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compilar(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aP = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP, 2, gl.FLOAT, false, 0, 0);
+const U = {}; for (const n of ['fonte','saida','entrada','ang','zoom','k1','k2','espelhar','desl']) U[n] = gl.getUniformLocation(prog, n);
+const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+const video = $('fonte');
+function quadro(){
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  gl.viewport(0, 0, w, h);
+  if (video.readyState >= 2 && video.videoWidth){
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video);
+    gl.uniform1i(U.fonte, 0);
+    gl.uniform2f(U.saida, w, h); gl.uniform2f(U.entrada, video.videoWidth, video.videoHeight);
+    gl.uniform1f(U.ang, A.ang * Math.PI / 180); gl.uniform1f(U.zoom, A.zoom);
+    gl.uniform1f(U.k1, A.k1); gl.uniform1f(U.k2, A.k2); gl.uniform1f(U.espelhar, A.espelhar ? 1 : 0);
+    gl.uniform2f(U.desl, A.dx, A.dy);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  } else { gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT); }
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+
+/* ── a captura ─────────────────────────────────────────────────────────── */
+async function capturar(){
+  try{
+    const fluxo = await navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:{ ideal:60 }, cursor:'never' }, audio:false });
+    video.srcObject = fluxo; await video.play();
+    $('vazio').style.display = 'none';
+    fluxo.getVideoTracks()[0].addEventListener('ended', () => { $('vazio').style.display = 'flex'; });
+  }catch(e){
+    $('vazio').innerHTML = 'Captura recusada (' + e.name + '). No Mac: Ajustes do Sistema → Privacidade → Gravação de Tela → permitir o Chrome, e tentar de novo.';
+  }
+}
+$('bCap').onclick = capturar;
+$('bGrade').onclick = () => $('grade').classList.toggle('sim');
+$('bEsp').onclick = () => { A.espelhar = !A.espelhar; mostrar(); guardar(); };
+$('bCheia').onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(()=>{});
+$('bZero').onclick = () => { A = Object.assign({}, PADRAO); mostrar(); guardar(); };
+document.addEventListener('fullscreenchange', () => $('painel').classList.toggle('fora', !!document.fullscreenElement));
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const passo = e.shiftKey ? 10 : 1, k = e.key;
+  if (k === '[') A.ang = +(A.ang - 0.1 * passo).toFixed(2);
+  else if (k === ']') A.ang = +(A.ang + 0.1 * passo).toFixed(2);
+  else if (k === 'ArrowLeft') A.dx -= 0.002 * passo; else if (k === 'ArrowRight') A.dx += 0.002 * passo;
+  else if (k === 'ArrowUp') A.dy += 0.002 * passo; else if (k === 'ArrowDown') A.dy -= 0.002 * passo;
+  else if (k === '+' || k === '=') A.zoom = Math.min(3, A.zoom + 0.01 * passo);
+  else if (k === '-') A.zoom = Math.max(0.5, A.zoom - 0.01 * passo);
+  else if (k === 'm' || k === 'M') A.espelhar = !A.espelhar;
+  else if (k === 'f' || k === 'F') return $('bCheia').onclick();
+  else if (k === 'h' || k === 'H') return $('painel').classList.toggle('fora');
+  else if (k === 'g' || k === 'G') return $('bGrade').onclick();
+  else if (k === 'r' || k === 'R') return $('bZero').onclick();
+  else return;
+  e.preventDefault(); mostrar(); guardar();
+});
+mostrar();
+</script>
+</body>
+</html>
