@@ -231,6 +231,34 @@
   </section>
 
   <!-- RELATOS -->
+  <!-- LUZ DA SALA (25/09): a lâmpada Bluetooth, pela própria página -->
+  <section class="card">
+    <h2><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg>Luz da sala · Bluetooth</h2>
+    <div class="linha">
+      <div id="lzCor" style="width:46px;height:46px;border-radius:12px;border:1px solid #2a3150;background:#000"></div>
+      <div>
+        <div class="grande" id="lzNome" style="font-size:18px">sem luz pareada</div>
+        <div class="nota mono" id="lzInfo">—</div>
+      </div>
+    </div>
+    <div class="linha" style="margin-top:10px">
+      <button class="primario" onclick="Luz.parear()">Parear a luz</button>
+      <button onclick="Luz.modo('segue')" title="a cor do cenário da obra no Quest; sem obra, deriva">Seguir a obra</button>
+      <button onclick="Luz.modo('deriva')" title="passeia devagar pelas quatro cores da partitura">Deriva</button>
+      <button class="perigo" onclick="Luz.modo('apagar')">Apagar</button>
+      <button onclick="Luz.soltar()">Desconectar</button>
+    </div>
+    <div class="linha" style="margin-top:8px">
+      <span class="nota">fixar:</span>
+      <button onclick="Luz.modo(1)">1 floresta</button>
+      <button onclick="Luz.modo(2)">2 cosmos</button>
+      <button onclick="Luz.modo(3)">3 planeta rosa</button>
+      <button onclick="Luz.modo(4)">4 papel</button>
+      <button onclick="Luz.modo('janela')" title="a cor do cenário a 100%, para o Quest achar as mãos">clarear (mãos)</button>
+    </div>
+    <div class="nota" style="margin-top:8px">As cores e as janelas das mãos são as da ponte antiga (<span class="mono">fontes/luz-segue-cena.mjs</span>): turquesa, violeta, rosa-claro, azul; o escuro a 60 %, e a 100 % em 1:50–2:50, 5:30–6:20 e 7:30–8:25. Toda troca desliza. Precisa do <b>Chrome</b> (Safari não fala Bluetooth pela página) e <b>esta página aberta</b>: fechá-la solta a luz.</div>
+  </section>
+
   <section class="card" style="grid-column:1/-1">
     <h2><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>Relatos de dentro do capacete</h2>
     <div class="linha">
@@ -373,6 +401,163 @@ async function ler(){
   catch(e){ pill('pServidor','erro','cabine fora do ar'); }
 }
 $('ipWifi').addEventListener('input', ()=>ipEditado=true);
+/* ── A LUZ DA SALA, PELO BLUETOOTH DO PRÓPRIO NAVEGADOR (25/09) ──────────
+   "Conecte nossa luz bluetooth na experiência." A ponte antiga
+   (fontes/luz-segue-cena.mjs) falava com uma Tuya pela Wi-Fi, através do
+   estúdio do v1 -- que não veio para o Mac, e as chaves nunca viajam. E o
+   macOS mata o Python que pede o rádio sem permissão. O Chrome já tem o
+   Bluetooth: a página da Cabine pareia a luz (Web Bluetooth) e a pinta com
+   o cenário que ela já lê do Quest (estado.obra.onde).
+
+   As cores, as janelas e o deslize são os MESMOS da ponte antiga -- se a
+   partitura mudar, mudam nos dois lugares.
+
+   O protocolo é descoberto pelo serviço que a luz oferece. As três famílias
+   baratas mais comuns estão aqui; se for outra, o card lista os serviços e
+   características graváveis, e é só acrescentar uma linha em PROTOCOLOS. */
+const Luz = (() => {
+  const COR = { 1:{h:170, nome:'verde-turquesa'}, 2:{h:262, nome:'violeta'},
+                3:{h:350, nome:'rosa-claro', s:0.50}, 4:{h:230, nome:'azul'} };
+  const JANELAS = [[110,170,'os cogumelos, o casulo'], [330,380,'pegar um planeta'], [450,505,'os seres, as pedras, a concha']];
+  const V_OBRA = 0.60, V_JANELA = 1.00, PASSO = 300;             // ms entre dois quadros da luz
+  const TAXA = { segue:{h:1.2, s:0.012, v:0.035}, deriva:{h:0.15, s:0.002, v:0.005} };  // a ponte antiga, por 0,3 s
+  const PROTOCOLOS = [
+    { nome:'ELK-BLEDOM',            serv:0xfff0, car:0xfff3,
+      ligar:[0x7e,0x00,0x04,0xf0,0x00,0x01,0xff,0x00,0xef], cor:(r,g,b)=>[0x7e,0x00,0x05,0x03,r,g,b,0x00,0xef] },
+    { nome:'Triones / HappyLighting', serv:0xffd5, car:0xffd9,
+      ligar:[0xcc,0x23,0x33], cor:(r,g,b)=>[0x56,r,g,b,0x00,0xf0,0xaa] },
+    { nome:'Zengge / MagicHome',    serv:0xffe5, car:0xffe9,
+      ligar:[0xcc,0x23,0x33], cor:(r,g,b)=>[0x56,r,g,b,0x00,0xf0,0xaa] },
+  ];
+  const OUTROS = [0xffe0, 0xff00, 0xfee7, 0xae00, 0xffb0, 0xfff5, 0xa032];
+
+  let disp = null, car = null, prot = null, ocupado = false, ultimo = '';
+  let modo = 'segue', luz = null, derivaI = 0, paradaAte = 0;
+
+  const hsvRgb = (h, s, v) => { const c=v*s, x=c*(1-Math.abs(((h/60)%2)-1)), m=v-c;
+    const [r,g,b] = h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];
+    return [r,g,b].map(q => Math.round((q+m)*255)); };
+  const hex = (rgb) => '#' + rgb.map(q => q.toString(16).padStart(2,'0')).join('');
+  const corDe = (n, v) => ({ h:COR[n].h, s:COR[n].s ?? 1.0, v });
+  const chegou = (a, b) => Math.abs(((a.h-b.h+540)%360)-180) < 0.01 && Math.abs(a.s-b.s) < 0.001 && Math.abs(a.v-b.v) < 0.001;
+  function deslizar(de, para, t){
+    const p = (a, b, mx) => a + Math.max(-mx, Math.min(mx, b - a));
+    let dh = ((para.h - de.h + 540) % 360) - 180; dh = Math.max(-t.h, Math.min(t.h, dh));
+    return { h:(de.h + dh + 360) % 360, s:p(de.s, para.s, t.s), v:p(de.v, para.v, t.v) };
+  }
+  const info = (t) => { const e = $('lzInfo'); if (e) e.textContent = t; };
+
+  function alvo(){
+    if (modo === 'apagar') return { alvo:{h:luz?luz.h:0, s:luz?luz.s:1, v:0}, nome:'apagada', taxa:'segue' };
+    if (typeof modo === 'number') return { alvo:corDe(modo, V_OBRA), nome:'fixa: '+COR[modo].nome, taxa:'segue' };
+    const onde = (typeof estado !== 'undefined' && estado.obra) ? estado.obra.onde : null;
+    const cenaDaObra = onde && onde.cena ? onde.cena : 1;
+    if (modo === 'janela') return { alvo:corDe(cenaDaObra, V_JANELA), nome:'clara: '+COR[cenaDaObra].nome+' (mãos)', taxa:'segue' };
+    if (modo === 'segue' && onde && COR[onde.cena]){
+      const [m, s] = String(onde.tempo || '0:00').split(':').map(Number), seg = (m||0)*60 + (s||0);
+      const cena = seg >= 600 ? 1 : onde.cena, j = JANELAS.find(w => seg >= w[0] && seg <= w[1]);
+      return { alvo:corDe(cena, j ? V_JANELA : V_OBRA), taxa:'segue',
+               nome:`${onde.tempo} · ${COR[cena].nome}` + (j ? ' · janela: '+j[2] : '') };
+    }
+    const a = corDe([1,2,3,4][derivaI], V_OBRA);                  // a deriva: sem obra, ou pedida
+    if (luz && chegou(luz, a)){
+      if (!paradaAte) paradaAte = Date.now() + 30000;
+      else if (Date.now() >= paradaAte){ paradaAte = 0; derivaI = (derivaI + 1) % 4; }
+    }
+    return { alvo:corDe([1,2,3,4][derivaI], V_OBRA), taxa:'deriva',
+             nome:'deriva: '+COR[[1,2,3,4][derivaI]].nome + (modo === 'segue' ? ' (sem obra ao alcance)' : '') };
+  }
+
+  async function mandar(bytes){
+    if (!car || ocupado) return false;
+    ocupado = true;
+    try{
+      const d = new Uint8Array(bytes);
+      if (car.writeValueWithoutResponse && car.properties.writeWithoutResponse) await car.writeValueWithoutResponse(d);
+      else await car.writeValue(d);
+      return true;
+    }catch(e){ info('falhou ao escrever: ' + e.message); return false; }
+    finally{ ocupado = false; }
+  }
+
+  async function quadro(){
+    const p = alvo();
+    $('lzNome').textContent = car ? p.nome : 'sem luz pareada';
+    const prox = luz ? deslizar(luz, p.alvo, TAXA[p.taxa]) : p.alvo;
+    const rgb = hsvRgb(prox.h, prox.s, prox.v), h = hex(rgb);
+    $('lzCor').style.background = h;
+    if (!car){ luz = prox; return; }
+    if (h === ultimo){ luz = prox; return; }
+    if (await mandar(prot.cor(...rgb))){ luz = prox; ultimo = h; }
+  }
+
+  async function ligarA(device){
+    disp = device;
+    disp.addEventListener('gattserverdisconnected', aoCair);
+    info('conectando a ' + (disp.name || 'luz sem nome') + '…');
+    const gatt = await disp.gatt.connect();
+    const servs = await gatt.getPrimaryServices();
+    const uuids = servs.map(s => s.uuid);
+    for (const p of PROTOCOLOS){
+      const s = servs.find(x => x.uuid === BluetoothUUID.getService(p.serv));
+      if (!s) continue;
+      try{ car = await s.getCharacteristic(p.car); prot = p; break; }catch(e){ /* tenta o próximo */ }
+    }
+    if (!car){
+      /* protocolo desconhecido: diz o que a luz oferece, para acrescentar uma linha */
+      const achados = [];
+      for (const s of servs){
+        try{ for (const c of await s.getCharacteristics())
+               if (c.properties.write || c.properties.writeWithoutResponse) achados.push(s.uuid.slice(4,8) + '/' + c.uuid.slice(4,8));
+        }catch(e){}
+      }
+      info('luz conectada, mas o protocolo é desconhecido. serviços: ' + uuids.map(u => u.slice(4,8)).join(' ') +
+           ' · graváveis: ' + (achados.join(' ') || 'nenhum'));
+      toast('luz pareada, protocolo desconhecido: veja os serviços no card', true);
+      return;
+    }
+    await mandar(prot.ligar);
+    ultimo = '';
+    info((disp.name || 'luz') + ' · ' + prot.nome + ' · ' + disp.id.slice(0, 8));
+    toast('luz conectada: ' + (disp.name || prot.nome));
+  }
+
+  async function aoCair(){
+    car = null; prot = null;
+    info('a luz caiu; tentando de novo…');
+    for (let i = 0; i < 20 && disp; i++){
+      await new Promise(r => setTimeout(r, Math.min(1000 * 2 ** i, 15000)));
+      try{ await ligarA(disp); return; }catch(e){ info('a luz caiu; tentativa ' + (i + 1) + ': ' + e.message); }
+    }
+  }
+
+  async function parear(){
+    if (!navigator.bluetooth){ toast('este navegador não fala Bluetooth: abra a Cabine no Chrome', true); return; }
+    try{
+      const d = await navigator.bluetooth.requestDevice({ acceptAllDevices:true,
+                  optionalServices:[...PROTOCOLOS.map(p => p.serv), ...OUTROS] });
+      await ligarA(d);
+    }catch(e){ if (e.name !== 'NotFoundError') toast('não pareou: ' + e.message, true); }
+  }
+
+  /* reabrir a página religa a última luz, se o Chrome deixar (getDevices) */
+  (async () => {
+    try{
+      if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+      const ds = await navigator.bluetooth.getDevices();
+      if (ds.length) await ligarA(ds[0]);
+    }catch(e){ /* sem luz lembrada */ }
+  })();
+
+  setInterval(quadro, PASSO);
+  return {
+    parear,
+    modo(m){ modo = m; paradaAte = 0; toast('luz: ' + (typeof m === 'number' ? COR[m].nome : m)); },
+    soltar(){ const d = disp; disp = null; car = null; prot = null;
+              try{ d && d.gatt.disconnect(); }catch(e){} info('—'); },
+  };
+})();
+
 ler(); setInterval(ler, 2500);
 </script>
 </body>

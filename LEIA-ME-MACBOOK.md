@@ -147,6 +147,24 @@ A 6.0 por dentro (interruptores `TELA_*`, módulo, shader, ganchos
    rosa); `sw.js` só guarda o `index`; repositórios v4/v5 próprios;
    licenças (`LEIA-ME-SEGUIR.md` §6).
 
+### A luz da sala no Mac (25/09)
+
+A ponte antiga (`fontes/luz-segue-cena.mjs`) fala com a Tuya pela Wi-Fi
+através do estúdio do v1, que **não veio para o Mac** (e as chaves nunca
+viajam). A varredura Tuya pela rede de casa não achou lâmpada nenhuma, e o
+macOS **mata o Python** que pede o Bluetooth sem permissão (exit 134).
+
+Então a luz passou para a **página da Cabine**: o card *Luz da sala ·
+Bluetooth* pareia a lâmpada pelo Bluetooth do Chrome (Web Bluetooth) e a
+pinta com o cenário que a Cabine já lê do Quest -- as mesmas cores, janelas
+das mãos e deslize da ponte antiga. Sem obra ao alcance, deriva. Protocolos
+reconhecidos: ELK-BLEDOM (`fff0/fff3`), Triones/HappyLighting
+(`ffd5/ffd9`), Zengge/MagicHome (`ffe5/ffe9`); se a luz for outra, o card
+lista os serviços graváveis dela e é só acrescentar uma linha em
+`PROTOCOLOS` no `cabine.html`. Por isso a Cabine agora abre **no Chrome**
+no Mac (o Safari não fala Bluetooth pela página), e a página tem de ficar
+aberta: fechá-la solta a luz.
+
 ## 7. Se o Mac não servir como Cabine
 
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O

@@ -1035,6 +1035,21 @@ class Cabine(BaseHTTPRequestHandler):
         pass
 
 
+def abrir_pagina(url):
+    """A pagina da Cabine abre no CHROME no Mac (25/09): a luz da sala e
+    Bluetooth pela propria pagina (Web Bluetooth), e o Safari -- o navegador
+    padrao do Mac -- nao tem isso. Sem Chrome, o navegador padrao."""
+    nav = achar_navegador() if MAC else None
+    if nav:
+        app = nav.split("/Contents/")[0]
+        try:
+            subprocess.Popen(["open", "-a", app, url])
+            return
+        except Exception:
+            pass
+    webbrowser.open(url)
+
+
 def ja_esta_de_pe():
     try:
         urlopen(f"http://127.0.0.1:{PORTA_CABINE}/estado", timeout=2).read()
@@ -1049,7 +1064,7 @@ def main():
     if ja_esta_de_pe():
         log("a cabine já estava de pé; só abrindo a página")
         if abrir:
-            webbrowser.open(f"http://localhost:{PORTA_CABINE}/")
+            abrir_pagina(f"http://localhost:{PORTA_CABINE}/")
         return
     ADB = achar_adb()
     if not ADB:
@@ -1068,7 +1083,7 @@ def main():
     servidor = ThreadingHTTPServer(("127.0.0.1", PORTA_CABINE), Cabine)
     servidor.daemon_threads = True
     if abrir:
-        threading.Timer(0.8, lambda: webbrowser.open(f"http://localhost:{PORTA_CABINE}/")).start()
+        threading.Timer(0.8, lambda: abrir_pagina(f"http://localhost:{PORTA_CABINE}/")).start()
     try:
         servidor.serve_forever()
     except KeyboardInterrupt:
