@@ -1567,7 +1567,17 @@ const SALA = { pronta:false, planos:0, chaoY:0, chao:null, moveis:[], paredes:[]
 let escaneamentoPedidoEm = 0, semPlanosDesde = 0;
 function pedirOEscaneamento(frame){
   if(!(ESPACO_ESCANEADO || TELA_DE_TULE) || !sessao || !frame || !frame.detectedPlanes) return;
-  if(frame.detectedPlanes.size){ semPlanosDesde = 0; return; }
+  if(frame.detectedPlanes.size){
+    semPlanosDesde = 0;
+    /* A SALA VEIO, MAS A TELA NAO (24/09, a noite: 'tem que escanear a sala,
+       os objetos, o teto, tudo -- principalmente identificar a tela de
+       projecao'). Doze segundos com planos e nenhum rotulado como tela:
+       abre a Configuracao de Espaco para marcarem a tela. Uma vez so; se
+       nao marcarem, sobra cravar pelos cantos, pela Cabine. */
+    if(TELA_DE_TULE && !TELA.pronta && !escaneamentoPedidoEm && TELA.buscaDesde && relogio - TELA.buscaDesde > 12.0)
+      escanearOEspaco('sala lida, sem tela rotulada');
+    return;
+  }
   if(!semPlanosDesde){ semPlanosDesde = relogio || 0.001; return; }
   if(escaneamentoPedidoEm || relogio - semPlanosDesde < 6.0) return;
   escanearOEspaco('sozinho');
@@ -1777,7 +1787,7 @@ function montarTela(){
    como tela, janela ou quadro -- e o maior deles. Nada de paredes, nada de
    replantio: a sala continua como e (5.2). Sem rotulo, o operador crava
    pelos cantos (raizes.tela.cravar, pela Cabine). */
-const ROTULOS_DE_TELA = { 'screen':1, 'window':1, 'wall art':1, 'whiteboard':1, 'tv':1, 'display':1 };
+const ROTULOS_DE_TELA = { 'screen':1, 'window':1, 'window frame':1, 'wall art':1, 'whiteboard':1, 'tv':1, 'display':1 };
 let telaProcuradaEm = -9;
 function lerATela(frame, espaco){
   if(!TELA_DE_TULE || TELA.pronta || !frame || !frame.detectedPlanes) return;
