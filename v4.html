@@ -6541,10 +6541,19 @@ varying float vCorpo;
    Ela vive aqui, e nao no JavaScript, porque cada ponto da asa precisa
    consulta-la na SUA propria hora -- e de fora so daria para mandar uma
    resposta para a asa toda, que e uma chapa girando. */
+/* A BATIDA DESVIRADA -- 25/09 (6.5), "tem alguma coisa estranha com a
+   borboleta e as asas, que nao da para saber se ela esta de cabeca para
+   baixo ou para cima". Estava: subida rapida e depois quase dois tercos da
+   batida com as asas ABAIXO do corpo, penduradas -- e asa pendurada e o
+   desenho de uma borboleta virada. A de verdade faz o contrario: o golpe
+   forte e curto e PARA BAIXO, e a volta, mais lenta, leva as asas ao V em
+   cima das costas, onde elas passam a maior parte do tempo. Agora: do alto
+   (+1,05 rad) ao golpe (-0,30) em um terco da batida, e a volta nos outros
+   dois tercos. A media fica acima do corpo, e o V diz para que lado e cima. */
 float baterEm(float f){
   f = mod(f, 6.2831853);
-  return 0.95 * (f < 2.1991 ? sin(f / 0.7)
-                            : -0.55 * sin((f - 2.1991) / 1.3));
+  return f < 2.1991 ? mix(1.05, -0.30, smoothstep(0.0, 2.1991, f))
+                    : mix(-0.30, 1.05, smoothstep(2.1991, 6.2831853, f));
 }
 
 void main(){
@@ -11392,6 +11401,8 @@ if(emTesteLocal){
     /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
        raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
     chamado(id){ return chamadoDe(id); },
+    // onde a borboleta esta agora e para onde o corpo aponta (6.5), para a bancada
+    borboleta(){ return { p: borboletaAgora.map(x => +x.toFixed(2)), rumo: [+rumoBorbo.x.toFixed(2), +rumoBorbo.z.toFixed(2)], presenca: +borboletaPresenteAgora.toFixed(2) }; },
     /* o mar vivo (6.3), para a bancada: onde estao os gigantes, as aguas-vivas
        agora e os seres de luz agora */
     mar(){ const r2 = (a) => a.map(x => +x.toFixed(2));
@@ -12302,6 +12313,8 @@ const bBb = criarBufs(['pos','nor','lado','uv','idx']);
    conta de luz nao precisa de forma nenhuma; precisa de silhueta redonda.
    Um fuso de oito lados custa sessenta e quatro. */
 let asasDe = 0, nAsas = 0, corpoDe = 0, nCorpo = 0, contaDe = 0, nConta = 0;
+// o rumo horizontal da borboleta, guardado entre quadros (6.5); em = o relogio da ultima conta
+const rumoBorbo = { x: 0, z: -1, em: 0 };
 let ultimaBatida = -1;
 (function(){
   const pos = [], nor = [], lado = [], uv = [], idx = [];
@@ -12559,6 +12572,7 @@ const mvpCeu = new Float32Array(16);
    camadas do ceu andam com a cabeca como a cupula -- sem isso, andando pela
    sala, as estrelas escorregariam por cima da nebulosa. */
 const mvpOlhoBuf = new Float32Array(16);
+const mvpFioBuf = new Float32Array(16);   // as passadas dos fios das deusas (6.5)
 function mvpNoOlho(m, o){
   for(let j = 0; j < 12; j++) mvpOlhoBuf[j] = m[j];
   for(let j = 0; j < 4; j++) mvpOlhoBuf[12 + j] = m[j] * o[0] + m[4 + j] * o[1] + m[8 + j] * o[2] + m[12 + j];
@@ -12789,6 +12803,135 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.drawElements(gl.TRIANGLES, nFilaIdx, gl.UNSIGNED_SHORT, 0);
     }
     sobrepor(); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+
+  /* 1a-bis) AS FIGURAS -- AS DEUSAS -- NO FUNDO, logo depois do ceu (6.5).
+
+     Eram a "2b-ter", depois dos planetas e da agua. 25/09, a direcao de arte:
+     "durante a interacao com o planeta as figuras das deusas ficam
+     sobrepondo eles; na hierarquia da perspectiva e para elas estarem
+     longe, nas paredes intocaveis". Elas estao a quarenta, cinquenta metros
+     e nao escrevem profundidade -- e o planeta rosa (gasoso), os halos e as
+     cascas de luz tambem nao --, entao quem fosse desenhado depois passava
+     por cima: a pintura de longe cobria o planeta de perto. Desenhadas aqui,
+     junto do ceu, tudo o que e perto (mata, planetas, halos, seres, agua,
+     neblina) vem depois e fica na frente, como deve.
+
+     (Estavam depois da agua para o reflexo cair sobre ela; hoje nenhuma
+     figura tem reflexo -- espelha e false nas tres -- e a agua so existe no
+     cenario 3, quando nenhuma delas esta no ceu.)
+
+     Sem escrever profundidade: sao recortes de borda macia, e escrever
+     profundidade cortaria a franja de quem vier depois. */
+  {
+    /* A COR DO AR DE CADA CENARIO. Sao as mesmas da regua da partitura e
+       as mesmas que a lampada da sala usa: a figura, a barra e a luz real
+       do estande passam a concordar sobre em que lugar a obra esta. */
+    /* O 4 era ambar (luz de vela sobre papel); desde 12/09 a lampada e o
+       contorno dizem que o cenario 4 e AZUL, e o ar acompanha. */
+    const ar = AR_DA_CENA[cenaAtual] || AR_DA_CENA[1];
+
+    const desenharFigura = (tex, cen, tam, pres, bal, esp, f) => {
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(locFi.figura, 7);
+      gl.uniform1f(locFi.inteira, f.inteira ? 1 : 0);
+      const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
+      gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
+      gl.uniform2f(locFi.escuro, es[0], es[1]);
+      gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
+      const fl = f.fluxo || [0, 0, 0, 0], as = f.asas || [0, 0, 0, 0];
+      gl.uniform4f(locFi.fluxo, fl[0], fl[1], fl[2], fl[3]);
+      gl.uniform4f(locFi.asas, as[0], as[1], as[2], as[3]);
+      gl.uniform1f(locFi.vida, f.vida || 0);
+      gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
+      gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
+      gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
+      gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
+      gl.uniform1f(locFi.presenca, pres);
+      gl.uniform1f(locFi.balanco, bal);
+      gl.uniform1f(locFi.espelho, esp ? 1 : 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+    let alguma = presencaBorboleta(t) > 0.004;
+    for(const f of FIGURAS) if(rampa(f.de, f.de+9, t)*(1-rampa(f.ate-9, f.ate, t)) > 0.004) alguma = true;
+    if(alguma){
+      gl.enable(gl.BLEND);
+      sobrepor();
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      gl.useProgram(progFigu);
+      soltarAtributos();
+      mandarMvp(locFi.mvp, mvp);
+      gl.uniform3f(locFi.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+      gl.uniform1f(locFi.tempo, relogio);
+      gl.uniform1f(locFi.corte, NIVEL_AGUA);
+      ligar(aFi.xy, bQ.xy, 2);
+
+      for(const f of FIGURAS){
+        const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+        if(pr < 0.004) continue;
+        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f);
+        if(f.espelha && aguaPresenca > 0.004){
+          // o reflexo nasce da linha d'agua, nao do pe da figura
+          const c = [f.centro[0], NIVEL_AGUA * 2 - f.centro[1], f.centro[2]];
+          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true, f);
+        }
+      }
+
+      // A BORBOLETA, com rastro: copias ao longo do caminho que ela acabou
+      // de fazer, cada vez mais apagadas. E o rastro do roteiro, e sai de
+      // graca — a posicao dela ja e funcao do tempo.
+      /* A borboleta plana saiu daqui: agora ela e objeto de verdade, com
+         asas que batem, desenhado logo abaixo. O rastro foi junto -- um
+         rastro de copias chapadas era o que fazia o recorte plano parecer
+         movimento, e movimento de verdade nao precisa de rastro. */
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+  }
+
+  /* AS PARTICULAS E OS FIOS de cada deusa, enquanto ela esta no ceu -- no
+     fundo com ela (6.5): os fios vem da pintura ate uns dez metros, e mesmo
+     assim estao muito mais longe que qualquer planeta. */
+  for(const E of ENFEITES){
+    const f = FIGURAS[E.fig];
+    const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+    if(pd < 0.004 || !poeiraOn) continue;
+    gl.enable(gl.BLEND);
+    somarLuz();
+    gl.depthMask(false);
+    gl.useProgram(progPo);
+    soltarAtributos();
+    mandarMvp(locPo.mvp, mvp);
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto * pd);
+    gl.uniform1f(locPo.sopro, 0.35);
+    gl.uniform1f(locPo.sentido, 1);
+    gl.uniform1f(locPo.fixo, 1.0);
+    ligar(aP.pos,E.pontos.pos,3); ligar(aP.cor,E.pontos.cor,3); ligar(aP.dado,E.pontos.dado,2);
+    gl.drawArrays(gl.POINTS, 0, E.nPontos);
+    gl.uniform1f(locPo.fixo, 0.0);
+
+    // E OS FIOS, saindo da pintura, na cor dela. Cinco passadas em cruz de
+    // dois centimetros: linha de um pixel a dez metros e fina demais para
+    // somar; cinco, lado a lado, viram um fio de luz com corpo.
+    gl.useProgram(progFio);
+    soltarAtributos();
+    gl.uniform1f(locFio.tempo, relogio);
+    gl.uniform1f(locFio.presenca, pd * 0.9);
+    gl.uniform3f(locFio.cor, E.fio[0], E.fio[1], E.fio[2]);
+    gl.uniform3f(locFio.corPulso, E.pulso[0], E.pulso[1], E.pulso[2]);
+    ligar(aFio.pos,E.fios.pos,3); ligar(aFio.t,E.fios.ao,1); ligar(aFio.fase,E.fios.fase,1);
+    const passadas = [[0,0],[0.02,0],[-0.02,0],[0,0.02],[0,-0.02]].slice(0, E.passadas);
+    for(const [dx, dy] of passadas){
+      const m2 = mvpFioBuf; m2.set(mvp);   // um buffer so, e nao um por passada por quadro
+      m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
+      m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
+      mandarMvp(locFio.mvp, m2);
+      for(const [ini, n] of E.linhas) gl.drawArrays(gl.LINE_STRIP, ini, n);
+    }
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
   }
 
   /* 1b) AS PAREDES, logo depois do ceu (5.0). Primeiro a TAMPA: sem
@@ -14240,81 +14383,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.disable(gl.BLEND);
   }
 
-  /* 2b-ter) AS FIGURAS. Depois da agua para que o reflexo caia sobre ela,
-     e sem escrever profundidade: sao recortes de borda macia, e escrever
-     profundidade cortaria a franja de quem vier depois. */
-  {
-    /* A COR DO AR DE CADA CENARIO. Sao as mesmas da regua da partitura e
-       as mesmas que a lampada da sala usa: a figura, a barra e a luz real
-       do estande passam a concordar sobre em que lugar a obra esta. */
-    /* O 4 era ambar (luz de vela sobre papel); desde 12/09 a lampada e o
-       contorno dizem que o cenario 4 e AZUL, e o ar acompanha. */
-    const ar = AR_DA_CENA[cenaAtual] || AR_DA_CENA[1];
-
-    const desenharFigura = (tex, cen, tam, pres, bal, esp, f) => {
-      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.uniform1i(locFi.figura, 7);
-      gl.uniform1f(locFi.inteira, f.inteira ? 1 : 0);
-      const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
-      gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
-      gl.uniform2f(locFi.escuro, es[0], es[1]);
-      gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
-      const fl = f.fluxo || [0, 0, 0, 0], as = f.asas || [0, 0, 0, 0];
-      gl.uniform4f(locFi.fluxo, fl[0], fl[1], fl[2], fl[3]);
-      gl.uniform4f(locFi.asas, as[0], as[1], as[2], as[3]);
-      gl.uniform1f(locFi.vida, f.vida || 0);
-      gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
-      gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
-      gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
-      gl.uniform2f(locFi.tamanho, tam[0], tam[1]);
-      gl.uniform1f(locFi.presenca, pres);
-      gl.uniform1f(locFi.balanco, bal);
-      gl.uniform1f(locFi.espelho, esp ? 1 : 0);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    };
-    let alguma = presencaBorboleta(t) > 0.004;
-    for(const f of FIGURAS) if(rampa(f.de, f.de+9, t)*(1-rampa(f.ate-9, f.ate, t)) > 0.004) alguma = true;
-    if(alguma){
-      gl.enable(gl.BLEND);
-      sobrepor();
-      gl.depthMask(false);
-      gl.disable(gl.CULL_FACE);
-      gl.useProgram(progFigu);
-      soltarAtributos();
-      mandarMvp(locFi.mvp, mvp);
-      gl.uniform3f(locFi.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
-      gl.uniform1f(locFi.tempo, relogio);
-      gl.uniform1f(locFi.corte, NIVEL_AGUA);
-      ligar(aFi.xy, bQ.xy, 2);
-
-      for(const f of FIGURAS){
-        const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
-        if(pr < 0.004) continue;
-        desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f);
-        if(f.espelha && aguaPresenca > 0.004){
-          // o reflexo nasce da linha d'agua, nao do pe da figura
-          const c = [f.centro[0], NIVEL_AGUA * 2 - f.centro[1], f.centro[2]];
-          desenharFigura(FIGS[f.tex], c, f.tam, pr * aguaPresenca, f.balanco, true, f);
-        }
-      }
-
-      // A BORBOLETA, com rastro: copias ao longo do caminho que ela acabou
-      // de fazer, cada vez mais apagadas. E o rastro do roteiro, e sai de
-      // graca — a posicao dela ja e funcao do tempo.
-      /* A borboleta plana saiu daqui: agora ela e objeto de verdade, com
-         asas que batem, desenhado logo abaixo. O rastro foi junto -- um
-         rastro de copias chapadas era o que fazia o recorte plano parecer
-         movimento, e movimento de verdade nao precisa de rastro. */
-      gl.depthMask(true);
-      gl.disable(gl.BLEND);
-    }
-  }
-
   /* 2b-quater) A BORBOLETA, EM TRES DIMENSOES.
 
      Duas asas que batem, com a textura da propria pintura. O batimento nao
-     e um seno puro: sobe rapido e desce devagar, que e como asa bate -- e a
-     diferenca entre isso e um seno e o que separa voo de metronomo.
+     e um seno puro: o golpe para baixo e rapido e a volta ao alto e lenta,
+     que e como asa bate -- e a diferenca entre isso e um seno e o que separa
+     voo de metronomo (desvirada em 25/09: ver baterEm).
 
      A frente do voo sai da propria trajetoria: onde ela estava um instante
      atras contra onde esta agora. Assim ela sempre olha para onde vai, sem
@@ -14346,9 +14420,30 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
                  antes[1] + (alvo[1]-antes[1])*k*0.96,
                  antes[2] + (alvo[2]-antes[2])*k*0.96];
       }
+      /* O CORPO SEGUE O RUMO, E NAO A VELOCIDADE -- 25/09 (6.5). A frente era
+         a propria direcao do voo, com o vertical junto: na subida quase reta
+         ela apontava para o ceu, e o "cima" do corpo, que sai de cruzar a
+         frente com a vertical do mundo, perdia a referencia e podia virar --
+         a borboleta de lado, ou de barriga para cima. Agora o rumo e so o
+         horizontal, guardado de um quadro para o outro (numa subida vertical
+         ela mantem o ultimo), e a inclinacao do corpo para cima ou para baixo
+         vai no maximo a uns trinta graus: borboleta sobe inclinada, e nao em
+         pe. As costas ficam sempre para cima. */
       let fx = aqui[0]-antes[0], fy = aqui[1]-antes[1], fz = aqui[2]-antes[2];
-      const comp = Math.sqrt(fx*fx+fy*fy+fz*fz) || 1;
-      fx /= comp; fy /= comp; fz /= comp;
+      const horiz = Math.hypot(fx, fz);
+      if(relogio !== rumoBorbo.em){
+        const dtR = Math.min(0.1, Math.max(0, relogio - rumoBorbo.em));
+        rumoBorbo.em = relogio;
+        if(horiz > 0.002){
+          const k = 1 - Math.exp(-4.0 * dtR);
+          rumoBorbo.x += (fx / horiz - rumoBorbo.x) * k;
+          rumoBorbo.z += (fz / horiz - rumoBorbo.z) * k;
+          const L = Math.hypot(rumoBorbo.x, rumoBorbo.z) || 1;
+          rumoBorbo.x /= L; rumoBorbo.z /= L;
+        }
+      }
+      const incl = Math.max(-0.52, Math.min(0.52, Math.atan2(fy, horiz)));
+      fx = Math.cos(incl) * rumoBorbo.x; fy = Math.sin(incl); fz = Math.cos(incl) * rumoBorbo.z;
 
       /* SO A FASE VAI. A curva da batida mudou de lado -- ela agora vive no
          shader, porque cada ponto da asa precisa consulta-la na sua propria
@@ -14750,48 +14845,6 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aP.pos,bGli.pos,3); ligar(aP.cor,bGli.cor,3); ligar(aP.dado,bGli.dado,2);
     gl.drawArrays(gl.POINTS, 0, GLITTER_N);
     gl.uniform1f(locPo.fixo, 0.0);
-    gl.depthMask(true);
-    gl.disable(gl.BLEND);
-  }
-
-  // AS PARTICULAS E OS FIOS de cada deusa, enquanto ela esta no ceu.
-  for(const E of ENFEITES){
-    const f = FIGURAS[E.fig];
-    const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
-    if(pd < 0.004 || !poeiraOn) continue;
-    gl.enable(gl.BLEND);
-    somarLuz();
-    gl.depthMask(false);
-    gl.useProgram(progPo);
-    soltarAtributos();
-    mandarMvp(locPo.mvp, mvp);
-    gl.uniform1f(locPo.tempo, relogio);
-    gl.uniform1f(locPo.escalaPonto, escalaPonto * pd);
-    gl.uniform1f(locPo.sopro, 0.35);
-    gl.uniform1f(locPo.sentido, 1);
-    gl.uniform1f(locPo.fixo, 1.0);
-    ligar(aP.pos,E.pontos.pos,3); ligar(aP.cor,E.pontos.cor,3); ligar(aP.dado,E.pontos.dado,2);
-    gl.drawArrays(gl.POINTS, 0, E.nPontos);
-    gl.uniform1f(locPo.fixo, 0.0);
-
-    // E OS FIOS, saindo da pintura, na cor dela. Cinco passadas em cruz de
-    // dois centimetros: linha de um pixel a dez metros e fina demais para
-    // somar; cinco, lado a lado, viram um fio de luz com corpo.
-    gl.useProgram(progFio);
-    soltarAtributos();
-    gl.uniform1f(locFio.tempo, relogio);
-    gl.uniform1f(locFio.presenca, pd * 0.9);
-    gl.uniform3f(locFio.cor, E.fio[0], E.fio[1], E.fio[2]);
-    gl.uniform3f(locFio.corPulso, E.pulso[0], E.pulso[1], E.pulso[2]);
-    ligar(aFio.pos,E.fios.pos,3); ligar(aFio.t,E.fios.ao,1); ligar(aFio.fase,E.fios.fase,1);
-    const passadas = [[0,0],[0.02,0],[-0.02,0],[0,0.02],[0,-0.02]].slice(0, E.passadas);
-    for(const [dx, dy] of passadas){
-      const m2 = new Float32Array(mvp);
-      m2[12] += m2[0]*dx + m2[4]*dy; m2[13] += m2[1]*dx + m2[5]*dy;
-      m2[14] += m2[2]*dx + m2[6]*dy; m2[15] += m2[3]*dx + m2[7]*dy;
-      mandarMvp(locFio.mvp, m2);
-      for(const [ini, n] of E.linhas) gl.drawArrays(gl.LINE_STRIP, ini, n);
-    }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
