@@ -624,13 +624,27 @@ const ESCALA_DESENHO        = 0.7;
    lente ja borra e o olho quase nao olha. De graca para o miolo, e o que
    mais pesa nesta obra (agua, neblina, papel, cascas de luz) e custo por
    pixel. 0 = desligada, 1 = o maximo que o aparelho oferece. */
-const FOVEACAO              = 1.0;
+/* 0,75 e nao 1 (25/09, a direcao de arte: "os botoes com qualidade baixa,
+   tem coisas com qualidade baixa"): no maximo a borda de cada olho fica
+   visivelmente borrada; 0,75 guarda quase toda a economia. */
+const FOVEACAO              = 0.75;
 /* A RESOLUCAO QUE CEDE (25/09, mesmo pedido). Por cima da ESCALA_DESENHO:
    quando os quadros caem abaixo do alvo, o desenho de cada olho encolhe um
    degrau (requestViewportScale, que nao recria nada); com folga por uns
    segundos, cresce de volta. Quadro perdido e o que enjoa -- a imagem um
    pouco mais macia, nao. Este e o degrau mais baixo. */
-const ESCALA_VIVA_MIN       = 0.65;
+/* 0,75 e nao 0,65 (mesmo dia): 0,65 sobre os 0,7 da ESCALA_DESENHO dava
+   menos da metade da resolucao do olho, e isso se ve. Com a neblina leve
+   (NEBLINA_CAMADAS_RM) a folga que faltava veio de onde estava o peso. */
+const ESCALA_VIVA_MIN       = 0.75;
+/* A NEBLINA EM RM -- 25/09, MEDIDO NO QUEST pela Cabine, com a pessoa dentro:
+   ligada, a placa de video gastava 14-17 ms por quadro (55 fps); so ela
+   desligada, 8 ms e 72 fps cravados; a poeira desligada nao mudava nada. As
+   sete camadas sao do tamanho da sala -- cada uma e uma tela cheia por
+   olho. Dentro do oculos vao QUATRO, um pouco mais densas para o volume
+   continuar o mesmo; na tela do computador, as sete. */
+const NEBLINA_CAMADAS_RM    = 4;
+const NEBLINA_DENSA_RM      = 1.45;
 const SUAVIZAR_RM           = true;
 /* RAIZES COSMICAS 5.0 -- 24/09, a direcao de arte: "deixe mais integrado
    com o espaco; preciso que entenda as paredes e faca rachaduras e buracos
@@ -7420,7 +7434,8 @@ void main(){
   float alcance = smoothstep(0.30, 0.78, m.a);
 
   float alfa = macio * massa * alcance * presenca;
-  if(alfa < 0.003) discard;
+  /* SEM DISCARD (25/09): com mistura, alfa quase zero ja nao pinta nada, e
+     descartar pixel e caro na placa de ladrilhos do Quest. */
   gl_FragColor = vec4(t.rgb, alfa);
 }`;
 
@@ -9723,7 +9738,7 @@ const MENU = { aberto:false, abertoEm:0, presenca:0, sobre:-1, sobreDesde:0, ult
                        { id:'sair',      rotulo:'Sair da experiência',    c:[0,0,0], tex:null },
                        { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null } ] };
 const pontoSeta = [0, 0, 0];   // reusado por quadro no desenho da seta
-const MENU_MEIA_LARG = 0.17, MENU_MEIA_ALT = 0.045, MENU_PASSO = 0.115, MENU_LONGE = 0.65;
+const MENU_MEIA_LARG = 0.17, MENU_MEIA_ALT = 0.0425, MENU_PASSO = 0.115, MENU_LONGE = 0.65;
 
 /* O RELOGIO DO MENU E O DE PAREDE, e nao o da obra: o menu tem de
    responder com a obra parada -- no fim, na espera, na bancada. */
@@ -10294,11 +10309,18 @@ function contarQuadro(){
    seguidos no alvo, e meio degrau por vez -- subir depressa faria a
    resolucao ir e voltar a cada poucos segundos, o que se ve como imagem
    pulsando. */
-let escalaViva = 1.0, folgaDesde = 0;
+let escalaViva = 1.0, folgaDesde = 0, escalaDesde = 0, lentasSeguidas = 0;
 function ajustarEscalaViva(f, agora){
+  /* A PARTIDA NAO CONTA (25/09): nos primeiros segundos da RM o Quest le a
+     sala e os quadros caem por isso -- medido: 26 a 49 fps no primeiro
+     segundo, e o controle descia ao piso antes de a obra comecar. E so desce
+     com DUAS leituras lentas seguidas (um segundo), nunca por um solavanco. */
+  if(agora - escalaDesde < 5000) return;
   const antes = escalaViva;
-  if(f < TAXA_ALVO - 5){
-    escalaViva = Math.max(ESCALA_VIVA_MIN, Math.round((escalaViva - 0.10) * 100) / 100);
+  lentasSeguidas = f < TAXA_ALVO - 5 ? lentasSeguidas + 1 : 0;
+  if(lentasSeguidas >= 2){
+    lentasSeguidas = 0;
+    escalaViva = Math.max(ESCALA_VIVA_MIN, Math.round((escalaViva - 0.08) * 100) / 100);
     folgaDesde = 0;
   } else if(f >= TAXA_ALVO - 1){
     if(!folgaDesde) folgaDesde = agora;
@@ -11202,7 +11224,7 @@ async function entrarXR(aoEntrar){
     if('fixedFoveation' in camadaXR){ camadaXR.fixedFoveation = FOVEACAO; relato('FOVEACAO ' + camadaXR.fixedFoveation); }
     else relato('FOVEACAO indisponivel neste aparelho');
   }catch(e){ relato('FOVEACAO erro ' + (e && e.name)); }
-  escalaViva = 1.0; folgaDesde = 0;
+  escalaViva = 1.0; folgaDesde = 0; lentasSeguidas = 0; escalaDesde = performance.now();
   /* O ALCANCE, DITO EM VOZ ALTA. Sem depthFar a obra herdava o padrao do
      aparelho -- uns mil metros -- enquanto a versao de tela cortava em 60.
      Duas distancias diferentes para a mesma obra: o que se via no
@@ -11521,20 +11543,24 @@ function atualizarTempo(t){
   /* OS BOTOES DO MENU DA MAO: pilula escura translucida com um fio
      turquesa -- o mesmo turquesa da seiva e dos cogumelos -- e o rotulo. */
   for(const it of MENU.itens){
-    const c = document.createElement('canvas'); c.width = 768; c.height = 204;
+    /* 1024 x 256 e MIPMAP (25/09, "os botoes com qualidade baixa"): a meio
+       metro e pouco o botao ocupa menos pixels que a textura, e sem mipmap
+       a letra reduzida chuvisca. Mipmap pede potencia de dois no WebGL 1. */
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 256;
     const g = c.getContext('2d');
-    const r = 90, x0 = 12, y0 = 12, w = 744, h = 180;
+    const r = 112, x0 = 16, y0 = 16, w = 992, h = 224;
     g.beginPath();
     g.moveTo(x0 + r, y0); g.lineTo(x0 + w - r, y0); g.arc(x0 + w - r, y0 + r, r, -Math.PI/2, Math.PI/2);
     g.lineTo(x0 + r, y0 + h); g.arc(x0 + r, y0 + r, r, Math.PI/2, Math.PI*1.5); g.closePath();
     g.fillStyle = 'rgba(10,14,28,0.78)'; g.fill();
-    g.lineWidth = 6; g.strokeStyle = 'rgba(96,214,196,0.85)'; g.stroke();
-    g.font = '64px ' + seca; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillStyle = 'rgba(240,234,252,0.98)'; g.fillText(it.rotulo, 384, 104);
+    g.lineWidth = 8; g.strokeStyle = 'rgba(96,214,196,0.85)'; g.stroke();
+    g.font = '84px ' + seca; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(240,234,252,0.98)'; g.fillText(it.rotulo, 512, 132);
     const tx = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tx);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -13823,7 +13849,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   // 3) VÉUS por último. Mistura NORMAL, não aditiva: aditiva soma tudo pro
   //    claro e lava a marmorização — e é justo a tinta que tem que
   //    aparecer aqui. Com alfa normal a cor sai como ela é.
-  if(neblinaOn && nIdxF > 0){
+  // e nada quando ela esta em zero: sete telas cheias para desenhar nada
+  if(neblinaOn && nIdxF > 0 && neblina > 0.006){
     gl.enable(gl.BLEND);
     sobrepor();
     gl.depthMask(false);
@@ -13832,7 +13859,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     soltarAtributos();
     mandarMvp(locF.mvp, mvp);
     gl.uniform1f(locF.tempo, relogio);
-    gl.uniform1f(locF.presenca, neblina);
+    // em RM, menos camadas e mais densas (ver NEBLINA_CAMADAS_RM)
+    gl.uniform1f(locF.presenca, dentroDeXR ? Math.min(1, neblina * NEBLINA_DENSA_RM) : neblina);
     gl.uniform1f(locF.sopro, sopro);
     // os eixos da câmera: é com eles que cada maço se vira pra pessoa
     gl.uniform3f(locF.camDir, camDir[0], camDir[1], camDir[2]);
@@ -13842,7 +13870,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aF.centro,bF.centro,3); ligar(aF.canto,bF.canto,2);
     ligar(aF.dado,bF.dado,4); ligar(aF.tam,bF.tam,2);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bF.idx);
-    gl.drawElements(gl.TRIANGLES, nIdxF, gl.UNSIGNED_SHORT, 0);
+    // seis indices por camada, na ordem em que foram semeadas
+    gl.drawElements(gl.TRIANGLES, dentroDeXR ? Math.min(nIdxF, NEBLINA_CAMADAS_RM * 6) : nIdxF,
+                    gl.UNSIGNED_SHORT, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
