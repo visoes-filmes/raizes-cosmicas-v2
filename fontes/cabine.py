@@ -499,6 +499,29 @@ def recorte_de_um_olho(serial):
     return f"{w}:{h}:{(olho - w) // 2}:{(alt - h) // 2}"
 
 
+# O GIRO DO ESPELHO (25/09): "o espelhamento fica torto". O scrcpy 3.2+ gira
+# em qualquer angulo (--angle, horario). Vale para o espelho e para a
+# projecao do oculos, e fica guardado por maquina em fontes/espelho_angulo.txt.
+ANGULO_ARQ = os.path.join(AQUI, "espelho_angulo.txt")
+
+
+def angulo_do_espelho():
+    try:
+        return float(open(ANGULO_ARQ).read().strip())
+    except Exception:
+        return 0.0
+
+
+def args_do_giro():
+    a = angulo_do_espelho()
+    return [f"--angle={a:g}"] if abs(a) > 0.05 else []
+
+
+def fechar_espelhos():
+    """Fecha os espelhos abertos (janela e projecao), para reabrir com o giro novo."""
+    rodar(["pkill", "-f", "scrcpy.*Quest"], timeout=5) if MAC else None
+
+
 def espelhar(serial):
     exe = achar_scrcpy()
     if not exe:
@@ -508,7 +531,7 @@ def espelhar(serial):
     amb = dict(os.environ, ADB=ADB)
     corte = recorte_de_um_olho(serial)
     subprocess.Popen([exe, "-s", serial, "--max-size", "1280", "--no-audio",
-                      "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []),
+                      "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro(),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
     return {"ok": True}
@@ -642,6 +665,7 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         # horizontal, como a pagina ja fazia
         if espelhar:
             args += ["--display-orientation=flip0"]
+        args += args_do_giro()
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
         if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
@@ -896,6 +920,19 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome == "girar_espelho":
+        a = max(-180.0, min(180.0, float(dados.get("graus", 0) or 0)))
+        with open(ANGULO_ARQ, "w") as f:
+            f.write(f"{a:g}")
+        proj = dict(ESTADO["projecao"])
+        fechar_espelhos()
+        time.sleep(0.8)
+        relatar(f"giro do espelho: {a:g} graus")
+        if s:
+            espelhar(s)
+            if proj.get("ativa") and proj.get("saida") == "espelho":
+                projetar("espelho", proj.get("monitor"), proj.get("espelhar"))
+        return {"ok": True, "resposta": f"{a:g}°"}
     elif nome == "alinhar":
         # O ESPELHO ALINHADO (25/09): "o espelhamento fica torto". A pagina
         # captura a janela do espelho e a redesenha com giro fino, zoom,

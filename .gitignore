@@ -20,3 +20,4 @@ __pycache__/
 
 # as chaves da lampada (id e chave local da Tuya), por maquina
 fontes/lampada.json
+fontes/espelho_angulo.txt
