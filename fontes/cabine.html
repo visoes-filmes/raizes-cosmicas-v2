@@ -61,6 +61,12 @@
   .nota{font-size:13px;color:var(--texto2)}
   .aviso{background:#3a2e14;border:1px solid #6d5620;color:#ffd97a;padding:8px 12px;border-radius:9px;font-size:13px}
   .erro{background:#3a1a1a;border:1px solid #6d2a2a;color:#ffb0b0;padding:8px 12px;border-radius:9px;font-size:13px}
+  .caminhos{display:grid;gap:6px;margin:4px 0}
+  .caminho{display:grid;grid-template-columns:12px 52px 1fr;gap:8px;align-items:start;font-size:13px;line-height:1.35}
+  .caminho i{width:9px;height:9px;border-radius:50%;background:#555;margin-top:5px}
+  .caminho.ok i{background:var(--ok);box-shadow:0 0 8px var(--ok)} .caminho.aviso i{background:var(--aviso)}
+  .caminho.erro i{background:var(--erro)} .caminho.ok span{color:var(--ok)} .caminho.erro span{color:#ffb0b0}
+  .caminho.aviso span{color:#ffd97a} .caminho.fora span{color:var(--texto2)}
   details summary{cursor:pointer;color:var(--texto2);font-size:13px}
   .num{font-variant-numeric:tabular-nums}
   #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222840;border:1px solid var(--borda);padding:10px 16px;border-radius:10px;opacity:0;transition:.3s;pointer-events:none;max-width:80vw}
@@ -121,6 +127,7 @@
       <b>ip do Quest</b><span id="qIp" class="mono">—</span>
       <b>túneis</b><span id="qTuneis">—</span>
     </div>
+    <div class="caminhos" id="qCaminhos"></div>
     <div class="linha">
       <button id="bLiberar" onclick="acao('liberar_wifi')"><svg viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01M12 3v5"/></svg>Liberar Wi-Fi</button>
       <input type="text" id="ipWifi" placeholder="ip do Quest" class="mono" style="width:140px">
@@ -141,9 +148,9 @@
     <div class="passos"><b>4</b> abra a versão no Quest <b>5</b> <em>Iniciar em RM</em> (o operador aperta daqui; ninguém precisa tocar o capacete)</div>
     <div class="linha">
       <div class="seg" id="versoes">
-        <label><input type="radio" name="versao" value="v6" checked><span>6.0 · tela de tule</span></label>
+        <label><input type="radio" name="versao" value="v6" checked><span>6.1 · tela de tule</span></label>
         <label><input type="radio" name="versao" value="v52"><span>5.2 · céu + chão</span></label>
-        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 6.0)</span></label>
+        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 6.1)</span></label>
         <label><input type="radio" name="versao" value="v4"><span>v4 · espaço</span></label>
         <label><input type="radio" name="versao" value="v5"><span>5.1 · paredes</span></label>
         <label><input type="radio" name="versao" value="oficina"><span>oficina</span></label>
@@ -290,7 +297,9 @@ function desenhar(){
   // pílulas
   pill('pServidor', e.servidor&&e.servidor.de_pe?'ok':'erro', 'servidor '+(e.servidor?e.servidor.porta:''));
   pill('pRede', hs.ligado?'ok':(hs.erro?'erro':'aviso'), hs.ligado?('rede · '+(hs.clientes||0)+' na rede'):'rede desligada');
-  pill('pQuest', q.escolhido?'ok':((q.lista||[]).some(a=>a.estado==='unauthorized')?'aviso':'erro'), q.escolhido?('Quest · '+q.via):'sem Quest');
+  const qd = q.diag || {};
+  pill('pQuest', q.escolhido?(qd.nivel==='ok'?'ok':'aviso'):((q.lista||[]).some(a=>a.estado==='unauthorized')?'aviso':'erro'),
+       q.escolhido?('Quest · '+(q.via==='cabo'?'cabo':'Wi-Fi')+(qd.nivel==='ok'?' + reserva':'')):'sem Quest');
   pill('pObra', o.aba?(o.portao===false?'ok':'aviso'):'erro', o.aba?(o.portao===false?'obra correndo':'obra no portão'):'obra fechada');
   $('pHora').lastChild.textContent = e.hora||'--:--:--';
   // rede
@@ -316,8 +325,13 @@ function desenhar(){
   $('bEspelho').disabled = !e.scrcpy || !q.escolhido;
   $('bEspelho').title = e.scrcpy ? '' : 'scrcpy não está instalado';
   if (!ipEditado && !$('ipWifi').value && (q.ip_guardado||q.ip)) $('ipWifi').value = q.ip_guardado||q.ip;
-  $('qNota').textContent = naoAut ? 'No capacete: aceite "Permitir depuração USB" marcando "Sempre permitir deste computador".' :
-                            (q.escolhido && !q.ip ? 'O Quest não está em Wi-Fi nenhuma: entre com ele na rede acima para poder tirar o cabo.' : '');
+  // os dois caminhos, cada um com o que houve e o que fazer (24/09)
+  const d = q.diag || {};
+  $('qCaminhos').innerHTML = [['cabo','cabo'],['wifi','Wi-Fi']].map(([k,nome])=>{
+    const c = d[k] || {}; return `<div class="caminho ${c.nivel||''}"><i></i><b>${nome}</b><span>${c.msg||'—'}</span></div>`;
+  }).join('') + (d.extra||[]).map(x=>`<div class="erro">${x}</div>`).join('');
+  $('qNota').textContent = d.resumo || '';
+  $('qNota').style.color = d.nivel==='erro' ? 'var(--erro)' : (d.nivel==='aviso' ? 'var(--aviso)' : 'var(--texto2)');
   // obra
   $('oAba').textContent = o.aba ? (o.url||'aberta') : 'não está aberta no navegador do Quest';
   $('oVersao').textContent = o.versao || '—';

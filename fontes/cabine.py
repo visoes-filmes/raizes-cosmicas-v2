@@ -159,14 +159,138 @@ def liberar_wifi(serial):
     """No cabo: liga o adb pela Wi-Fi (tcpip 5555) e conecta pelo ip do Quest."""
     ip = ip_do_quest(serial)
     if not ip:
-        return {"ok": False, "erro": "o Quest não está em nenhuma rede Wi-Fi — entre com ele no Ponto de Acesso primeiro"}
+        return {"ok": False, "erro": "o Quest não está em nenhuma rede Wi-Fi — no capacete, Configurações › Wi-Fi: "
+                                     "entre na mesma rede deste computador (ou na rede interna da Cabine)"}
     adb("tcpip", "5555", serial=serial)
     time.sleep(3)
-    r = adb("connect", f"{ip}:5555", timeout=15)
     with open(IP_GUARDADO, "w") as f:
         f.write(ip)
-    relatar(f"Wi-Fi liberada: {r}")
-    return {"ok": "connected" in r or "already" in r, "ip": ip, "resposta": r}
+    tipo, r = tentar_wifi(ip)
+    relatar(f"Wi-Fi liberada em {ip}: {r}")
+    if tipo == "ok":
+        return {"ok": True, "ip": ip, "resposta": r}
+    return {"ok": False, "ip": ip, "resposta": r, "erro": FRASE_WIFI.get(tipo, r).format(ip=ip)}
+
+
+# ── OS DOIS CAMINHOS (24/09) ─────────────────────────────────────────────
+#
+# "Precisa ter esses dois caminhos possiveis para conectar; se nao conseguir
+# um, tenta o outro. E precisa ter um aviso adequado de erros assim."
+#
+# O cabo e a Wi-Fi sao dois caminhos para o MESMO adb do oculos, e cada um
+# falha por um motivo proprio: o cabo por autorizacao, por cabo que so
+# carrega, pelo Meta Quest Link segurando a porta; a Wi-Fi porque o Quest
+# fecha o acesso a cada reinicio, porque o ip mudou, porque os dois nao estao
+# na mesma rede. O vigia tenta os dois a cada volta, usa o que estiver bom
+# (o cabo primeiro) e escreve, para cada um, o que houve e o que fazer.
+
+FRASE_WIFI = {
+    "fechada": "o Quest responde em {ip}, mas o acesso pela Wi-Fi está fechado — ele fecha sempre que o Quest "
+               "reinicia. Com o cabo bom, a Cabine abre sozinha (quando a obra está parada) ou pelo botão Liberar Wi-Fi",
+    "nao_autorizado": "chegou ao Quest em {ip}, mas ele não autorizou — no capacete, aceite “Permitir depuração” "
+                      "marcando “Sempre permitir deste computador”",
+    "sem_rede": "o Quest não responde em {ip} — ele está ligado e acordado? na mesma rede deste computador? "
+                "o ip pode ter mudado: ligue o cabo uma vez e a Cabine descobre o novo",
+    "sem_resposta": "{ip} responde, mas o adb não atende — ligue o cabo e aperte Liberar Wi-Fi",
+}
+CAMINHOS = {"tentativa": None, "ping": None, "link": False, "windows_ve": None, "armados": {}}
+
+
+def tentar_wifi(ip):
+    """Uma tentativa pela Wi-Fi, com o motivo da falha em uma palavra."""
+    # uma entrada 'offline' velha faz o connect responder 'already connected'
+    # sem conectar nada: tira antes
+    adb("disconnect", f"{ip}:5555", timeout=5)
+    r = adb("connect", f"{ip}:5555", timeout=6)
+    b = r.lower()
+    if "connected to" in b or "already connected" in b:
+        return "ok", r
+    if "authenticate" in b or "unauthorized" in b:
+        return "nao_autorizado", r
+    if "10061" in r or "refused" in b or "recus" in b:
+        return "fechada", r
+    return "sem_resposta", r
+
+
+def responde_ping(ip):
+    if MAC:
+        saida, _ = rodar(["ping", "-c", "1", "-t", "2", ip], timeout=5)
+    else:
+        saida, _ = rodar(["ping", "-n", "1", "-w", "1500", ip], timeout=5)
+    return "ttl=" in saida.lower()
+
+
+def link_aberto():
+    """O Meta Quest Link rodando neste PC toma o cabo e esconde a caixa de
+    permissao -- foi o que prendeu o Quest em 'unauthorized' por uma hora."""
+    if MAC:
+        return False
+    saida, _ = rodar(["tasklist", "/FI", "IMAGENAME eq OVRServer_x64.exe"], timeout=8)
+    return "OVRServer_x64.exe" in saida
+
+
+def windows_ve_quest():
+    """Se o Windows enxerga o Quest no USB mesmo quando o adb nao."""
+    if MAC:
+        return None
+    saida, _ = rodar(["powershell", "-NoProfile", "-Command",
+                      "@(Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -match 'Quest|Reality Labs' }).Count"],
+                     timeout=15)
+    try:
+        return int(saida.strip().splitlines()[-1]) > 0
+    except Exception:
+        return None
+
+
+def diagnosticar(lista, ip):
+    """Cada caminho em uma frase: nivel (ok, aviso, erro, fora) e o que fazer."""
+    cabo = next((a for a in lista if a["via"] == "cabo"), None)
+    wifi = next((a for a in lista if a["via"] == "wifi" and (not ip or a["serial"].startswith(ip))), None) \
+        or next((a for a in lista if a["via"] == "wifi"), None)
+    d = {"extra": []}
+
+    if cabo and cabo["estado"] == "device":
+        d["cabo"] = {"nivel": "ok", "msg": "conectado"}
+    elif cabo and cabo["estado"] == "unauthorized":
+        d["cabo"] = {"nivel": "aviso", "msg": "esperando autorização — no capacete, aceite “Permitir depuração USB” marcando "
+                     "“Sempre permitir deste computador”. Sem caixa: veja o sino de notificações; ou Configurações › Sistema › "
+                     "Desenvolvedor › “Caixa de diálogo de conexão USB” ligada, e tire e ponha o cabo"}
+    elif cabo:
+        d["cabo"] = {"nivel": "erro", "msg": f"o Quest está no cabo mas não responde ({cabo['estado']}) — tire e ponha o cabo; "
+                     "se repetir, reinicie o Quest"}
+    elif CAMINHOS["windows_ve"]:
+        d["cabo"] = {"nivel": "erro", "msg": "o Windows vê o Quest no USB, mas o adb não — o modo de desenvolvedor pode ter "
+                     "desligado (app Meta Horizon › Dispositivos › Modo de desenvolvedor), ou o Link está segurando o cabo"}
+    else:
+        d["cabo"] = {"nivel": "fora", "msg": "sem cabo — ou o cabo só carrega e não passa dados (use um cabo de dados, "
+                     "direto numa porta do computador)"}
+
+    if wifi and wifi["estado"] == "device":
+        d["wifi"] = {"nivel": "ok", "msg": f"conectado ({wifi['serial']})"}
+    elif wifi and wifi["estado"] == "unauthorized":
+        d["wifi"] = {"nivel": "aviso", "msg": FRASE_WIFI["nao_autorizado"].format(ip=ip or wifi["serial"])}
+    elif not ip:
+        d["wifi"] = {"nivel": "fora", "msg": "ainda sem o ip do Quest — com o cabo ligado uma vez, a Cabine descobre e guarda"}
+    else:
+        tipo = (CAMINHOS["tentativa"] or ("sem_resposta", ""))[0]
+        if tipo == "sem_resposta" and CAMINHOS["ping"] is False:
+            tipo = "sem_rede"
+        d["wifi"] = {"nivel": "erro" if tipo == "sem_rede" else "aviso", "msg": FRASE_WIFI.get(tipo, "").format(ip=ip)}
+
+    if CAMINHOS["link"]:
+        d["extra"].append("O Meta Quest Link está aberto neste computador: ele toma o cabo e esconde a caixa de permissão. "
+                          "Feche-o (ícone perto do relógio › Sair) ou pare o serviço “Oculus VR Runtime Service”.")
+    bons = [k for k in ("cabo", "wifi") if d[k]["nivel"] == "ok"]
+    if len(bons) == 2:
+        d["nivel"], d["resumo"] = "ok", "os dois caminhos estão de pé: se o cabo sair, a Wi-Fi assume"
+    elif bons:
+        outro = "wifi" if bons[0] == "cabo" else "cabo"
+        nome = {"cabo": "cabo", "wifi": "Wi-Fi"}
+        d["nivel"] = "aviso"
+        d["resumo"] = f"conectado pelo {nome[bons[0]]}; o caminho reserva ({nome[outro]}) não está de pé"
+    else:
+        d["nivel"], d["resumo"] = "erro", "nenhum caminho funcionou — veja abaixo o motivo de cada um"
+    return d
 
 
 def bateria(serial):
@@ -534,13 +658,25 @@ def vigiar():
         try:
             ciclo += 1
             lista = aparelhos()
-            alvo = escolher(lista)
             ip_guardado = open(IP_GUARDADO).read().strip() if os.path.exists(IP_GUARDADO) else None
-            # só a Wi-Fi pode estar de pé: tenta o ip guardado
-            if ip_guardado and not alvo and ciclo % 3 == 1:
-                adb("connect", f"{ip_guardado}:5555", timeout=8)
+            cabo_ok = any(a["via"] == "cabo" and a["estado"] == "device" for a in lista)
+            wifi_ok = any(a["via"] == "wifi" and a["estado"] == "device" for a in lista)
+            # A WI-FI E TENTADA A CADA VOLTA quando e o unico caminho possivel,
+            # e a cada cinco quando o cabo esta bom -- para a reserva estar
+            # pronta se o cabo sair. Sem resposta, um ping diz se e a rede.
+            if ip_guardado and not wifi_ok and (not cabo_ok or ciclo % 5 == 1):
+                CAMINHOS["tentativa"] = tentar_wifi(ip_guardado)
+                CAMINHOS["ping"] = responde_ping(ip_guardado) if CAMINHOS["tentativa"][0] == "sem_resposta" else None
                 lista = aparelhos()
-                alvo = escolher(lista)
+            elif wifi_ok:
+                CAMINHOS["tentativa"], CAMINHOS["ping"] = ("ok", ""), None
+            if ciclo % 4 == 1:
+                CAMINHOS["link"] = link_aberto()
+            if not any(a["via"] == "cabo" for a in lista) and ciclo % 6 == 1:
+                CAMINHOS["windows_ve"] = windows_ve_quest()
+            elif any(a["via"] == "cabo" for a in lista):
+                CAMINHOS["windows_ve"] = True
+            alvo = escolher(lista)
             for a in lista:
                 if a["estado"] == "unauthorized" and vistos.get(a["serial"]) != "unauthorized":
                     relatar("Quest NÃO AUTORIZADO: no capacete, aceitar 'Permitir depuração USB' com 'Sempre permitir'")
@@ -550,7 +686,7 @@ def vigiar():
             o = dict(ESTADO["obra"])
             if alvo:
                 s = alvo["serial"]
-                boot = adb("shell", "cat", "/proc/sys/kernel/random/boot_id", serial=s, timeout=8)
+                boot = adb("shell", "cat", "/proc/sys/kernel/random/boot_id", serial=s, timeout=8).strip()
                 if re.fullmatch(r"[0-9a-f-]{36}", boot) and vistos.get(s) != boot:
                     relatar(f"Quest apareceu pelo {alvo['via']} ({s})")
                     tuneis(s)
@@ -571,6 +707,27 @@ def vigiar():
                     tuneis(s)
                     q["tuneis"] = f"tcp:{PORTA_OBRA}" in adb("reverse", "--list", serial=s, timeout=8)
                     relatar("túnel da obra tinha caído — refeito" if q["tuneis"] else "túnel da obra caiu e não voltou")
+                # PELO CABO: o ip do Quest se confere a cada volta -- se mudou
+                # (o roteador deu outro), a reserva passa a apontar para o novo.
+                if alvo["via"] == "cabo" and q["ip"] and q["ip"] != ip_guardado:
+                    with open(IP_GUARDADO, "w") as f:
+                        f.write(q["ip"])
+                    if ip_guardado:
+                        relatar(f"o ip do Quest mudou: {ip_guardado} → {q['ip']}")
+                    ip_guardado = q["ip_guardado"] = q["ip"]
+                # E A RESERVA SE ARMA SOZINHA -- uma vez por ligada do Quest, e so
+                # com a obra PARADA (portao a vista ou nenhuma aba). O "tcpip"
+                # reinicia o adb do oculos: no meio da obra isso derrubava os
+                # tuneis; parado, os tuneis se refazem na volta seguinte e
+                # ninguem ve. Sem o "Sempre permitir", o Quest pede a caixa de
+                # novo -- e o diagnostico diz isso.
+                obra_parada = ESTADO["obra"].get("portao") is not False
+                if (alvo["via"] == "cabo" and q["ip"] and not any(a["via"] == "wifi" and a["estado"] == "device" for a in lista)
+                        and obra_parada and CAMINHOS["armados"].get(s) != boot):
+                    CAMINHOS["armados"][s] = boot
+                    relatar("preparando o caminho reserva: abrindo o acesso pela Wi-Fi (a obra está parada)")
+                    r = liberar_wifi(s)
+                    relatar("reserva pela Wi-Fi de pé" if r.get("ok") else ("reserva pela Wi-Fi falhou: " + r.get("erro", "")))
                 if ciclo % 5 == 1:
                     q["bateria"] = bateria(s)
                 else:
@@ -596,6 +753,10 @@ def vigiar():
                 if serial not in [a["serial"] for a in lista]:
                     relatar(f"Quest sumiu ({serial})")
                     del vistos[serial]
+            q["diag"] = diagnosticar(aparelhos(), ip_guardado)
+            antes = (ESTADO["quest"].get("diag") or {}).get("resumo")
+            if q["diag"]["resumo"] != antes:
+                relatar("conexão: " + q["diag"]["resumo"])
             rede = dict(ESTADO["rede"])
             if ciclo % 4 == 1:
                 rede["hotspot"] = hotspot("status")
@@ -621,7 +782,9 @@ def agir(nome, dados):
     s = ESTADO["quest"]["escolhido"]
     precisa_quest = {"liberar_wifi", "tuneis", "abrir", "espelhar", "acordado", "desconectar", "tela_cravar"}
     if nome in precisa_quest and not s:
-        return {"ok": False, "erro": "nenhum Quest ao alcance"}
+        d = ESTADO["quest"].get("diag") or {}
+        motivo = " · ".join(f"{k}: {d[k]['msg']}" for k in ("cabo", "wifi") if d.get(k))
+        return {"ok": False, "erro": "nenhum Quest ao alcance" + (f" — {motivo}" if motivo else "")}
     if nome == "hotspot_on":
         r = hotspot("on")
     elif nome == "hotspot_off":
@@ -634,9 +797,15 @@ def agir(nome, dados):
         ip = (dados.get("ip") or ESTADO["quest"]["ip_guardado"] or "").strip()
         if not ip:
             return {"ok": False, "erro": "sem ip: libere a Wi-Fi pelo cabo uma vez"}
-        r = adb("connect", f"{ip}:5555", timeout=12)
+        tipo, r = tentar_wifi(ip)
         relatar(f"conectar {ip}: {r}")
-        return {"ok": "connected" in r or "already" in r, "resposta": r}
+        if tipo == "ok":
+            with open(IP_GUARDADO, "w") as f:
+                f.write(ip)
+            return {"ok": True, "resposta": r}
+        if tipo == "sem_resposta" and not responde_ping(ip):
+            tipo = "sem_rede"
+        return {"ok": False, "resposta": r, "erro": FRASE_WIFI[tipo].format(ip=ip)}
     elif nome == "desconectar":
         r = adb("disconnect", timeout=8)
         return {"ok": True, "resposta": r}

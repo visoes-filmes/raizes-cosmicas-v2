@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 6.0</title>
+<title>Raízes Cósmicas 6.1</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 6.0</h1>
+  <h1>Raízes Cósmicas 6.1</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>6.0</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>6.1</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -1565,8 +1565,21 @@ const SALA = { pronta:false, planos:0, chaoY:0, chao:null, moveis:[], paredes:[]
    Quando ela volta, a sala e a tela sao lidas de novo do zero. Pela Cabine:
    raizes.escanear(). */
 let escaneamentoPedidoEm = 0, semPlanosDesde = 0;
+/* UMA VEZ POR APARELHO, E NAO POR SESSAO -- 24/09, a noite, no desktop: "o
+   projeto parece que travou no Meta Quest". Lido pelo cabo: doze segundos
+   depois de entrar em RM a obra abriu a Configuracao de Espaco
+   (ESCANEAMENTO-PEDIDO sala lida, sem tela rotulada) e ela ficou por cima da
+   obra ate 1 min 28 s depois -- de dentro do capacete, a obra parada. E a
+   cada nova entrada em RM pedia de novo, porque a sala desta casa nao tem
+   plano rotulado como tela. Agora o aparelho LEMBRA que ja pediu (guardado
+   no navegador dele): o pedido automatico acontece uma vez; depois, so pela
+   Cabine (raizes.escanear()) ou cravando a tela pelos cantos. */
+const CHAVE_ESCANEOU = 'raizes-escaneamento-pedido';
+function jaPediuNesteAparelho(){ try{ return !!localStorage.getItem(CHAVE_ESCANEOU); }catch(e){ return false; } }
+function lembrarQuePediu(){ try{ localStorage.setItem(CHAVE_ESCANEOU, new Date().toISOString()); }catch(e){} }
 function pedirOEscaneamento(frame){
   if(!(ESPACO_ESCANEADO || TELA_DE_TULE) || !sessao || !frame || !frame.detectedPlanes) return;
+  if(jaPediuNesteAparelho()) return;
   if(frame.detectedPlanes.size){
     semPlanosDesde = 0;
     /* A SALA VEIO, MAS A TELA NAO (24/09, a noite: 'tem que escanear a sala,
@@ -1588,6 +1601,7 @@ function escanearOEspaco(motivo){
     relato('ESCANEAMENTO-INDISPONIVEL'); return 'este navegador nao tem initiateRoomCapture';
   }
   escaneamentoPedidoEm = relogio || 0.001;
+  lembrarQuePediu();
   relato('ESCANEAMENTO-PEDIDO ' + (motivo || ''));
   try{
     sessao.initiateRoomCapture()
@@ -5666,6 +5680,14 @@ void main(){
     gl_FragColor = vec4(cor * a, a);
   }
 }`;
+/* O VEU DE FORA DA AREA (24/09): um quadro cheio de alfa k, esmaecendo. */
+const VS_VEU = `
+attribute vec2 aXY;
+void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
+const FS_VEU = `
+precision mediump float;
+uniform float k;
+void main(){ gl_FragColor = vec4(0.0, 0.0, 0.0, k); }`;
 const VS_CONTORNO = `
 attribute vec2 aXY;
 void main(){ gl_Position = vec4(aXY, 0.0, 1.0); }`;
@@ -5863,7 +5885,11 @@ void main(){
   if(r2 > 0.25) discard;
   float a = smoothstep(0.25, 0.0, r2);
   a *= a;                                   // borda ainda mais desfeita
-  gl_FragColor = vec4(vCor * vBrilho, a * vBrilho);
+  /* o alfa somado e so o tanto de luz que o grao traz (24/09): grao fraco
+     com alfa cheio fazia um disco escuro na sala em volta de cada estrela */
+  vec3 luzP = vCor * vBrilho;
+  float forteP = max(max(luzP.r, luzP.g), max(luzP.b, 1e-4));
+  gl_FragColor = vec4(luzP / forteP, a * vBrilho * min(forteP, 1.0));
 }`;
 
 /* ═══════════ BURACOS NEGROS E SERES ═══════════
@@ -6978,7 +7004,16 @@ void main(){
        da silhueta do corpo aparece, e ali paraOlho ja e pequeno. Cair
        mais devagar e o que deixa a corona existir. */
     float miolo = pow(paraOlho, 1.1);
-    gl_FragColor = vec4(cor * miolo * brilhoProprio, miolo * presenca);
+    /* A SOMBRA ESCURA EM VOLTA -- 24/09, "as estrelas, os planetas, estao
+       com uma sombra escura ao redor". A casca somava luz fraca (cor x
+       brilho 0,30) e alfa FORTE (o miolo inteiro): em RM alfa e o que tapa a
+       camera, entao em volta de cada astro a sala escurecia mais do que a
+       luz acendia -- um anel escuro. Na tela, com fundo opaco, nao aparece.
+       Agora a cor somada e a mesma, e o alfa somado e so o tanto de luz que
+       ela traz: onde a casca e fraca, ela quase nao tapa nada. */
+    vec3 luz = cor * miolo * brilhoProprio;
+    float forte = max(max(luz.r, luz.g), max(luz.b, 1e-4));
+    gl_FragColor = vec4(luz / forte, miolo * presenca * min(forte, 1.0));
     return;
   }
 
@@ -7057,7 +7092,10 @@ void main(){
     float anel = exp(-pow((dT - frente) / 0.05, 2.0)) * (1.0 - toque.w);
     c *= 1.0 + anel * 0.8;
   }
-  float borda = mix(0.055, 0.62, gas);
+  /* o Sol (iris) com a borda mais larga: com a escala de desenho a 0,7 a
+     lasca de 5,5 % ficava menor que um pixel e virava serra escura contra
+     a sala (24/09, "no Sol tem areas com um serrilhado preto") */
+  float borda = mix(iris > 0.5 ? 0.16 : 0.10, 0.62, gas);   // e os planetas tambem mais macios na borda
   float corpo = mix(1.0, 0.82, gas);
   gl_FragColor = vec4(c, presenca * corpo * smoothstep(0.0, borda, paraOlho));
 }`;
@@ -7439,6 +7477,9 @@ const locTl = { mvp:uTl('mvp'), video:uTl('video'), tempo:uTl('tempo'), presenca
                 aspecto:uTl('aspecto'), temVideo:uTl('temVideo'), ondas:uTl('ondas[0]'), nOndas:uTl('nOndas') };
 const aTl = { pos:gl.getAttribLocation(progTela, 'aPos'), uv:gl.getAttribLocation(progTela, 'aUV') };
 const progParede = programa(VS_PAREDE, FS_PAREDE);
+const progVeu = programa(VS_VEU, FS_VEU);
+const locVeu = { k: gl.getUniformLocation(progVeu, 'k') };
+const aVeu = { xy: gl.getAttribLocation(progVeu, 'aXY') };
 const uPa = n => gl.getUniformLocation(progParede, n);
 const locPa = { mvp:uPa('mvp'), abertura:uPa('abertura'), tempo:uPa('tempo'), modo:uPa('modo'), cor:uPa('cor'),
                 leitura:uPa('leitura') };
@@ -7466,7 +7507,7 @@ const progTexto = programa(VS_TEXTO, FS_TEXTO);
   const PROGRAMAS = {solida:progSolida, mata:progMata, sala:progSala, fig:progFig, po:progPo,
     fio:progFio, contorno:progContorno, mao:progMao, assa:progAssa, astro:progAstro,
     teatro:progTeatro, mergulho:progMergulho, soloAgua:progSoloAgua, agua:progAgua,
-    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto, parede:progParede};
+    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto, parede:progParede, veu:progVeu};
   const nomes = Object.keys(PROGRAMAS);
   const falhos = nomes.filter(n => !gl.getProgramParameter(PROGRAMAS[n], gl.LINK_STATUS));
   const onde = document.getElementById('portaoProgramas');
@@ -7688,7 +7729,12 @@ enviarDepois.push(()=>{
   nAguaVert = xy.length / 2;
 });
 (function(){
-  const e = montarEsfera(14, 22);
+  /* 28 aneis e 48 gomos, e nao 14 e 22 -- 24/09, "pedi para deixar a
+     curvatura sem quinas". Com 22 gomos o planeta rosa, que chega ao
+     rosto, mostrava o contorno em lados: um poligono, e nao um circulo. A
+     conta: uns 2 700 triangulos por desenho, e so o cenario 2 desenha
+     astro -- o que tinha folga (57-61 quadros). */
+  const e = montarEsfera(28, 48);
   enviarDepois.push(()=>{
     enviar(bE.pos, e.pos); enviar(bE.uv, e.uv);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bE.idx);
@@ -8323,7 +8369,7 @@ const MOMENTOS = [
   [ 525, 4, 'o mundo de papel sobe, de baixo para cima'],
   [ 528, 4, 'RETORNO INVERSO — as raizes descem do teto'],
   [ 560, 4, 'a deusa que integra tudo'],
-  [ 585, 4, 'tudo se desmancha; sobra o quarto real'],
+  [ 585, 4, 'a frase, sobre a deusa'],
 ];
 const DURACAO = 600;          // dez minutos
 const TRAVESSIA = 6;          // segundos de mistura entre cenarios
@@ -8388,7 +8434,11 @@ const CENAS = {
      cupula e opaca na volta inteira: em cima a pintura invertida, embaixo a
      noite. E o unico cenario sem a sala: estamos no espaco. */
   4: { ceu:1, tinta:0.82, neblina:0.11, marmore:0.88, leite:0.15,
-       poeira:2000, sopro:0.8, raizes:0, ini:-1.0, fim:-0.5 },
+       /* 24/09: "o chao precisa ter mais transparencia, ficou totalmente
+          realidade virtual -- e perigoso, a pessoa pode cair". O ceu fica
+          inteiro ate um pouco abaixo do horizonte e cede dali para baixo:
+          do chao a uns dois metros dos pes para dentro, a sala real. */
+       poeira:2000, sopro:0.8, raizes:0, ini:-0.50, fim:-0.15 },
 };
 
 function cenaEm(t){
@@ -8627,7 +8677,7 @@ const FIGURAS = [
      ruido atras de cada pintura foi tentada em 13/09 e saiu: no escuro do
      cenario ela lia como "formas cinza estranhas". */
   { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
-    de:556, ate:594, balanco:0.3, espelha:false, inteira:true,
+    de:556, ate:640, balanco:0.3, espelha:false, inteira:true,   // ate o fim: a frase fica sobre ela (24/09)
     elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26,
     /* medido no arquivo: a boca em (0,502, 0,405); o vestido alarga de 0,02
        de meia-largura na boca a 0,09 no pe; as asas encostam no corpo em
@@ -9202,10 +9252,14 @@ function seguirFecho(t){
   /* 9:45 a 9:58 -- o mundo se apaga. E o unico momento da obra em que a
      tinta se retira de tudo ao mesmo tempo: ate aqui as coisas sempre
      cederam uma de cada vez. */
-  fecho = rampa(585, 598, t);
-  /* A frase entra depois de o mundo sair, e nao junto: ela precisa do
-     silencio para ser lida. */
-  frasePresenca = rampa(592, 597, t) * (1 - rampa(606, 612, t));
+  /* 24/09, a direcao de arte: "esse nome rizomar no final pode tirar, nao
+     faz sentido; e o texto de encerramento continua no final da cena final
+     da deusa -- nao precisa ter outro cenario". O mundo NAO se apaga mais
+     (fecho fica em zero): a deusa e o papel ficam ate o fim, e a frase
+     entra por cima deles e fica. Quando o relogio chega ao fim a obra para
+     nesta imagem; recomeca-se pelo menu da mao ou pela Cabine. */
+  fecho = 0;
+  frasePresenca = rampa(588, 594, t);
 }
 
 /* O BURACO NEGRO QUE ENGOLE O PLANETA ROSA.
@@ -9249,6 +9303,8 @@ function ressoarAgua(dt){
        && Math.hypot(m.x - ULTIMO_ANEL[i][0], m.z - ULTIMO_ANEL[i][1]) > 0.06){
       tq[0] = m.x; tq[1] = m.z; tq[2] = 0;
       ULTIMO_ANEL[i][0] = m.x; ULTIMO_ANEL[i][1] = m.z;
+      // e a agua soa (24/09): uma nota grave que desce, como gota
+      somDaAgua(); relato('TOCOU-A-AGUA');
     }
     TOQUE_AGUA_PLANO[i*3] = tq[0]; TOQUE_AGUA_PLANO[i*3+1] = tq[1]; TOQUE_AGUA_PLANO[i*3+2] = tq[2];
   }
@@ -9376,12 +9432,35 @@ function alvosAgora(){
                  fazer(m){ pulsarEm(CONCHA[0], CONCHA[1], CONCHA[2]); sinoDoToque(3, 0.8);
                           if(t < 505){ t = 505; tocouConcha = 1;
                                        relato('TOCOU-A-CONCHA'); } } });
-  /* O RIZOMAR. Na espera, a unica coisa tocavel da obra -- e o que a
-     recomeca. Raio generoso: e o primeiro gesto que alguem faz aqui, e
-     errar o primeiro ensina que a obra nao responde. */
-  if(esperando && esperaPresenca > 0.5)
-    lista.push({ id:'rizomar', x:RIZOMAR[0], y:RIZOMAR[1], z:RIZOMAR[2], raio:0.34,
-                 fazer(m){ recomecarAViagem(); } });
+  /* O RIZOMAR SAIU (24/09, "pode tirar, nao faz sentido"): recomecar e pelo
+     menu da mao (Atualizar) ou pela Cabine. */
+
+  /* TUDO RESPONDE AO TOQUE -- 24/09, "tudo tem que promover algum som e
+     reacao ao tocar, em todos os cenarios". O que estava ao alcance e mudo:
+     as pedras do chao (1), os outros tres planetas (2), o ser de vidro (3).
+     Cada um ganha nota, pulso de luz e relato. A agua (3) ganha som no anel
+     que ja fazia, e o ar ganha um brilho com sussurro quando a mao passa
+     depressa por ele -- para que no papel (4), onde nada se alcanca, o
+     gesto tambem tenha resposta. */
+  if(PEDRAS_NO_CHAO && presencaMata > 0.3)
+    PEDRAS_CHAO.forEach((pd, k) => {
+      const r = 0.16 + 0.22 * (pd.escala || 0.5);
+      lista.push({ id:'pedra-' + k, nota:0, x:pd.x, y:(pd.y || 0) + r * 0.5, z:pd.z, raio:r,
+                   fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(0, 0.6); relato('TOCOU-UMA-PEDRA ' + k); } });
+    });
+  for(let i = 1; i < PLANETAS.length; i++){
+    if(presencaAstro(i, t) < 0.3) continue;
+    const q = ondeEsta(i, t), rr = PLANETAS[i].raio, nome = PLANETAS[i].nome;
+    lista.push({ id:'astro-' + i, nota:(i + 1) % 6, x:q[0], y:q[1], z:q[2], raio:rr + 0.10,
+                 fazer(m){ const dx = m.x-q[0], dy = m.y-q[1], dz = m.z-q[2], L = Math.hypot(dx, dy, dz) || 1;
+                           pulsarEm(q[0] + dx/L*rr, q[1] + dy/L*rr, q[2] + dz/L*rr);
+                           sinoDoToque((i + 1) % 6, 0.75); relato('TOCOU-O-PLANETA ' + nome); } });
+  }
+  if(vidroPresenca > 0.3){
+    const v = ondeVidro(relogio, t);
+    lista.push({ id:'vidro', nota:5, x:v[0], y:v[1] + 0.25, z:v[2], raio:0.40,
+                 fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(5, 0.8); relato('TOCOU-O-SER-DE-VIDRO'); } });
+  }
 
   return lista;
 }
@@ -9499,6 +9578,9 @@ function verChamados(alvos, dt){
    tocasse a nota do sino estaria prometendo o que nao cumpre. Quem fala e
    so o rosa, que e o interativo. E a distancia continua sendo o convite. */
 function astrosNoChamado(){
+  /* desde 24/09 os tres planetas sao alvos de toque (alvosAgora) e entram
+     no chamado por la, com nota -- aqui nao se repetem */
+  return [];
   const lista = [];
   for(let i = 1; i < PLANETAS.length; i++){
     if(presencaAstro(i, t) < 0.3) continue;
@@ -9509,6 +9591,25 @@ function astrosNoChamado(){
 }
 
 const ultimoToqueEm = Object.create(null);   // quando cada alvo soou pela ultima vez
+/* O AR RESPONDE (24/09): a mao que passa depressa pelo vazio -- mais de um
+   metro por segundo, sem tocar nada -- solta um brilho e um sussurro, no
+   maximo um a cada segundo e meio por mao. E o que da resposta ao gesto no
+   papel (4), onde nada esta ao alcance, e em qualquer canto vazio. */
+const maoAntes = [[0, 0, 0, 0], [0, 0, 0, 0]];     // onde a mao estava, e quando soou
+function gestoNoAr(dt){
+  const nota = [0, 2, 4, 3, 5][cenaAtual] || 2;
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i], a = maoAntes[i];
+    if(!m.tem || dt <= 0){ a[0] = m.x; a[1] = m.y; a[2] = m.z; continue; }
+    const v = Math.hypot(m.x - a[0], m.y - a[1], m.z - a[2]) / dt;
+    a[0] = m.x; a[1] = m.y; a[2] = m.z;
+    if(v > 1.0 && v < 6.0 && !m.ultimoAlvo && agoraReal() - a[3] > 1.5){
+      a[3] = agoraReal();
+      soltarGlitter(m.x, m.y, m.z);
+      sussurroDePerto(nota, 0.8);
+    }
+  }
+}
 function conferirToque(dt){
   const alvos = alvosAgora();
   verChamados(alvos.concat(astrosNoChamado()), dt);
@@ -9544,6 +9645,157 @@ function conferirToque(dt){
     } else if(!perto) m.ultimoAlvo = null;
   }
 }
+/* ═══════════ O MENU DA MAO ═══════════
+   24/09, a direcao de arte: "nas maos, ao pressionar a ponta dos dedos, tem
+   que aparecer um menu que mostra atualizar, sair da experiencia,
+   remapear". Dentro do capacete nao ha DOM nem botao de navegador: quem
+   esta de oculos nao tinha como sair, recarregar ou refazer o mapa da sala
+   sem tirar o capacete -- "fechei pelo navegador mas ele continua".
+
+   ABRIR: juntar as pontas do polegar e do indicador e SEGURAR por quase um
+   segundo. Demorado de proposito: a pinca rapida ja e o gesto de pegar o
+   planeta rosa e de tocar as coisas; so a pinca parada, longe de tudo o que
+   e tocavel e sem o rosa na mao, abre o menu. (A pinca com a palma virada
+   para o rosto e do proprio Quest -- abre o menu dele; esta e de lado.)
+
+   ESCOLHER: tocar o item com a ponta do indicador e manter um terco de
+   segundo. Nos primeiros seis decimos depois de abrir nada dispara -- a mao
+   que abriu ainda esta ali.
+
+   FECHAR: sozinho, oito segundos sem ninguem apontar; ou outra pinca
+   demorada.
+
+   O menu fica PARADO no ar onde abriu, a um palmo e meio a frente dos olhos
+   na direcao da mao -- menu que segue a mao foge do dedo que vai toca-lo. */
+const MENU = { aberto:false, abertoEm:0, presenca:0, sobre:-1, sobreDesde:0, ultimoSobre:0,
+               pincaDesde:[0, 0], pincaUsada:[false, false],
+               itens:[ { id:'atualizar', rotulo:'Atualizar',              c:[0,0,0], tex:null },
+                       { id:'sair',      rotulo:'Sair da experiência',    c:[0,0,0], tex:null },
+                       { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null } ] };
+const MENU_MEIA_LARG = 0.12, MENU_MEIA_ALT = 0.032, MENU_PASSO = 0.078;
+
+/* O RELOGIO DO MENU E O DE PAREDE, e nao o da obra: o menu tem de
+   responder com a obra parada -- no fim, na espera, na bancada. */
+function agoraReal(){ return performance.now() / 1000; }
+function pincando(m){
+  /* pelas juntas, que e o que a mao nua da: ponta do polegar (4) contra a
+     ponta do indicador (9) a menos de dois centimetros. Sem juntas (controle,
+     ou a mao de mentira da bancada), vale o gatilho. */
+  if(m.temJuntas){
+    const J = m.juntas;
+    const dx = J[4*16+12] - J[9*16+12], dy = J[4*16+13] - J[9*16+13], dz = J[4*16+14] - J[9*16+14];
+    return dx*dx + dy*dy + dz*dz < 0.02*0.02;
+  }
+  return !!m.apertando;
+}
+
+function abrirOMenu(m){
+  const o = ondeOOlhoEsta;
+  let dx = m.x - o[0], dz = m.z - o[2];
+  const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+  const cx = o[0] + dx * 0.42, cz = o[2] + dz * 0.42;
+  const cy = Math.max(o[1] - 0.30, Math.min(o[1] + 0.02, m.y + 0.06));
+  MENU.itens.forEach((it, k) => { it.c[0] = cx; it.c[1] = cy + MENU_PASSO * (1 - k); it.c[2] = cz; });
+  MENU.aberto = true; MENU.abertoEm = agoraReal(); MENU.ultimoSobre = agoraReal(); MENU.sobre = -1;
+  sinoDoToque(1, 0.45);
+  relato('MENU-ABERTO');
+}
+
+function fecharOMenu(motivo){
+  if(!MENU.aberto) return;
+  MENU.aberto = false; MENU.sobre = -1;
+  relato('MENU-FECHADO ' + (motivo || ''));
+}
+
+/* o item que a ponta do dedo esta tocando, no plano do botao (que encara quem olha) */
+function itemSobODedo(m){
+  const o = ondeOOlhoEsta;
+  for(let k = 0; k < MENU.itens.length; k++){
+    const c = MENU.itens[k].c;
+    let fx = o[0] - c[0], fz = o[2] - c[2];
+    const L = Math.hypot(fx, fz) || 1; fx /= L; fz /= L;
+    const lx = fz, lz = -fx;                        // o "lado", como no VS_TEXTO
+    const px = m.x - c[0], py = m.y - c[1], pz = m.z - c[2];
+    const u = px * lx + pz * lz, prof = px * fx + pz * fz;
+    if(Math.abs(u) < MENU_MEIA_LARG + 0.02 && Math.abs(py) < MENU_MEIA_ALT + 0.015 && Math.abs(prof) < 0.07) return k;
+  }
+  return -1;
+}
+
+function escolherNoMenu(id){
+  relato('MENU ' + id);
+  sinoDoToque(5, 0.9);
+  MENU.aberto = false;
+  if(id === 'atualizar'){
+    /* recarrega a pagina: a RM fecha, a versao nova (se houver) entra, e o
+       portao volta -- tocar Iniciar em RM de novo */
+    setTimeout(() => location.reload(), 400);
+  } else if(id === 'sair'){
+    /* o mesmo que o botao de emergencia "encerrar": fecha a RM e devolve o
+       portao, pronto para o proximo */
+    setTimeout(() => { try{ bParar.onclick(); }catch(e){ if(sessao) sessao.end(); } }, 250);
+  } else if(id === 'remapear'){
+    /* abre a Configuracao de Espaco do Quest por cima da obra; quando ela
+       volta, a sala e a tela sao lidas de novo e a obra se replanta */
+    const r = escanearOEspaco('pedido no menu da mao');
+    if(r !== 'pedido') relato('MENU remapear: ' + r);
+  }
+}
+
+function seguirMenuDaMao(dt){
+  const alvoPres = MENU.aberto ? 1 : 0;
+  MENU.presenca += (alvoPres - MENU.presenca) * (1 - Math.exp(-(MENU.aberto ? 10 : 6) * dt));
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
+    const livre = m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo;
+    if(!livre){ MENU.pincaDesde[i] = 0; MENU.pincaUsada[i] = false; continue; }
+    if(!MENU.pincaDesde[i]) MENU.pincaDesde[i] = agoraReal() || 0.001;
+    if(!MENU.pincaUsada[i] && agoraReal() - MENU.pincaDesde[i] > 0.9){
+      MENU.pincaUsada[i] = true;                  // uma pinca demorada = um gesto
+      if(MENU.aberto) fecharOMenu('pinca'); else abrirOMenu(m);
+    }
+  }
+  if(!MENU.aberto) return;
+  let sobre = -1;
+  if(agoraReal() - MENU.abertoEm > 0.6)
+    for(const m of MAOS){ if(!m.tem) continue; const k = itemSobODedo(m); if(k >= 0){ sobre = k; break; } }
+  if(sobre !== MENU.sobre){ MENU.sobre = sobre; MENU.sobreDesde = agoraReal(); }
+  if(sobre >= 0){
+    MENU.ultimoSobre = agoraReal();
+    if(agoraReal() - MENU.sobreDesde > 0.33) escolherNoMenu(MENU.itens[sobre].id);
+  } else if(agoraReal() - MENU.ultimoSobre > 8.0) fecharOMenu('tempo');
+}
+
+/* ═══════════ FORA DA AREA MAPEADA ═══════════
+   24/09: "quando a pessoa andar fora da area mapeada, nao e bom sumir; seria
+   melhor que ficasse mais transparente". Quem decide sumir e o Quest, na
+   borda do limite de area -- isso a obra nao desliga. O que ela faz e nao
+   chegar ate la inteira: a partir de 25 cm antes da borda do piso lido, a
+   obra vai ficando transparente, e 60 cm fora ela esta a 18 % -- a sala
+   real aparece por ela antes de o aparelho tomar a frente. Sem piso lido
+   (versao sem escaneamento), nada muda. */
+let foraDaArea = 0, foraRelatado = false;
+function medirForaDaArea(dt, x, z){
+  let alvo = 0;
+  if(SALA.pronta && SALA.chao){
+    const b = distAoContorno(x, z, SALA.chao);
+    const d = dentroDoPoligono(x, z, SALA.chao) ? -b : b;   // metros para fora da borda
+    alvo = rampa(-0.25, 0.60, d);
+  }
+  foraDaArea += (alvo - foraDaArea) * (1 - Math.exp(-4.0 * dt));
+  if(!foraRelatado && foraDaArea > 0.5){ foraRelatado = true; relato('FORA-DA-AREA'); }
+  else if(foraRelatado && foraDaArea < 0.1){ foraRelatado = false; relato('DENTRO-DA-AREA'); }
+}
+function esmaecerAVista(k){
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+  gl.enable(gl.BLEND); esmaecer(); gl.depthMask(false);
+  gl.useProgram(progVeu); soltarAtributos();
+  gl.uniform1f(locVeu.k, Math.min(0.95, k));
+  ligar(aVeu.xy, bQ.xy, 2);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
 let buracoPresenca = 0, conchaPresenca = 0, seresPresenca = 0, vidroPresenca = 0;
 /* quanto o olho esta dentro da agua: 0 fora, 1 um palmo abaixo da lamina */
 function mergulhoDe(olhoPos){
@@ -10076,6 +10328,21 @@ function sinoDoToque(nota, forca){
   }
 }
 
+/* O SOM DA AGUA (24/09): a nota mais grave, com a altura escorregando para
+   baixo em meio segundo -- gota e nao sino. */
+function somDaAgua(){
+  if(audio && audio.state !== 'running') acordarGestos();
+  if(!podeSoar()) return;
+  const t0 = audio.currentTime, f = NOTAS[0] * 1.5;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f * 1.35, t0);
+  o.frequency.exponentialRampToValueAtTime(f, t0 + 0.45);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.6);
+  o.connect(g); g.connect(somMestre); o.start(t0); o.stop(t0 + 1.65);
+}
+
 /* O SUSSURRO DA APROXIMACAO -- 23/09. Antes de tocar, a coisa avisa que
    esta ali: um sopro quase inaudivel, curto, na oitava abaixo da nota dela.
    Dispara UMA VEZ por chegada (quem cuida disso e o chamado(), abaixo), e
@@ -10308,6 +10575,12 @@ if(emTesteLocal){
     /* QUANTO UM ALVO ESTA CHAMADO, para medir a aproximacao na bancada:
        raizes.chamado('mae'), 'cogumelo-3', 'rosa', 'astro-1'... (23/09) */
     chamado(id){ return chamadoDe(id); },
+    /* o menu da mao, para a bancada e a Cabine: raizes.menu() diz o estado;
+       raizes.menu('atualizar'|'sair'|'remapear') escolhe como se fosse o dedo */
+    menu(id){ if(id) { escolherNoMenu(id); return 'escolhido ' + id; }
+              return { aberto:MENU.aberto, presenca:+MENU.presenca.toFixed(2), sobre:MENU.sobre,
+                       pinca:MENU.pincaDesde.map(v => v ? +(agoraReal() - v).toFixed(2) : 0),
+                       itens:MENU.itens.map(it => it.c.map(v => +v.toFixed(2))) }; },
     /* abrir a Configuracao de Espaco do Quest por cima da sessao (24/09) */
     escanear(){ return escanearOEspaco('cabine'); },
     /* A TELA DE TULE (6.0) -- pela Cabine (DevTools) e pela bancada. */
@@ -10609,6 +10882,12 @@ function sobrepor(){
    senao um ceu de estrelas em cima de nada continua sendo nada. */
 function somarLuz(){
   gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ONE, gl.ONE);
+}
+/* ESMAECER O QUE JA ESTA DESENHADO -- 24/09, so para o veu de fora da area.
+   Multiplica cor e alfa do quadro por (1 - k): em RM, alfa menor e mais
+   camera. E a unica mistura fora das duas acima, e existe so para isto. */
+function esmaecer(){
+  gl.blendFuncSeparate(gl.ZERO, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA);
 }
 
 const bXR = document.getElementById('bXR');
@@ -11101,6 +11380,29 @@ function atualizarTempo(t){
     { texto:'Plinio Hit  ·  Crisia', fonte:'52px ' + seca, y:330,
       cor:'rgba(214,200,236,0.88)', halo:18 },
   ], 2048, 512);
+
+  /* OS BOTOES DO MENU DA MAO: pilula escura translucida com um fio
+     turquesa -- o mesmo turquesa da seiva e dos cogumelos -- e o rotulo. */
+  for(const it of MENU.itens){
+    const c = document.createElement('canvas'); c.width = 768; c.height = 204;
+    const g = c.getContext('2d');
+    const r = 90, x0 = 12, y0 = 12, w = 744, h = 180;
+    g.beginPath();
+    g.moveTo(x0 + r, y0); g.lineTo(x0 + w - r, y0); g.arc(x0 + w - r, y0 + r, r, -Math.PI/2, Math.PI/2);
+    g.lineTo(x0 + r, y0 + h); g.arc(x0 + r, y0 + r, r, Math.PI/2, Math.PI*1.5); g.closePath();
+    g.fillStyle = 'rgba(10,14,28,0.78)'; g.fill();
+    g.lineWidth = 6; g.strokeStyle = 'rgba(96,214,196,0.85)'; g.stroke();
+    g.font = '64px ' + seca; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(240,234,252,0.98)'; g.fillText(it.rotulo, 384, 104);
+    const tx = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tx);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    it.tex = tx;
+  }
 
   texBotao = textoEmTextura([
     { texto:'rizomar', fonte:'92px ' + seca, y:128,
@@ -13174,9 +13476,14 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     porTexto(texFrase, [0, 1.52, -2.2], 1.9, 0.475, frasePresenca);
 
     /* A ESPERA: o titulo em cima, o rizomar ao alcance do braco. */
-    porTexto(texTitulo, [0, 1.95, -2.2], 1.15, 0.29, esperaPresenca);
-    porTexto(texBotao, RIZOMAR, 0.34, 0.085,
-             esperaPresenca * (0.72 + 0.28*Math.sin(relogio*1.6)));
+    /* o menu da mao: o item sob o dedo cresce e acende */
+    if(MENU.presenca > 0.01)
+      MENU.itens.forEach((it, k) => {
+        const sob = MENU.sobre === k ? 1 : 0;
+        porTexto(it.tex, it.c, MENU_MEIA_LARG * (1 + 0.08 * sob), MENU_MEIA_ALT * (1 + 0.08 * sob),
+                 MENU.presenca * (0.78 + 0.22 * sob));
+      });
+
 
     /* O CRONOMETRO E ANDAIME, e estava dentro da obra -- corrigido em 10/09.
 
@@ -13538,6 +13845,8 @@ function quadro(){
   contarQuadro();
   andarGlitter(dt);
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
+  gestoNoAr(dt);
+  seguirMenuDaMao(dt);
   tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
@@ -13606,7 +13915,10 @@ function quadroXR(t, frame){
   if(!pose) return;
   lerMaos(frame);
   const dt = passo();
+  medirForaDaArea(dt, pose.transform.position.x, pose.transform.position.z);
   conferirToque(dt);
+  gestoNoAr(dt);
+  seguirMenuDaMao(dt);
   tocarATela(dt);
   ressoarAgua(dt);
   seguirRosa(dt);
@@ -13652,6 +13964,7 @@ function quadroXR(t, frame){
     const mvpVista = multiplicar(pj, vis);
     desenharCena(mvpVista, vis, true, 0.5*vp.height*pj[5]);
     desenharContorno(vista, vp, mvpVista, 0.5*vp.height*pj[5], null);
+    if(foraDaArea > 0.01) esmaecerAVista(0.82 * foraDaArea);
   }
 }
 quadro();
