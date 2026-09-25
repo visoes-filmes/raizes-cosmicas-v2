@@ -17,3 +17,6 @@ fontes/platform-tools/
 fontes/*.log
 fontes/guardiao_quest.ip
 __pycache__/
+
+# as chaves da lampada (id e chave local da Tuya), por maquina
+fontes/lampada.json

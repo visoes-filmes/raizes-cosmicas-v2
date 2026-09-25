@@ -165,6 +165,25 @@ lista os serviços graváveis dela e é só acrescentar uma linha em
 no Mac (o Safari não fala Bluetooth pela página), e a página tem de ficar
 aberta: fechá-la solta a luz.
 
+**Correção, no mesmo dia:** a luz "de sempre" é a **Tuya Wi-Fi** (LDV
+SMART+ CLA60), e o Bluetooth dela só serve para o app a pôr na rede -- o
+card Bluetooth não a controla (fica para uma luz Bluetooth de verdade). Ela
+estava **em modo de pareamento** (piscando = perdeu a Wi-Fi). O caminho no
+Mac é `fontes/lampada.py`: faz o papel do estúdio do v1, com a mesma API
+na porta 8600, então a ponte roda igual:
+
+```bash
+python3 fontes/lampada.py              # a lâmpada, porta 8600
+node fontes/luz-segue-cena.mjs         # segue a obra; sem obra, deriva
+```
+
+Falta, e é de quem tem as contas: (1) pôr a lâmpada de volta na Wi-Fi pelo
+app Smart Life/Tuya, **na mesma rede do Mac**; (2) as chaves em
+`fontes/lampada.json` (fora do git) -- `{"id": …, "chave": …, "versao":
+3.5}`, do `lampada/config.json` do estúdio no desktop/Acer, ou por
+`python3 -m tinytuya wizard` com a conta Tuya IoT (re-parear pode trocar a
+chave local).
+
 ## 7. Se o Mac não servir como Cabine
 
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O
