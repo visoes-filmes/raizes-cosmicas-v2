@@ -138,7 +138,8 @@ engasga no bash em alguns comandos). **Não publique só por ter montado.**
 | **6.0** | **a 5.2 + a tela de tule** (24/09): o óculos acha a tela real (plano rotulado como tela/janela na Configuração de Espaço, ou dois cantos beliscados a pedido da Cabine) e lê o toque da mão nela; cada toque vira onda no vídeo "Odara - Cosmos" **projetado no tule** pela `projecao.html`, que recebe os toques da Cabine (`/eventos`). **Dentro do óculos a tela é invisível** (`TELA_VISIVEL = false`: "o vídeo já vai ser visto na realidade") — o Quest nem baixa o vídeo; `raizes.tela.ver(true)` liga só para conferir o encaixe. Provada na bancada (tela ditada, cosmos, toque, projeção recebendo); **nada visto no Quest** | `…/raizes-cosmicas-v2/v6.html` · projeção em `…/projecao.html` | `v6.0` |
 | **5.2** | **um passo atrás na sala** (24/09, depois de ela ver a 5.1 no capacete): sem escaneamento e sem paredes rachadas — o céu volta a fazer *fade* com as paredes reais no degradê de sempre, e **o chão real aparece o tempo todo** até o cenário 4. Fica o que não tem a ver com a sala: metade da névoa, escala 0,7, toque com folga e respiro | `…/raizes-cosmicas-v2/v52.html` | `v5.2` |
 | **6.1** | a 6.0 + (24–25/09): escaneamento **uma vez por aparelho**; **menu da mão** (Atualizar · Sair da experiência · Remapear o espaço); sem "rizomar" — a frase fica sobre a deusa até o fim; chão do cenário 4 mais transparente (segurança); fora da área mapeada a obra esmaece em vez de sumir; halos dos astros sem sombra escura e esfera mais lisa; **tudo responde ao toque** (pedras, planetas, ser de vidro, água, gesto no ar) | é o `index` | `v6.1` |
-| **6.2** | **a que está no ar** (25/09, madrugada): no cenário da deusa a floresta **continua pendurada no teto**, agora **sólida**, com o pé se desfazendo no céu e **folhinhas nas copas**; **os cogumelos voltam** no chão desse cenário; **sem a linha preta em volta do Sol** (a corona passa a ser desenhada antes do corpo); **conforto**: neblina com 4 camadas em RM (era metade da placa de vídeo), foveação fixa 0,75, resolução que cede sozinha (piso 0,75); **menu pela seta da mão + pinça-e-solta**, mais longe e com texto nítido | `index` e `v6.html` | `v6.2` (a marca ficou no primeiro envio da 6.2; as correções da mesma noite vieram logo depois, em `main`) |
+| **6.3** | **a que está no ar** (25/09, madrugada, feita com o Quest desligado — **nada visto no óculos ainda**): **o mar vivo** — cogumelo e plantas gigantes mais longe (anel de 2,05 a 3,4 m) e maiores, normais alisadas, desenhados dos dois lados e com a pele respirando (`bolha`); **cores análogas** por objeto no fundo e nas águas-vivas (`familiaDoMar` no `FS_SOLIDA`: rosa/coral, magenta/violeta, turquesa/azul, lilás/rosa-claro); tudo no mar **acende com a mão** (`maoA`/`maoB`) e **pulsa rosa ao toque, com nota** (gigantes, águas-vivas, seres de luz); as águas-vivas **fogem da mão**. **Seres de luz novos** (matérias 20 e 21, feitos em código em `montarSeresDeLuz`): três ctenóforos com fileiras de arco-íris correndo e sementes de luz, três sinos de sementes com fios acesos; nadam em volta, acima da lâmina, e **escapam quando tocados**. **O ser gigante** (o camuflado do céu) **nada** — deriva de metros, braços ondulando, respiro — e é pintado **numa demão só** (stencil: sem as manchas escuras das dobras; a camada do headset agora pede `stencil: true`). **As deusas vermelha e azul com vida** (`vida` no `FS_FIGU`): manto e cabelo ao vento, respiração, luz subindo pelo corpo | `index` e `v6.html` | `v6.3` |
+| **6.2** | (25/09, madrugada): no cenário da deusa a floresta **continua pendurada no teto**, agora **sólida**, com o pé se desfazendo no céu e **folhinhas nas copas**; **os cogumelos voltam** no chão desse cenário; **sem a linha preta em volta do Sol** (a corona passa a ser desenhada antes do corpo); **conforto**: neblina com 4 camadas em RM (era metade da placa de vídeo), foveação fixa 0,75, resolução que cede sozinha (piso 0,75); **menu pela seta da mão + pinça-e-solta**, mais longe e com texto nítido | `index` e `v6.html` | `v6.2` (a marca ficou no primeiro envio da 6.2; as correções da mesma noite vieram logo depois, em `main`) |
 
 > **Por que o chão ficou preto na 5.1.** Com paredes lidas, o céu recebia
 > `inicio/fim` negativos para descer abaixo do horizonte; mas o `FS_CEU`
@@ -163,7 +164,7 @@ se leem com `git log -1` e no `sw.js` — não se escrevem aqui, envelhecem.
 
 **Regras que a direção de arte deu e que valem sempre:**
 - tudo o que for feito localmente vai para o repositório na hora (commit + push), sem esperar pedido;
-- cada rodada grande ganha **número de versão novo** e uma marca (`git tag`) — a próxima é a **6.3**;
+- cada rodada grande ganha **número de versão novo** e uma marca (`git tag`) — a próxima é a **6.4**;
 - o padrão de instalação desta seção 1 é conferido em todo PC novo (`fontes/conferir_pc.py`), e o que faltar é **pedido** a ela.
 
 ## 4. Como se trabalha
@@ -325,29 +326,25 @@ mesa). `fontes/guardiao_quest.ps1` registra a tarefa de logon do Windows —
 
 ## 6. Em aberto
 
-**Pedidos de 25/09, madrugada, ainda não feitos — a rodada 6.3:**
+**A primeira coisa da próxima sessão — conferir a 6.2 e a 6.3 no Quest,
+com ela dentro** (as duas foram feitas com o óculos desligado; a bancada
+provou desenho, toque e shaders, mas **passthrough e quadros só o Quest**):
 
-a. **Medir de novo os quadros da 6.2 no Quest** (a neblina leve, a
-   resolução que cede) nos quatro cenários, com a pessoa dentro. Se o
-   cenário do mar rosa ainda cair, repetir a medição camada a camada ali.
-b. **O fundo do mar** (cenário 3): o **cogumelo** e a **planta gigante**
-   (`cogumelos-mar-`, `planta-fantasia-`, `planta-alien-` em
-   `montarFundoDoMar`) **mais afastados e maiores**, com **formas mais
-   orgânicas** ("estão muito geométricas"), **interagindo** — pulsar com a
-   cor do mar ao toque/aproximação. Os objetos 3D de baixo e os **seres
-   aquáticos** com **cores análogas diferentes** entre si, variando e
-   reagindo à pessoa; e **seres novos, de formas diferentes, com coisas
-   luminosas interessantes dentro deles**. (O `emAnel` sorteia na ordem das
-   chamadas: mudar raio/escala de um tipo sem mudar o número de sorteios.)
-c. **"O ser gigante está totalmente imóvel"** — o grande ser rosa que deita
-   sobre a lâmina da água no cenário 3 (foto do espelho, 25/09 00:24): dar
-   movimento. Nessa foto ele também tinha **manchas escuras poligonais** por
-   dentro — conferir se é o mesmo defeito do aro do Sol (profundidade escrita
-   em parte transparente).
-d. **As deusas vermelha e azul** "teriam uma animação melhor… elas nem se
-   movem" (as `FIGURAS` do céu).
-e. Conferir no Quest a floresta do teto sólida com folhinhas e os
-   cogumelos no cenário da deusa, e o menu pela seta.
+a. **Os quadros**, cenário a cenário (`VrApi`: `FPS`, `App`, `Stale`), e o
+   relato `STENCIL sim`. **O mar rosa ficou mais pesado** na 6.3 (seis seres
+   de luz, gigantes dos dois lados, águas-vivas com mão): se cair abaixo de
+   72, medir camada a camada como se fez com a neblina e aliviar o que pesar.
+b. O mar: gigantes mais longe e maiores ainda "geométricos"? (o contorno é
+   do modelo; o que se podia fazer em código foi feito: alisar, dois lados,
+   respirar); as cores análogas; o toque e o chamado; as águas-vivas
+   fugindo; os seres de luz e a fuga deles.
+c. O ser gigante nadando, e **sem as manchas escuras** (no cenário 3, onde o
+   céu é pintado; no 2 ele fica invisível de propósito).
+d. As deusas vermelha e azul com vida — se ainda parecer pouco, a
+   intensidade é o `vida` de cada uma em `FIGURAS` e os números do bloco
+   "A VIDA DO CORPO" no `FS_FIGU`.
+e. A floresta do teto sólida com folhinhas e os cogumelos no cenário da
+   deusa, o Sol sem a linha preta, e o menu pela seta + pinça.
 
 **De antes:**
 
