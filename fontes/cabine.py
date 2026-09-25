@@ -477,6 +477,28 @@ def achar_scrcpy():
     return None
 
 
+def recorte_de_um_olho(serial):
+    """O Quest manda a tela INTEIRA do painel: os dois olhos lado a lado
+    (no Quest 3, 4128 x 2208 -- dois quadros de 2064 x 2208). Projetado
+    assim sai a imagem dupla (25/09: "quando apareceu tava mostrando os
+    olhos separados"). O recorte e o olho esquerdo, no miolo, em 16:9 --
+    o formato do projetor -- com uma folga de 12 % em volta, onde a lente
+    ja deforma e escurece."""
+    m = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size", serial=serial, timeout=8))
+    if not m:
+        return ""
+    larg, alt = int(m.group(1)), int(m.group(2))
+    if larg <= alt:                       # nao e painel de dois olhos
+        return ""
+    olho = larg // 2
+    w = int(olho * 0.88) // 2 * 2
+    h = int(w * 9 / 16) // 2 * 2
+    if h > alt * 0.88:
+        h = int(alt * 0.88) // 2 * 2
+        w = int(h * 16 / 9) // 2 * 2
+    return f"{w}:{h}:{(olho - w) // 2}:{(alt - h) // 2}"
+
+
 def espelhar(serial):
     exe = achar_scrcpy()
     if not exe:
@@ -484,9 +506,11 @@ def espelhar(serial):
     # ADB=<o nosso>: o scrcpy traz outro adb, e dois adbs diferentes derrubam
     # o servidor um do outro -- e com ele os túneis.
     amb = dict(os.environ, ADB=ADB)
+    corte = recorte_de_um_olho(serial)
     subprocess.Popen([exe, "-s", serial, "--max-size", "1280", "--no-audio",
-                      "--window-title", "Quest — espelho"], env=amb, creationflags=SEM_JANELA)
-    relatar("espelho do Quest aberto (scrcpy)")
+                      "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []),
+                     env=amb, creationflags=SEM_JANELA)
+    relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
     return {"ok": True}
 
 
@@ -590,6 +614,8 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
             return {"ok": False, "erro": "nenhum Quest ao alcance para espelhar"}
         args = [exe, "-s", s, "--no-audio", "--fullscreen", f"--window-x={x}", f"--window-y={y}",
                 "--window-title", "Quest — projeção", "--max-fps", "30"]
+        # sem recorte escrito na Cabine, um olho so -- nunca os dois lado a lado
+        recorte = recorte or recorte_de_um_olho(s)
         if recorte:
             args += ["--crop", recorte]
         PROJECAO = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), creationflags=SEM_JANELA)
