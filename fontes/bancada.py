@@ -71,8 +71,8 @@ RELOGIO = """
 # parar do que fingir.
 GANCHOS = [
     ('<meta charset="utf-8">', '<meta charset="utf-8">' + RELOGIO),
-    ("const vis = visaoOrbita(yaw, pitch, OLHO);",
-     "const vis = visaoOrbita(yaw, pitch, (window.__olhoY === undefined ? OLHO : window.__olhoY));"),
+    ("const vis = janelaMagica ? visaoDoCelular() : visaoOrbita(yaw, pitch, OLHO);",
+     "const vis = janelaMagica ? visaoDoCelular() : visaoOrbita(yaw, pitch, (window.__olhoY === undefined ? OLHO : window.__olhoY));"),
     ("subirRaizes(semearMata(11), 11);",
      "subirRaizes(semearMata(11), 11);\n"
      "window.__semearMata = semearMata; window.__BASES = BASES; window.__malha = decodificarMalha;"),

@@ -113,7 +113,12 @@
     font-family:"IBM Plex Sans",-apple-system,Segoe UI,Roboto,sans-serif;
     overflow:hidden;
   }
-  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:none;}
+  /* A CAMERA DO CELULAR (7.0): atras de tudo, e so existe na janela magica */
+  #cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;display:none;z-index:-1;background:#000;}
+  body.celular{background:transparent;}
+  body.celular #cam{display:block;}
+  body.celular #emergencia button{width:46px;height:46px;opacity:.6;}
   #gl:active{cursor:grabbing;}
 
   .card{
@@ -284,6 +289,7 @@
   }
 </style>
 
+<video id="cam" playsinline muted autoplay></video>
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
@@ -431,6 +437,10 @@
          stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
     </svg>
+  </button>
+  <button id="bCentrar" title="centrar o olhar" aria-label="centrar" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
   </button>
   <button id="bParar" title="encerrar e voltar ao portão" aria-label="encerrar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -602,6 +612,24 @@ const PAPEL_NO_CENARIO      = true;
    LINHA DO HORIZONTE, que e a altura dos olhos -- abaixo dela continua a
    sala, e o chao nunca e tapado. false volta o modelo. */
 const HORIZONTE_DESENHADO   = true;
+/* A VERSAO PARA CELULAR -- 25/09 (7.0), "implemente uma versao para celular
+   com as funcionalidades adaptadas". Um celular nao tem RM nem maos
+   rastreadas; o que ele tem e camera, giroscopio e toque. Entao a obra vira
+   uma JANELA MAGICA: a camera de tras faz o passthrough, o giroscopio move o
+   olhar (arrastar o dedo gira, quando nao ha giroscopio), e o TOQUE faz as
+   vezes da mao -- tocar numa coisa e toca-la; segurar o rosa e pega-lo,
+   arrastar o leva, dois dedos o dimensionam; passar o dedo depressa por um
+   planeta e bate-lo. Os botoes de emergencia ficam na tela, maiores. Tudo o
+   mais e a mesma obra, mais leve (a neblina de RM, resolucao capada).
+   CELULAR e a deteccao (toque grosso + navegador de celular, e nao o do
+   Quest); a janela magica so existe onde ele e true. */
+const CELULAR = (function(){
+  try{
+    const ua = navigator.userAgent || '';
+    if(/OculusBrowser|Quest|Pico|VR/i.test(ua)) return false;
+    return matchMedia('(pointer: coarse)').matches && /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  }catch(e){ return false; }
+})();
 /* V4 -- A OBRA LE O ESPACO DE VERDADE E SE PLANTA NELE (23/09).
 
    "Que aconteca um escaneamento do ambiente para posicionar os objetos
@@ -8618,8 +8646,10 @@ function relatarTex(){
                   + 'assim mesmo, com cor chapada no lugar delas.';
     b.disabled = false;
   }else if(texProntas >= TEX_TOTAL){
-    d.textContent = 'Ponha o capacete antes de iniciar: os dez minutos correm '
-                  + 'sozinhos a partir daqui.';
+    d.textContent = CELULAR
+      ? 'Aponte o celular pela sala e toque nas coisas: os dez minutos correm sozinhos a partir daqui. '
+        + 'Ele vai pedir a câmera e o movimento.'
+      : 'Ponha o capacete antes de iniciar: os dez minutos correm sozinhos a partir daqui.';
     b.disabled = false;
   }else{
     d.textContent = 'carregando as imagens…  ' + texProntas + ' de ' + TEX_TOTAL;
@@ -10011,6 +10041,213 @@ function seguirRosa(dt){
   }
 }
 
+/* ═══════════ A JANELA MAGICA -- A VERSAO PARA CELULAR (7.0) ═══════════
+   Ver CELULAR, no alto. Aqui mora tudo o que e so do celular: a camera, o
+   giroscopio, o dedo como mao, os botoes. */
+let janelaMagica = false, camDoCelular = null;
+const giroCel = { ok:false, R:[1,0,0, 0,1,0, 0,0,1], yaw0:null, extra:0, pitchExtra:0, ultimo:0, pedido:false };
+// o dedo (ate dois): posicao na tela em NDC, desde quando, a profundidade presa (segurando o rosa)
+const DEDOS = [ { id:-1, x:0, y:0, x0:0, y0:0, desde:0, soltoEm:-9, prof:0 },
+                { id:-1, x:0, y:0, x0:0, y0:0, desde:0, soltoEm:-9, prof:0 } ];
+const eCam = document.getElementById('cam');
+const bCentrar = document.getElementById('bCentrar');
+
+function fovDoCelular(){
+  // a camera de tras de um celular ve uns 65 graus na largura; a lente da obra acompanha
+  const asp = (cv.clientWidth || innerWidth) / (cv.clientHeight || innerHeight);
+  return 2 * Math.atan(Math.tan(65 * Math.PI / 360) / asp);
+}
+
+/* O GIROSCOPIO. alpha/beta/gamma viram a rotacao da camera do aparelho, a
+   mesma conta do three.js (DeviceOrientationControls): euler YXZ de (beta,
+   alpha, -gamma), vezes -90 graus em X (a camera olha pelas costas do
+   telefone), vezes a orientacao da tela. O yaw do primeiro quadro vira o
+   zero -- o "mundo orientado" do Quest, aqui --, e o dedo pode girar por
+   cima. */
+function lerGiro(e){
+  if(e.alpha === null || e.alpha === undefined) return;
+  const a = e.alpha * Math.PI / 180, b = e.beta * Math.PI / 180, g = e.gamma * Math.PI / 180;
+  const ang = (screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle
+              : (typeof window.orientation === 'number' ? window.orientation : 0)) * Math.PI / 180;
+  // euler YXZ: x = beta, y = alpha, z = -gamma
+  const c1 = Math.cos(b/2), c2 = Math.cos(a/2), c3 = Math.cos(-g/2);
+  const s1 = Math.sin(b/2), s2 = Math.sin(a/2), s3 = Math.sin(-g/2);
+  let q = [ s1*c2*c3 + c1*s2*s3, c1*s2*c3 - s1*c2*s3, c1*c2*s3 - s1*s2*c3, c1*c2*c3 + s1*s2*s3 ];
+  const mul = (p, r) => [ p[0]*r[3] + p[3]*r[0] + p[1]*r[2] - p[2]*r[1],
+                          p[1]*r[3] + p[3]*r[1] + p[2]*r[0] - p[0]*r[2],
+                          p[2]*r[3] + p[3]*r[2] + p[0]*r[1] - p[1]*r[0],
+                          p[3]*r[3] - p[0]*r[0] - p[1]*r[1] - p[2]*r[2] ];
+  q = mul(q, [-Math.SQRT1_2, 0, 0, Math.SQRT1_2]);
+  q = mul(q, [0, 0, Math.sin(-ang/2), Math.cos(-ang/2)]);
+  const [x, y, z, w] = q;
+  const R = [ 1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y),
+              2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x),
+              2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y) ];
+  // para onde a camera olha: R * (0,0,-1)
+  const fx = -R[2], fz = -R[8];
+  const yawAgora = Math.atan2(fx, -fz);
+  if(giroCel.yaw0 === null) giroCel.yaw0 = yawAgora;
+  giroCel.R = R; giroCel.ok = true; giroCel.ultimo = performance.now();
+}
+// a rotacao da camera no mundo (linhas), com o zero e o giro do dedo por cima
+const rotCel = [1,0,0, 0,1,0, 0,0,1];
+function rotacaoDoCelular(){
+  if(!giroCel.ok){
+    // sem giroscopio: o arrastar do dedo, como o mouse
+    const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
+    const r = [ cy, sy*sp, sy*cp,  0, cp, -sp,  -sy, cy*sp, cy*cp ];
+    for(let i = 0; i < 9; i++) rotCel[i] = r[i];
+    return rotCel;
+  }
+  const th = giroCel.extra - (giroCel.yaw0 || 0), c = Math.cos(th), sn = Math.sin(th), R = giroCel.R;
+  // Ry(th) * R
+  rotCel[0] = c*R[0] + sn*R[6]; rotCel[1] = c*R[1] + sn*R[7]; rotCel[2] = c*R[2] + sn*R[8];
+  rotCel[3] = R[3]; rotCel[4] = R[4]; rotCel[5] = R[5];
+  rotCel[6] = -sn*R[0] + c*R[6]; rotCel[7] = -sn*R[1] + c*R[7]; rotCel[8] = -sn*R[2] + c*R[8];
+  return rotCel;
+}
+const visCel = new Float32Array(16);
+function visaoDoCelular(){
+  const R = rotacaoDoCelular();
+  // a vista e a transposta da rotacao, com o olho a OLHO do chao (a mesma conta da visaoOrbita)
+  visCel[0] = R[0]; visCel[1] = R[1]; visCel[2] = R[2]; visCel[3] = 0;
+  visCel[4] = R[3]; visCel[5] = R[4]; visCel[6] = R[5]; visCel[7] = 0;
+  visCel[8] = R[6]; visCel[9] = R[7]; visCel[10] = R[8]; visCel[11] = 0;
+  visCel[12] = -R[3] * OLHO; visCel[13] = -R[4] * OLHO; visCel[14] = -R[5] * OLHO; visCel[15] = 1;
+  return visCel;
+}
+
+/* O RAIO DO DEDO: da tela para o mundo, e o que ele acerta. Devolve a
+   distancia ate o alvo (o ponto do alvo na linha do raio), ou zero. */
+function raioDoDedo(d, saida){
+  const R = rotacaoDoCelular(), asp = cv.width / cv.height, tg = Math.tan(fov / 2);
+  const cx = d.x * tg * asp, cy = d.y * tg, cz = -1;
+  let dx = R[0]*cx + R[1]*cy + R[2]*cz, dy = R[3]*cx + R[4]*cy + R[5]*cz, dz = R[6]*cx + R[7]*cy + R[8]*cz;
+  const L = Math.hypot(dx, dy, dz) || 1;
+  saida[0] = dx / L; saida[1] = dy / L; saida[2] = dz / L;
+}
+const _dir = [0, 0, 0], _pt = { x:0, y:0, z:0, tem:true };
+function alvoNoRaio(dir){
+  let melhor = 0;
+  for(const a of alvosAgora()){
+    if(a.dentro){
+      for(let tt = 0.25; tt < 6; tt += 0.08){
+        _pt.x = dir[0]*tt; _pt.y = OLHO + dir[1]*tt; _pt.z = dir[2]*tt;
+        if(a.dentro(_pt)){ if(!melhor || tt < melhor) melhor = tt; break; }
+      }
+    } else {
+      const ox = a.x, oy = a.y - OLHO, oz = a.z, r = (a.raio || 0.2) + 0.05;
+      const tc = ox*dir[0] + oy*dir[1] + oz*dir[2];
+      if(tc < 0.1) continue;
+      const px = ox - dir[0]*tc, py = oy - dir[1]*tc, pz = oz - dir[2]*tc;
+      if(px*px + py*py + pz*pz < r*r && (!melhor || tc < melhor)) melhor = tc;
+    }
+  }
+  return melhor;
+}
+function rosaNoRaio(dir){
+  if(presencaAstro(0, t) < 0.3) return 0;
+  const c = ondeEsta(0, t), r = raioDoRosa() + 0.12;
+  const ox = c[0], oy = c[1] - OLHO, oz = c[2];
+  const tc = ox*dir[0] + oy*dir[1] + oz*dir[2];
+  if(tc < 0.1) return 0;
+  const px = ox - dir[0]*tc, py = oy - dir[1]*tc, pz = oz - dir[2]*tc;
+  return px*px + py*py + pz*pz < r*r ? tc : 0;
+}
+/* O DEDO VIRA A MAO, a cada quadro. Tocando numa coisa, a mao aparece nela
+   (e fica quase meio segundo depois de soltar, para o toque ter tempo de
+   acontecer); segurando o rosa, a mao esta presa a profundidade dele e vai
+   com o dedo; sem alvo, a um metro e vinte -- por onde o gesto no ar e a
+   agua respondem. */
+function maoDoCelular(dt){
+  if(!janelaMagica) return;
+  for(let i = 0; i < 2; i++){
+    const d = DEDOS[i], m = MAOS[i];
+    const vivo = d.id >= 0 || (d.soltoEm > 0 && relogio - d.soltoEm < 0.45);
+    if(!vivo){ if(m.doCelular){ m.tem = false; m.apertando = false; m.doCelular = false; } continue; }
+    raioDoDedo(d, _dir);
+    let prof = d.prof;
+    if(!prof){ prof = alvoNoRaio(_dir) || 1.2; }
+    m.tem = true; m.doCelular = true; m.temJuntas = false; m.temRaio = false;
+    m.x = _dir[0] * prof; m.y = OLHO + _dir[1] * prof; m.z = _dir[2] * prof;
+    m.apertando = d.prof > 0 && d.id >= 0;
+  }
+}
+function ndc(e, d){
+  d.x = (e.clientX / (cv.clientWidth || innerWidth)) * 2 - 1;
+  d.y = 1 - (e.clientY / (cv.clientHeight || innerHeight)) * 2;
+}
+cv.addEventListener('pointerdown', e => {
+  if(!janelaMagica || e.pointerType === 'mouse') return;
+  const livre = DEDOS.find(d => d.id < 0);
+  if(!livre) return;
+  livre.id = e.pointerId; ndc(e, livre); livre.x0 = livre.x; livre.y0 = livre.y; livre.desde = relogio;
+  raioDoDedo(livre, _dir);
+  // no rosa, o dedo pega: fica preso a profundidade dele (o segundo dedo, perto dele, e a regua)
+  livre.prof = rosaNoRaio(_dir);
+  try{ cv.setPointerCapture(e.pointerId); }catch(x){}
+});
+cv.addEventListener('pointermove', e => {
+  if(!janelaMagica || e.pointerType === 'mouse') return;
+  const d = DEDOS.find(q => q.id === e.pointerId);
+  if(!d) return;
+  const xa = d.x, ya = d.y;
+  ndc(e, d);
+  // arrastar com um dedo, fora do rosa, gira o olhar (com giroscopio, so o azimute; sem, os dois)
+  if(!d.prof && DEDOS[0].id === d.id && DEDOS[1].id < 0){
+    const dx = d.x - xa, dy = d.y - ya;
+    if(giroCel.ok) giroCel.extra -= dx * 0.9;
+    else { tYaw -= dx * 0.9; tPitch = Math.max(-1.3, Math.min(1.3, tPitch - dy * 0.7)); }
+  }
+});
+const soltarDedo = e => {
+  if(!janelaMagica) return;
+  const d = DEDOS.find(q => q.id === e.pointerId);
+  if(!d) return;
+  d.id = -1; d.soltoEm = relogio; d.prof = 0;
+};
+cv.addEventListener('pointerup', soltarDedo);
+cv.addEventListener('pointercancel', soltarDedo);
+// o toque nao rola a pagina nem da zoom
+cv.addEventListener('touchstart', e => { if(janelaMagica) e.preventDefault(); }, { passive:false });
+cv.addEventListener('touchmove', e => { if(janelaMagica) e.preventDefault(); }, { passive:false });
+
+function iniciarCelular(){
+  janelaMagica = true;
+  document.body.classList.add('celular');
+  bCentrar.style.display = '';
+  fov = fovDoCelular();
+  addEventListener('resize', () => { if(janelaMagica) fov = fovDoCelular(); });
+  // tela cheia, quando o navegador deixa (o iPhone nao deixa em pagina comum)
+  try{ const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if(r && r.catch) r.catch(()=>{}); }catch(e){}
+  /* O GIROSCOPIO PEDE LICENCA NO IPHONE, e so dentro de um toque -- e este
+     e o toque. No Android vem sem pedir. */
+  const ligarGiro = () => { addEventListener('deviceorientation', lerGiro, true); };
+  if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+    DeviceOrientationEvent.requestPermission().then(r => { if(r === 'granted') ligarGiro(); relato('GIRO ' + r); }).catch(() => relato('GIRO recusado'));
+  } else ligarGiro();
+  // a camera de tras: sem ela a obra roda sobre a noite escura, como no computador
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false })
+      .then(fluxo => { camDoCelular = fluxo; eCam.srcObject = fluxo; eCam.play().catch(()=>{}); relato('CAMERA-DO-CELULAR ligada'); })
+      .catch(err => { camDoCelular = null; relato('CAMERA-DO-CELULAR recusada ' + (err && err.name)); });
+  }
+  relato('JANELA-MAGICA ' + (innerWidth + 'x' + innerHeight));
+  iniciarObra();
+}
+function fecharCelular(){
+  janelaMagica = false;
+  document.body.classList.remove('celular');
+  bCentrar.style.display = 'none';
+  if(camDoCelular){ for(const tr of camDoCelular.getTracks()) tr.stop(); camDoCelular = null; eCam.srcObject = null; }
+  removeEventListener('deviceorientation', lerGiro, true);
+  giroCel.ok = false; giroCel.yaw0 = null; giroCel.extra = 0;
+  for(const d of DEDOS){ d.id = -1; d.prof = 0; }
+  try{ if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(e){}
+}
+// centrar: para onde o celular aponta agora vira a frente da obra
+bCentrar.onclick = () => { giroCel.yaw0 = null; giroCel.extra = 0; tYaw = 0; tPitch = 0; sinoDoToque(1, 0.4); };
+
 /* ═══════════ a barra da partitura ═══════════ */
 const CORCENA = {1:'#6fa0a8', 2:'#9a8cd0', 3:'#d98aa8', 4:'#d0b088'};
 
@@ -11075,7 +11312,8 @@ const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const suave = calmo ? 1 : 0.12;
 
 function medir(){
-  const d = Math.min(devicePixelRatio||1,2);
+  // no celular, 1,25 no maximo (7.0): a placa de um telefone nao paga 3x
+  const d = Math.min(devicePixelRatio||1, CELULAR ? 1.25 : 2);
   const w = cv.clientWidth||innerWidth, h = cv.clientHeight||innerHeight;
   const nw = Math.max(1,Math.floor(w*d)), nh = Math.max(1,Math.floor(h*d));
   if(cv.width!==nw||cv.height!==nh){ cv.width=nw; cv.height=nh; }
@@ -11083,7 +11321,7 @@ function medir(){
 addEventListener('resize', medir); medir();
 
 let arr=false, lx=0, ly=0;
-cv.addEventListener('mousedown', e=>{arr=true;lx=e.clientX;ly=e.clientY;});
+cv.addEventListener('mousedown', e=>{ if(janelaMagica) return; arr=true;lx=e.clientX;ly=e.clientY;});
 addEventListener('mouseup', ()=>arr=false);
 addEventListener('mousemove', e=>{
   if(!arr) return;
@@ -11549,7 +11787,12 @@ function iniciarObra(){
    "Iniciar na tela" e para trabalhar no computador, e comeca na hora. */
 const bIniciarTela = document.getElementById('bIniciarTela');
 bIniciarTela.onclick = iniciarObra;
+if(CELULAR){
+  bIniciar.textContent = 'Iniciar no celular';
+  ePortaoDica.textContent = 'aponte o celular pela sala e toque nas coisas';
+}
 bIniciar.onclick = ()=>{
+  if(CELULAR){ iniciarCelular(); return; }   // 7.0: a janela magica, e nao a RM
   relato('APERTOU botaoRM=' + (bXR.disabled ? 'DESLIGADO-vai-na-tela' : 'ligado-vai-para-RM'));
   if(bXR.disabled){ iniciarObra(); return; }   // sem RM aqui: vai na tela
   ePortaoDica.textContent = 'abrindo a realidade mista…';
@@ -11823,6 +12066,7 @@ bParar.onclick = ()=>{
   ePortao.classList.remove('foi');   // o portao de volta, pronto para o proximo
   mostrarEmergencia(false);
   if(sessao) sessao.end();           // 'end' devolve sessao = null la embaixo
+  if(janelaMagica) fecharCelular();  // 7.0
 };
 
 const bSala=document.getElementById('bSala'), bRaiz=document.getElementById('bRaizes');
@@ -11969,7 +12213,7 @@ if(navigator.xr){
       bXR.textContent = 'RM indisponível aqui';
       const bi = document.getElementById('bIniciar');
       const bt = document.getElementById('bIniciarTela');
-      if(bi) bi.textContent = 'Iniciar';
+      if(bi) bi.textContent = CELULAR ? 'Iniciar no celular' : 'Iniciar';
       if(bt) bt.style.display = 'none';
     }
   }).catch(()=>{ vXR.textContent='sem RM'; vXR.className='no'; });
@@ -15291,6 +15535,7 @@ function quadro(){
   pintarPartitura();
   contarQuadro();
   andarGlitter(dt);
+  maoDoCelular(dt);    // 7.0: o dedo vira a mao
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
   gestoNoAr(dt);
   seguirMenuDaMao(dt);
@@ -15304,15 +15549,17 @@ function quadro(){
   atualizarTela();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0,0,cv.width,cv.height);
-  gl.clearColor(0.03,0.025,0.055,1);
+  // na janela magica com camera, alfa zero: a camera do celular aparece por tras
+  if(janelaMagica && camDoCelular) gl.clearColor(0,0,0,0); else gl.clearColor(0.03,0.025,0.055,1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   const proj = perspectiva(fov, cv.width/cv.height, 0.05, LONGE);
-  const vis = visaoOrbita(yaw, pitch, OLHO);
+  const vis = janelaMagica ? visaoDoCelular() : visaoOrbita(yaw, pitch, OLHO);
   // escala do ponto: metade da altura em pixels vezes o termo vertical
   // da projeção. É o mesmo fator que a projeção aplica em y, então um
   // grão de 2 cm sai com o tamanho de 2 cm na tela.
   const mvpTela = multiplicar(proj, vis);
-  desenharCena(mvpTela, vis, false, 0.5*cv.height*proj[5]);
+  // a janela magica e "dentro da RM" para o desenho: o ceu cede a camera, a neblina leve
+  desenharCena(mvpTela, vis, janelaMagica, 0.5*cv.height*proj[5]);
   // na tela so ha contorno se a bancada puser juntas ou um mapa falso
   desenharContorno(null, {x:0, y:0, width:cv.width, height:cv.height}, mvpTela, 0.5*cv.height*proj[5], profundidadeFalsa);
   eY.textContent = (((Math.round(yaw*180/Math.PI)%360)+360)%360)+'°';
