@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 6.6</title>
+<title>Raízes Cósmicas 6.7</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 6.6</h1>
+  <h1>Raízes Cósmicas 6.7</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>6.6</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>6.7</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -7448,6 +7448,7 @@ uniform float tempoIris;
 uniform float gas;           // 0 = borda nitida; 1 = gasoso, a borda some aos poucos
 uniform vec3 olhoPos;
 uniform vec4 toque;          // onde a mao encostou, e o tempo do pulso (1 = acabou)
+uniform float nucleo;        // 6.7: 1 = so o miolo denso passa (para gravar profundidade)
 varying vec3 vN;
 varying vec2 vUV;
 varying vec3 vMundo;
@@ -7584,7 +7585,9 @@ void main(){
      a sala (24/09, "no Sol tem areas com um serrilhado preto") */
   float borda = mix(iris > 0.5 ? 0.16 : 0.10, 0.62, gas);   // e os planetas tambem mais macios na borda
   float corpo = mix(1.0, 0.82, gas);
-  gl_FragColor = vec4(c, presenca * corpo * smoothstep(0.0, borda, paraOlho));
+  float alfaAstro = presenca * corpo * smoothstep(0.0, borda, paraOlho);
+  if(nucleo > 0.5 && alfaAstro < 0.55) discard;
+  gl_FragColor = vec4(c, alfaAstro);
 }`;
 
 /* ═══════════ a bandeja assada ═══════════
@@ -12457,7 +12460,7 @@ const locAst = {mvp:uAs('mvp'), centro:uAs('centro'), raio:uAs('raio'),
                 cor:uAs('cor'), luzDe:uAs('luzDe'), presenca:uAs('presenca'),
                 brilho:uAs('brilhoProprio'), halo:uAs('halo'),
                 iris:uAs('iris'), tempoIris:uAs('tempoIris'), gas:uAs('gas'),
-                olhoPos:uAs('olhoPos'), toque:uAs('toque')};
+                olhoPos:uAs('olhoPos'), toque:uAs('toque'), nucleo:uAs('nucleo')};
 const aAst = {pos: gl.getAttribLocation(progAstro,'aPos'),
               uv:  gl.getAttribLocation(progAstro,'aUV')};
 
@@ -12607,7 +12610,8 @@ const mvpCeu = new Float32Array(16);
    camadas do ceu andam com a cabeca como a cupula -- sem isso, andando pela
    sala, as estrelas escorregariam por cima da nebulosa. */
 const mvpOlhoBuf = new Float32Array(16);
-const mvpFioBuf = new Float32Array(16);   // as passadas dos fios das deusas (6.5)
+const mvpFioBuf = new Float32Array(16);
+const ORDEM_ASTROS = [], DIST_ASTROS = new Float32Array(16);   // 6.7: os planetas de tras para a frente   // as passadas dos fios das deusas (6.5)
 function mvpNoOlho(m, o){
   for(let j = 0; j < 12; j++) mvpOlhoBuf[j] = m[j];
   for(let j = 0; j < 4; j++) mvpOlhoBuf[12 + j] = m[j] * o[0] + m[4 + j] * o[1] + m[8 + j] * o[2] + m[12 + j];
@@ -13872,7 +13876,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
 
     // OS PLANETAS
     gl.uniform4f(locAst.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
-    for(let i=0;i<PLANETAS.length;i++){
+    /* DO MAIS LONGE PARA O MAIS PERTO -- 25/09 (6.7), "o planeta rosa
+       continua com problema de perspectiva". Eram desenhados na ordem da
+       lista, e o rosa e o primeiro: sendo gasoso (nao grava profundidade), um
+       planeta mais LONGE desenhado depois dele passava POR CIMA dele. O que e
+       translucido tem de ser desenhado de tras para a frente; a ordem e
+       refeita a cada quadro, porque eles orbitam e o rosa vai na mao. */
+    if(ORDEM_ASTROS.length !== PLANETAS.length){ ORDEM_ASTROS.length = 0; for(let k = 0; k < PLANETAS.length; k++) ORDEM_ASTROS.push(k); }
+    for(let k = 0; k < PLANETAS.length; k++){
+      const q = ondeEsta(k, t);
+      DIST_ASTROS[k] = Math.hypot(q[0]-olhoPos[0], q[1]-olhoPos[1], q[2]-olhoPos[2]);
+    }
+    ORDEM_ASTROS.sort((a, b) => DIST_ASTROS[b] - DIST_ASTROS[a]);
+    for(const i of ORDEM_ASTROS){
       const pl = PLANETAS[i];
       let pr = presencaAstro(i, t);
       if(pr < 0.004) continue;
@@ -13942,6 +13958,21 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          recortaria o que passasse atras */
       gl.depthMask(pr > 0.92 && !pl.gas);
       gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+      /* O MIOLO DO GASOSO GRAVA PROFUNDIDADE (6.7). A borda dele e macia e
+         nao pode gravar -- recortaria o que passa atras --, mas o MIOLO e
+         denso: sem gravar nada, tudo o que era desenhado depois dele e estava
+         atras (os seres e os buracos do espaco, a poeira, a neblina) aparecia
+         por cima. Uma segunda passada, sem cor, so onde ele e quase opaco,
+         grava a distancia dele. Nao na mao: com a mao dentro dele o miolo
+         esconderia o contorno dela. */
+      if(pl.gas && pr > 0.5 && !(i === 0 && rosaNaMao.por >= 0)){
+        gl.colorMask(false, false, false, false);
+        gl.depthMask(true);
+        gl.uniform1f(locAst.nucleo, 1.0);
+        gl.drawElements(gl.TRIANGLES, nIdxE, gl.UNSIGNED_SHORT, 0);
+        gl.uniform1f(locAst.nucleo, 0.0);
+        gl.colorMask(true, true, true, true);
+      }
       gl.uniform1f(locAst.gas, 0.0);
       gl.depthMask(false);
 
