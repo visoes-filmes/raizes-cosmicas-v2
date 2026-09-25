@@ -46,7 +46,21 @@ if (-not $perfil) {
     exit 0
 }
 
-$g = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($perfil)
+# SEM PLACA WI-FI NAO HA REDE -- 24/09, no desktop: ele so tem cabo de rede
+# (o servico de rede sem fio nem roda), e o Windows estourava uma excecao crua
+# que a Cabine mostrava no lugar do estado. Agora a resposta e uma frase.
+$semWifi = -not (Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
+    $_.PhysicalMediaType -match '802\.11|Wireless' -or $_.InterfaceDescription -match 'Wi-?Fi|Wireless|802\.11|WLAN' })
+try {
+    $g = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($perfil)
+} catch {
+    if ($semWifi) {
+        Json @{ ligado = $false; semWifi = $true; erro = "este computador nao tem Wi-Fi, entao nao cria a rede interna. Em casa nao precisa: o Quest e o computador ja estao na mesma rede do roteador. No estande: use um adaptador USB Wi-Fi, o modem/roteador, ou a Cabine no notebook" }
+    } else {
+        Json @{ ligado = $false; erro = "o Windows nao deixou criar a rede a partir de '$($perfil.ProfileName)': $($_.Exception.InnerException.Message)" }
+    }
+    exit 0
+}
 $tipoResultado = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult]
 
 $erro = $null
