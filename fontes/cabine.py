@@ -896,6 +896,16 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome == "transmitir":
+        # A TELA HORIZONTAL DO APP META (25/09): "na visualizacao do oculos
+        # gostaria de ver uma tela horizontal como vejo no app Meta Horizon".
+        # O scrcpy le o painel cru (um olho, com a curvatura da lente); a
+        # imagem limpa e a TRANSMISSAO do proprio Quest, que o Chrome recebe
+        # em oculus.com/casting -- pela Wi-Fi, sem adb. No oculos: Transmitir
+        # -> Computador (a mesma conta Meta logada no Chrome).
+        abrir_pagina("https://www.oculus.com/casting")
+        relatar("transmissão do Quest: no óculos, Transmitir -> Computador")
+        return {"ok": True, "resposta": "no óculos: Transmitir → Computador"}
     elif nome == "espelhar":
         return espelhar(s)
     elif nome == "projetar":
