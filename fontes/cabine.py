@@ -584,15 +584,29 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
     global PROJECAO
     parar_projecao()
     lista = ESTADO["monitores"] or monitores()
+    # JANELA DE TESTE (25/09): "e so pra saber se vai funcionar, depois vamos
+    # selecionar o projetor". Sai exatamente o que iria para o projetor -- o
+    # mesmo olho, o mesmo recorte, o mesmo espelhamento -- mas numa janela
+    # comum, que se arrasta e redimensiona, em vez da tela cheia de um
+    # monitor. Com um monitor so, e a unica forma de ver a projecao sem ela
+    # cobrir a propria Cabine.
+    janela = monitor == "janela"
     alvo = None
     for m in lista:
-        if str(m.get("nome")) == str(monitor) or (monitor in (None, "", "auto") and not m.get("principal")):
+        if janela:
+            if m.get("principal"):
+                alvo = m
+                break
+        elif str(m.get("nome")) == str(monitor) or (monitor in (None, "", "auto") and not m.get("principal")):
             alvo = m
             break
     if not alvo and lista:
         alvo = lista[0]
     alvo = alvo or {}
     x, y, w, h = alvo.get("x", 0), alvo.get("y", 0), alvo.get("w", 1920), alvo.get("h", 1080)
+    if janela:
+        x, y, w, h = x + 120, y + 90, 960, 540
+    onde = "numa janela de teste" if janela else f"no monitor {alvo.get('nome', '?')}"
     if saida == "pagina":
         nav = achar_navegador()
         if not nav:
@@ -600,11 +614,14 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
                f"&cabine=http://localhost:{PORTA_CABINE}")
-        PROJECAO = subprocess.Popen([nav, "--kiosk", f"--window-position={x},{y}", f"--window-size={w},{h}",
+        # quiosque ocupa o monitor inteiro; a janela de teste e uma janela de
+        # aplicativo (sem barra de endereco), do tamanho que se quiser
+        modo = [f"--app={url}"] if janela else ["--kiosk", url]
+        PROJECAO = subprocess.Popen([nav, f"--window-position={x},{y}", f"--window-size={w},{h}",
                                      f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
-                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars", url],
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
                                     creationflags=SEM_JANELA)
-        relatar(f"projeção (página) aberta no monitor {alvo.get('nome', '?')} {w}x{h}" + (" espelhada" if espelhar else ""))
+        relatar(f"projeção (página) aberta {onde} {w}x{h}" + (" espelhada" if espelhar else ""))
     elif saida == "espelho":
         s = ESTADO["quest"]["escolhido"]
         exe = achar_scrcpy()
@@ -612,8 +629,11 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
             return {"ok": False, "erro": "scrcpy não está instalado"}
         if not s:
             return {"ok": False, "erro": "nenhum Quest ao alcance para espelhar"}
-        args = [exe, "-s", s, "--no-audio", "--fullscreen", f"--window-x={x}", f"--window-y={y}",
-                "--window-title", "Quest — projeção", "--max-fps", "30"]
+        args = [exe, "-s", s, "--no-audio", f"--window-x={x}", f"--window-y={y}", "--max-fps", "30"]
+        if janela:
+            args += [f"--window-width={w}", f"--window-height={h}", "--window-title", "Quest — projeção (teste)"]
+        else:
+            args += ["--fullscreen", "--window-title", "Quest — projeção"]
         # sem recorte escrito na Cabine, um olho so -- nunca os dois lado a lado
         recorte = recorte or recorte_de_um_olho(s)
         if recorte:
@@ -623,14 +643,16 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         if espelhar:
             args += ["--display-orientation=flip0"]
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
-        if alvo.get("principal") and len(lista) == 1:
+        if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
         PROJECAO = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), creationflags=SEM_JANELA)
-        relatar(f"projeção (espelho do óculos) aberta no monitor {alvo.get('nome', '?')}")
+        relatar(f"projeção (espelho do óculos) aberta {onde}" + (f", recorte {recorte}" if recorte else "")
+                + (", espelhada" if espelhar else ""))
     else:
         return {"ok": False, "erro": f"saída desconhecida: {saida}"}
     with TRAVA:
-        ESTADO["projecao"] = {"ativa": True, "saida": saida, "monitor": alvo.get("nome"), "espelhar": bool(espelhar)}
+        ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
+                              "monitor": "janela de teste" if janela else alvo.get("nome")}
     return {"ok": True}
 
 

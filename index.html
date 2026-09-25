@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 6.1</title>
+<title>Raízes Cósmicas 6.2</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -287,7 +287,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 6.1</h1>
+  <h1>Raízes Cósmicas 6.2</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -299,7 +299,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>6.1</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>6.2</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -5260,6 +5260,14 @@ void main(){
     alfa *= 0.58;                                  // a terra, sempre
   else if(materia > 2.5 && materia < 3.5)
     alfa *= mix(0.40, 1.0, pertoDoChao);          // o capim
+  /* A FLORESTA DO TETO: o pe, que la em cima e o alto, se desfaz no ceu
+     (25/09, "o pe se fundindo... sem a transparencia no meio do tronco").
+     Em METROS contados do forro (RETORNO_TETO, 11,2 m), e nao pela fracao
+     do corpo: o aAlt da mata e o nivel do galho, e o tronco inteiro e o
+     primeiro nivel -- pela fracao, o tronco todo sumiria. Metro e meio
+     colado no forro se desfaz; dali para baixo e corpo inteiro. */
+  if(materia > 16.5 && materia < 17.5)
+    alfa *= 1.0 - smoothstep(9.6, 11.1, vMundo.y);
 
   gl_FragColor = vec4(c, alfa);
 }`;
@@ -9392,6 +9400,12 @@ function alvosAgora(){
                    return (m.y < 0.55 && d2 < 1.4*1.4) || (m.y < 2.6 && d2 < 0.62*0.62);
                  },
                  fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque(0, 1.0); relato('TOCOU-A-MAE'); } });
+  }
+  /* OS COGUMELOS PELO QUE ELES SAO, e nao pela mata: desde 25/09 eles
+     voltam no cenario da deusa, onde a mata do chao esta em zero -- e presos
+     a ela ficariam la sem responder. Pelo crescimento, tambem deixam de
+     responder no fim do cenario 1, quando ja sumiram e a mata ainda nao. */
+  if(cogumeloCresce > 0.3){
     COGUMELOS.forEach((cg, i) => {
       lista.push({ id:'cogumelo-' + i, nota:2 + (i % 4), x:cg.x, y:(cg.y || 0) + 0.18, z:cg.z, raio:0.24,
                    fazer(m){ pulsarEm(cg.x, (cg.y || 0) + 0.15, cg.z); sinoDoToque(2 + (i % 4), 0.7);
@@ -10001,7 +10015,11 @@ function seguirPartitura(dt){
      borboleta sair dele. Os cogumelos vem antes da arvore, na ordem do
      roteiro: grama, cogumelo, arvore. */
   casuloPresenca  = (c === 1) ? rampa(96, 118, t) * (1 - rampa(166, 173, t)) : 0;
-  cogumeloCresce  = (c === 1) ? rampa(23, 57, t) * (1 - rampa(172, 180, t)) : 0;
+  /* E VOLTAM NO CENARIO DA DEUSA (25/09: "no cenario da deusa final... nao
+     aparece as folhinhas, nem os cogumelos"). Brotam de novo do chao real
+     quando o mundo de papel sobe, junto com o retorno da floresta. */
+  cogumeloCresce  = (c === 1) ? rampa(23, 57, t) * (1 - rampa(172, 180, t))
+                  : (c === 4) ? rampa(530, 556, t) : 0;
   asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
@@ -11711,6 +11729,65 @@ function mandarMvp(loc, m){
   gl.uniformMatrix4fv(loc, false, mvpBuf);
 }
 
+/* OS COGUMELOS, corpo e as tres cascas de luz. Funcao desde 25/09 porque
+   sao desenhados de DOIS lugares: dentro da mata do chao (cenario 1) e,
+   no cenario da deusa, onde a mata do chao esta em zero, sozinhos. Pede
+   o progSolida ja ligado, com mvp, tempo, olho e focos no lugar. */
+function desenharCogumelos(){
+  /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
+     o pe POR DENTRO do chapeu -- e ver dentro de uma coisa opaca nao le
+     como transparencia, le como defeito. O perfil dobra e fecha, entao
+     descartar a face de tras basta: de cima ve-se o chapeu, de baixo as
+     laminas, e nunca o miolo. E sem mistura nenhuma, para nao haver
+     alfa que possa deixar isso voltar. */
+  gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+  gl.uniform1f(locSo.balanca, 0.0);
+  gl.uniform1f(locSo.materia, 5.0);
+  gl.uniform1f(locSo.escalaObj, 1.0);
+  gl.uniform1f(locSo.crescimento, cogumeloCresce);
+  gl.uniform1f(locSo.presenca, 1.0);
+  gl.uniform3f(locSo.desloca, 0, 0, 0);
+  ligar(aSo.pos, bCogumelos.pos, 3); ligar(aSo.nor, bCogumelos.nor, 3);
+  ligar(aSo.alt, bCogumelos.alt, 1); ligar(aSo.fase, bCogumelos.fase, 1);
+  ligar(aSo.borda, bCogumelos.borda, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
+  gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
+
+  /* O AR ACESO COLADO NO CORPO. Duas cascas infladas pela normal, cada
+     uma maior e mais fraca. Elas ja denunciaram as quinas da malha uma
+     vez -- e o conserto foi polir a malha, e nao abrir mao do brilho:
+     casca colada e o que da a forma do corpo ao brilho, e sem ela o
+     cogumelo vira uma bola de luz sem cogumelo dentro.
+
+     O descarte passa para a face DA FRENTE: numa casca que soma luz o
+     que interessa e a parede de tras, senao a metade da frente cobre a
+     de tras e a soma acontece pela metade. */
+  gl.enable(gl.BLEND);
+  somarLuz();
+  gl.depthMask(false);
+  gl.cullFace(gl.FRONT);
+  gl.uniform1f(locSo.materia, 6.0);
+  /* TRES CASCAS. Duas davam a queda mas paravam cedo; a terceira,
+     larga e fraca, e o que espalha luz no ar em volta -- que era o que
+     a esfera fazia, sem o aro. */
+  ligar(aSo.pos, bCogumeloLuz.pos, 3); ligar(aSo.nor, bCogumeloLuz.nor, 3);
+  ligar(aSo.alt, bCogumeloLuz.alt, 1); ligar(aSo.fase, bCogumeloLuz.fase, 1);
+  ligar(aSo.borda, bCogumeloLuz.borda, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumeloLuz.idx);
+  for(const [grossura, forca] of [[0.038, 1.10], [0.090, 0.52], [0.185, 0.20]]){
+    gl.uniform1f(locSo.inflar, grossura);
+    gl.uniform1f(locSo.presenca, forca);
+    gl.drawElements(gl.TRIANGLES, nCogumeloLuzIdx, gl.UNSIGNED_SHORT, 0);
+  }
+  gl.cullFace(gl.BACK);
+  gl.uniform1f(locSo.inflar, 0.0);
+  gl.uniform1f(locSo.presenca, 1.0);
+  gl.depthMask(true);
+  sobrepor();
+}
+
 /* ONDE O OLHO ESTAVA no ultimo quadro desenhado (o desenho escreve aqui). */
 const ondeOOlhoEsta = [0, 1.6, 0];
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
@@ -12088,60 +12165,8 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        ensinam, sem instrucao nenhuma, que da para tocar nas coisas. Os dois
        lados aparecem, porque o chapeu e visto por baixo. */
     if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && nCogumeloLuzIdx > 0
-        && cogumeloCresce > 0.004){
-      /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
-         o pe POR DENTRO do chapeu -- e ver dentro de uma coisa opaca nao le
-         como transparencia, le como defeito. O perfil dobra e fecha, entao
-         descartar a face de tras basta: de cima ve-se o chapeu, de baixo as
-         laminas, e nunca o miolo. E sem mistura nenhuma, para nao haver
-         alfa que possa deixar isso voltar. */
-      gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
-      gl.depthMask(true);
-      gl.disable(gl.BLEND);
-      gl.uniform1f(locSo.balanca, 0.0);
-      gl.uniform1f(locSo.materia, 5.0);
-      gl.uniform1f(locSo.escalaObj, 1.0);
-      gl.uniform1f(locSo.crescimento, cogumeloCresce);
-      gl.uniform1f(locSo.presenca, 1.0);
-      gl.uniform3f(locSo.desloca, 0, 0, 0);
-      ligar(aSo.pos, bCogumelos.pos, 3); ligar(aSo.nor, bCogumelos.nor, 3);
-      ligar(aSo.alt, bCogumelos.alt, 1); ligar(aSo.fase, bCogumelos.fase, 1);
-      ligar(aSo.borda, bCogumelos.borda, 1);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumelos.idx);
-      gl.drawElements(gl.TRIANGLES, nCogumelosIdx, gl.UNSIGNED_SHORT, 0);
-
-      /* O AR ACESO COLADO NO CORPO. Duas cascas infladas pela normal, cada
-         uma maior e mais fraca. Elas ja denunciaram as quinas da malha uma
-         vez -- e o conserto foi polir a malha, e nao abrir mao do brilho:
-         casca colada e o que da a forma do corpo ao brilho, e sem ela o
-         cogumelo vira uma bola de luz sem cogumelo dentro.
-
-         O descarte passa para a face DA FRENTE: numa casca que soma luz o
-         que interessa e a parede de tras, senao a metade da frente cobre a
-         de tras e a soma acontece pela metade. */
-      gl.enable(gl.BLEND);
-      somarLuz();
-      gl.depthMask(false);
-      gl.cullFace(gl.FRONT);
-      gl.uniform1f(locSo.materia, 6.0);
-      /* TRES CASCAS. Duas davam a queda mas paravam cedo; a terceira,
-         larga e fraca, e o que espalha luz no ar em volta -- que era o que
-         a esfera fazia, sem o aro. */
-      ligar(aSo.pos, bCogumeloLuz.pos, 3); ligar(aSo.nor, bCogumeloLuz.nor, 3);
-      ligar(aSo.alt, bCogumeloLuz.alt, 1); ligar(aSo.fase, bCogumeloLuz.fase, 1);
-      ligar(aSo.borda, bCogumeloLuz.borda, 1);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCogumeloLuz.idx);
-      for(const [grossura, forca] of [[0.038, 1.10], [0.090, 0.52], [0.185, 0.20]]){
-        gl.uniform1f(locSo.inflar, grossura);
-        gl.uniform1f(locSo.presenca, forca);
-        gl.drawElements(gl.TRIANGLES, nCogumeloLuzIdx, gl.UNSIGNED_SHORT, 0);
-      }
-      gl.cullFace(gl.BACK);
-      gl.uniform1f(locSo.inflar, 0.0);
-      gl.uniform1f(locSo.presenca, 1.0);
-      gl.depthMask(true);
-      sobrepor();
-    }
+        && cogumeloCresce > 0.004)
+      desenharCogumelos();
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
@@ -12261,12 +12286,27 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      isso o retorno le como retorno e nao como espelho). Nao escreve
      profundidade: pele de noite meio translucida, e nada passa por tras
      dela a onze metros. Cede no fecho como o resto. */
+  /* SOLIDA -- 25/09, a direcao de arte: "as arvores nao ficaram boas...
+     nao funciona elas transparentes, tem que integrar mais ao cenario", e a
+     escolha: solidas, com o pe se fundindo e a copa no ceu, "sem a
+     transparencia no meio do tronco"; e "nao e pra ser no chao, e pra
+     continuar no teto, so fazer os ajustes". Entao ela continua pendurada
+     a onze metros, mas:
+       - fica OPACA depressa (a um terco da descida), em vez de passar o
+         cenario inteiro meio transparente -- o crescimento continua
+         aparecendo pela frente que desce;
+       - ESCREVE PROFUNDIDADE quando opaca: um tronco atras de outro deixa
+         de aparecer atraves dele, que era o emaranhado translucido;
+       - o PE (as raizes, que no teto sao o alto) se desfaz no ceu -- no
+         FS_SOLIDA, materia 17;
+       - e ganha as FOLHINHAS nas copas, logo abaixo. */
+  const tetoOpaco = Math.min(1, retornoInverso * 3) * (1 - fecho);
   if(MATA_SOLIDA && nIdxR > 0 && retornoInverso > 0.004 && fecho < 0.995){
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.enable(gl.BLEND);
     sobrepor();
-    gl.depthMask(false);
+    gl.depthMask(tetoOpaco > 0.985);
     gl.useProgram(progSolida);
     soltarAtributos();
     bordaCheia();
@@ -12277,7 +12317,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locSo.inverte, 1.0);
     gl.uniform3f(locSo.desloca, 0, RETORNO_TETO, 0);
     gl.uniform1f(locSo.crescimento, retornoInverso);
-    gl.uniform1f(locSo.presenca, retornoInverso * (1 - fecho));
+    gl.uniform1f(locSo.presenca, tetoOpaco);
     gl.uniform1f(locSo.escalaObj, 1.0);
     gl.uniform1f(locSo.inflar, 0.0);
     gl.uniform1f(locSo.brota, 1.0);     // colada no forro por nascer, e desce
@@ -12290,11 +12330,66 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
     gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
+
+    /* AS FOLHINHAS NAS COPAS (25/09: "nao aparece as folhinhas"). A mesma
+       folhagem do cenario 1, virada junto. Ja INTEIRA na posicao
+       (crescimento cheio): pendurada e virada, a folhagem que cresce anda do
+       chao ao teto no caminho -- a chuva de arame de antes, de ponta
+       cabeca. Ela chega pelo alfa, depois que a arvore desceu. */
+    const folhasTeto = rampa(556, 578, t) * (1 - fecho);
+    if(nFolhagemIdx > 0 && folhasTeto > 0.004){
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(false);
+      gl.uniform1f(locSo.materia, 16.0);
+      gl.uniform1f(locSo.escalaTinta, 6.0);
+      gl.uniform1f(locSo.crescimento, 9.0);
+      gl.uniform1f(locSo.presenca, folhasTeto);
+      gl.uniform1f(locSo.brota, 0.0);
+      ligar(aSo.pos, bFolhagem.pos, 3); ligar(aSo.nor, bFolhagem.nor, 3);
+      ligar(aSo.alt, bFolhagem.alt, 1); ligar(aSo.fase, bFolhagem.fase, 1);
+      ligar(aSo.borda, bFolhagem.borda, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhagem.idx);
+      gl.drawElements(gl.TRIANGLES, nFolhagemIdx, gl.UNSIGNED_SHORT, 0);
+      gl.uniform1f(locSo.brota, 1.0);
+      gl.uniform1f(locSo.escalaTinta, 1.25);
+      bordaCheia();
+    }
     gl.uniform1f(locSo.inverte, 0.0);
     gl.uniform3f(locSo.desloca, 0, 0, 0);
     gl.depthMask(true);
     gl.disable(gl.CULL_FACE);
     gl.disable(gl.BLEND);
+  }
+
+  /* OS COGUMELOS NO CENARIO DA DEUSA (25/09). Moram dentro da mata do chao,
+     e a mata do chao esta em zero aqui -- entao vem sozinhos, no chao real,
+     brotando quando o papel sobe. So quando a mata nao os desenhou. */
+  if(COGUMELOS_NO_CHAO && presencaMata <= 0.004 && cogumeloCresce > 0.004
+      && nCogumelosIdx > 0 && nCogumeloLuzIdx > 0){
+    gl.enable(gl.DEPTH_TEST);
+    gl.useProgram(progSolida);
+    soltarAtributos();
+    bordaCheia();
+    mandarMvp(locSo.mvp, mvp);
+    gl.uniform1f(locSo.tempo, relogio);
+    gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.uniform1f(locSo.inverte, 0.0);
+    gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.brota, 1.0);
+    gl.uniform1f(locSo.ondula, 0.0);
+    gl.uniform1f(locSo.bolha, 0.0);
+    gl.uniform1f(locSo.escalaTinta, 1.25);
+    gl.uniform3fv(locSo.focos, FOCOS);
+    gl.uniform4f(locSo.luzCasulo, 0, 0, 0, 0);
+    gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
+    gl.uniform1i(locSo.casca, 2);
+    desenharCogumelos();
+    gl.uniform1f(locSo.balanca, 1.0);
+    gl.uniform1f(locSo.materia, 0.0);
+    gl.disable(gl.CULL_FACE);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
   }
 
   if(nMata > 0 && presencaMata > 0.004){

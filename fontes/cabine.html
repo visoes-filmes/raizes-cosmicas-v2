@@ -148,9 +148,9 @@
     <div class="passos"><b>4</b> abra a versão no Quest <b>5</b> <em>Iniciar em RM</em> (o operador aperta daqui; ninguém precisa tocar o capacete)</div>
     <div class="linha">
       <div class="seg" id="versoes">
-        <label><input type="radio" name="versao" value="v6" checked><span>6.1 · tela de tule</span></label>
+        <label><input type="radio" name="versao" value="v6" checked><span>6.2 · tela de tule</span></label>
         <label><input type="radio" name="versao" value="v52"><span>5.2 · céu + chão</span></label>
-        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 6.1)</span></label>
+        <label><input type="radio" name="versao" value="v2"><span>no ar (index = 6.2)</span></label>
         <label><input type="radio" name="versao" value="v4"><span>v4 · espaço</span></label>
         <label><input type="radio" name="versao" value="v5"><span>5.1 · paredes</span></label>
         <label><input type="radio" name="versao" value="oficina"><span>oficina</span></label>
@@ -203,6 +203,7 @@
     </div>
     <div class="linha">
       <button class="primario" onclick="acao('projetar',{saida:saida(),monitor:v('monitor'),espelhar:$('espelhar').checked,recorte:v('recorte')})"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Projetar</button>
+      <button onclick="acao('projetar',{saida:saida(),monitor:'janela',espelhar:$('espelhar').checked,recorte:v('recorte')})" title="o mesmo que iria para o projetor, numa janela comum que se arrasta e redimensiona">Testar numa janela</button>
       <button class="perigo" onclick="acao('parar_projecao')">Parar projeção</button>
       <a class="nota" href="http://localhost:8765/projecao.html" target="_blank">abrir a projeção numa aba (F = tela cheia) ↗</a>
     </div>
@@ -262,7 +263,8 @@ function desenharProjecao(e){
   if (chave !== monitoresVistos){
     monitoresVistos = chave; const sel = $('monitor'); const atual = sel.value;
     sel.innerHTML = '<option value="auto">monitor: o que não é o principal</option>' +
-      mons.map(m=>`<option value="${m.nome}">${m.nome.replace('\\\\.\\','')} · ${m.w}×${m.h}${m.principal?' (principal)':''}</option>`).join('');
+      mons.map(m=>`<option value="${m.nome}">${m.nome.replace('\\\\.\\','')} · ${m.w}×${m.h}${m.principal?' (principal)':''}</option>`).join('') +
+      '<option value="janela">janela de teste (redimensionável)</option>';
     if ([...sel.options].some(o=>o.value===atual)) sel.value = atual;
   }
   $('prEstado').textContent = pr.ativa ? `ligada · ${pr.saida==='pagina'?'tela: desenho + água':'espelho do óculos'} · ${pr.monitor||''}${pr.espelhar?' · espelhada':''}` : 'desligada';
