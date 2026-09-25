@@ -12,6 +12,8 @@ versão, a Cabine), `LEIA-ME-VOLTAR-AO-DESKTOP.md` (o que aconteceu em
 > foi feita às cegas em 24/09, pela documentação. O primeiro passo no Mac é
 > rodar e ver o que quebra — está tudo isolado atrás de `MAC = sys.platform
 > == "darwin"` em `fontes/cabine.py`.
+>
+> **Rodou na noite de 24/09** — o que passou e o que quebrou está no §8.
 
 ---
 
@@ -150,6 +152,54 @@ A 6.0 por dentro (interruptores `TELA_*`, módulo, shader, ganchos
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O
 Windows (desktop "Unreal") continua com tudo pronto, inclusive o hotspot por
 botão; o `LEIA-ME-VOLTAR-AO-DESKTOP.md` é o caminho de volta.
+
+## 8. O primeiro dia no Mac — 24/09, à noite
+
+O que foi provado, sem o Quest ainda:
+
+- **O instalador rodou limpo** (Homebrew 7.0.2, macOS 26). node v24.18.0,
+  adb e scrcpy 4.1 em `/opt/homebrew/bin`, Python 3.12.6 (o do python.org,
+  não o do brew) com Pillow; identidade do git gravada; atalho na Mesa.
+  `verificar.py`: 38 shaders, "nada a corrigir". Chrome já estava instalado.
+- **A Cabine subiu na primeira tentativa** pelo mesmo comando do atalho
+  (`caffeinate -dims python3 fontes/cabine.py`): obra em 8765 (13 MB
+  servidos), controle em 8790. A página inteira renderiza, sem erro de
+  console. Ela leu o adb e o scrcpy do brew, o hotspot do Mac
+  ("MacBook Pro de Plinio", desligado, pelo `com.apple.nat`) e o único
+  monitor (Color LCD 1800×1169).
+- **A projeção funciona no Mac**: `projecao.html` abre ligada à Cabine
+  (preta até o óculos acender), **A** acende o vídeo da Odara, o clique
+  gera a onda. `/eventos` responde.
+- O Mac estava no **cabo de rede** (192.168.15.42), fora de qualquer Wi-Fi:
+  `wifi_do_mac()` devolve `ssid: null` e o ip do `en0` — sem quebrar.
+
+O que quebrou — **o Quest no cabo ficou `unauthorized` sem mostrar a caixa
+no capacete**, mesmo aceitando "sempre permitir" (o operador não viu caixa
+nenhuma). Do lado do Mac foi tentado, sem efeito: `adb kill-server`, `adb
+reconnect`, **chave nova** (`~/.android/adbkey` regenerada — a antiga, de
+08/2024, ficou em `~/.android/backup-2026-09-24/`; com chave nova o Quest
+*tem* um pedido pendente, então é o óculos que não o exibe). Só há um adb
+na máquina (o SideQuest existe em `/Applications`, mas não estava aberto),
+e a vigia da Cabine não interfere — ela só roda `adb devices`. Pela Wi-Fi
+de casa o Quest (192.168.15.157) responde ao ping, mas a porta 5555 recusa:
+o adb de rede está desligado nele, e só um cabo autorizado liga.
+
+O que fica para tentar, nesta ordem:
+
+1. **Reiniciar o óculos com o cabo ligado**, vestir e ficar na tela inicial
+   do Horizon (sem app aberto): a caixa costuma vir nos primeiros segundos.
+2. Ajustes → Sistema → Desenvolvedor → *Revogar autorizações de depuração
+   USB*, e tirar/pôr o cabo. Se a seção não existir, o modo de desenvolvedor
+   caiu: religar no app Meta Horizon do celular.
+3. **Trazer a chave do Lenovo.** A autorização do Quest é **por chave**, não
+   por computador: copiar `%USERPROFILE%\.android\adbkey` (e `.pub`) do
+   Lenovo para `~/.android/` no Mac, `adb kill-server`, e o Quest aceita na
+   hora — desde que no Lenovo a caixa tenha sido aceita com "sempre
+   permitir".
+
+Nota: `system_profiler SPUSBDataType` não listou o Quest quando rodado de
+dentro do Claude Code (o `adb` via o aparelho) — não usar isso para
+diagnosticar o cabo.
 
 Se algo aqui não bater com o código, **o código manda** — e este arquivo é
 que precisa ser corrigido.
