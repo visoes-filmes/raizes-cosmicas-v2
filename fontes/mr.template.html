@@ -644,6 +644,17 @@ const ESCALA_VIVA_MIN       = 0.75;
    olho. Dentro do oculos vao QUATRO, um pouco mais densas para o volume
    continuar o mesmo; na tela do computador, as sete. */
 const NEBLINA_CAMADAS_RM    = 4;
+/* O CEU DO COMECO EM CAMADAS -- 25/09 (6.4). "A resolucao do ceu no inicio
+   ainda nao esta boa... ou nao usar imagem, so camadas de estrelas e
+   assets". A pintura dos filamentos (ceu-mata, 2048 x 1024) cobria o ceu
+   inteiro com um disco de 1024 px: 4,5 pixels da pintura por grau acima da
+   cabeca, contra uns 12 que a obra desenha e 25 da lente. E o que ela tem
+   -- graos finos e fios finos -- e justamente o que mais desmancha ampliado.
+   Com true, o ceu do cenario 1 e feito aqui: uma nebulosa azul suave (que
+   nao precisa de resolucao, por ser suave), a poeira azul em milhares de
+   graos, estrelas em camadas, e os filamentos iridescentes como fitas de
+   luz -- tudo desenhado na resolucao do oculos. false volta a pintura. */
+const CEU_EM_CAMADAS        = true;
 const NEBLINA_DENSA_RM      = 1.45;
 const SUAVIZAR_RM           = true;
 /* RAIZES COSMICAS 5.0 -- 24/09, a direcao de arte: "deixe mais integrado
@@ -2980,7 +2991,7 @@ function montarFundoDoMar(){
   //    multiplicar as aguas-vivas"), e nadam: ver "nadar" no VS_SOLIDA
   const c = [];
   emAnel(c, 14, 'agua-viva-', 8, 0.20, 0.36,
-         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25, 1.05, 1.75, AGUAS_VIVAS);
+         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25, 1.6, 3.4, AGUAS_VIVAS);   // 6.4: ate cinco metros
   [bSeresCeu, nSeresCeuIdx] = subir(c);
 }
 
@@ -3122,24 +3133,58 @@ function montarSeresDeLuz(){
   }
   SERES_DE_LUZ.length = 0;
   const rnd = prng(6300);
-  for(let k = 0; k < 6; k++)
-    SERES_DE_LUZ.push({ tipo: k % 2, raio: 1.55 + rnd() * 1.1, ang: (k / 6) * Math.PI * 2 + rnd() * 0.6,
-                        vel: (rnd() < 0.5 ? -1 : 1) * (0.05 + rnd() * 0.05), alt: 1.15 + rnd() * 0.75,
-                        fase: rnd() * 6.283, esc: 0.85 + rnd() * 0.5, cor: k * 1.37 + rnd(),
-                        p: [0, 0, 0], fuga: [0, 0, 0], meio: k % 2 ? 0.12 : 0.23, susto: 0 });
+  /* ESPALHADOS ALEM DAS PAREDES -- 25/09 (6.4): "os seres do mar podem ser
+     mais espalhados, para alem das paredes". De 3 a 7 metros, e alguns bem
+     no alto. Oito, e nao seis: longe, cada um ocupa menos. */
+  for(let k = 0; k < 8; k++)
+    SERES_DE_LUZ.push({ tipo: k % 2, raio: 3.0 + rnd() * 4.0, ang: (k / 8) * Math.PI * 2 + rnd() * 0.6,
+                        vel: (rnd() < 0.5 ? -1 : 1) * (0.025 + rnd() * 0.035), alt: 1.0 + rnd() * 2.2,
+                        fase: rnd() * 6.283, esc: 0.9 + rnd() * 0.6, cor: k * 1.37 + rnd(),
+                        p: [0, 0, 0], fuga: [0, 0, 0], meio: k % 2 ? 0.12 : 0.23, susto: 0,
+                        curioso: 0, volta0: 0, giro: rnd() < 0.5 ? -1 : 1, avisou: false });
 }
+/* A CURIOSIDADE (6.4): "virem um a um perto de voce e te circularem, como se
+   estivessem curiosos". Um de cada vez, em rodizio: vem de onde esta (sete
+   segundos), da uma volta e pouco em torno da cabeca a noventa e cinco
+   centimetros, na altura do peito (dezoito segundos), e volta para o lugar
+   dele (sete segundos). Chegando, faz um som baixo e acende; tocado, foge e a
+   visita acaba ali. Entre um e outro, uns segundos de mar vazio. */
+const CURIOSIDADE = { quem: -1, desde: 0, proxima: 0, ordem: 0 };
+const suaveCur = (x) => { const u = Math.min(1, Math.max(0, x)); return u * u * (3 - 2 * u); };
 function andarSeresDeLuz(dt){
   if(seresDeLuzPresenca < 0.004) return;
   const volta = Math.exp(-dt / 2.2), calma = Math.exp(-dt / 0.8);
-  for(const sl of SERES_DE_LUZ){
+  const V = CURIOSIDADE, O = ondeOOlhoEsta;
+  if(V.quem < 0 && seresDeLuzPresenca > 0.6){
+    if(!V.proxima) V.proxima = relogio + 5;
+    else if(relogio > V.proxima){
+      V.quem = V.ordem % SERES_DE_LUZ.length; V.ordem++; V.desde = relogio;
+      const sl = SERES_DE_LUZ[V.quem];
+      sl.volta0 = Math.atan2(sl.p[0] - O[0], sl.p[2] - O[2]); sl.avisou = false;
+    }
+  }
+  SERES_DE_LUZ.forEach((sl, k) => {
     const a = sl.ang + relogio * sl.vel;
-    sl.p[0] = Math.sin(a) * sl.raio + sl.fuga[0];
-    sl.p[1] = Math.max(NIVEL_AGUA + 0.25, sl.alt + 0.22 * Math.sin(relogio * 0.23 + sl.fase)
-                        + 0.06 * Math.sin(relogio * 0.9 + sl.fase * 2) + sl.fuga[1]);
-    sl.p[2] = -Math.cos(a) * sl.raio + sl.fuga[2];
+    let x = Math.sin(a) * sl.raio;
+    let y = Math.max(NIVEL_AGUA + 0.25, sl.alt + 0.22 * Math.sin(relogio * 0.23 + sl.fase)
+                     + 0.06 * Math.sin(relogio * 0.9 + sl.fase * 2));
+    let z = -Math.cos(a) * sl.raio;
+    let w = 0;
+    if(V.quem === k){
+      const e = relogio - V.desde;
+      w = e < 7 ? suaveCur(e / 7) : e < 25 ? 1 : 1 - suaveCur((e - 25) / 7);
+      const phi = sl.volta0 + sl.giro * Math.max(0, e - 3) * (Math.PI * 2 / 16);
+      const cx = O[0] + Math.sin(phi) * 0.95, cz = O[2] + Math.cos(phi) * 0.95;
+      const cy = O[1] - 0.12 - sl.meio + 0.07 * Math.sin(e * 1.3);
+      x += (cx - x) * w; y += (cy - y) * w; z += (cz - z) * w;
+      if(!sl.avisou && w > 0.9){ sl.avisou = true; sussurroDePerto((k + 3) % 6, 0.8); relato('SER-DE-LUZ-CURIOSO ' + k); }
+      if(e >= 32){ V.quem = -1; V.proxima = relogio + 3 + (k % 3) * 2; }
+    }
+    sl.curioso = w;
+    sl.p[0] = x + sl.fuga[0]; sl.p[1] = y + sl.fuga[1]; sl.p[2] = z + sl.fuga[2];
     sl.fuga[0] *= volta; sl.fuga[1] *= volta; sl.fuga[2] *= volta;
     sl.susto *= calma;
-  }
+  });
 }
 // tocado, escapa: um impulso para longe da mao, e volta devagar
 function assustarSerDeLuz(sl, m){
@@ -3148,6 +3193,9 @@ function assustarSerDeLuz(sl, m){
   sl.fuga[0] += dx / L * 0.45; sl.fuga[1] += dy / L * 0.2 + 0.1; sl.fuga[2] += dz / L * 0.45;
   sl.susto = 1;
   pulsarEm(sl.p[0], sl.p[1] + sl.meio, sl.p[2]);
+  // se era a visita, ela acaba aqui: ele foge e depois volta para o lugar dele
+  const k = SERES_DE_LUZ.indexOf(sl), V = CURIOSIDADE;
+  if(V.quem === k && relogio - V.desde < 25) V.desde = relogio - 25;
 }
 /* onde esta o meio de uma agua-viva agora: a MESMA conta do "nadar" do
    VS_SOLIDA (copiada, nao parecida), para o toque cair onde ela esta */
@@ -6104,6 +6152,9 @@ uniform mat4 mvp;
 uniform float tempo, escalaPonto, sopro;
 uniform float sentido;   // +1 sobe (ambiente), -1 cai (a chegada)
 uniform float fixo;      // 1 = o grao fica onde esta (o glitter, que anda por fora)
+/* APAGAR (6.4): 0 nasce aceso, e e o que todo mundo que ja usa este
+   programa recebe sem mudar nada; o ceu em camadas apaga por aqui. */
+uniform float apagar;
 varying vec3 vCor;
 varying float vBrilho;
 void main(){
@@ -6191,8 +6242,51 @@ void main(){
   /* MAIS BRILHO, E NAO MAIS TAMANHO. Um grao de dois pixels apagado
      desaparece; o mesmo grao aceso e um cintilo. Como a mistura e aditiva,
      subir o brilho nao engorda nada -- so acende. */
-  vBrilho = pontas * cintilo * (1.0 + fixo * 0.9);
+  vBrilho = pontas * cintilo * (1.0 + fixo * 0.9) * (1.0 - apagar);
   vCor = aCor;
+}`;
+/* OS FILAMENTOS DO CEU (6.4): fitas deitadas na casca do ceu, com um fio
+   aceso no meio e um halo largo e fraco; a cor iridescente corre ao longo
+   delas, e a luz pulsa andando. aPos.w e a frente de crescimento (o
+   filamento se desenha aos poucos quando o mundo se forma); aCurva e
+   (ao longo, atravessado, fase, esmaecido perto do horizonte). */
+const VS_FILA = `
+attribute vec4 aPos;
+attribute vec4 aCurva;
+uniform mat4 mvp;
+varying vec4 vCurva;
+varying float vCresce;
+void main(){
+  vCurva = aCurva;
+  vCresce = aPos.w;
+  gl_Position = mvp * vec4(aPos.xyz, 1.0);
+}`;
+const FS_FILA = `
+precision mediump float;
+uniform highp float tempo;    // highp: segundos passam de mil, e mediump no Quest e meio-float
+uniform float presenca, cresce;
+varying vec4 vCurva;
+varying float vCresce;
+void main(){
+  float u = vCurva.x, v = vCurva.y, f = vCurva.z, esmaece = vCurva.w;
+  float vivo = 1.0 - smoothstep(cresce - 0.06, cresce, vCresce);
+  float pontas = smoothstep(0.0, 0.04, u) * (1.0 - smoothstep(0.88, 1.0, u));
+  float nucleo = exp(-v * v * 55.0);
+  float halo = exp(-v * v * 5.0) * 0.28;
+  /* A PALETA DA PINTURA, e nao o arco-iris inteiro: o rio grande vai do
+     coral ao dourado; os outros sao dourados, azul-claros ou rosa-violeta.
+     A iridescencia e so o tom escorregando um pouco ao longo e com o tempo. */
+  float fam = fract(f * 0.618);
+  vec3 a = mix(mix(vec3(1.00, 0.36, 0.30), vec3(1.00, 0.80, 0.38), step(0.25, fam)),
+               mix(vec3(0.55, 0.78, 1.00), vec3(0.92, 0.52, 0.96), step(0.75, fam)), step(0.50, fam));
+  vec3 b = mix(mix(vec3(1.00, 0.72, 0.40), vec3(0.98, 0.95, 0.80), step(0.25, fam)),
+               mix(vec3(0.80, 0.92, 1.00), vec3(0.60, 0.62, 1.00), step(0.75, fam)), step(0.50, fam));
+  float h = 0.5 + 0.5 * sin(u * 5.0 - tempo * 0.35 + f);
+  vec3 cor = mix(a, b, h);
+  float corre = 0.65 + 0.35 * sin(u * 46.0 - tempo * 1.6 + f * 3.0);
+  vec3 luz = cor * (nucleo * 1.35 * corre + halo) * presenca * vivo * pontas * esmaece;
+  float forte = max(max(luz.r, luz.g), max(luz.b, 1e-4));
+  gl_FragColor = vec4(luz / forte, min(forte, 1.0));
 }`;
 const FS_PO = `
 precision mediump float;
@@ -7779,6 +7873,7 @@ const progMata = programa(VS_MATA, FS_MATA);
 const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
+const progFila = programa(VS_FILA, FS_FILA);   // 6.4: os filamentos do ceu
 const progFio  = programa(VS_FIO,  FS_FIO);
 const progContorno = programa(VS_CONTORNO, FS_CONTORNO);
 /* A TELA DE TULE (6.0): o video na superficie, e a agua por cima. Cada
@@ -7861,7 +7956,8 @@ const progTexto = programa(VS_TEXTO, FS_TEXTO);
   const PROGRAMAS = {solida:progSolida, mata:progMata, sala:progSala, fig:progFig, po:progPo,
     fio:progFio, contorno:progContorno, mao:progMao, assa:progAssa, astro:progAstro,
     teatro:progTeatro, mergulho:progMergulho, soloAgua:progSoloAgua, agua:progAgua,
-    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto, parede:progParede, veu:progVeu};
+    figu:progFigu, bolha:progBolha, borbo:progBorbo, texto:progTexto, parede:progParede, veu:progVeu,
+    fila:progFila};
   const nomes = Object.keys(PROGRAMAS);
   const falhos = nomes.filter(n => !gl.getProgramParameter(PROGRAMAS[n], gl.LINK_STATUS));
   const onde = document.getElementById('portaoProgramas');
@@ -8677,6 +8773,219 @@ carregar(CEUS[0], '__TEX_PANORAMA__', true);
 carregar(CEUS[1], '__CEU_COSMICO__', true);
 carregar(CEUS[2], '__CEU_ROSA__', true);
 carregar(CEUS[3], '__CEU_MATA__', true);
+
+/* ═══════════ O CEU EM CAMADAS (6.4) ═══════════
+   Ver CEU_EM_CAMADAS. Quatro camadas, e cada uma tem o tamanho que o olho
+   pede dela:
+
+   A NEBULOSA: uma textura gerada aqui, ao carregar, com a MESMA projecao
+   estereografica das pinturas (e por isso o FS_CEU a le como le qualquer
+   ceu, e o ser camuflado a veste). E suave de proposito -- azul que vem e
+   vai em rios --, e suave nao precisa de resolucao: 1024 x 512 sobra.
+
+   A POEIRA AZUL: dezesseis mil graos na casca do ceu, sorteados MAIS DENSOS
+   ONDE A NEBULOSA E DENSA (a mesma conta decide as duas coisas) -- e o grao
+   fino da pintura, agora do tamanho de um pixel do oculos.
+
+   AS ESTRELAS: duas mil e seiscentas, a maioria miuda e fraca, poucas
+   grandes, brancas, azuladas, douradas e rosadas, cintilando cada uma no
+   seu compasso (o programa da poeira ja faz isso).
+
+   OS FILAMENTOS: fitas de luz iridescentes que atravessam o ceu com
+   galhos, como os rios de luz da pintura -- mas desenhadas, e por isso
+   nitidas de perto e de longe.
+
+   Tudo gira com o ceu (anguloDoCeu) e anda com o olho, como a cupula: as
+   quatro camadas ficam sempre umas sobre as outras. */
+function ruidoCeu(x, y){
+  const ix = Math.floor(x), iy = Math.floor(y);
+  let fx = x - ix, fy = y - iy;
+  fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+  const h = (a, b) => {
+    let q = (Math.imul(a, 374761393) + Math.imul(b, 668265263)) | 0;
+    q = Math.imul(q ^ (q >>> 13), 1274126177);
+    return ((q ^ (q >>> 16)) >>> 0) / 4294967296;
+  };
+  const a = h(ix, iy), b = h(ix + 1, iy), c = h(ix, iy + 1), d = h(ix + 1, iy + 1);
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+function fbmCeu(x, y){
+  let v = 0, amp = 0.5;
+  for(let o = 0; o < 4; o++){ v += amp * ruidoCeu(x, y); x = x * 2.03 + 17.1; y = y * 2.03 - 9.7; amp *= 0.5; }
+  return v;
+}
+/* a densidade da nebulosa num ponto do plano estereografico (horizonte em
+   r = 2): rios torcidos por um segundo ruido, que e o que faz filamento e
+   nao mancha redonda */
+function densidadeDaNebulosa(px, py){
+  const qx = fbmCeu(px * 0.9 + 3.1, py * 0.9 - 1.7), qy = fbmCeu(px * 0.9 - 4.2, py * 0.9 + 2.3);
+  const n = fbmCeu(px * 1.1 + 1.6 * qx, py * 1.1 + 1.6 * qy);
+  const u = Math.min(1, Math.max(0, (n - 0.40) / 0.36));
+  return u * u * (3 - 2 * u);
+}
+function gerarNebulosa(tex){
+  const W = 1024, H = 512, dados = new Uint8Array(W * H * 3);
+  for(let j = 0; j < H; j++){
+    const py = (j + 0.5) / H * 4 - 2;
+    for(let i = 0; i < W; i++){
+      const px = (i + 0.5) / W * 8 - 4, k = (j * W + i) * 3;
+      let r = 4, g = 6, b = 18;                            // a noite de fundo
+      if(px * px + py * py < 4.6){                         // so o disco que o ceu usa
+        const d = densidadeDaNebulosa(px, py);
+        const tom = fbmCeu(px * 2.3 + 7.0, py * 2.3 - 3.0);  // violeta de um lado, ciano do outro
+        r += d * (22 + 46 * Math.max(0, tom - 0.45));
+        g += d * (34 + 30 * Math.max(0, 0.55 - tom));
+        b += d * (120 + 40 * tom);
+      }
+      dados[k] = r; dados[k + 1] = g; dados[k + 2] = b;
+    }
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, W, H, 0, gl.RGB, gl.UNSIGNED_BYTE, dados);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  for(const [k, v] of [[gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+                       [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
+}
+// a direcao no ceu (unitaria, y para cima) e o ponto dela no plano da nebulosa
+const noPlanoDoCeu = (d) => { const k = 2 / (1 + Math.abs(d[1])); return [d[0] * k, -d[2] * k]; };
+// perto do horizonte o ceu cede a sala (o degrade do cenario 1 vai de 0,22 a 0,72
+// do quarto de volta); as camadas cedem junto, um pouco antes de acabar
+function esmaeceNoHorizonte(y){
+  const el = Math.asin(Math.max(-1, Math.min(1, y))) / (Math.PI / 2);
+  const u = Math.min(1, Math.max(0, (el - 0.18) / 0.44));
+  return u * u * (3 - 2 * u);
+}
+const bEstrelasCeu = criarBufs(['pos','cor','dado']), bPoeiraCeu = criarBufs(['pos','cor','dado']);
+let nEstrelasCeu = 0, nPoeiraCeu = 0;
+const bFila = criarBufs(['pos','curva','idx']);
+let nFilaIdx = 0;
+function montarCeuEmCamadas(){
+  const rnd = prng(6400);
+  const direcao = () => {                       // uniforme no hemisferio de cima
+    const y = rnd(), a = rnd() * Math.PI * 2, r = Math.sqrt(1 - y * y);
+    return [Math.cos(a) * r, y, Math.sin(a) * r];
+  };
+  // a poeira: aceita mais onde a nebulosa e densa
+  { const pos = [], cor = [], dado = [];
+    let tentativas = 0;
+    while(pos.length / 3 < 16000 && tentativas++ < 200000){
+      const d = direcao();
+      if(d[1] < 0.2) continue;
+      const q = noPlanoDoCeu(d), dens = densidadeDaNebulosa(q[0], q[1]);
+      if(rnd() > dens * 0.92 + 0.02) continue;
+      const R = 40, luz = (0.22 + 0.36 * rnd()) * (0.4 + 0.6 * dens) * esmaeceNoHorizonte(d[1]);
+      const t = rnd();
+      pos.push(d[0] * R, d[1] * R, d[2] * R);
+      cor.push((0.30 + 0.35 * t) * luz, (0.42 + 0.20 * (1 - t)) * luz, 1.0 * luz);
+      dado.push(rnd(), 0.030 + 0.028 * rnd());
+    }
+    enviar(bPoeiraCeu.pos, pos); enviar(bPoeiraCeu.cor, cor); enviar(bPoeiraCeu.dado, dado);
+    nPoeiraCeu = pos.length / 3; }
+  // as estrelas: muitas miudas, poucas grandes
+  { const pos = [], cor = [], dado = [];
+    const tons = [[1.0, 1.0, 1.0], [0.72, 0.84, 1.0], [1.0, 0.86, 0.60], [1.0, 0.74, 0.86]];
+    for(let k = 0; k < 2600; k++){
+      const d = direcao();
+      if(d[1] < 0.15) continue;
+      const R = 42, forca = Math.pow(rnd(), 3.2), tom = tons[Math.floor(rnd() * tons.length)];
+      const luz = (0.30 + 0.95 * forca) * esmaeceNoHorizonte(d[1]);
+      pos.push(d[0] * R, d[1] * R, d[2] * R);
+      cor.push(tom[0] * luz, tom[1] * luz, tom[2] * luz);
+      dado.push(rnd(), 0.040 + 0.085 * forca);
+    }
+    enviar(bEstrelasCeu.pos, pos); enviar(bEstrelasCeu.cor, cor); enviar(bEstrelasCeu.dado, dado);
+    nEstrelasCeu = pos.length / 3; }
+  // os filamentos: rios de luz com galhos, deitados na casca do ceu
+  { const f = { pos: [], curva: [], idx: [] }, R = 38;
+    const dirDe = (az, el) => [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)];
+    const fita = (pts, largura, fase, cresce0, cresceL) => {
+      const b0 = f.pos.length / 4, n = pts.length;
+      for(let i = 0; i < n; i++){
+        const q = pts[i], a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+        const tx = b[0] - a[0], ty = b[1] - a[1], tz = b[2] - a[2];
+        let sx = ty * q[2] - tz * q[1], sy = tz * q[0] - tx * q[2], sz = tx * q[1] - ty * q[0];
+        const L = Math.hypot(sx, sy, sz) || 1; sx /= L; sy /= L; sz /= L;
+        const u = i / (n - 1), esm = esmaeceNoHorizonte(q[1]);
+        for(const lado of [-1, 1]){
+          f.pos.push((q[0] + sx * largura * lado) * R, (q[1] + sy * largura * lado) * R,
+                     (q[2] + sz * largura * lado) * R, cresce0 + cresceL * u);
+          f.curva.push(u, lado, fase, esm);
+        }
+      }
+      for(let i = 0; i < n - 1; i++){ const a = b0 + i * 2; f.idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    };
+    /* O CAMINHO FEITO NA ESFERA, e nao em azimute e altura: perto do alto
+       da cabeca os azimutes se apertam, e a mesma ondulacao em graus virava
+       rabisco enrolado (visto na bancada). Aqui e uma curva de Bezier entre
+       dois pontos do ceu, passando por um terceiro puxado para o alto, e a
+       ondulacao vai de lado, na propria casca, proporcional ao comprimento. */
+    const norm = (v) => { const L = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / L, v[1] / L, v[2] / L]; };
+    const rioNaEsfera = (p0, p1, subida, n, onda) => {
+      const k1 = rnd() * 6.28, k2 = rnd() * 6.28;
+      let mid = norm([p0[0] + p1[0], p0[1] + p1[1], p0[2] + p1[2]]);
+      mid = norm([mid[0], mid[1] + subida, mid[2]]);
+      const pts = [];
+      for(let i = 0; i < n; i++){
+        const u = i / (n - 1), a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
+        pts.push(norm([a * p0[0] + b * mid[0] + c * p1[0], a * p0[1] + b * mid[1] + c * p1[1],
+                       a * p0[2] + b * mid[2] + c * p1[2]]));
+      }
+      // a ondulacao: de lado (tangente x radial), sumindo nas pontas
+      return pts.map((q, i) => {
+        const u = i / (n - 1), pa = pts[Math.max(0, i - 1)], pb = pts[Math.min(n - 1, i + 1)];
+        const t = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+        const lx = t[1] * q[2] - t[2] * q[1], ly = t[2] * q[0] - t[0] * q[2], lz = t[0] * q[1] - t[1] * q[0];
+        const L = Math.hypot(lx, ly, lz) || 1;
+        const o = onda * Math.sin(Math.PI * u) * (Math.sin(u * 7 + k1) + 0.35 * Math.sin(u * 19 + k2));
+        return norm([q[0] + lx / L * o, q[1] + ly / L * o, q[2] + lz / L * o]);
+      });
+    };
+    // as fases escolhem a familia de cor no shader: 0 e o coral (o rio grande)
+    const fasesDosRios = [0.10, 0.35, 0.60, 0.85, 0.40, 0.65, 0.15];   // coral, dourado, azul, violeta...
+    for(let m = 0; m < 7; m++){
+      /* ARCOS DE 50 A 100 GRAUS, cada um na sua parte do ceu, e so o rio
+         grande cruzando por cima da cabeca -- com todos passando pelo alto,
+         eles se juntavam num no so, uma estrela de riscos (bancada). */
+      const grande = m === 0;
+      const az0 = m / 7 * Math.PI * 2 + rnd() * 0.6;
+      const vai = (grande ? 2.3 : 0.9 + rnd() * 0.9) * (rnd() < 0.5 ? -1 : 1);
+      const p0 = dirDe(az0, 0.35 + rnd() * 0.45), p1 = dirDe(az0 + vai, 0.35 + rnd() * 0.45);
+      const larg = grande ? 0.016 : 0.009 + rnd() * 0.005;     // o rio grande, como o vermelho da pintura
+      const fase = fasesDosRios[m] / 0.618;
+      const principal = rioNaEsfera(p0, p1, grande ? 0.55 : 0.08 + rnd() * 0.3, 130, 0.045);
+      fita(principal, larg, fase, 0, 1.0);
+      const galhos = 2 + Math.floor(rnd() * 3);
+      for(let g = 0; g < galhos; g++){
+        const ub = 0.15 + rnd() * 0.7, ib = Math.floor(ub * 129), de = principal[ib];
+        // o galho sai para um lado, meio de viés em relacao ao rio, e vai longe
+        const seg = principal[Math.min(129, ib + 1)], tg = norm([seg[0] - de[0], seg[1] - de[1], seg[2] - de[2]]);
+        const ld = norm([tg[1] * de[2] - tg[2] * de[1], tg[2] * de[0] - tg[0] * de[2], tg[0] * de[1] - tg[1] * de[0]]);
+        const lado = rnd() < 0.5 ? -1 : 1, ang = 0.25 + rnd() * 0.45, comp = 0.18 + rnd() * 0.30;
+        const dir = norm([tg[0] * Math.cos(ang) + ld[0] * lado * Math.sin(ang),
+                          tg[1] * Math.cos(ang) + ld[1] * lado * Math.sin(ang),
+                          tg[2] * Math.cos(ang) + ld[2] * lado * Math.sin(ang)]);
+        const fim = norm([de[0] * Math.cos(comp) + dir[0] * Math.sin(comp), de[1] * Math.cos(comp) + dir[1] * Math.sin(comp),
+                          de[2] * Math.cos(comp) + dir[2] * Math.sin(comp)]);
+        const galho = rioNaEsfera(de, fim, 0.05, 50, 0.018);
+        fita(galho, larg * 0.6, fase + (g + 1) * 0.11, ub * 0.95, 0.35);
+      }
+    }
+    enviar(bFila.pos, f.pos); enviar(bFila.curva, f.curva);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFila.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(f.idx), gl.STATIC_DRAW);
+    nFilaIdx = f.idx.length; }
+}
+if(CEU_EM_CAMADAS){
+  CEUS.push(novaTex([4, 6, 18]));
+  ASPECTO_CEU[4] = 2.0;           // a nebulosa sai na mesma forma das pinturas (2:1)
+  gerarNebulosa(CEUS[4]);
+  montarCeuEmCamadas();
+}
 carregar(PELES[0], '__TEX_MARMORE__');
 carregar(PELES[1], '__TEX_AGUA__');
 carregar(PELES[2], '__PELE_SOL__');
@@ -8765,7 +9074,7 @@ const TRAVESSIA = 6;          // segundos de mistura entre cenarios
    ela E a nuvem cosmica do comeco, a mesma marmorizacao --, so que aqui vai
    e vem: o vaivem esta na partitura (nuvemVaiEVem). */
 const CENAS = {
-  1: { ceu:3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
+  1: { ceu: CEU_EM_CAMADAS ? 4 : 3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
        poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72 },
   2: { ceu:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
        poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58 },
@@ -9864,6 +10173,7 @@ function recomecarAViagem(){
      pessoa, e ela pode estar virada para outro lado. */
   mundoOrientado = false;
   tocouCasulo = 0; tocouConcha = 0;
+  CURIOSIDADE.quem = -1; CURIOSIDADE.proxima = 0;
   rosaNaMao.por = -1; rosaNaMao.pos = null; rosaNaMao.escala = 1; rosaNaMao.escalando = false;
   agitacao = 0; nivelExtra = 0;
   cenaAtual = 1; misturaCeu = 0;
@@ -11080,7 +11390,8 @@ if(emTesteLocal){
            return { gigantes: GIGANTES_DO_MAR.map(g => ({ p:g.prefixo, x:+g.x.toFixed(2), z:+g.z.toFixed(2), esc:+g.esc.toFixed(2) })),
                     aguasVivas: AGUAS_VIVAS.map(a => r2([a.x, ondeAguaViva(a), a.z])),
                     luz: SERES_DE_LUZ.map(sl => r2([sl.p[0], sl.p[1] + sl.meio, sl.p[2]])),
-                    presencaLuz: +seresDeLuzPresenca.toFixed(2) }; },
+                    presencaLuz: +seresDeLuzPresenca.toFixed(2),
+                    curioso: CURIOSIDADE.quem, curiosoHa: +(relogio - CURIOSIDADE.desde).toFixed(1) }; },
     /* o menu da mao, para a bancada e a Cabine: raizes.menu() diz o estado;
        raizes.menu('atualizar'|'sair'|'remapear') escolhe como se fosse o dedo */
     menu(id){ if(id) { escolherNoMenu(id); return 'escolhido ' + id; }
@@ -12165,7 +12476,11 @@ function assarTinta(){
 
 const uPo = n=>gl.getUniformLocation(progPo,n);
 const locPo = {mvp:uPo('mvp'), tempo:uPo('tempo'), sentido:uPo('sentido'),
-               escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro'), fixo:uPo('fixo')};
+               escalaPonto:uPo('escalaPonto'), sopro:uPo('sopro'), fixo:uPo('fixo'),
+               apagar:uPo('apagar')};
+const uFila = n=>gl.getUniformLocation(progFila,n);
+const locFila = {mvp:uFila('mvp'), tempo:uFila('tempo'), presenca:uFila('presenca'), cresce:uFila('cresce')};
+const aFila = {pos:gl.getAttribLocation(progFila,'aPos'), curva:gl.getAttribLocation(progFila,'aCurva')};
 const aP = {pos:gl.getAttribLocation(progPo,'aPos'),
             cor:gl.getAttribLocation(progPo,'aCor'),
             dado:gl.getAttribLocation(progPo,'aDado')};
@@ -12232,6 +12547,15 @@ function soltarAtributos(){
    porque isto acontece duas vezes por quadro, e alocar por quadro e o que
    vira engasgo do coletor de lixo -- regra da casa. */
 const mvpCeu = new Float32Array(16);
+/* A MVP LEVADA PARA O OLHO (6.4): mvp x translacao ate onde o olho esta. As
+   camadas do ceu andam com a cabeca como a cupula -- sem isso, andando pela
+   sala, as estrelas escorregariam por cima da nebulosa. */
+const mvpOlhoBuf = new Float32Array(16);
+function mvpNoOlho(m, o){
+  for(let j = 0; j < 12; j++) mvpOlhoBuf[j] = m[j];
+  for(let j = 0; j < 4; j++) mvpOlhoBuf[12 + j] = m[j] * o[0] + m[4 + j] * o[1] + m[8 + j] * o[2] + m[12 + j];
+  return mvpOlhoBuf;
+}
 function girarCeuY(m, ang){
   const co = Math.cos(ang), se = Math.sin(ang);
   for(let j=0;j<4;j++){
@@ -12415,6 +12739,48 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /* 1a) O CEU EM CAMADAS (6.4), por cima da nebulosa: estrelas, poeira azul e
+     filamentos, somando luz, sem escrever profundidade -- tudo o mais passa
+     na frente. Pesam o tanto que o ceu 4 pesa na mistura (na travessia para
+     o cosmos eles saem junto com a nebulosa), e seguem a tinta do cenario:
+     as estrelas ja estao la na abertura, fracas; a poeira e os filamentos
+     chegam com o mundo, aos 0:20, e os filamentos se desenham ate os 0:44. */
+  const pesoCamadas = CEU_EM_CAMADAS
+    ? (ceuA === 4 ? 1 - misturaCeu : 0) + (ceuB === 4 ? misturaCeu : 0) : 0;
+  if(pesoCamadas > 0.004 && nEstrelasCeu > 0){
+    const tn = Math.min(1, tinta / 0.6);
+    const mCeu = girarCeuY(mvpNoOlho(mvp, olhoPos), anguloDoCeu(t));
+    gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false); gl.disable(gl.CULL_FACE);
+    gl.useProgram(progPo); soltarAtributos();
+    mandarMvp(locPo.mvp, mCeu);
+    gl.uniform1f(locPo.tempo, relogio);
+    gl.uniform1f(locPo.escalaPonto, escalaPonto);
+    gl.uniform1f(locPo.sentido, 1.0);
+    gl.uniform1f(locPo.fixo, 1.0);
+    gl.uniform1f(locPo.sopro, 0.0);
+    gl.uniform1f(locPo.apagar, 1 - pesoCamadas * (0.35 + 0.65 * tn));
+    ligar(aP.pos, bEstrelasCeu.pos, 3); ligar(aP.cor, bEstrelasCeu.cor, 3); ligar(aP.dado, bEstrelasCeu.dado, 2);
+    gl.drawArrays(gl.POINTS, 0, nEstrelasCeu);
+    if(tn > 0.004){
+      gl.uniform1f(locPo.apagar, 1 - pesoCamadas * tn);
+      ligar(aP.pos, bPoeiraCeu.pos, 3); ligar(aP.cor, bPoeiraCeu.cor, 3); ligar(aP.dado, bPoeiraCeu.dado, 2);
+      gl.drawArrays(gl.POINTS, 0, nPoeiraCeu);
+    }
+    gl.uniform1f(locPo.apagar, 0.0);
+    gl.uniform1f(locPo.fixo, 0.0);
+    if(tn > 0.004 && nFilaIdx > 0){
+      gl.useProgram(progFila); soltarAtributos();
+      mandarMvp(locFila.mvp, mCeu);
+      gl.uniform1f(locFila.tempo, relogio);
+      gl.uniform1f(locFila.presenca, pesoCamadas * tn);
+      gl.uniform1f(locFila.cresce, 1.3 * rampa(20, 44, t));
+      ligar(aFila.pos, bFila.pos, 4); ligar(aFila.curva, bFila.curva, 4);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFila.idx);
+      gl.drawElements(gl.TRIANGLES, nFilaIdx, gl.UNSIGNED_SHORT, 0);
+    }
+    sobrepor(); gl.depthMask(true); gl.disable(gl.BLEND);
   }
 
   /* 1b) AS PAREDES, logo depois do ceu (5.0). Primeiro a TAMPA: sem
@@ -13546,7 +13912,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
           gl.uniform3f(locSo.desloca, sl.p[0], sl.p[1], sl.p[2]);
           gl.uniform1f(locSo.escalaObj, sl.esc * (1 + 0.045 * Math.sin(relogio * 1.3 + sl.fase)));
           gl.uniform1f(locSo.faseExtra, sl.cor);
-          gl.uniform1f(locSo.proximidade, Math.max(chamadoDe('luz-' + k), sl.susto));
+          gl.uniform1f(locSo.proximidade, Math.max(chamadoDe('luz-' + k), sl.susto, sl.curioso * 0.6));
           gl.uniform1f(locSo.presenca, seresDeLuzPresenca);
           sobrepor(); gl.enable(gl.CULL_FACE);
           gl.cullFace(gl.FRONT); porMalha(bLuzCorpo[tp], nLuzCorpo[tp], 20.0);
