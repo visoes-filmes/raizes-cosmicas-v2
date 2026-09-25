@@ -9739,18 +9739,130 @@ function ondeEsta(i, t, cru){
      assim um planeta nao le como planeta, le como balao. A nota pede "mais
      distantes, para cima; so esse fica mais perto (o rosa)" -- e faz
      sentido, porque o rosa e o unico que se pega. */
-  const rB = p.interativo ? 0.95 : 2.6;
-  const alturaB = p.interativo ? 1.30 : 2.35;
+  /* AO ALCANCE DO BRACO -- 25/09 (6.9), "quando voce bate neles eles podem
+     reagir com fisica". A 2,6 m e 2,35 m de altura nenhuma mao chegava. Vem
+     para 1,6-1,9 m e 1,6-2,0 m de altura: ainda acima do rosa e mais longe
+     que ele, mas a um passo e um braco. */
+  const rB = p.interativo ? 0.95 : 1.6 + 0.15 * i;
+  const alturaB = p.interativo ? 1.30 : 1.60 + 0.13 * i;
   const B = [Math.cos(w)*rB, alturaB + Math.sin(w*1.6 + fase)*0.22, Math.sin(w)*rB];
 
   // C — dispersos no ceu, cada um com espaco em volta
-  const rC = 2.9 + (i % 2) * 0.6;
-  const C = [Math.cos(w*0.5 + fase)*rC, 2.0 + (i % 3) * 0.55,
+  // (6.9: dispersos, mas ainda ao alcance -- de 1,8 a 2,3 m, de 1,5 a 2,2 de altura)
+  const rC = 1.8 + (i % 2) * 0.5;
+  const C = [Math.cos(w*0.5 + fase)*rC, 1.5 + (i % 3) * 0.35,
              Math.sin(w*0.5 + fase)*rC];
 
   const ab = [A[0]+(B[0]-A[0])*desceu, A[1]+(B[1]-A[1])*desceu, A[2]+(B[2]-A[2])*desceu];
-  return [ab[0]+(C[0]-ab[0])*dispersou, ab[1]+(C[1]-ab[1])*dispersou,
-          ab[2]+(C[2]-ab[2])*dispersou];
+  const coreo = [ab[0]+(C[0]-ab[0])*dispersou, ab[1]+(C[1]-ab[1])*dispersou,
+                 ab[2]+(C[2]-ab[2])*dispersou];
+  /* BATIDO, ELE ESTA ONDE A FISICA O LEVOU (6.9) -- e depois de dez
+     segundos sem outra batida, volta a coreografia em tres. So quem pergunta
+     pela orbita crua (a propria fisica) recebe a coreografia pura. */
+  const S = SOLTOS[i];
+  if(!cru && S && S.ativo){
+    const e = relogio - S.desde, vw = e < SOLTO_TEMPO ? 0 : Math.min(1, (e - SOLTO_TEMPO) / 3);
+    const k = vw * vw * (3 - 2 * vw);
+    return [S.p[0] + (coreo[0] - S.p[0]) * k, S.p[1] + (coreo[1] - S.p[1]) * k, S.p[2] + (coreo[2] - S.p[2]) * k];
+  }
+  return coreo;
+}
+
+/* ═══════════ OS PLANETAS BATIDOS (6.9) ═══════════
+   "Quando voce bate neles eles podem reagir com fisica e ricochetear nas
+   paredes, menos o planeta rosa, que voce pega."
+
+   BATER, e nao encostar: a mao que chega a um planeta a mais de 35 cm por
+   segundo o empurra na direcao da batida -- quanto mais forte, mais longe
+   (ate 4 m/s). Encostar devagar continua sendo o toque de antes (o pulso e
+   a nota). A batida tem o som dela e o pulso no ponto em que a mao bateu.
+
+   SOLTO, ele voa pela sala: sem gravidade (e espaco), com um freio de ar
+   leve, e quica no chao, num teto de 2,55 m e nas PAREDES -- as de verdade,
+   pelo contorno do chao que o Quest leu; sem leitura, numa caixa de 3,8 x
+   3,8 m. Cada quique perde um quinto da velocidade e soa baixinho. Dez
+   segundos depois da ultima batida ele volta, em tres, para a orbita. */
+const SOLTO_TEMPO = 10, TETO_DA_SALA = 2.55, CAIXA_SEM_LEITURA = 1.9;
+const SOLTOS = [null, { ativo:false, p:[0,0,0], v:[0,0,0], desde:0, bateEm:-9, paredeEm:-9 },
+                      { ativo:false, p:[0,0,0], v:[0,0,0], desde:0, bateEm:-9, paredeEm:-9 },
+                      { ativo:false, p:[0,0,0], v:[0,0,0], desde:0, bateEm:-9, paredeEm:-9 }];
+const maoAntesPlanetas = [[0, 0, 0, 0], [0, 0, 0, 0]];   // onde a mao estava, nas tres coordenadas, e se a leitura valia
+function baterNosPlanetas(dt){
+  for(let h = 0; h < 2; h++){
+    const m = MAOS[h], a = maoAntesPlanetas[h];
+    if(!m.tem || dt <= 0){ a[3] = 0; continue; }
+    const vx = (m.x - a[0]) / dt, vy = (m.y - a[1]) / dt, vz = (m.z - a[2]) / dt;
+    const valia = a[3] > 0;
+    a[0] = m.x; a[1] = m.y; a[2] = m.z; a[3] = 1;
+    if(!valia || cenaAtual !== 2) continue;
+    const vel = Math.hypot(vx, vy, vz);
+    if(vel < 0.35 || vel > 12) continue;                 // devagar e toque; depressa demais e salto do rastreio
+    for(let i = 1; i < PLANETAS.length && i < SOLTOS.length; i++){
+      if(presencaAstro(i, t) < 0.3) continue;
+      const S = SOLTOS[i], c = ondeEsta(i, t), r = PLANETAS[i].raio;
+      const dx = c[0] - m.x, dy = c[1] - m.y, dz = c[2] - m.z, d = Math.hypot(dx, dy, dz) || 1;
+      if(d > r + 0.05 || relogio - S.bateEm < 0.35) continue;
+      const nx = dx / d, ny = dy / d, nz = dz / d;
+      const vn = Math.max(vx * nx + vy * ny + vz * nz, 0.5);
+      let ux = nx * vn * 1.2 + vx * 0.35, uy = ny * vn * 1.2 + vy * 0.35, uz = nz * vn * 1.2 + vz * 0.35;
+      const U = Math.hypot(ux, uy, uz);
+      if(U > 4){ ux *= 4 / U; uy *= 4 / U; uz *= 4 / U; }
+      if(!S.ativo){ S.p[0] = c[0]; S.p[1] = c[1]; S.p[2] = c[2]; S.ativo = true; }
+      S.v[0] = ux; S.v[1] = uy; S.v[2] = uz;
+      S.desde = relogio; S.bateEm = relogio;
+      pulsarEm(c[0] - nx * r, c[1] - ny * r, c[2] - nz * r);
+      sinoDoToque((i + 1) % 6, Math.min(1, 0.55 + vel * 0.15));
+      relato('BATEU-NO-PLANETA ' + PLANETAS[i].nome + ' ' + vel.toFixed(1) + 'm/s');
+    }
+  }
+}
+function andarPlanetasSoltos(dt){
+  if(dt <= 0) return;
+  const freio = Math.exp(-0.25 * dt);
+  for(let i = 1; i < SOLTOS.length; i++){
+    const S = SOLTOS[i];
+    if(!S || !S.ativo) continue;
+    if(relogio - S.desde > SOLTO_TEMPO + 3 || presencaAstro(i, t) < 0.05){ S.ativo = false; continue; }
+    const r = PLANETAS[i].raio, P = S.p, V = S.v;
+    V[0] *= freio; V[1] *= freio; V[2] *= freio;
+    P[0] += V[0] * dt; P[1] += V[1] * dt; P[2] += V[2] * dt;
+    let quique = 0;
+    // chao e teto
+    const chao = (SALA.pronta ? SALA.chaoY : 0) + r + 0.02;
+    if(P[1] < chao){ P[1] = chao; if(V[1] < 0){ quique = Math.max(quique, -V[1]); V[1] = -V[1] * 0.8; } }
+    if(P[1] > TETO_DA_SALA - r){ P[1] = TETO_DA_SALA - r; if(V[1] > 0){ quique = Math.max(quique, V[1]); V[1] = -V[1] * 0.8; } }
+    // as paredes: o contorno do chao lido, ou a caixa
+    if(SALA.pronta && SALA.chao){
+      const poly = SALA.chao, dentro = dentroDoPoligono(P[0], P[2], poly);
+      let best = 1e9, qx = 0, qz = 0;
+      for(let a = 0, b = poly.length - 2; a < poly.length; b = a, a += 2){
+        const xi = poly[a], zi = poly[a + 1], ex = poly[b] - xi, ez = poly[b + 1] - zi, L = ex * ex + ez * ez;
+        let u = L > 0 ? ((P[0] - xi) * ex + (P[2] - zi) * ez) / L : 0;
+        u = u < 0 ? 0 : u > 1 ? 1 : u;
+        const cx = xi + ex * u, cz = zi + ez * u, dd = Math.hypot(P[0] - cx, P[2] - cz);
+        if(dd < best){ best = dd; qx = cx; qz = cz; }
+      }
+      if(!dentro || best < r){
+        // a normal para DENTRO da sala
+        let nx = dentro ? P[0] - qx : qx - P[0], nz = dentro ? P[2] - qz : qz - P[2];
+        const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+        P[0] = qx + nx * (r + 0.01); P[2] = qz + nz * (r + 0.01);
+        const vn = V[0] * nx + V[2] * nz;
+        if(vn < 0){ quique = Math.max(quique, -vn); V[0] -= 1.8 * vn * nx; V[2] -= 1.8 * vn * nz; }
+      }
+    } else {
+      for(const eixo of [0, 2]){
+        const lim = CAIXA_SEM_LEITURA - r;
+        if(P[eixo] > lim){ P[eixo] = lim; if(V[eixo] > 0){ quique = Math.max(quique, V[eixo]); V[eixo] = -V[eixo] * 0.8; } }
+        if(P[eixo] < -lim){ P[eixo] = -lim; if(V[eixo] < 0){ quique = Math.max(quique, -V[eixo]); V[eixo] = -V[eixo] * 0.8; } }
+      }
+    }
+    if(quique > 0.3 && relogio - S.paredeEm > 0.2){
+      S.paredeEm = relogio;
+      sinoDoToque((i + 3) % 6, Math.min(0.6, 0.15 + quique * 0.2));
+      pulsarEm(P[0], P[1], P[2]);
+    }
+  }
 }
 
 /* Quanto os astros existem. Eles acendem depois do Sol, um a um — o
@@ -10301,6 +10413,7 @@ function recomecarAViagem(){
   mundoOrientado = false;
   tocouCasulo = 0; tocouConcha = 0;
   CURIOSIDADE.quem = -1; CURIOSIDADE.proxima = 0;
+  for(const S of SOLTOS) if(S) S.ativo = false;
   rosaNaMao.por = -1; rosaNaMao.pos = null; rosaNaMao.escala = 1; rosaNaMao.escalando = false;
   agitacao = 0; nivelExtra = 0;
   cenaAtual = 1; misturaCeu = 0;
@@ -15185,6 +15298,8 @@ function quadro(){
   ressoarAgua(dt);
   seguirRosa(dt);
   andarSeresDeLuz(dt);
+  baterNosPlanetas(dt);      // 6.9
+  andarPlanetasSoltos(dt);
   if(neblinaOn) assarTinta();
   atualizarTela();
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -15258,6 +15373,8 @@ function quadroXR(t, frame){
   ressoarAgua(dt);
   seguirRosa(dt);
   andarSeresDeLuz(dt);
+  baterNosPlanetas(dt);      // 6.9
+  andarPlanetasSoltos(dt);
   andarGlitter(dt);
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
