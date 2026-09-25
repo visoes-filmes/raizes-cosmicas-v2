@@ -21,3 +21,13 @@ __pycache__/
 # as chaves da lampada (id e chave local da Tuya), por maquina
 fontes/lampada.json
 fontes/espelho_angulo.txt
+
+# tinytuya wizard: chaves da conta Tuya e das lampadas, por maquina (NUNCA no git)
+devices.json
+tinytuya.json
+tuya-raw.json
+snapshot.json
+fontes/devices.json
+fontes/tinytuya.json
+fontes/tuya-raw.json
+fontes/snapshot.json

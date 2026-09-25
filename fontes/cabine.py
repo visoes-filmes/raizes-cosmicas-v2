@@ -33,6 +33,7 @@ Andaime de operação: a Cabine escuta só nesta máquina (127.0.0.1).
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -920,6 +921,43 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome == "luz_ligar":
+        return luz_ligar(dados.get("modo", "segue"), dados.get("via", "auto"))
+    elif nome == "luz_parar":
+        relatar("luz da sala: parada")
+        return luz_parar()
+    elif nome == "luz_procurar_bt":
+        # a Cabine vive no Terminal: e ele que o macOS deixa (ou nao) usar o Bluetooth
+        if MAC:
+            # pelo Terminal, que e quem tem a permissao; o resultado volta num arquivo
+            import tempfile
+            arq = os.path.join(tempfile.gettempdir(), "raizes_bt_busca.txt")
+            try:
+                os.remove(arq)
+            except OSError:
+                pass
+            cmd = f"'{sys.executable}' '{os.path.join(AQUI, 'luz_bluetooth.py')}' 12 > '{arq}' 2>&1; echo FIM >> '{arq}'; exit"
+            rodar(["osascript", "-e", f'tell application "Terminal" to do script "{cmd}"'], timeout=10)
+            saida = ""
+            for _ in range(40):
+                time.sleep(1)
+                if os.path.exists(arq) and "FIM" in open(arq, encoding="utf-8", errors="replace").read():
+                    saida = open(arq, encoding="utf-8", errors="replace").read().replace("FIM", "").strip()
+                    break
+        else:
+            saida, _ = rodar([sys.executable, os.path.join(AQUI, "luz_bluetooth.py"), "12"], timeout=40)
+        try:
+            lista = json.loads(saida.strip().splitlines()[-1])
+        except Exception:
+            return {"ok": False, "erro": "o Bluetooth nao respondeu -- o macOS pode ter negado ao Terminal (Ajustes > Privacidade > Bluetooth)", "saida": saida[-400:]}
+        if isinstance(lista, dict):
+            return {"ok": False, "erro": lista.get("erro")}
+        for d in lista[:12]:
+            relatar(f"bluetooth: {d['nome'] or '(sem nome)'} {d['sinal']} dBm  servicos={','.join(d['servicos']) or '-'}"
+                    f"  fab={','.join(d['fabricantes']) or '-'}  {d['parece']}")
+        return {"ok": True, "achados": lista}
+    elif nome == "luz_estado":
+        return {"ok": True, "luz": luz_estado()}
     elif nome == "girar_espelho":
         a = max(-180.0, min(180.0, float(dados.get("graus", 0) or 0)))
         with open(ANGULO_ARQ, "w") as f:
@@ -991,10 +1029,94 @@ def agir(nome, dados):
     return {"ok": not r.get("erro"), "hotspot": r}
 
 
+# ── a luz da sala (Tuya, pela Wi-Fi) ─────────────────────────────────────
+# 25/09: "a luz nao esta conectando, como faremos?". A lampada de sempre e a
+# Tuya Wi-Fi; no Mac quem fala com ela e fontes/lampada.py (a API do estudio
+# do v1 na porta 8600), e quem a faz seguir a obra e a luz-segue-cena.mjs,
+# lendo o cenario pelo mesmo DevTools (9222) que a Cabine ja abre.
+LUZ = {"lampada": None, "ponte": None, "modo": None}
+LUZ_LOG = os.path.join(AQUI, "luz.log")
+
+
+# QUAL LAMPADA (25/09, a noite): a do estande anuncia-se no Bluetooth como
+# "GATT--DEMO" (app SMART+, LED colorida; protocolo ELK: fontes/lampada_bt.py).
+# A Tuya Wi-Fi (fontes/lampada.py) so e usada quando ha chaves dela.
+def via_da_luz():
+    if os.path.exists(os.path.join(AQUI, "lampada.json")) or os.path.exists(os.path.join(RAIZ, "devices.json")):
+        return "wifi"
+    return "bluetooth"
+
+
+def luz_parar():
+    for k in ("ponte", "lampada"):
+        p = LUZ.get(k)
+        if p and p != "terminal" and p.poll() is None:
+            try:
+                p.terminate()
+            except Exception:
+                pass
+        LUZ[k] = None
+    # a ponte Bluetooth mora numa janela do Terminal (e dele a permissao)
+    rodar(["pkill", "-f", "fontes/lampada_bt.py"], timeout=5)
+    LUZ["modo"] = None
+    return {"ok": True}
+
+
+def luz_ligar(modo="segue", via="auto"):
+    luz_parar()
+    time.sleep(0.5)
+    via = via_da_luz() if via == "auto" else via
+    log_f = open(LUZ_LOG, "a", encoding="utf-8")
+    if via == "bluetooth" and MAC:
+        script = os.path.join(AQUI, "lampada_bt.py")
+        cmd = f"exec '{sys.executable}' '{script}' >> '{LUZ_LOG}' 2>&1"
+        rodar(["osascript", "-e", f'tell application "Terminal" to do script "{cmd}"'], timeout=10)
+        LUZ["lampada"] = "terminal"
+    else:
+        arq = "lampada_bt.py" if via == "bluetooth" else "lampada.py"
+        LUZ["lampada"] = subprocess.Popen([sys.executable, os.path.join(AQUI, arq)], cwd=RAIZ,
+                                          stdout=log_f, stderr=subprocess.STDOUT, creationflags=SEM_JANELA)
+    LUZ["via"] = via
+    time.sleep(2.0)
+    node = shutil.which("node") or "node"
+    LUZ["ponte"] = subprocess.Popen([node, os.path.join(AQUI, "luz-segue-cena.mjs")] + (["deriva"] if modo == "deriva" else []),
+                                    cwd=RAIZ, stdout=log_f, stderr=subprocess.STDOUT, creationflags=SEM_JANELA)
+    LUZ["modo"] = modo
+    relatar(f"luz da sala pelo {'Bluetooth' if via == 'bluetooth' else 'Wi-Fi'}: "
+            f"{'seguindo a obra' if modo != 'deriva' else 'deriva'}")
+    return {"ok": True}
+
+
+def luz_estado():
+    """O que a lampada diz agora (pela API do lampada.py) e se os dois estao de pe."""
+    def vivo(k):
+        p = LUZ.get(k)
+        if p == "terminal":
+            return bool(rodar(["pgrep", "-f", "fontes/lampada_bt.py"], timeout=5)[0].strip())
+        return bool(p and p.poll() is None)
+    vivos = {k: vivo(k) for k in ("lampada", "ponte")}
+    est = {"modo": LUZ["modo"], "via": LUZ.get("via"), **vivos, "lampada_diz": None}
+    if vivos["lampada"]:
+        try:
+            r = json.loads(urlopen("http://127.0.0.1:8600/api/luz?acao=estado", timeout=6).read())
+            est["lampada_diz"] = "respondendo" if r.get("ok") else (r.get("erro") or "sem resposta")
+        except Exception as e:
+            try:
+                est["lampada_diz"] = json.loads(e.read()).get("erro")      # 503 com o motivo
+            except Exception:
+                est["lampada_diz"] = "a ponte da lampada ainda nao respondeu"
+    try:
+        est["ultimas"] = open(LUZ_LOG, encoding="utf-8").read().splitlines()[-3:]
+    except Exception:
+        est["ultimas"] = []
+    return est
+
+
 def encerrar_tudo():
     log("cabine encerrando")
     try:
         parar_projecao()
+        luz_parar()
         if SERVIDOR_OBRA and SERVIDOR_OBRA.poll() is None:
             SERVIDOR_OBRA.terminate()
     finally:

@@ -236,7 +236,23 @@
   <!-- RELATOS -->
   <!-- LUZ DA SALA (25/09): a lâmpada Bluetooth, pela própria página -->
   <section class="card">
-    <h2><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg>Luz da sala · Bluetooth</h2>
+    <h2><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg>Luz da sala</h2>
+    <div class="linha">
+      <div>
+        <div class="grande" id="lzTuya" style="font-size:18px">luz da sala: parada</div>
+        <div class="nota mono" id="lzTuyaInfo">a lâmpada do estande (SMART+, “GATT--DEMO”) pelo Bluetooth; a Tuya pela Wi-Fi, se houver chaves</div>
+      </div>
+    </div>
+    <div class="linha" style="margin-top:8px">
+      <button class="primario" onclick="acao('luz_ligar',{modo:'segue'})">Ligar a luz · seguir a obra</button>
+      <button onclick="acao('luz_ligar',{modo:'deriva'})">Ligar a luz · deriva</button>
+      <button class="perigo" onclick="acao('luz_parar')">Parar a luz</button>
+      <button onclick="lerLuz(true)">Conferir</button>
+    </div>
+    <div class="linha" style="margin-top:8px">
+      <button onclick="acao('luz_procurar_bt')" title="12 s escutando o Bluetooth; o resultado sai nos relatos. Na primeira vez o macOS pergunta se o Terminal pode usar o Bluetooth">Procurar a luz no Bluetooth</button>
+    </div>
+    <details style="margin-top:12px"><summary class="nota">parear uma luz Bluetooth pela página</summary>
     <div class="linha">
       <div id="lzCor" style="width:46px;height:46px;border-radius:12px;border:1px solid #2a3150;background:#000"></div>
       <div>
@@ -259,6 +275,7 @@
       <button onclick="Luz.modo(4)">4 papel</button>
       <button onclick="Luz.modo('janela')" title="a cor do cenário a 100%, para o Quest achar as mãos">clarear (mãos)</button>
     </div>
+    </details>
     <div class="nota" style="margin-top:8px">As cores e as janelas das mãos são as da ponte antiga (<span class="mono">fontes/luz-segue-cena.mjs</span>): turquesa, violeta, rosa-claro, azul; o escuro a 60 %, e a 100 % em 1:50–2:50, 5:30–6:20 e 7:30–8:25. Toda troca desliza. Precisa do <b>Chrome</b> (Safari não fala Bluetooth pela página) e <b>esta página aberta</b>: fechá-la solta a luz.</div>
   </section>
 
@@ -561,6 +578,21 @@ const Luz = (() => {
   };
 })();
 
+/* a luz Wi-Fi (Tuya): o estado pela Cabine, a cada 8 s (a lâmpada responde devagar) */
+async function lerLuz(avisar){
+  try{
+    const r = await (await fetch('/acao/luz_estado', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+    const l = r.luz || {};
+    const ligada = l.lampada && l.ponte;
+    $('lzTuya').textContent = !ligada ? 'luz da sala: parada'
+      : (l.lampada_diz === 'respondendo' ? 'luz (' + (l.via === 'wifi' ? 'Wi-Fi' : 'Bluetooth') + '): ' + (l.modo === 'deriva' ? 'deriva' : 'seguindo a obra')
+                                         : 'luz (' + (l.via === 'wifi' ? 'Wi-Fi' : 'Bluetooth') + '): sem resposta');
+    $('lzTuyaInfo').textContent = ligada ? (l.lampada_diz || '') + (l.ultimas && l.ultimas.length ? ' · ' + l.ultimas[l.ultimas.length-1] : '')
+      : 'a lâmpada do estande (SMART+, “GATT--DEMO”) pelo Bluetooth; a Tuya pela Wi-Fi, se houver chaves';
+    if (avisar) toast($('lzTuya').textContent + (l.lampada_diz && l.lampada_diz !== 'respondendo' ? ' — ' + l.lampada_diz : ''), l.lampada_diz !== 'respondendo');
+  }catch(e){}
+}
+lerLuz(); setInterval(lerLuz, 8000);
 ler(); setInterval(ler, 2500);
 </script>
 </body>

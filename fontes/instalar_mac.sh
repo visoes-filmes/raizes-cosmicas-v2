@@ -38,6 +38,9 @@ echo "== python3 + Pillow"
 command -v python3 >/dev/null 2>&1 || brew install python
 python3 -c "import PIL" 2>/dev/null || python3 -m pip install --user --break-system-packages Pillow 2>/dev/null || python3 -m pip install --user Pillow
 
+echo "== tinytuya (a lampada da sala, pela Wi-Fi)"
+python3 -c "import tinytuya" 2>/dev/null || python3 -m pip install --user --break-system-packages tinytuya 2>/dev/null || python3 -m pip install --user tinytuya
+
 echo "== git: quem publica"
 git config user.name "Crisia-poria"
 git config user.email "admcrisia@gmail.com"

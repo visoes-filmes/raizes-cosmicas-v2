@@ -184,6 +184,22 @@ app Smart Life/Tuya, **na mesma rede do Mac**; (2) as chaves em
 `python3 -m tinytuya wizard` com a conta Tuya IoT (re-parear pode trocar a
 chave local).
 
+### A luz do estande é Bluetooth: "GATT--DEMO" (25/09, à noite)
+
+"Ela funciona com Bluetooth... é do app SMART+, uma lâmpada de LED
+colorida." A busca (`fontes/luz_bluetooth.py`, ou o botão *Procurar a luz
+no Bluetooth* da Cabine) achou-a como **GATT--DEMO** (serviço `2022`,
+fabricante `0xFFFF`); conectada, ela oferece `FFF0/FFF3` gravável -- o
+protocolo ELK-BLEDOM. `fontes/lampada_bt.py` fala com ela na mesma API da
+porta 8600, e a Cabine liga tudo em um botão: card *Luz da sala* → *Ligar
+a luz · seguir a obra* (ou *deriva*). Sem chaves da Tuya, a Cabine escolhe
+o Bluetooth sozinha.
+
+**O Bluetooth no Mac é do Terminal.** Um Python aberto por outro programa
+morre (exit 134) ou trava ao pedir o rádio; aberto numa janela do Terminal,
+funciona. Por isso a Cabine abre a ponte e a busca **numa janela do
+Terminal** (osascript), e não como filhos dela. Não feche essa janela.
+
 ### O espelho do óculos, endireitado (25/09)
 
 O espelho do scrcpy sai **torto**: o painel do Quest 3 é lido cru, e o

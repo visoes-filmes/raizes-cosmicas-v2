@@ -47,9 +47,39 @@ TRAVA = threading.Lock()
 BULBO = None
 
 
+RAIZ = os.path.dirname(AQUI)
+
+
+def do_wizard():
+    """O devices.json que `python3 -m tinytuya wizard` escreve na pasta onde
+    rodou (a raiz do projeto ou fontes/). Escolhe a lampada: categoria de luz
+    da Tuya (dj/dd/fwd/dc) ou nome com LDV/CLA60/lampada; senao, a primeira."""
+    for pasta in (RAIZ, AQUI, os.getcwd()):
+        p = os.path.join(pasta, "devices.json")
+        if not os.path.exists(p):
+            continue
+        try:
+            lista = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(lista, list) or not lista:
+            continue
+        def e_luz(d):
+            nome = str(d.get("name", "") + " " + d.get("product_name", "")).lower()
+            return d.get("category") in ("dj", "dd", "fwd", "dc") or any(k in nome for k in ("ldv", "cla60", "lamp", "bulb", "luz"))
+        d = next((d for d in lista if e_luz(d)), lista[0])
+        if d.get("id") and d.get("key"):
+            return {"id": d["id"], "chave": d["key"], "versao": float(d.get("version") or 3.5), "ip": d.get("ip") or None,
+                    "nome": d.get("name", "")}
+    return None
+
+
 def ler_config():
     if not os.path.exists(CONFIG):
-        raise RuntimeError("falta fontes/lampada.json (id, chave, versao) -- ver o alto deste arquivo")
+        c = do_wizard()
+        if c:
+            return c
+        raise RuntimeError("sem chaves da lampada: nem fontes/lampada.json nem o devices.json do tinytuya wizard")
     c = json.load(open(CONFIG, encoding="utf-8"))
     for k in ("id", "chave"):
         if not c.get(k):
