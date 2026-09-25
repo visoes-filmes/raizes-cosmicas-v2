@@ -3288,7 +3288,7 @@ const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, 
 })();
 /* onde ela danca: a frente e a direita, a 2,3 m, o pe a meio metro do chao
    (flutua), de frente para quem entra; 1,2 m de altura -- "um pouco menor" */
-const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 2.3, DANCA_PE = 0.5, DANCA_ALTURA = 1.2;
+const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 2.3, DANCA_PE = 0.5, DANCA_ALTURA = 1.05;   // 1,05 na junta da cabeca = 1,2 m no topo
 /* os ossos: cada um vai da junta que o gira ate a filha; o ultimo numero e o
    quanto ele se estende alem da filha (a cabeca continua acima da junta) */
 const DANCA_OSSOS = [ ['pelvis','spine',0], ['spine','chest',0], ['chest','neck',0], ['neck','head',0.10],
@@ -3336,11 +3336,30 @@ function montarADeusaQueDanca(){
   // sem ajuste de largura: as claviculas do rig Mixamo nascem quase no mesmo
   // ponto, e a distancia entre elas nao mede ombro nenhum
   const largura = 1;
+  /* AS PROPORCOES -- 25/09, "o rig ficou errado, parece que ela esta toda
+     torta". O esqueleto tem as proporcoes da bailarina (quadril a 60 % da
+     altura, ombros na altura do pescoco); o modelo tem as dele (quadril a
+     50 %, tronco longo, bracos ate a coxa). Presa por proximidade, a coxa
+     do modelo pegava a bacia e o ombro pegava o pescoco -- e ao dancar
+     tudo torcia. Entao o modelo e DEFORMADO NA VERTICAL, por trechos, ate
+     os marcos dele (joelho, virilha, quadril, ombro, queixo, topo -- medidos
+     na malha) cairem nas juntas do esqueleto de descanso. E o que se faz
+     com um manequim antes de vestir. */
+  const yJ = (nome) => dancaBindPos[DANCA.i[nome] * 3 + 1];
+  const joelho = (yJ('calf_l') + yJ('calf_r')) / 2, virilha = (yJ('thigh_l') + yJ('thigh_r')) / 2;
+  const ombro = Math.max(yJ('shoulder_l'), yJ('shoulder_r')), cabeca = yJ('head');
+  const MARCOS = [ [0.00, 0.00], [0.22, joelho], [0.42, virilha], [0.50, yJ('pelvis') + 0.02],
+                   [0.80, ombro - 0.01], [0.86, cabeca], [1.00, cabeca + 0.14] ];
+  const remapa = (y) => {
+    for(let i = 1; i < MARCOS.length; i++)
+      if(y <= MARCOS[i][0]) return MARCOS[i-1][1] + (MARCOS[i][1] - MARCOS[i-1][1]) * (y - MARCOS[i-1][0]) / (MARCOS[i][0] - MARCOS[i-1][0]);
+    return MARCOS[MARCOS.length-1][1] + (y - 1);
+  };
   dancaRest = new Float32Array(dancaN * 3); dancaRestNor = new Float32Array(dancaN * 3);
   for(let v = 0; v < dancaN; v++){
     const x = o.pos[v*3] / 8000, y = o.pos[v*3+1] / 8000, z = o.pos[v*3+2] / 8000;
     dancaRest[v*3]   = (x * c + z * sn) * largura;
-    dancaRest[v*3+1] = y;
+    dancaRest[v*3+1] = remapa(y);
     dancaRest[v*3+2] = (-x * sn + z * c) * largura;
     const nx = o.nor[v*3] / 127, ny = o.nor[v*3+1] / 127, nz = o.nor[v*3+2] / 127;
     dancaRestNor[v*3] = nx * c + nz * sn; dancaRestNor[v*3+1] = ny; dancaRestNor[v*3+2] = -nx * sn + nz * c;
@@ -3354,10 +3373,21 @@ function montarADeusaQueDanca(){
     const L = Math.hypot(dx, dy, dz) || 0.001;
     return { ax, ay, az, dx: dx / L, dy: dy / L, dz: dz / L, L: L + ext };
   });
+  /* E CADA REGIAO SO PEGA OS OSSOS DELA: o que esta afastado do eixo e
+     acima da virilha e braco (do lado em que esta), o que esta abaixo da
+     virilha e perna (idem), o resto e tronco. Sem isto uma mao no repouso,
+     pendendo ao lado da coxa, pegava a coxa. */
+  const regiao = DANCA_OSSOS.map(([na]) => /_l$/.test(na) ? (/(arm|hand|shoulder)/.test(na) ? 'bl' : 'pl')
+                                          : /_r$/.test(na) ? (/(arm|hand|shoulder)/.test(na) ? 'br' : 'pr') : 't');
+  const xOmbro = (dancaBindPos[DANCA.i.upperarm_l*3] - dancaBindPos[DANCA.i.upperarm_r*3]) / 2;
+  const ladoEsq = dancaBindPos[DANCA.i.upperarm_l*3] > dancaBindPos[DANCA.i.upperarm_r*3];
   for(let v = 0; v < dancaN; v++){
     const px = dancaRest[v*3], py = dancaRest[v*3+1], pz = dancaRest[v*3+2];
+    const esq = (px > 0) === ladoEsq;
+    const minha = py < virilha ? (esq ? 'pl' : 'pr') : (Math.abs(px) > Math.abs(xOmbro) * 0.9 && py < ombro + 0.02 ? (esq ? 'bl' : 'br') : 't');
     let b0 = 0, d0 = 1e9, b1 = 0, d1 = 1e9;
     for(let k = 0; k < seg.length; k++){
+      if(regiao[k] !== minha && !(minha === 't' && regiao[k] === 't')) continue;
       const g = seg[k];
       let u = (px - g.ax) * g.dx + (py - g.ay) * g.dy + (pz - g.az) * g.dz;
       u = u < 0 ? 0 : u > g.L ? g.L : u;
