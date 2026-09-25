@@ -619,6 +619,18 @@ const ESPACO_ESCANEADO      = false;   // a 6.0 sai com true (24/09: 'e importan
    menos, e em RM -- a imagem da camera continua nativa -- quase nao se ve.
    SUAVIZAR_RM e o multisample de 4x na camada do headset. */
 const ESCALA_DESENHO        = 0.7;
+/* A FOVEACAO FIXA -- 25/09, "percebi um problema no FPS... to me sentindo
+   enjoada". O Quest desenha a borda de cada olho com menos pixels, onde a
+   lente ja borra e o olho quase nao olha. De graca para o miolo, e o que
+   mais pesa nesta obra (agua, neblina, papel, cascas de luz) e custo por
+   pixel. 0 = desligada, 1 = o maximo que o aparelho oferece. */
+const FOVEACAO              = 1.0;
+/* A RESOLUCAO QUE CEDE (25/09, mesmo pedido). Por cima da ESCALA_DESENHO:
+   quando os quadros caem abaixo do alvo, o desenho de cada olho encolhe um
+   degrau (requestViewportScale, que nao recria nada); com folga por uns
+   segundos, cresce de volta. Quadro perdido e o que enjoa -- a imagem um
+   pouco mais macia, nao. Este e o degrau mais baixo. */
+const ESCALA_VIVA_MIN       = 0.65;
 const SUAVIZAR_RM           = true;
 /* RAIZES COSMICAS 5.0 -- 24/09, a direcao de arte: "deixe mais integrado
    com o espaco; preciso que entenda as paredes e faca rachaduras e buracos
@@ -9202,7 +9214,7 @@ let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
    dicionario errado ja custou tres rodadas nesta obra. */
 let neblinaOn=true, neblina=0.55, sementeFig=29, marmore=0.80, leitoso=0.32;
 let poeiraOn=true, quantosPo=1800, sopro=1.0, sementePo=53;
-let emXR = false, janelaContada = false;
+let emXR = false, janelaContada = false, planosMostrados = -1;
 
 /* O relogio da obra, separado do relogio da animacao. O "relogio" corre
    sempre, porque as texturas e a poeira dependem dele; o "t" e o ponteiro
@@ -9350,8 +9362,10 @@ function medirAgitacao(dt, olhoPos){
    Cada mao guarda quanto esta ACESA: um alvo nao acende de golpe, cresce e
    apaga, senao o toque vira pisca-pisca. */
 const MAOS = [
-  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25) },
-  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25) },
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25),
+    temRaio:false, ro:[0,0,0], rd:[0,0,-1] },
+  { tem:false, x:0, y:0, z:0, aceso:0, apertando:false, temJuntas:false, juntas:new Float32Array(25*16), raios:new Float32Array(25),
+    temRaio:false, ro:[0,0,0], rd:[0,0,-1] },
 ];
 
 /* Tocar o casulo e um acontecimento, nao um interruptor: a obra nao volta
@@ -9519,6 +9533,18 @@ function lerMaos(frame){
     if(!alvo) continue;
     const p = alvo.transform.position;
     m.tem = true; m.x = p.x; m.y = p.y; m.z = p.z;
+    /* O RAIO DA MAO (25/09), o mesmo que o Quest usa para apontar: sai do
+       ombro-mao para a frente. E dele que o menu e escolhido, de longe. */
+    m.temRaio = false;
+    if(fonte.targetRaySpace){
+      const r = frame.getPose(fonte.targetRaySpace, espaco);
+      if(r){
+        const M = r.transform.matrix;
+        m.ro[0] = M[12]; m.ro[1] = M[13]; m.ro[2] = M[14];
+        m.rd[0] = -M[8]; m.rd[1] = -M[9]; m.rd[2] = -M[10];
+        m.temRaio = true;
+      }
+    }
     /* AS VINTE E CINCO JUNTAS, para o contorno da mao. fillPoses enche as
        vinte e cinco matrizes de uma vez, sem alocar nada por quadro. */
     m.temJuntas = false;
@@ -9672,21 +9698,32 @@ function conferirToque(dt){
    e tocavel e sem o rosa na mao, abre o menu. (A pinca com a palma virada
    para o rosto e do proprio Quest -- abre o menu dele; esta e de lado.)
 
-   ESCOLHER: tocar o item com a ponta do indicador e manter um terco de
-   segundo. Nos primeiros seis decimos depois de abrir nada dispara -- a mao
-   que abriu ainda esta ali.
+   ESCOLHER -- 25/09, refeito: "os botoes estao muito delicados, qualquer
+   coisa eles tocam... precisam ficar um pouco mais distante... melhor
+   colocar aquela seta para a pessoa pincar ao inves de clicar com o dedo".
+   Encostar o dedo NAO escolhe mais nada. Da mao sai uma SETA pontilhada (o
+   raio de apontar do proprio Quest), o botao sob ela acende, e a escolha e
+   PINCAR E SOLTAR em cima dele -- o clique do Quest. Pinca que comeca fora
+   de um botao, ou que solta fora do mesmo botao, nao escolhe nada. Nos
+   primeiros seis decimos depois de abrir nada dispara.
 
    FECHAR: sozinho, oito segundos sem ninguem apontar; ou outra pinca
-   demorada.
+   demorada fora dos botoes.
 
-   O menu fica PARADO no ar onde abriu, a um palmo e meio a frente dos olhos
-   na direcao da mao -- menu que segue a mao foge do dedo que vai toca-lo. */
+   O menu fica PARADO no ar onde abriu, a dois palmos e meio a frente dos
+   olhos (0,65 m) na direcao da mao: longe o bastante para a mao nao
+   esbarrar, perto o bastante para ler sem esforco. */
 const MENU = { aberto:false, abertoEm:0, presenca:0, sobre:-1, sobreDesde:0, ultimoSobre:0,
                pincaDesde:[0, 0], pincaUsada:[false, false],
+               // o clique pela seta: pinca fechada (com folga para soltar), e em que botao ela fechou
+               fechada:[false, false], fechouEm:[-1, -1], apertado:-1,
+               // onde a seta de cada mao termina (no botao, ou no ar), para o desenho
+               fimSeta:[[0,0,0], [0,0,0]], setaNoBotao:[false, false], texPonto:null,
                itens:[ { id:'atualizar', rotulo:'Atualizar',              c:[0,0,0], tex:null },
                        { id:'sair',      rotulo:'Sair da experiência',    c:[0,0,0], tex:null },
                        { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null } ] };
-const MENU_MEIA_LARG = 0.12, MENU_MEIA_ALT = 0.032, MENU_PASSO = 0.078;
+const pontoSeta = [0, 0, 0];   // reusado por quadro no desenho da seta
+const MENU_MEIA_LARG = 0.17, MENU_MEIA_ALT = 0.045, MENU_PASSO = 0.115, MENU_LONGE = 0.65;
 
 /* O RELOGIO DO MENU E O DE PAREDE, e nao o da obra: o menu tem de
    responder com a obra parada -- no fim, na espera, na bancada. */
@@ -9702,15 +9739,29 @@ function pincando(m){
   }
   return !!m.apertando;
 }
+/* A PINCA COM FOLGA, para o clique: fecha abaixo de 2 cm e so abre de novo
+   acima de 3,5 cm. Com um limiar so, o tremor do rastreio na fronteira vira
+   dez cliques. */
+function pincaDoClique(m, i){
+  let fechada;
+  if(m.temJuntas){
+    const J = m.juntas;
+    const dx = J[4*16+12] - J[9*16+12], dy = J[4*16+13] - J[9*16+13], dz = J[4*16+14] - J[9*16+14];
+    const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    fechada = MENU.fechada[i] ? d < 0.035 : d < 0.02;
+  } else fechada = !!m.apertando;
+  return fechada;
+}
 
 function abrirOMenu(m){
   const o = ondeOOlhoEsta;
   let dx = m.x - o[0], dz = m.z - o[2];
   const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
-  const cx = o[0] + dx * 0.42, cz = o[2] + dz * 0.42;
-  const cy = Math.max(o[1] - 0.30, Math.min(o[1] + 0.02, m.y + 0.06));
+  const cx = o[0] + dx * MENU_LONGE, cz = o[2] + dz * MENU_LONGE;
+  const cy = Math.max(o[1] - 0.28, Math.min(o[1] + 0.04, m.y + 0.10));
   MENU.itens.forEach((it, k) => { it.c[0] = cx; it.c[1] = cy + MENU_PASSO * (1 - k); it.c[2] = cz; });
   MENU.aberto = true; MENU.abertoEm = agoraReal(); MENU.ultimoSobre = agoraReal(); MENU.sobre = -1;
+  MENU.apertado = -1; MENU.fechouEm[0] = MENU.fechouEm[1] = -1;
   sinoDoToque(1, 0.45);
   relato('MENU-ABERTO');
 }
@@ -9721,19 +9772,39 @@ function fecharOMenu(motivo){
   relato('MENU-FECHADO ' + (motivo || ''));
 }
 
-/* o item que a ponta do dedo esta tocando, no plano do botao (que encara quem olha) */
-function itemSobODedo(m){
+/* O BOTAO NA PONTA DA SETA. O raio da mao contra o plano de cada botao
+   (que encara quem olha, como no VS_TEXTO); vale o mais perto. Sem raio (a
+   mao de mentira da bancada), a seta sai do olho e passa pela mao. Guarda
+   onde a seta termina, para o desenho. */
+function itemNaSeta(m, i){
   const o = ondeOOlhoEsta;
+  let ox, oy, oz, dx, dy, dz;
+  if(m.temRaio){ ox = m.ro[0]; oy = m.ro[1]; oz = m.ro[2]; dx = m.rd[0]; dy = m.rd[1]; dz = m.rd[2]; }
+  else {
+    ox = o[0]; oy = o[1]; oz = o[2];
+    dx = m.x - ox; dy = m.y - oy; dz = m.z - oz;
+    const L = Math.hypot(dx, dy, dz) || 1; dx /= L; dy /= L; dz /= L;
+  }
+  let melhor = -1, sMelhor = 1e9;
   for(let k = 0; k < MENU.itens.length; k++){
     const c = MENU.itens[k].c;
     let fx = o[0] - c[0], fz = o[2] - c[2];
     const L = Math.hypot(fx, fz) || 1; fx /= L; fz /= L;
-    const lx = fz, lz = -fx;                        // o "lado", como no VS_TEXTO
-    const px = m.x - c[0], py = m.y - c[1], pz = m.z - c[2];
-    const u = px * lx + pz * lz, prof = px * fx + pz * fz;
-    if(Math.abs(u) < MENU_MEIA_LARG + 0.02 && Math.abs(py) < MENU_MEIA_ALT + 0.015 && Math.abs(prof) < 0.07) return k;
+    const den = dx * fx + dz * fz;
+    if(Math.abs(den) < 1e-3) continue;
+    const sc = ((c[0] - ox) * fx + (c[2] - oz) * fz) / den;
+    if(sc < 0.05 || sc > 3.0) continue;
+    const hx = ox + dx * sc - c[0], hy = oy + dy * sc - c[1], hz = oz + dz * sc - c[2];
+    const u = hx * fz + hz * (-fx);                   // o "lado"
+    if(Math.abs(u) < MENU_MEIA_LARG * 1.04 && Math.abs(hy) < MENU_MEIA_ALT * 1.15 && sc < sMelhor){
+      melhor = k; sMelhor = sc;
+    }
   }
-  return -1;
+  const s = melhor >= 0 ? sMelhor : 0.9;
+  const f = MENU.fimSeta[i];
+  f[0] = ox + dx * s; f[1] = oy + dy * s; f[2] = oz + dz * s;
+  MENU.setaNoBotao[i] = melhor >= 0;
+  return melhor;
 }
 
 function escolherNoMenu(id){
@@ -9759,9 +9830,16 @@ function escolherNoMenu(id){
 function seguirMenuDaMao(dt){
   const alvoPres = MENU.aberto ? 1 : 0;
   MENU.presenca += (alvoPres - MENU.presenca) * (1 - Math.exp(-(MENU.aberto ? 10 : 6) * dt));
+  // o botao na ponta da seta de cada mao (so com o menu aberto)
+  const naSeta = [-1, -1];
+  if(MENU.aberto)
+    for(let i = 0; i < 2; i++) if(MAOS[i].tem) naSeta[i] = itemNaSeta(MAOS[i], i);
   for(let i = 0; i < 2; i++){
     const m = MAOS[i];
-    const livre = m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo;
+    /* a pinca demorada abre e fecha -- mas nao em cima de um botao: ali ela
+       e o clique, e segurar um pouco antes de soltar nao pode fechar o menu */
+    const livre = m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo && naSeta[i] < 0
+                  && MENU.fechouEm[i] < 0;
     if(!livre){ MENU.pincaDesde[i] = 0; MENU.pincaUsada[i] = false; continue; }
     if(!MENU.pincaDesde[i]) MENU.pincaDesde[i] = agoraReal() || 0.001;
     if(!MENU.pincaUsada[i] && agoraReal() - MENU.pincaDesde[i] > 0.9){
@@ -9769,15 +9847,28 @@ function seguirMenuDaMao(dt){
       if(MENU.aberto) fecharOMenu('pinca'); else abrirOMenu(m);
     }
   }
-  if(!MENU.aberto) return;
+  if(!MENU.aberto){ MENU.fechada[0] = MENU.fechada[1] = false; return; }
+  const pronto = agoraReal() - MENU.abertoEm > 0.6;
   let sobre = -1;
-  if(agoraReal() - MENU.abertoEm > 0.6)
-    for(const m of MAOS){ if(!m.tem) continue; const k = itemSobODedo(m); if(k >= 0){ sobre = k; break; } }
+  if(pronto) for(let i = 0; i < 2; i++) if(naSeta[i] >= 0){ sobre = naSeta[i]; break; }
   if(sobre !== MENU.sobre){ MENU.sobre = sobre; MENU.sobreDesde = agoraReal(); }
-  if(sobre >= 0){
-    MENU.ultimoSobre = agoraReal();
-    if(agoraReal() - MENU.sobreDesde > 0.33) escolherNoMenu(MENU.itens[sobre].id);
-  } else if(agoraReal() - MENU.ultimoSobre > 8.0) fecharOMenu('tempo');
+  if(sobre >= 0) MENU.ultimoSobre = agoraReal();
+  /* O CLIQUE: pinca que FECHA em cima de um botao e SOLTA em cima do mesmo */
+  MENU.apertado = -1;
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
+    const agoraFechada = m.tem && pincaDoClique(m, i);
+    if(agoraFechada && !MENU.fechada[i]) MENU.fechouEm[i] = pronto ? naSeta[i] : -1;
+    if(agoraFechada && MENU.fechouEm[i] >= 0) MENU.apertado = MENU.fechouEm[i];
+    if(!agoraFechada && MENU.fechada[i]){
+      const k = MENU.fechouEm[i];
+      MENU.fechouEm[i] = -1;
+      if(k >= 0 && naSeta[i] === k){ MENU.fechada[i] = false; escolherNoMenu(MENU.itens[k].id); return; }
+    }
+    if(!agoraFechada) MENU.fechouEm[i] = -1;
+    MENU.fechada[i] = agoraFechada;
+  }
+  if(sobre < 0 && agoraReal() - MENU.ultimoSobre > 8.0) fecharOMenu('tempo');
 }
 
 /* ═══════════ FORA DA AREA MAPEADA ═══════════
@@ -10194,7 +10285,29 @@ function contarQuadro(){
     eFps.classList.toggle('baixo', f < TAXA_ALVO * 0.5);
     eFps.classList.toggle('meio', f >= TAXA_ALVO * 0.5 && f < TAXA_ALVO - 4);
     quadrosContados = 0; marcaFps = agora;
+    if(emXR) ajustarEscalaViva(f, agora);
   }
+}
+
+/* A RESOLUCAO QUE CEDE (ver ESCALA_VIVA_MIN). Medida a cada meio segundo:
+   abaixo do alvo, desce um degrau na hora; so SOBE depois de seis segundos
+   seguidos no alvo, e meio degrau por vez -- subir depressa faria a
+   resolucao ir e voltar a cada poucos segundos, o que se ve como imagem
+   pulsando. */
+let escalaViva = 1.0, folgaDesde = 0;
+function ajustarEscalaViva(f, agora){
+  const antes = escalaViva;
+  if(f < TAXA_ALVO - 5){
+    escalaViva = Math.max(ESCALA_VIVA_MIN, Math.round((escalaViva - 0.10) * 100) / 100);
+    folgaDesde = 0;
+  } else if(f >= TAXA_ALVO - 1){
+    if(!folgaDesde) folgaDesde = agora;
+    else if(agora - folgaDesde > 6000 && escalaViva < 1){
+      escalaViva = Math.min(1, Math.round((escalaViva + 0.05) * 100) / 100);
+      folgaDesde = agora;
+    }
+  } else folgaDesde = 0;
+  if(escalaViva !== antes) relato('RESOLUCAO ' + escalaViva.toFixed(2) + ' (fps ' + f + ', cena ' + cenaAtual + ')');
 }
 
 /* ═══════════ a trilha ═══════════
@@ -11084,6 +11197,12 @@ async function entrarXR(aoEntrar){
   camadaXR = new XRWebGLLayer(sessao, gl, { antialias: SUAVIZAR_RM, framebufferScaleFactor: ESCALA_DESENHO });
   relato('CAMADA ' + camadaXR.framebufferWidth + 'x' + camadaXR.framebufferHeight +
          ' escala=' + ESCALA_DESENHO + ' suavizar=' + SUAVIZAR_RM);
+  // a foveacao fixa (ver FOVEACAO); aparelho sem ela ignora a propriedade
+  try{
+    if('fixedFoveation' in camadaXR){ camadaXR.fixedFoveation = FOVEACAO; relato('FOVEACAO ' + camadaXR.fixedFoveation); }
+    else relato('FOVEACAO indisponivel neste aparelho');
+  }catch(e){ relato('FOVEACAO erro ' + (e && e.name)); }
+  escalaViva = 1.0; folgaDesde = 0;
   /* O ALCANCE, DITO EM VOZ ALTA. Sem depthFar a obra herdava o padrao do
      aparelho -- uns mil metros -- enquanto a versao de tela cortava em 60.
      Duas distancias diferentes para a mesma obra: o que se via no
@@ -11420,6 +11539,24 @@ function atualizarTempo(t){
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     it.tex = tx;
+  }
+  /* O PONTO DA SETA: um grao de luz redondo, turquesa no miolo */
+  {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const g = c.getContext('2d');
+    const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0.0, 'rgba(236,252,248,1)');
+    gr.addColorStop(0.35, 'rgba(120,226,208,0.9)');
+    gr.addColorStop(1.0, 'rgba(96,214,196,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    const tx = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tx);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    MENU.texPonto = tx;
   }
 
   texBotao = textoEmTextura([
@@ -13593,13 +13730,33 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     porTexto(texFrase, [0, 1.52, -2.2], 1.9, 0.475, frasePresenca);
 
     /* A ESPERA: o titulo em cima, o rizomar ao alcance do braco. */
-    /* o menu da mao: o item sob o dedo cresce e acende */
-    if(MENU.presenca > 0.01)
+    /* o menu da mao: o botao na ponta da seta cresce e acende; apertado
+       (pinca fechada em cima dele), afunda um pouco -- e o "clique" visto */
+    if(MENU.presenca > 0.01){
       MENU.itens.forEach((it, k) => {
-        const sob = MENU.sobre === k ? 1 : 0;
-        porTexto(it.tex, it.c, MENU_MEIA_LARG * (1 + 0.08 * sob), MENU_MEIA_ALT * (1 + 0.08 * sob),
-                 MENU.presenca * (0.78 + 0.22 * sob));
+        const sob = MENU.sobre === k ? 1 : 0, aperta = MENU.apertado === k ? 1 : 0;
+        const esc = 1 + 0.08 * sob - 0.06 * aperta;
+        porTexto(it.tex, it.c, MENU_MEIA_LARG * esc, MENU_MEIA_ALT * esc,
+                 MENU.presenca * (0.74 + 0.26 * sob));
       });
+      /* A SETA: graos de luz da mao ate onde ela aponta, e um maior na
+         ponta. So com o menu aberto -- fora dele a obra nao tem ponteiro. */
+      if(MENU.aberto && MENU.texPonto)
+        for(let i = 0; i < 2; i++){
+          const m = MAOS[i];
+          if(!m.tem) continue;
+          const f = MENU.fimSeta[i];
+          const ox = m.temRaio ? m.ro[0] : m.x, oy = m.temRaio ? m.ro[1] : m.y, oz = m.temRaio ? m.ro[2] : m.z;
+          const noBotao = MENU.setaNoBotao[i];
+          for(let j = 1; j <= 12; j++){
+            const k = j / 13;
+            pontoSeta[0] = ox + (f[0] - ox) * k; pontoSeta[1] = oy + (f[1] - oy) * k; pontoSeta[2] = oz + (f[2] - oz) * k;
+            porTexto(MENU.texPonto, pontoSeta, 0.0035, 0.0035, MENU.presenca * (noBotao ? 0.85 : 0.45) * (0.4 + 0.6 * k));
+          }
+          const r = noBotao ? 0.012 : 0.007;
+          porTexto(MENU.texPonto, f, r, r, MENU.presenca * (noBotao ? 1.0 : 0.55));
+        }
+    }
 
 
     /* O CRONOMETRO E ANDAIME, e estava dentro da obra -- corrigido em 10/09.
@@ -14055,8 +14212,12 @@ function quadroXR(t, frame){
   seguirPartitura(dt);
   contarQuadro();
 
-  if(frame.detectedPlanes)
-    vPlanos.textContent = frame.detectedPlanes.size;
+  /* so quando muda: escrever no DOM a cada quadro faz o navegador recalcular
+     a pagina (invisivel, mas paga) setenta e duas vezes por segundo */
+  if(frame.detectedPlanes && frame.detectedPlanes.size !== planosMostrados){
+    planosMostrados = frame.detectedPlanes.size;
+    vPlanos.textContent = planosMostrados;
+  }
   // v4: le o espaco e replanta a obra nele, uma vez (nada fora do v4)
   lerOEspaco(frame, espaco);
   lerATela(frame, espaco);          // 6.0: so o plano rotulado como tela
@@ -14074,6 +14235,8 @@ function quadroXR(t, frame){
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   for(const vista of pose.views){
+    // a resolucao que cede: pedida antes do getViewport, vale neste quadro
+    if(vista.requestViewportScale) vista.requestViewportScale(escalaViva);
     const vp = camadaXR.getViewport(vista);
     gl.viewport(vp.x, vp.y, vp.width, vp.height);
     const vis = Array.from(vista.transform.inverse.matrix);
