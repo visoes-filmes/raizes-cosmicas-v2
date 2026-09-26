@@ -6538,7 +6538,12 @@ void main(){
      galaxia do ceu cosmico gira em volta do proprio centro -- rigida no miolo, e
      na beira o fundo se enrola atras dela: "anime o ceu final, aqueles
      redemoinhos"). As estrelas finas ficam no plano de sempre, sem subir. */
-  vec2 st = clamp(plano * (1.0 + alto) / (2.0 * meia) + 0.5, 0.0, 1.0);
+  /* 8.5b -- SO NO ALTO (26/09: "o ceu tem que estar bem graduado nas bordas"): a
+     escala do 'alto' vale no meio do ceu e volta a 1 ate o horizonte (r = 2). Escalar
+     o plano inteiro lia a pintura alem da area pintada perto do horizonte -- faixa
+     escura nas laterais, listras nas pontas -- e a graduacao para a sala sumia. */
+  float rP = length(plano);
+  vec2 st = clamp(plano * (1.0 + alto * (1.0 - smoothstep(0.9, 2.0, rP))) / (2.0 * meia) + 0.5, 0.0, 1.0);
   if(giraAng > 0.0){
     vec2 pg = st * vec2(2.0, 1.0);
     for(int k = 0; k < 6; k++){
@@ -9920,7 +9925,7 @@ function ceuEmCodigo(tex, pintar){
   const fundo = (f) => {                  // f(px, py) -> [r, g, b], em blocos de 2 x 2
     for(let j = 0; j < H; j += 2){
       const py = (j + 1 - CY) / U;
-      for(let i = CX - 580; i < CX + 580; i += 2){
+      for(let i = 0; i < W; i += 2){   // 8.5b: a largura inteira (era +-580 px: sobrava preto nas laterais)
         const px = (i + 1 - CX) / U;
         if(px * px + py * py > 4.9) continue;
         const c = f(px, py);
@@ -10357,7 +10362,7 @@ const CENAS = {
      aceso) e ha estrelas finas sobre ela (longe, no FS_SALA). Fechar a
      cupula cedo (fim 0,60) foi tentado e era o contrario do pedido. */
   3: { ceu:2, tinta:0.60, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.10, fim:0.52, longe:0.80, alto:0.35 },   // 8.5: a graduacao para a RA como nos outros (era 0/0,68 -- comecava no horizonte)
+       poeira:380, sopro:1.5, raizes:0, ini:0.05, fim:0.56, longe:0.80, alto:0.35 },   // 8.5: a graduacao para a RA como nos outros (era 0/0,68); 8.5b: mais longa nas bordas
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
