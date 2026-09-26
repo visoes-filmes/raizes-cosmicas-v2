@@ -85,6 +85,7 @@ ESTADO = {
 OUVINTES = []            # filas dos clientes do /eventos (a pagina de projecao)
 PROJECAO = None          # o processo da projecao (navegador em quiosque ou scrcpy)
 PROJECAO_PEDIDA = None   # (o ultimo pedido, quando) -- para o clique repetido nao reiniciar
+SOM_DESTRAVE = [0.0]     # 26/09: quando a Cabine destravou o som da obra pela ultima vez
 TRAVA = threading.Lock()
 ADB = None
 SERVIDOR_OBRA = None
@@ -376,6 +377,7 @@ LEITURA = ("(function(){var q=function(i){var e=document.getElementById(i);retur
            "return {portao: !!p && getComputedStyle(p).display!=='none', versao:q('portaoVersao'),"
            "programas:q('portaoProgramas'), erro:q('portaoErro'), aviso:q('portaoAviso'),"
            "onde:(window.raizes&&raizes.onde)?raizes.onde():null, url:location.pathname,"
+           "som:(function(){var a=document.getElementById('trilha');return a&&a.src?!a.paused:null})(),"
            "tela:(window.raizes&&raizes.tela)?raizes.tela.onde():null}})()")
 
 
@@ -439,7 +441,8 @@ def clicar(id_botao):
         return {"ok": False, "erro": "a obra não está aberta no navegador do Quest"}
     trazer_aba(aba)                     # aba atrás = SecurityError no WebXR
     time.sleep(0.6)
-    r, erro = avaliar(f"(function(){{var b=document.getElementById('{id_botao}');"
+    # 26/09: o toque junto do clique -- e o gesto que liga a trilha da obra (so o click nao liga)
+    r, erro = avaliar(f"(function(){{window.dispatchEvent(new Event('pointerdown'));var b=document.getElementById('{id_botao}');"
                       f"if(!b) return 'sem botao';b.click();return 'clicado'}})()", gesto=True)
     relatar(f"{id_botao}: {r or erro}")
     return {"ok": r == "clicado", "resposta": r or erro}
@@ -1150,6 +1153,16 @@ def vigiar():
                                  erro=leitura.get("erro", ""), aviso=leitura.get("aviso", ""))
                         with TRAVA:
                             ESTADO["tela"] = leitura.get("tela")
+                        o["som"] = leitura.get("som")
+                        # 26/09: "esta sem musica nosso ambiente". A obra so liga a trilha num
+                        # gesto (toque ou tecla) -- e dentro do oculos, e com a obra iniciada
+                        # pela Cabine, gesto nenhum chega a pagina. Se a obra anda e a trilha
+                        # esta parada, a Cabine manda o toque pelo DevTools, com gesto.
+                        andando_ = bool((leitura.get("onde") or {}).get("andando"))
+                        if andando_ and leitura.get("som") is False and time.time() - SOM_DESTRAVE[0] > 10:
+                            SOM_DESTRAVE[0] = time.time()
+                            avaliar("(function(){window.dispatchEvent(new Event('pointerdown'));return 'ok'})()", gesto=True)
+                            relatar("a obra estava sem música: som destravado pela Cabine")
                     if ciclo % 2 == 0:
                         o["fps"], o["app_ms"] = quadros(s)
                 else:
