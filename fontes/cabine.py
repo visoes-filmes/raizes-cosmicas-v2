@@ -128,12 +128,21 @@ def adb(*args, serial=None, timeout=25):
 # ── o Quest ──────────────────────────────────────────────────────────────
 
 def aparelhos():
+    """So os oculos. 26/09: o modem 4G UFI plugado no USB e um Android com
+    adb ligado ('model:UFI') e a Cabine o tomou pelo Quest -- tuneis, tcpip,
+    abrir a obra: tudo no modem. Quem diz o modelo e nao e Quest fica de fora;
+    'unauthorized' nao diz o modelo e fica (pode ser o Quest pedindo licenca)."""
     lista = []
-    for linha in adb("devices").splitlines()[1:]:
+    for linha in adb("devices", "-l").splitlines()[1:]:
         partes = linha.split()
-        if len(partes) >= 2:
-            lista.append({"serial": partes[0], "estado": partes[1],
-                          "via": "wifi" if ":" in partes[0] else "cabo"})
+        if len(partes) < 2:
+            continue
+        m = re.search(r"\bmodel:(\S+)", linha)
+        modelo = m.group(1) if m else ""
+        if modelo and "quest" not in modelo.lower():
+            continue
+        lista.append({"serial": partes[0], "estado": partes[1], "modelo": modelo,
+                      "via": "wifi" if ":" in partes[0] else "cabo"})
     return lista
 
 
