@@ -702,6 +702,45 @@ def achar_navegador():
 # escolha manual no Projetar, ou Parar projecao, desliga o automatico.
 PROJ_AUTO = {"ativo": False, "monitor": None, "espelhar": False, "modo": None, "thread": None}
 
+# O CHROME DO PROJETOR (26/09): "apareceu uma imagem estatica com o QR code e uma mensagem
+# no meio". Era um Chrome de quiosque antigo (da tentativa do espelho estabilizado) que
+# nunca foi fechado: ficou por baixo do espelho, e o Chrome novo nem abria por cima,
+# porque o perfil estava em uso. E o perfil marcado como "fechado a forca" faz o Chrome
+# restaurar paginas antigas. Agora: toda escolha manual fecha os quiosques antigos, e o
+# quiosque abre sempre com o perfil limpo.
+PERFIL_PROJ = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+
+
+def fechar_quiosques():
+    rodar(["pkill", "-f", "raizes-projecao-perfil"], timeout=5)   # o Chrome do projetor, e so ele
+    for _ in range(12):                  # o novo so abre quando o antigo saiu de fato (o perfil e dele)
+        if not quiosque_vivo():
+            return
+        time.sleep(0.25)
+    rodar(["pkill", "-9", "-f", "raizes-projecao-perfil"], timeout=5)
+
+
+def quiosque_vivo():
+    return bool(rodar(["pgrep", "-f", "raizes-projecao-perfil"], timeout=5)[0].strip())
+
+
+def perfil_limpo():
+    """sem abas antigas nem 'restaurar paginas': sessoes apagadas, saida marcada normal"""
+    shutil.rmtree(os.path.join(PERFIL_PROJ, "Default", "Sessions"), ignore_errors=True)
+    for nome in ("Current Session", "Current Tabs", "Last Session", "Last Tabs"):
+        try:
+            os.remove(os.path.join(PERFIL_PROJ, "Default", nome))
+        except OSError:
+            pass
+    pref = os.path.join(PERFIL_PROJ, "Default", "Preferences")
+    try:
+        txt = open(pref, encoding="utf-8").read()
+        txt = txt.replace('"exit_type":"Crashed"', '"exit_type":"Normal"').replace('"exited_cleanly":false', '"exited_cleanly":true')
+        with open(pref, "w", encoding="utf-8") as f:
+            f.write(txt)
+    except Exception:
+        pass
+
 
 def oculos_na_cabeca(serial):
     if not serial:
@@ -725,8 +764,34 @@ def vigiar_projecao_auto():
         if quer != PROJ_AUTO["modo"] and seguidos >= precisa and PROJ_AUTO["ativo"]:
             PROJ_AUTO["modo"] = quer
             relatar("projeção automática: " + ("óculos na cabeça — espelho" if na else "óculos fora da cabeça — animação"))
-            projetar(quer, PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"], por_auto=True)
+            trocar_auto(quer)
         time.sleep(1.0)
+
+
+def trocar_auto(quer):
+    """A ANIMACAO FICA POR BAIXO, O ESPELHO POR CIMA (26/09). O quiosque com a animacao
+    fica aberto o tempo todo no projetor; com o oculos na cabeca, o espelho (scrcpy) abre
+    por cima dele; fora da cabeca, o espelho fecha e a animacao ja esta la -- na hora, sem
+    esperar o Chrome abrir."""
+    global PROJECAO, AUTO_QUIOSQUE
+    m, e = PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"]
+    if quer == "pagina":
+        parar_projecao()                               # fecha o espelho (o quiosque nao e o PROJECAO)
+        if not quiosque_vivo():
+            projetar("pagina", m, e, por_auto=True)
+            AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
+        with TRAVA:
+            ESTADO["projecao"] = {"ativa": True, "saida": "pagina", "espelhar": bool(e), "monitor": m, "auto": True}
+        devolver_foco()
+    else:
+        if not quiosque_vivo():                        # a animacao por baixo, antes do espelho
+            projetar("pagina", m, e, por_auto=True)
+            AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
+            time.sleep(1.5)
+        projetar("espelho", m, e, por_auto=True)
+
+
+AUTO_QUIOSQUE = None
 
 
 def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
@@ -739,6 +804,7 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
         return {"ok": True, "resposta": "automático: troca sozinho pelo sensor do óculos"}
     if not por_auto:
         PROJ_AUTO["ativo"] = False       # uma escolha manual desliga o automatico
+        fechar_quiosques()               # e fecha qualquer quiosque que tenha sobrado
     """saida: 'pagina' (a agua da tela, projecao.html) ou 'espelho' (scrcpy, o que o oculos ve)."""
     global PROJECAO, PROJECAO_PEDIDA
     # 26/09: tres cliques em Projetar em tres segundos reiniciavam o espelho tres vezes
@@ -778,15 +844,18 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
         nav = achar_navegador()
         if not nav:
             return {"ok": False, "erro": "não achei Chrome nem Edge para abrir a projeção"}
-        perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+        perfil = PERFIL_PROJ
+        perfil_limpo()
+        # 26/09: o QR no canto, nenhum texto de operador, a animacao enchendo o projetor
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
-               f"&cabine=http://localhost:{PORTA_CABINE}")
+               f"&qr=1&quiosque=1&cabine=http://localhost:{PORTA_CABINE}")
         # quiosque ocupa o monitor inteiro; a janela de teste e uma janela de
         # aplicativo (sem barra de endereco), do tamanho que se quiser
         modo = [f"--app={url}"] if janela else ["--kiosk", url]
         PROJECAO = subprocess.Popen([nav, f"--window-position={x},{y}", f"--window-size={w},{h}",
                                      f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
-                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars",
+                                     "--hide-crash-restore-bubble", "--noerrdialogs"] + modo,
                                     creationflags=SEM_JANELA)
         relatar(f"projeção (página) aberta {onde} {w}x{h}" + (" espelhada" if espelhar else ""))
     elif saida == "estavel":
@@ -1250,6 +1319,7 @@ def agir(nome, dados):
         return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
     elif nome == "parar_projecao":
         PROJ_AUTO["ativo"] = False
+        fechar_quiosques()
         return parar_projecao()
     elif nome == "tela_cravar":
         return tela_js("raizes.tela.cravar()")
