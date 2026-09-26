@@ -380,7 +380,7 @@ function desenhar(){
     const acontecendo = !!(o.aba && !o.portao && onde.andando);
     const p = estado.proxima || {estado:'parada'};
     const ocupada = p.estado === 'preparando' || p.estado === 'publicando';
-    document.querySelectorAll('.proxBt').forEach(b => b.disabled = acontecendo || ocupada);
+    document.querySelectorAll('.proxBt').forEach((b, i) => b.disabled = ocupada || (acontecendo && i > 0));   // preparar vale sempre
     $('proxEstado').textContent = {parada:'—', preparando:'preparando…', pronta:'pronta · ' + (p.commit||''),
       publicando:'publicando…', publicada:'publicada · ' + (p.commit||''), erro:'erro'}[p.estado] || p.estado;
     if (p.titulo) $('proxTitulo').textContent = p.titulo;

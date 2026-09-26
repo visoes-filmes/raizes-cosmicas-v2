@@ -1518,7 +1518,8 @@ def _proxima_em_fundo(acao):
 def proxima(acao):
     if PROXIMA["estado"] in ("preparando", "publicando"):
         return {"ok": False, "erro": "já estou " + PROXIMA["estado"]}
-    if experiencia_acontecendo():
+    # preparar so monta um arquivo a parte (nada muda no oculos): vale a qualquer hora
+    if acao != "preparar" and experiencia_acontecendo():
         return {"ok": False, "erro": "tem gente dentro da obra agora — espere o portão voltar"}
     if acao == "ver":
         if not os.path.exists(os.path.join(RAIZ, "proxima.html")):
