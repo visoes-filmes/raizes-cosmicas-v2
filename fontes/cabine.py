@@ -773,22 +773,35 @@ def trocar_auto(quer):
     fica aberto o tempo todo no projetor; com o oculos na cabeca, o espelho (scrcpy) abre
     por cima dele; fora da cabeca, o espelho fecha e a animacao ja esta la -- na hora, sem
     esperar o Chrome abrir."""
-    global PROJECAO, AUTO_QUIOSQUE
     m, e = PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"]
     if quer == "pagina":
         parar_projecao()                               # fecha o espelho (o quiosque nao e o PROJECAO)
-        if not quiosque_vivo():
-            projetar("pagina", m, e, por_auto=True)
-            AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
+        garantir_quiosque(m, e)
         with TRAVA:
             ESTADO["projecao"] = {"ativa": True, "saida": "pagina", "espelhar": bool(e), "monitor": m, "auto": True}
         devolver_foco()
     else:
         if not quiosque_vivo():                        # a animacao por baixo, antes do espelho
-            projetar("pagina", m, e, por_auto=True)
-            AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
-            time.sleep(1.5)
+            garantir_quiosque(m, e)
+            time.sleep(1.0)
         projetar("espelho", m, e, por_auto=True)
+
+
+def garantir_quiosque(m, e):
+    """Abre a animacao e CONFERE que ficou aberta (26/09: aberto logo depois de fechar o
+    antigo, o Chrome novo entregava o pedido ao que ainda estava saindo e fechava -- e o
+    projetor ficava com o fundo de tela do Mac). Ate tres tentativas."""
+    global PROJECAO, AUTO_QUIOSQUE
+    for tentativa in range(3):
+        if quiosque_vivo():
+            time.sleep(2.5)                            # ficou mesmo?
+            if quiosque_vivo():
+                return True
+        projetar("pagina", m, e, por_auto=True)
+        AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
+        time.sleep(2.0)
+    relatar("projeção automática: o Chrome do projetor não ficou aberto depois de três tentativas")
+    return False
 
 
 AUTO_QUIOSQUE = None
