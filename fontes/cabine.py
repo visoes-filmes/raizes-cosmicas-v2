@@ -952,6 +952,11 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome == "atualizar":
+        r = sincronizar("botão")
+        with TRAVA:
+            ESTADO["sync"] = dict(SYNC)
+        return r
     elif nome == "luz_ligar":
         return luz_ligar(dados.get("modo", "segue"), dados.get("via", "auto"))
     elif nome == "luz_parar":
@@ -1256,6 +1261,46 @@ def abrir_pagina(url):
     webbrowser.open(url)
 
 
+# ── sempre igual ao GitHub (26/09) ────────────────────────────────────────
+# "Deixe sempre a versao local atualizada com o GitHub; estaremos fazendo
+# atualizacoes pelo Unreal." O desktop publica; este computador so PUXA.
+# Ao subir e a cada 5 minutos: git pull --ff-only. Nunca mescla nem apaga:
+# se houver mudanca local nao publicada, ou o historico tiver divergido, ele
+# para e avisa, e o que esta aqui fica como esta.
+SYNC = {"ultimo": None, "commit": None, "aviso": None}
+
+
+def sincronizar(motivo="ciclo"):
+    antes, _ = rodar(["git", "-C", RAIZ, "rev-parse", "--short", "HEAD"], timeout=10)
+    # o .pyc que o Python reescreve ao rodar nao e mudanca de ninguem: volta ao do git
+    rodar(["git", "-C", RAIZ, "checkout", "--", "fontes/__pycache__"], timeout=10)
+    sujo, _ = rodar(["git", "-C", RAIZ, "status", "--porcelain", "--untracked-files=no"], timeout=10)
+    sujo = "\n".join(l for l in sujo.splitlines() if "__pycache__" not in l)
+    if sujo.strip():
+        SYNC.update(ultimo=datetime.now().strftime("%H:%M"), aviso="há mudança local não publicada: não puxei (publique ou descarte)")
+        return {"ok": False, "erro": SYNC["aviso"]}
+    saida, _ = rodar(["git", "-C", RAIZ, "pull", "--ff-only", "-q", "origin", "main"], timeout=90)
+    depois, _ = rodar(["git", "-C", RAIZ, "rev-parse", "--short", "HEAD"], timeout=10)
+    falhou = ("fatal" in saida.lower() or "error" in saida.lower()) and antes.strip() == depois.strip()
+    SYNC.update(ultimo=datetime.now().strftime("%H:%M"), commit=depois.strip(),
+                aviso=("não consegui puxar: " + saida.strip()[-160:]) if falhou else None)
+    if antes.strip() != depois.strip():
+        titulo, _ = rodar(["git", "-C", RAIZ, "log", "-1", "--format=%s"], timeout=10)
+        relatar(f"atualizado do GitHub ({motivo}): {antes.strip()} → {depois.strip()} · {titulo.strip()[:90]}")
+    return {"ok": not falhou, "commit": SYNC["commit"], "mudou": antes.strip() != depois.strip(), "aviso": SYNC["aviso"]}
+
+
+def sincronizar_sempre():
+    while True:
+        try:
+            sincronizar()
+        except Exception as e:
+            SYNC["aviso"] = repr(e)[:160]
+        with TRAVA:
+            ESTADO["sync"] = dict(SYNC)
+        time.sleep(300)
+
+
 def ja_esta_de_pe():
     try:
         urlopen(f"http://127.0.0.1:{PORTA_CABINE}/estado", timeout=2).read()
@@ -1283,6 +1328,7 @@ def main():
     if not os.path.exists(os.path.join(RAIZ, "index.html")):
         ESTADO["avisos"].append("não há index.html: rode python fontes/montar_mr.py")
     log(f"cabine de pé (adb: {ADB})")
+    threading.Thread(target=sincronizar_sempre, daemon=True).start()
     subir_servidor_da_obra()
     if ADB:
         threading.Thread(target=vigiar, daemon=True).start()

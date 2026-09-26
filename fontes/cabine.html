@@ -293,6 +293,8 @@
 
 <footer>
   <span>Cabine em <span class="mono">localhost:8790</span> · obra servida em <span class="mono">localhost:8765</span> (modo estande, cache ligado) · registro em <span class="mono">fontes/cabine.log</span></span>
+  <span class="nota" id="syncInfo" title="a Cabine puxa do GitHub ao subir e a cada 5 minutos (as atualizações vêm do Unreal)">GitHub: —</span>
+  <button onclick="acao('atualizar')" title="puxa agora do GitHub a versão publicada (só avança; nunca apaga mudança local)">Atualizar do GitHub</button>
   <button class="perigo" onclick="if(confirm('Fechar a cabine e o servidor da obra?')) acao('fechar')">Fechar a cabine</button>
 </footer>
 <div id="toast"></div>
@@ -343,6 +345,7 @@ async function acao(nome, dados){
 function pill(id, classe, texto){ const p=$(id); p.className='pill '+classe; p.lastChild.textContent = texto; }
 
 function desenhar(){
+  if (estado.sync){ const s = estado.sync; $('syncInfo').textContent = 'GitHub: ' + (s.aviso ? '⚠ ' + s.aviso : (s.commit || '—') + ' · conferido ' + (s.ultimo || '')); }
   const e = estado, q = e.quest||{}, o = e.obra||{}, hs = (e.rede||{}).hotspot||{}, wp = (e.rede||{}).wifi_pc||{};
   // pílulas
   pill('pServidor', e.servidor&&e.servidor.de_pe?'ok':'erro', 'servidor '+(e.servidor?e.servidor.porta:''));
