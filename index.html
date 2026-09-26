@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 8.6</title>
+<title>Raízes Cósmicas 8.7</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -294,7 +294,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 8.6</h1>
+  <h1>Raízes Cósmicas 8.7</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -306,7 +306,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>8.6</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>8.7</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -3148,7 +3148,7 @@ function montarFundoDoMar(){
   //    multiplicar as aguas-vivas"), e nadam: ver "nadar" no VS_SOLIDA
   const c = [];
   emAnel(c, 14, 'agua-viva-', 8, 0.20, 0.36,
-         NIVEL_AGUA + 0.25, NIVEL_AGUA + 1.25, 1.6, 3.4, AGUAS_VIVAS);   // 6.4: ate cinco metros
+         NIVEL_COISAS + 0.45, NIVEL_COISAS + 1.35, 1.6, 3.4, AGUAS_VIVAS);   // 6.4: ate cinco metros; 8.7: dentro da agua, na altura dos olhos
   [bSeresCeu, nSeresCeuIdx] = subir(c);
 }
 
@@ -3323,7 +3323,7 @@ function andarSeresDeLuz(dt){
   SERES_DE_LUZ.forEach((sl, k) => {
     const a = sl.ang + relogio * sl.vel;
     let x = Math.sin(a) * sl.raio;
-    let y = Math.max(NIVEL_AGUA + 0.25, sl.alt + 0.22 * Math.sin(relogio * 0.23 + sl.fase)
+    let y = Math.max(NIVEL_COISAS + 0.25, sl.alt + 0.22 * Math.sin(relogio * 0.23 + sl.fase)
                      + 0.06 * Math.sin(relogio * 0.9 + sl.fase * 2));
     let z = -Math.cos(a) * sl.raio;
     let w = 0;
@@ -3711,7 +3711,7 @@ function ondeVidro(relogio, t){
   const x = SER_VIDRO[0] + 0.6 * Math.sin(relogio * 0.13);
   const z = SER_VIDRO[2] + 0.5 * Math.sin(relogio * 0.09 + 1.9);
   const sobe = rampa(450, 505, t);
-  const boia = NIVEL_AGUA + nivelExtra - 0.06 + ondaDaAgua(x, z, relogio);
+  const boia = NIVEL_COISAS - 0.06 + ondaDaAgua(x, z, relogio);   // 8.7: boia na altura da mao, dentro da agua
   return [x, boia * (1 - sobe) + (boia + 6.0) * sobe, z];
 }
 let bVidro = null, nVidroIdx = 0, bCristal = null, nCristalIdx = 0;
@@ -6263,8 +6263,12 @@ void main(){
      o "cenario quase monocromatico, azul ao preto" (25/09). Acima de 50 m nao ha agua. */
   float fundoAzul = lamina > 50.0 ? 0.0 : 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
   float lumAzul = dot(c, vec3(0.30, 0.50, 0.20));
-  // 8.4: os corais vivos (materia 27) guardam a cor deles debaixo d'agua -- azulam so um quarto
-  c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * ((materia > 26.5 && materia < 27.5) ? 0.10 : 0.92));
+  /* 8.7: COM O OLHO DENTRO DA AGUA o azul e por DISTANCIA, como nevoa -- o que esta a um
+     braco guarda a cor, o que esta longe azula. Por profundidade (0,92 fixo) era para
+     ver o fundo atraves da lamina, de cima. Os corais vivos (materia 27) azulam pouco. */
+  float dentroDagua = lamina > 50.0 ? 0.0 : 1.0 - smoothstep(lamina - 0.15, lamina + 0.05, olhoPos.y);
+  float forcaAzul = mix(0.92, 0.30 + 0.55 * smoothstep(0.8, 7.0, length(vMundo - olhoPos)), dentroDagua);
+  c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * ((materia > 26.5 && materia < 27.5) ? 0.10 : forcaAzul));
 
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
@@ -6829,7 +6833,7 @@ void main(){
   // as causticas: duas redes de ruido que se cruzam
   float caus = ruidoM(uv * 9.0 + vec2(tempo * 0.11, -tempo * 0.07)) * ruidoM(uv * 13.0 - vec2(tempo * 0.09, tempo * 0.05));
   cor += vec3(0.55, 0.85, 0.95) * (raio * 0.35 + pow(caus, 2.0) * 0.6);
-  float a = (0.34 + 0.12 * (1.0 - uv.y)) * forca;
+  float a = (0.26 + 0.10 * (1.0 - uv.y)) * forca;   // 8.7: mais leve (era 0,34/0,12): agora dura o cenario inteiro
   gl_FragColor = vec4(cor * a, a);
 }`;
 const FS_SOLO_AGUA = `
@@ -10432,7 +10436,14 @@ function inicioDaCena(t){
    Cintura de quem tem o olho a 1,60 fica por volta de 0,95 -- e desde
    14/09 ela esta um pouco abaixo disso ("faz um pouco mais baixa essa
    agua"): 0,80, a altura do quadril. */
-const NIVEL_AGUA = 0.80;
+/* 8.7 -- DENTRO DA AGUA (26/09: "o mar ainda esta piscando... vamos deixar o mar mais
+   alto mesmo, como se estivessemos dentro da agua"). A lamina sobe para 2,35 m, acima
+   de qualquer cabeca: o cenario inteiro e visto de dentro -- o veu azul, as causticas no
+   chao real, a superficie como teto de luz. O que antes boiava na lamina ou flutuava
+   acima dela (a concha, os seres de luz, as aguas-vivas, o que boia) continua na altura
+   da mao, por NIVEL_COISAS: dentro da agua tudo pode estar em qualquer altura. */
+const NIVEL_AGUA = 2.35;
+const NIVEL_COISAS = 0.80;   // a altura de referencia do que se toca (era a lamina)
 /* A CORRENTE DO FUNDO: metros de dobra na ponta por metro de altura da
    alga (ate 1,2 m) -- ver "corrente" no VS_SOLIDA. 0,14 e uma alga de
    meio metro dobrando uns sete centimetros em quinze segundos. */
@@ -10461,7 +10472,7 @@ const BURACOS = [
    negro dentro", 11/09), que ninguem pediu: "aquela bola, eu nao entendi
    o que ela e". O que fica e a concha de verdade, o modelo, com 60 cm, o
    pe na superficie da agua (0,95): metade dentro, metade fora. */
-const CONCHA = [-1.05, NIVEL_AGUA - 0.07, -1.16];
+const CONCHA = [-1.05, NIVEL_COISAS - 0.07, -1.16];
 
 const SERES = [];
 (function(){
@@ -10471,7 +10482,7 @@ const SERES = [];
       raioOrbita: 1.3 + r() * 3.4,
       ang: r() * 6.283,
       vel: (0.05 + r() * 0.10) * (r() < 0.5 ? -1 : 1),
-      alt: NIVEL_AGUA + 0.25 + r() * 1.5,
+      alt: NIVEL_COISAS + 0.25 + r() * 1.5,
       sobe: 0.14 + r() * 0.30,
       raio: 0.055 + r() * 0.085,
       fase: r() * 6.283,
@@ -12241,7 +12252,7 @@ const PEDRAS = [];
     PEDRAS.push({
       x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
       // afundadas ate quase a linha d'agua: so a lombada aparece
-      y: NIVEL_AGUA - 0.10 - r() * 0.16,
+      y: NIVEL_COISAS - 0.10 - r() * 0.16,
       raio: 0.20 + r() * 0.30,
       achatar: 0.42 + r() * 0.26,
       giro: r() * Math.PI * 2,
