@@ -332,9 +332,9 @@ if saida == os.path.join(RAIZ, "index.html"):
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
              .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
-             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.3</title>")
-             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.3</h1>")
-             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.3</em>')
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.4</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.4</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.4</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
             or "const ESPACO_ESCANEADO      = true;" not in v6

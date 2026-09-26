@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 7.3</title>
+<title>Raízes Cósmicas 7.4</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -293,7 +293,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 7.3</h1>
+  <h1>Raízes Cósmicas 7.4</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -305,7 +305,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>7.3</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>7.4</em></h1>
     <p class="portao-sub">Visões Filmes · seis minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -579,6 +579,9 @@ const ARVORE_MAE         = 1;
 /* Os cogumelos sao esferas, e nao particulas -- por isso saem do
    OBJETOS_NO_CHAO, que desliga o que e nuvem de pontos. */
 const COGUMELOS_NO_CHAO  = true;
+/* 7.4 -- a vida miuda do cenario 1: vagalumes, a abelha, as formiguinhas e as
+   folhas padronadas. Tudo num interruptor so; ver "A VIDA MIUDA DA FLORESTA". */
+const VIDA_NA_FLORESTA   = true;
 /* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
    do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
    fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
@@ -1154,6 +1157,7 @@ function gerarArvoreMae(rnd, base, s){
        continua a mesma (0,515 de raio), que e o pe de elefante. */
     raios.push(0.34 * Math.pow(1-k, 1.15) + 0.175);
   }
+  TRONCOS.push({ pontos: pontos.map(p => p.slice()), raios: raios.slice(), mae: true });   // 7.4
   /* O VAO NO MEIO DELA -- a forma "()".
 
      O tronco nao sobe inteiro: na altura do meio ele ABRE em dois arcos e
@@ -1587,6 +1591,10 @@ function gerarPlanta(rnd, base, escala, fase, s, feitio, lados, fundo){
     for(const f of no.filhos) emitir(f);
   }
   const tronco = esqueleto(base, norm([(rnd()-0.5)*0.3,1,(rnd()-0.5)*0.3]), 0.62*escala, 0);
+  // 7.4: o tronco fica registrado para as formiguinhas (so a mata de perto: a de fundo ninguem alcanca com o olho)
+  if(!fundo && tronco.pontos && tronco.pontos.length > 1)
+    TRONCOS.push({ pontos: tronco.pontos.map(p => p.slice()),
+                   raios: tronco.pontos.map((p, k) => 0.055 * escala * (1 - 0.45 * k / tronco.pontos.length)), mae: false });
   espessura(tronco); emitir(tronco);
 }
 
@@ -2163,9 +2171,10 @@ function lerOEspaco(frame, espaco){
    silencio na primeira vez que alguem mexe numa das duas contas. Entao o
    semeador simplesmente ANOTA. */
 let BASES = [];
+let TRONCOS = [];   // 7.4: a linha de centro e os raios de cada tronco -- e por eles que as formiguinhas andam
 function semearMata(semente){
   const rnd = prng(semente);
-  BASES = []; PONTAS = [];
+  BASES = []; PONTAS = []; TRONCOS = [];
   const s = {pos:[],nor:[],uv:[],alt:[],fase:[],idx:[]};
   const N = 11;
   totalRaizes = N;
@@ -2799,9 +2808,11 @@ let bCogumeloLuz = null, nCogumeloLuzIdx = 0;
 function montarCogumelos(){
   const monta = (modelo) => {
     const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-    for(const cg of COGUMELOS)
-      // cg.y e a altura da superficie embaixo dele: zero no chao, 0,74 na mesa (v4)
-      plantarMalha(m, modelo, [cg.x, cg.y || 0, cg.z], cg.alt, cg.fase*0.97, cg.fase);
+    /* a fase e INDICE + FRACAO (7.4): o vertice sabe de que cogumelo e, e o shader
+       le em cogToque[indice] ha quanto tempo esse cogumelo foi tocado -- e a cor muda.
+       cg.y e a altura da superficie embaixo dele: zero no chao, 0,74 na mesa (v4) */
+    COGUMELOS.forEach((cg, i) =>
+      plantarMalha(m, modelo, [cg.x, cg.y || 0, cg.z], cg.alt, cg.fase*0.97, i + (cg.fase % 1)));
     if(!m.idx.length) return null;
     const b = criarBufs(['pos','nor','alt','fase','borda','idx']);
     enviar(b.pos,m.pos); enviar(b.nor,m.nor); enviar(b.alt,m.alt);
@@ -4483,6 +4494,11 @@ uniform float nadar;
 /* AS MAOS (6.3): xyz a ponta do indicador, w 1 se a mao existe. Aqui no
    vertice so a agua-viva le: ela foge. No fragmento, o mar inteiro acende. */
 uniform vec4 maoA, maoB;
+/* 7.4 -- O TOQUE TAMBEM MOVE: onde a mao encostou (xyz) e o tempo do pulso (w).
+   Mesma precisao do fragmento (highp), senao o programa nao linka. */
+uniform vec4 toque;
+uniform float cogToque[13];  // 7.4: quanto cada cogumelo esta tocado agora (1 = acabou de ser)
+uniform float ondulaMao;     // 7.4: 1 nas folhas padronadas -- elas ondulam com a mao perto
 /* BOLHA -- 14/09: "como uma bolha de sabao no ar, um movimento organico,
    nao simetrico". Amplitude em metros: cada vertice anda pela propria
    normal por tres ondas lentas e primas entre si, lidas na posicao do
@@ -4499,7 +4515,7 @@ uniform float bolha;
 uniform float serpente;
 uniform vec4 serpentes[5];
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo, vBorda, vFase;
+varying float vAlt, vVivo, vBorda, vFase, vToque;
 void main(){
   /* A MESMA CONTA DA NUVEM, passo por passo. Se as duas nao crescessem
      identicas, trocar de uma para a outra mudaria a coreografia da obra e
@@ -4564,6 +4580,29 @@ void main(){
     p.x += (sin(wc - h * 2.4) + 0.35 * sin(wc * 2.3 + h * 4.0 + 1.0)) * dobra;
     p.z += (cos(wc * 0.79 - h * 2.0 + 1.3) + 0.35 * cos(wc * 1.9 + h * 3.5)) * dobra * 0.8;
   }
+  /* O TREMOR DO TOQUE -- 7.4 ("eles tem que ter uma reacao mais visivel... ou que se
+     movimentem diferente"). Do ponto tocado sai uma onda pela superficie: cada vertice
+     sobe e desce pela normal, com a crista correndo para fora e morrendo em um metro
+     e em dois segundos. E o que faz a coisa tocada RESPONDER com o corpo, e nao so
+     com a luz. */
+  if(toque.w < 1.0){
+    float dq = length(p - toque.xyz);
+    float trem = exp(-dq * 2.4) * (1.0 - toque.w) * (1.0 - toque.w);
+    p += aNor * sin(dq * 14.0 - toque.w * 26.0) * 0.022 * trem;
+  }
+  /* A RESPIRACAO COM A MAO PERTO -- 7.4 ("a arvore pode dar uma movimentada para dar
+     uma sensacao de conexao"). A um metro da mao a superficie respira devagar pela
+     normal e a ponta balanca um pouco mais; nas folhas padronadas (ondulaMao) a
+     folha inteira ondula ao longo do comprimento. */
+  float pmA = maoA.w * smoothstep(1.1, 0.15, length(p - maoA.xyz));
+  float pmB = maoB.w * smoothstep(1.1, 0.15, length(p - maoB.xyz));
+  float pm = max(pmA, pmB);
+  if(pm > 0.001){
+    p += aNor * sin(tempo * 2.2 + p.y * 3.0) * 0.012 * pm;
+    p.xz += vec2(sin(tempo * 1.7 + aFase), cos(tempo * 1.9 + aFase)) * 0.02 * pm * clamp(aAlt * 3.0, 0.0, 1.0);
+    p += aNor * sin(aAlt * 12.0 - tempo * 7.0) * 0.06 * pm * ondulaMao * aAlt;
+  }
+  vToque = cogToque[int(clamp(floor(aFase), 0.0, 12.0))];
 
   /* E A ONDULACAO, para quem a pedir. Devagar de proposito: 0,11 radiano
      por segundo da um ciclo de quase um minuto, e o que se ve nao e o
@@ -4830,6 +4869,7 @@ uniform float proximidade;
 /* QUAO PERTO A MAO ESTA DA MAE: zero longe, um encostando. So a materia 15
    (ela) le isto -- as outras onze arvores sao a 8 e nao respondem. */
 uniform float veiaPerto;
+uniform vec2 maeXZ;          // 7.4: o pe da mae, para as faixas ancestrais darem a volta no tronco
 /* A PROPORCAO DA PINTURA DO CEU, para a materia 13 poder amostra-la
    com a MESMA estereografica da cupula. Sem o aspecto certo, o ceu
    amostrado aqui sai esticado em relacao ao ceu de verdade -- e a
@@ -4947,7 +4987,7 @@ vec3 estrelasEm(vec3 p, vec3 n, float escala, float corte, float raio, float for
   return mix(vec3(1.0), cor, 0.70) * b * bat * forca;
 }
 varying vec3 vMundo, vNor;
-varying float vAlt, vVivo, vBorda, vFase;
+varying float vAlt, vVivo, vBorda, vFase, vToque;
 void main(){
   vec3 n = normalize(vNor);
 
@@ -5276,17 +5316,42 @@ void main(){
          perto le-se cada um, e de longe le-se a arvore inteira acesa de
          leve. No mesmo turquesa da seiva e dos cogumelos -- o cenario tem
          um batimento so. */
-      if(veiaPerto > 0.004){
+      /* AS VEIAS ONDE A MAO PASSA -- 7.4 ("veias fininhas, fluorescentes, que pulsam; elas
+         aparecem quando as pessoas se aproximam, onde ela vai passando a mao"). O peso
+         deixa de ser global (o chamado da mae) e passa a ser LOCAL: cada ponto da casca
+         acende pelo quanto a mao esta perto DELE (um metro de alcance), mais uma fracao
+         pela pessoa inteira chegando, mais um terco do chamado de antes. Veias mais
+         finas (expoente 9, quinze voltas por metro) e mais verdes-luz. */
+      float vMao = max(maoA.w * smoothstep(0.95, 0.10, length(vMundo - maoA.xyz)),
+                       maoB.w * smoothstep(0.95, 0.10, length(vMundo - maoB.xyz)));
+      float vCorpo = smoothstep(1.9, 0.7, length(vMundo.xz - olhoPos.xz)) * 0.30;
+      float veia = max(max(veiaPerto * 0.35, vMao), vCorpo);
+      if(veia > 0.004){
         /* A ESCALA E DE ONZE VOLTAS POR METRO NO PLANO e duas na altura: no
            plano o veio se repete a cada nove centimetros, que num tronco de
            sessenta le-se como uma dezena de fios em volta; na altura ele quase
            nao varia, e por isso cada fio CORRE o tronco de baixo para cima em
            vez de virar mancha. Com 3,4 nos tres eixos sairam duas faixas largas,
            medido na bancada em 23/09: parecia a arvore inteira acendendo. */
-        float rede = 1.0 - abs(rugas(vMundo * vec3(11.0, 2.2, 11.0)) * 2.0 - 1.0);
-        float correndo = fract(vMundo.y * 0.55 - tempo * 0.40);
-        float pulso = 0.35 + 0.65 * pow(1.0 - abs(correndo * 2.0 - 1.0), 3.0);
-        c += vec3(0.24, 0.72, 0.64) * pow(rede, 6.0) * pulso * veiaPerto * 1.30;
+        float rede = 1.0 - abs(rugas(vMundo * vec3(15.0, 2.6, 15.0)) * 2.0 - 1.0);
+        float correndo = fract(vMundo.y * 0.55 - tempo * 0.55);
+        float pulso = 0.30 + 0.70 * pow(1.0 - abs(correndo * 2.0 - 1.0), 3.0);
+        /* TROCA a cor em vez de somar: somada ao azul da casca, qualquer cor virava
+           branco (visto na bancada). Trocada, a veia e verde-luz e a faixa e ocre. */
+        c = mix(c, vec3(0.30, 1.00, 0.78), clamp(pow(rede, 9.0) * pulso * veia * 1.6, 0.0, 1.0));
+        /* E AS FAIXAS ANCESTRAIS (7.4, segunda referencia): em volta do tronco, na
+           altura da mao, aneis de zigue-zague, losangos com ponto e fileiras de
+           pontos, em ocre -- como a pintura de ceramica e de corpo. So aparecem
+           com a mao perto, junto com as veias, e mais fracas que elas. O angulo
+           em volta do tronco vem do pe da mae (maeXZ). */
+        float angM = atan(vMundo.x - maeXZ.x, vMundo.z - maeXZ.y) / 6.2831;
+        float fx = vMundo.y * 2.2, faixa = floor(fx), yF = fract(fx), tipoF = mod(faixa, 3.0);
+        float des = 0.0;
+        if(tipoF < 0.5){ float tri = abs(fract(angM * 9.0) * 2.0 - 1.0); des = smoothstep(0.08, 0.03, abs(yF - 0.25 - 0.5 * tri)); }
+        else if(tipoF < 1.5){ float lz = abs(fract(angM * 7.0) * 2.0 - 1.0) + abs(yF * 2.0 - 1.0); des = smoothstep(0.10, 0.04, abs(lz - 0.85)) + smoothstep(0.16, 0.06, lz); }
+        else des = smoothstep(0.14, 0.06, length(vec2(fract(angM * 14.0) - 0.5, (yF - 0.5) * 1.6))) + smoothstep(0.05, 0.02, abs(yF - 0.12)) * 0.6;
+        des *= smoothstep(0.25, 0.45, vMundo.y) * smoothstep(2.9, 2.5, vMundo.y);
+        c = mix(c, vec3(1.0, 0.72, 0.35), clamp(des, 0.0, 1.0) * veia * 0.85);
       }
     }
   } else if(materia < 0.5){
@@ -5732,16 +5797,85 @@ void main(){
      !(materia > 3.5 && materia < 4.5) && !(materia > 6.5 && materia < 7.5)){
     float dT = length(vMundo - toque.xyz);
     float frente = toque.w * 3.2;
-    float anel = exp(-pow((dT - frente) / 0.12, 2.0)) * (1.0 - toque.w);
+    float anel = exp(-pow((dT - frente) / 0.16, 2.0)) * (1.0 - toque.w);   // 7.4: anel mais largo
     /* O COGUMELO ja e luz: somar ciano nele nao se ve. Nele o anel
        MULTIPLICA -- o chapeu clareia quando a onda passa, e volta. */
-    if(materia > 4.5 && materia < 6.5) c *= 1.0 + anel * 1.1;
+    if(materia > 4.5 && materia < 6.5) c *= 1.0 + anel * 1.6;   // 7.4: mais forte
     /* NO MAR O PULSO E DA COR DO MAR, e se ve (6.3, "podem pulsar com a cor
        do mar"): rosa, e seis vezes mais forte que o fio ciano da floresta */
     else if((materia > 8.5 && materia < 9.5) || (materia > 10.5 && materia < 11.5)
             || (materia > 19.5 && materia < 21.5))
       c += vec3(1.00, 0.52, 0.80) * anel * 0.85;
-    else c += vec3(0.30, 0.85, 0.95) * anel * 0.15;
+    else c += vec3(0.30, 0.85, 0.95) * anel * 0.42;   // 7.4: 0,15 era sutil demais ("reacao mais visivel")
+  }
+
+  /* O COGUMELO MUDA DE COR AO TOQUE -- 7.4 ("os cogumelos mudarem de cor quando toca,
+     uma reacao meio iridescente, mas nao exagerada como no mar"). vToque vem do
+     vertice: 1 no instante do toque, e cai em uns seis segundos. A cor e pelicula
+     fina -- muda com o angulo de quem olha e com o lugar --, puxada para o
+     turquesa da casa para nao virar arco-iris. A abelha, ao pousar, faz o mesmo
+     pela metade. */
+  if(materia > 4.5 && materia < 6.5 && vToque > 0.003){
+    float rasp = 1.0 - abs(dot(normalize(vNor), normalize(olhoPos - vMundo)));
+    vec3 iris = 0.5 + 0.5 * cos(6.2831 * (rasp * 1.2 + rugas(vMundo * 3.0) * 0.9 + tempo * 0.15 + vec3(0.0, 0.33, 0.67)));
+    iris = mix(vec3(0.55, 0.95, 0.85), iris, 0.6);
+    c = mix(c, c * 0.35 + iris * (materia < 5.5 ? 0.95 : 0.55), vToque * 0.7);
+  }
+
+  /* AS FOLHAS PADRONADAS -- 7.4. A referencia: folhas compridas pintadas com padroes
+     geometricos (pontos amarelos ao longo da nervura, listras atravessadas, grade de
+     pontos azuis, linhas finas). Aqui, na noite azul, a folha e verde-escura e o
+     padrao e FLUORESCENTE: dorme a 18 % e acende com a mao ou com a pessoa perto,
+     com um pulso correndo da base para a ponta. u = vAlt (base 0, ponta 1),
+     v = vBorda (beira 0, nervura 1); o tipo do padrao esta na fase (mod 4). */
+  if(materia > 21.5 && materia < 22.5){
+    float u = clamp(vAlt, 0.0, 1.0), v = clamp(fract(vFase) / 0.98, 0.0, 1.0);   // beira 0, nervura 1
+    float tipo = floor(mod(vFase, 8.0));
+    vec3 verde = mix(vec3(0.12, 0.42, 0.30), vec3(0.20, 0.62, 0.38), u);
+    float pad = 0.0; vec3 corPad = vec3(0.95, 1.0, 0.40);
+    /* os quatro primeiros vem das folhas pintadas; os quatro ultimos, das faixas
+       ANCESTRAIS da segunda referencia (ceramica, pintura corporal indigena e
+       africana): zigue-zague, losangos com ponto, espirais, fileiras de pontos entre
+       linhas -- em ocre e creme, como no desenho, e nao em neon. */
+    if(tipo < 0.5){
+      vec2 g = vec2(u * 22.0, (1.0 - v) * 4.5);
+      pad = smoothstep(0.30, 0.10, length(fract(g) - 0.5)) * step(0.30, v) * step(0.06, u);
+      pad += smoothstep(0.08, 0.02, 1.0 - v) * 0.7;
+    } else if(tipo < 1.5){
+      pad = smoothstep(0.15, 0.55, sin(u * 62.0 + sin(v * 6.0) * 1.4));
+      corPad = mix(vec3(0.35, 0.95, 1.0), vec3(0.45, 0.65, 1.0), step(0.0, sin(u * 12.0)));
+    } else if(tipo < 2.5){
+      vec2 g = vec2(u * 26.0, v * 6.0);
+      pad = smoothstep(0.34, 0.16, length(fract(g) - 0.5)); corPad = vec3(0.30, 0.85, 1.0);
+    } else if(tipo < 3.5){
+      pad = pow(0.5 + 0.5 * sin(v * 42.0 + u * 3.0), 12.0); corPad = vec3(0.70, 1.0, 0.45);
+    } else if(tipo < 4.5){   // zigue-zague em faixas atravessadas
+      float tri = abs(fract(v * 2.5) * 2.0 - 1.0);
+      float faixa = fract(u * 7.0);
+      pad = smoothstep(0.09, 0.03, abs(faixa - 0.3 - 0.4 * tri)) * step(0.06, u);
+      corPad = vec3(1.0, 0.82, 0.50);
+    } else if(tipo < 5.5){   // losangos encadeados na nervura, com o ponto no meio
+      float lz = abs(fract(u * 9.0) * 2.0 - 1.0) + (1.0 - v) * 1.6;
+      pad = smoothstep(0.10, 0.03, abs(lz - 0.85)) + smoothstep(0.16, 0.05, lz);
+      corPad = vec3(0.98, 0.92, 0.70);
+    } else if(tipo < 6.5){   // espirais, uma atras da outra
+      vec2 q = vec2(fract(u * 7.0) - 0.5, (v - 0.5) * 0.9);
+      float rr = length(q) * 2.6, aa = atan(q.y, q.x) / 6.2831;
+      pad = smoothstep(0.10, 0.03, abs(fract(rr - aa) - 0.5)) * smoothstep(1.0, 0.7, rr) * step(0.06, u);
+      corPad = vec3(1.0, 0.85, 0.55);
+    } else {                 // fileiras de pontos entre duas linhas
+      float linhas = smoothstep(0.05, 0.02, abs(v - 0.55)) + smoothstep(0.05, 0.02, abs(v - 0.25));
+      float pontos = smoothstep(0.30, 0.12, length(vec2(fract(u * 20.0) - 0.5, (v - 0.40) * 5.0)));
+      pad = min(1.0, linhas + pontos) * step(0.06, u); corPad = vec3(0.98, 0.90, 0.62);
+    }
+    float pmF = max(maoA.w * smoothstep(0.9, 0.12, length(vMundo - maoA.xyz)),
+                    maoB.w * smoothstep(0.9, 0.12, length(vMundo - maoB.xyz)));
+    float corpoF = smoothstep(2.0, 0.8, length(vMundo.xz - olhoPos.xz)) * 0.35;
+    float pertoF = max(pmF, corpoF);
+    float ondaF = 0.5 + 0.5 * sin(u * 9.0 - tempo * 3.0 - pertoF * 4.0);
+    float acende = 0.35 + 0.65 * pertoF * (0.55 + 0.45 * ondaF);
+    float luzF = 0.55 + 0.45 * abs(dot(normalize(vNor), normalize(olhoPos - vMundo)));
+    c = verde * luzF * (1.0 - pad * 0.5) + corPad * pad * acende;
   }
 
   if(luzCasulo.w > 0.004 &&
@@ -5782,7 +5916,11 @@ void main(){
      a cor vai para a luminancia dela pintada de azul, e nao para um azul
      por cima do rosa -- so assim o rosa some. (smoothstep com as beiras
      invertidas e indefinido em GLSL: por isso o 1 -.) */
-  float fundoAzul = 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
+  /* SO ONDE HA AGUA -- 7.4. O uniforme nasce em 99 para dizer "nao ha lamina", mas
+     nesta conta 99 quer dizer "tudo esta EMBAIXO da lamina": a floresta, o cosmos e o
+     papel inteiros recebiam o azul do fundo do mar a 92 % desde 3ce6a39 -- e era isso
+     o "cenario quase monocromatico, azul ao preto" (25/09). Acima de 50 m nao ha agua. */
+  float fundoAzul = lamina > 50.0 ? 0.0 : 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
   float lumAzul = dot(c, vec3(0.30, 0.50, 0.20));
   c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * 0.92);
 
@@ -6635,6 +6773,35 @@ void main(){
   vec3 luzP = vCor * vBrilho;
   float forteP = max(max(luzP.r, luzP.g), max(luzP.b, 1e-4));
   gl_FragColor = vec4(luzP / forteP, a * vBrilho * min(forteP, 1.0));
+}`;
+
+/* ═══════════ A VIDA MIUDA DA FLORESTA -- os pontos (7.4) ═══════════
+   Vagalumes, formiguinhas e a abelha sao pontos de luz de tamanho fixo em
+   metros, movidos na CPU (uns duzentos, custam nada) e enviados a cada quadro.
+   Programa proprio, e nao o da poeira: a poeira cintila sozinha no shader, e
+   um bicho que cintila como estrela deixa de ser bicho. Aqui o brilho vem
+   inteiro do atributo -- quem pisca e o vagalume, na conta dele. */
+const VS_VIDA = `
+attribute vec3 aPos; attribute vec3 aCor; attribute vec2 aDado;   // .x brilho, .y tamanho em metros
+uniform mat4 mvp; uniform float escalaPonto, presenca;
+varying vec3 vCor; varying float vBrilho;
+void main(){
+  vec4 clip = mvp * vec4(aPos, 1.0);
+  gl_Position = clip;
+  gl_PointSize = clamp(aDado.y * escalaPonto / max(clip.w, 0.05), 1.5, 34.0);
+  vCor = aCor; vBrilho = aDado.x * presenca;
+}`;
+const FS_VIDA = `
+precision mediump float;
+varying vec3 vCor; varying float vBrilho;
+void main(){
+  vec2 d = gl_PointCoord - 0.5; float r2 = dot(d, d);
+  if(r2 > 0.25 || vBrilho < 0.002) discard;
+  float a = smoothstep(0.25, 0.0, r2); a *= a;
+  float miolo = smoothstep(0.06, 0.0, r2);            // o centro mais branco: e o que faz luz e nao mancha
+  vec3 luz = (vCor + miolo * 0.35) * vBrilho;
+  float forte = max(max(luz.r, luz.g), max(luz.b, 1e-4));
+  gl_FragColor = vec4(luz / forte, a * min(forte, 1.0));
 }`;
 
 /* ═══════════ BURACOS NEGROS E SERES ═══════════
@@ -8251,6 +8418,10 @@ const progMata = programa(VS_MATA, FS_MATA);
 const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
+const progVida = programa(VS_VIDA, FS_VIDA);   // 7.4
+const uVi = n => gl.getUniformLocation(progVida, n);
+const locVi = { mvp:uVi('mvp'), escalaPonto:uVi('escalaPonto'), presenca:uVi('presenca') };
+const aVi = { pos:gl.getAttribLocation(progVida,'aPos'), cor:gl.getAttribLocation(progVida,'aCor'), dado:gl.getAttribLocation(progVida,'aDado') };
 const progFila = programa(VS_FILA, FS_FILA);   // 6.4: os filamentos do ceu
 const progHoriz = programa(VS_HORIZ, FS_HORIZ); // 6.8: o horizonte desenhado
 const progFio  = programa(VS_FIO,  FS_FIO);
@@ -9656,6 +9827,330 @@ const COGUMELOS = [];
 })();
 
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
+
+/* ═══════════ A VIDA MIUDA DA FLORESTA (7.4) ═══════════
+   25/09, a direcao de arte, cenario a cenario: "trazer um pouco mais de vida,
+   porque esta um pouco monotono esse primeiro, da Floresta Encantada". O
+   cenario e quase monocromatico -- azul ao preto -- e o pedido foi
+   contraste: seres em cor COMPLEMENTAR, do micro ao macro, e o publico e
+   majoritariamente crianca.
+
+   OS VAGALUMES (84). Ambar-amarelo, o complementar do azul. Piscam cada um
+   no seu compasso, e tem tres comportamentos num ciclo de 56 s: ESPALHADOS
+   pela sala (derivam em volta de um ponto proprio), ENXAME em volta da
+   pessoa (orbitam a cabeca, a um braco, e passam a piscar em onda -- como
+   os vagalumes sincronos de verdade), e REVOADA: uma linha que corre pela
+   sala como um bando de passaros, cada um numa posicao ao longo de uma
+   curva que se mexe. Entre um e outro nao ha salto: cada vagalume PERSEGUE
+   o alvo do modo com um atraso proprio, e a forma se refaz sozinha.
+   Tocado, o vagalume acende forte, foge da mao e soa a nota mais alta.
+
+   A ABELHA (1 + asas + rastro). Vai de planta em planta: escolhe um
+   cogumelo ou um tufo de folhas, voa ate ele num arco com zumbido (a
+   posicao treme a 30 Hz), pousa uns segundos fazendo circulos pequenos
+   sobre o chapeu -- e POLINIZA: o cogumelo muda de cor pela metade do que
+   muda com o toque. Tocada, foge para cima e zune.
+
+   AS FORMIGUINHAS (72, em pares cabeca+corpo). "Nao precisam ser como na
+   vida real": pontos coral-rosa fracos, o complementar do turquesa, sem
+   exagero. Andam em FILA por trilhas: o tronco da mae (o lado que se ve),
+   os troncos das onze arvores, e os cogumelos -- do chao, pelo pe, ate a
+   beira do chapeu. Sobem de um lado e descem do outro, param de vez em
+   quando ("catando") e um terco delas carrega uma migalha turquesa.
+
+   AS FOLHAS PADRONADAS (18). Folhas compridas em torno da mae e em tres
+   tufos ao alcance da mao, com os padroes da referencia (pontos na
+   nervura, listras, grade de pontos, linhas finas) em fluorescente que
+   dorme e acende com a mao ou a pessoa perto, com pulso; e a folha ondula
+   com a mao (ondulaMao, no VS_SOLIDA). Sao malha, materia 22.
+
+   Tudo isto existe so no cenario 1 (vidaPresenca), brota junto com os
+   cogumelos e some com a floresta. */
+const VAGA_N = 84, FORMIGA_N = 72, ABELHA_RASTRO = 8;
+const VIDA_N = VAGA_N + FORMIGA_N * 2 + 3 + ABELHA_RASTRO;
+const vida = { pos:new Float32Array(VIDA_N * 3), cor:new Float32Array(VIDA_N * 3), dado:new Float32Array(VIDA_N * 2) };
+let bVida = null, vidaPresenca = 0, vagaSomEm = -9, abelhaSomEm = -9;
+const VAGAS = [], FORMIGAS = [], TRILHAS = [], ALVOS_ABELHA = [];
+const cogPolenEm = new Float32Array(13).fill(-99), cogToqueArr = new Float32Array(13);
+const ABELHA = { x:0, y:1.2, z:0, alvo:-1, fase:'voando', ate:0, de:[0, 1.2, 0], para:[0, 1.2, 0], t0:0, dur:2,
+                 rastro:new Float32Array(ABELHA_RASTRO * 3), ultimoRastro:0, fuga:0 };
+let bFolhasP = null, nFolhasPIdx = 0;
+
+function pontoNaTrilha(tr, sIn, out){
+  const s = Math.max(0, Math.min(tr.L, sIn));
+  let k = 1; while(k < tr.comp.length - 1 && tr.comp[k] < s) k++;
+  const a = tr.pts[k - 1], b = tr.pts[k], u = (s - tr.comp[k - 1]) / Math.max(1e-6, tr.comp[k] - tr.comp[k - 1]);
+  out[0] = a[0] + (b[0] - a[0]) * u; out[1] = a[1] + (b[1] - a[1]) * u; out[2] = a[2] + (b[2] - a[2]) * u;
+  return out;
+}
+function trilhaDe(pts){
+  const comp = [0];
+  for(let k = 1; k < pts.length; k++) comp.push(comp[k - 1] + Math.hypot(pts[k][0] - pts[k-1][0], pts[k][1] - pts[k-1][1], pts[k][2] - pts[k-1][2]));
+  return { pts, comp, L: comp[comp.length - 1] };
+}
+
+function montarVida(){
+  if(!VIDA_NA_FLORESTA) return;
+  const r = prng(7474);
+  // os vagalumes: cada um com o seu canto, o seu compasso e o seu atraso
+  for(let i = 0; i < VAGA_N; i++){
+    const ang = r() * Math.PI * 2, d = 1.2 + r() * 2.8;
+    VAGAS.push({ hx: Math.sin(ang) * d, hy: 0.5 + r() * 1.8, hz: -Math.cos(ang) * d,
+                 x: Math.sin(ang) * d, y: 0.5 + r() * 1.8, z: -Math.cos(ang) * d,
+                 vx: 0, vy: 0, vz: 0, fase: r() * 6.283, periodo: 1.4 + r() * 1.8, tom: r(), lag: 0.5 + r() * 0.8,
+                 orb: 0.75 + r() * 0.7, w: (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.35), susto: 0 });
+  }
+  // as trilhas: a mae (o lado que se ve, de dentro da sala), as arvores, os cogumelos
+  for(const tr of TRONCOS){
+    const pts = [];
+    for(let k = 0; k < tr.pontos.length; k++){
+      const p = tr.pontos[k]; if(p[1] > 3.1) break;
+      const dx = -p[0], dz = -p[2], n = Math.hypot(dx, dz) || 1;   // para o centro da sala: e o lado visto
+      pts.push([p[0] + dx / n * tr.raios[k], p[1], p[2] + dz / n * tr.raios[k]]);
+    }
+    if(pts.length > 1) TRILHAS.push(trilhaDe(pts));
+  }
+  COGUMELOS.forEach((cg, i) => {
+    const y0 = cg.y || 0, h = cg.alt, ang = Math.atan2(cg.x, -cg.z) + Math.PI;   // o lado voltado para dentro
+    const lado = [Math.sin(ang), 0, -Math.cos(ang)], perp = [-lado[2], 0, lado[0]];
+    const rc = 0.40 * h, rp = 0.09 * h;
+    const pts = [[cg.x + lado[0] * 0.35, y0 + 0.01, cg.z + lado[2] * 0.35],
+                 [cg.x + lado[0] * rp, y0 + 0.02, cg.z + lado[2] * rp],
+                 [cg.x + lado[0] * rp * 0.9, y0 + h * 0.62, cg.z + lado[2] * rp * 0.9],
+                 [cg.x + lado[0] * rc * 0.7, y0 + h * 0.70, cg.z + lado[2] * rc * 0.7],
+                 [cg.x + lado[0] * rc, y0 + h * 0.80, cg.z + lado[2] * rc]];
+    for(let k = 1; k <= 6; k++){                                   // e da a volta em meio chapeu
+      const a = k / 6 * Math.PI, ca = Math.cos(a), sa = Math.sin(a);
+      pts.push([cg.x + (lado[0] * ca + perp[0] * sa) * rc, y0 + h * 0.80 + 0.02 * Math.sin(a * 2.0), cg.z + (lado[2] * ca + perp[2] * sa) * rc]);
+    }
+    TRILHAS.push(trilhaDe(pts));
+    ALVOS_ABELHA.push({ x: cg.x, y: y0 + h * 0.92, z: cg.z, cog: i });
+  });
+  // as formiguinhas, em fila: cada trilha recebe um punhado, espacadas de cinco centimetros
+  for(let i = 0; i < FORMIGA_N; i++){
+    const tr = TRILHAS[i % TRILHAS.length];
+    const fila = Math.floor(i / TRILHAS.length);
+    FORMIGAS.push({ tr, s: (fila * 0.05 + r() * 0.02) % Math.max(0.05, tr.L), dir: (i % 2 === 0) ? 1 : -1,
+                    v: 0.09 + r() * 0.06, carga: r() < 0.33, fase: r() * 6.283 });
+  }
+  bVida = criarBufs(['pos', 'cor', 'dado']);
+  enviar(bVida.pos, vida.pos); enviar(bVida.cor, vida.cor); enviar(bVida.dado, vida.dado);
+  montarFolhasPadronadas(r);
+  ABELHA.alvo = 0; ABELHA.para = [ALVOS_ABELHA[0].x, ALVOS_ABELHA[0].y, ALVOS_ABELHA[0].z];
+  ABELHA.de = [ABELHA.para[0] + 0.8, 1.6, ABELHA.para[2] + 0.8]; ABELHA.t0 = 0; ABELHA.dur = 2.5;
+}
+
+/* AS FOLHAS: uma fita curva por folha, tres vertices de largura e vinte de
+   comprimento, com a ponta caindo e a lamina levemente em calha. */
+function montarFolhasPadronadas(r){
+  const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
+  const tufos = [{ c: ARVORE_BASE, n: 7, r0: 0.35, r1: 0.75 }];
+  for(const a of [0.55, 2.35, 4.1]) tufos.push({ c: [Math.sin(a) * 1.7, 0, -Math.cos(a) * 1.7], n: 4, r0: 0.05, r1: 0.30 });
+  let k = 0;
+  for(const tf of tufos) for(let j = 0; j < tf.n; j++, k++){
+    const ang = r() * Math.PI * 2, d = tf.r0 + r() * (tf.r1 - tf.r0);
+    const b = [tf.c[0] + Math.sin(ang) * d, (tf.c[1] || 0), tf.c[2] - Math.cos(ang) * d];
+    const L = 0.45 + r() * 0.45, W = 0.07 + r() * 0.08, tipo = k % 8;
+    const dir = r() * Math.PI * 2, ox = Math.sin(dir), oz = -Math.cos(dir), cai = 0.25 + r() * 0.5, tw = (r() - 0.5) * 1.2;
+    const P0 = b, P1 = [b[0] + ox * L * 0.10, b[1] + L * 0.50, b[2] + oz * L * 0.10];
+    const P2 = [b[0] + ox * L * 0.55, b[1] + L * 0.85, b[2] + oz * L * 0.55];
+    const P3 = [b[0] + ox * L * 0.95, b[1] + L * (0.95 - cai), b[2] + oz * L * 0.95];
+    const bez = (t) => { const u = 1 - t; return [0, 1, 2].map(c => u*u*u*P0[c] + 3*u*u*t*P1[c] + 3*u*t*t*P2[c] + t*t*t*P3[c]); };
+    const N = 20, base = m.pos.length / 3;
+    for(let i = 0; i <= N; i++){
+      const u = i / N, c0 = bez(u), c1 = bez(Math.min(1, u + 0.01));
+      let T = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]]; const nT = Math.hypot(T[0], T[1], T[2]) || 1; T = T.map(v => v / nT);
+      let S = [T[2], 0, -T[0]]; const nS = Math.hypot(S[0], S[2]) || 1; S = [S[0] / nS, 0, S[2] / nS];
+      const Nn = [S[1]*T[2] - S[2]*T[1], S[2]*T[0] - S[0]*T[2], S[0]*T[1] - S[1]*T[0]];
+      const g = tw * u, cg = Math.cos(g), sg = Math.sin(g);             // a torcao ao longo
+      const S2 = [S[0]*cg + Nn[0]*sg, S[1]*cg + Nn[1]*sg, S[2]*cg + Nn[2]*sg];
+      const N2 = [Nn[0]*cg - S[0]*sg, Nn[1]*cg - S[1]*sg, Nn[2]*cg - S[2]*sg];
+      const w = W * Math.sin(Math.PI * Math.pow(u, 0.75)) + 0.004;
+      for(let v = -1; v <= 1; v++){
+        const calha = 0.35 * w * v * v;
+        m.pos.push(c0[0] + S2[0] * w * v + N2[0] * calha, c0[1] + S2[1] * w * v + N2[1] * calha, c0[2] + S2[2] * w * v + N2[2] * calha);
+        m.nor.push(N2[0], N2[1], N2[2]);
+        // a coordenada atravessada vai na FRACAO da fase: vBorda e alfa no shader, e a folha sumiria pelas beiras
+        m.alt.push(u); m.fase.push(k * 8 + tipo + (1 - Math.abs(v)) * 0.98); m.borda.push(1);
+      }
+      if(i < N) for(let v = 0; v < 2; v++){
+        const a = base + i * 3 + v, b2 = a + 3;
+        m.idx.push(a, b2, a + 1, a + 1, b2, b2 + 1);
+      }
+    }
+  }
+  if(!m.idx.length) return;
+  bFolhasP = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bFolhasP.pos, m.pos); enviar(bFolhasP.nor, m.nor); enviar(bFolhasP.alt, m.alt);
+  enviar(bFolhasP.fase, m.fase); enviar(bFolhasP.borda, m.borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhasP.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
+  nFolhasPIdx = m.idx.length;
+  // os tufos de folhas tambem sao planta para a abelha
+  for(const tf of tufos) ALVOS_ABELHA.push({ x: tf.c[0], y: 0.55, z: tf.c[2], cog: -1 });
+}
+
+const _pv = [0, 0, 0], _pv2 = [0, 0, 0];
+function andarVida(dt){
+  if(!VIDA_NA_FLORESTA || !bVida || vidaPresenca <= 0.004) return;
+  const T = relogio, pos = vida.pos, cor = vida.cor, dado = vida.dado;
+  const cic = T % 56, modo = cic < 22 ? 0 : cic < 34 ? 1 : cic < 48 ? 2 : 0;
+  const ox = ondeOOlhoEsta[0], oy = ondeOOlhoEsta[1], oz = ondeOOlhoEsta[2];   // o olho, guardado fora do desenho
+  // ── os vagalumes ──
+  for(let i = 0; i < VAGA_N; i++){
+    const v = VAGAS[i];
+    let tx, ty, tz, lag = v.lag;
+    if(modo === 0){
+      const w = T * 0.11 + v.fase;
+      tx = v.hx + Math.sin(w * 1.3) * 0.45 + Math.sin(w * 0.37 + 2.0) * 0.30;
+      ty = v.hy + Math.sin(w * 0.9 + 1.0) * 0.25;
+      tz = v.hz + Math.cos(w * 1.1) * 0.45 + Math.cos(w * 0.41 + 1.0) * 0.30;
+    } else if(modo === 1){
+      const a = v.fase + T * v.w;
+      tx = ox + Math.sin(a) * v.orb; tz = oz + Math.cos(a) * v.orb;
+      ty = Math.max(0.5, Math.min(2.3, oy - 0.45 + Math.sin(T * 0.5 + v.fase * 2.0) * 0.55));
+      lag = 0.45;
+    } else {
+      const u = (i / VAGA_N + T * 0.055) % 1, A = u * 6.2831;
+      tx = 2.2 * Math.sin(A) + 0.6 * Math.sin(3.0 * A + T * 0.3);
+      ty = 1.35 + 0.7 * Math.sin(2.0 * A + T * 0.5);
+      tz = -2.2 * Math.cos(A) + 0.6 * Math.cos(2.0 * A - T * 0.2);
+      lag = 0.32;
+    }
+    const k = 1 - Math.exp(-dt / lag);
+    v.x += (tx - v.x) * k + v.vx * dt; v.y += (ty - v.y) * k + v.vy * dt; v.z += (tz - v.z) * k + v.vz * dt;
+    const fr = Math.exp(-dt * 2.5); v.vx *= fr; v.vy *= fr; v.vz *= fr;
+    v.susto = Math.max(0, v.susto - dt / 0.7);
+    for(const m of MAOS){
+      if(!m.tem) continue;
+      const dx = v.x - m.x, dy = v.y - m.y, dz = v.z - m.z, d = Math.hypot(dx, dy, dz);
+      if(d < 0.24 && v.susto <= 0){
+        v.susto = 1; const n = d || 1e-3;
+        v.vx += dx / n * 1.6; v.vy += dy / n * 1.2 + 0.4; v.vz += dz / n * 1.6;
+        if(T - vagaSomEm > 0.3){ vagaSomEm = T; sinoDoToque(5, 0.5); abaixarTrilha(1.2); relato('TOCOU-UM-VAGALUME'); }
+      }
+    }
+    let pisca;
+    if(modo === 1){ const ph = T / 1.9 + v.fase * 0.16; pisca = Math.pow(Math.max(0, Math.sin(ph * 6.2831)), 5.0); }
+    else { const ph = T / v.periodo + v.fase; pisca = Math.pow(Math.max(0, Math.sin(ph * 6.2831)), 6.0); }
+    const brilho = 0.04 + pisca * (0.7 + 0.3 * v.tom) + v.susto * 1.2;
+    const o = i * 3;
+    pos[o] = v.x; pos[o+1] = v.y; pos[o+2] = v.z;
+    cor[o] = 1.0 - 0.2 * v.tom; cor[o+1] = 0.78 + 0.2 * v.tom; cor[o+2] = 0.30 + 0.1 * v.tom;
+    dado[i*2] = brilho; dado[i*2+1] = 0.045 + v.susto * 0.03;
+  }
+  // ── as formiguinhas ──
+  let o = VAGA_N * 3, q = VAGA_N * 2;
+  for(let i = 0; i < FORMIGA_N; i++){
+    const f = FORMIGAS[i], tr = f.tr;
+    const catando = 0.35 + 0.65 * Math.min(1, Math.max(0, 1.6 * Math.sin(T * 0.45 + f.fase) + 0.8));   // para de vez em quando
+    f.s += f.dir * f.v * catando * dt;
+    if(f.s > tr.L){ f.s = tr.L; f.dir = -1; } else if(f.s < 0){ f.s = 0; f.dir = 1; }
+    pontoNaTrilha(tr, f.s, _pv); pontoNaTrilha(tr, f.s + f.dir * 0.02, _pv2);
+    let tx = _pv2[0] - _pv[0], ty = _pv2[1] - _pv[1], tz = _pv2[2] - _pv[2]; const nt = Math.hypot(tx, ty, tz) || 1; tx /= nt; ty /= nt; tz /= nt;
+    let lx = tz, lz = -tx; const nl = Math.hypot(lx, lz) || 1; lx /= nl; lz /= nl;   // o lado: quem sobe vai por uma pista, quem desce pela outra
+    const desl = f.dir > 0 ? 0.016 : -0.016;
+    const bx = _pv[0] + lx * desl, by = _pv[1], bz = _pv[2] + lz * desl;
+    pos[o] = bx; pos[o+1] = by; pos[o+2] = bz;                                   // o corpo
+    pos[o+3] = bx + tx * 0.014; pos[o+4] = by + ty * 0.014; pos[o+5] = bz + tz * 0.014;   // a cabeca
+    if(f.carga){ cor[o] = 0.55; cor[o+1] = 0.95; cor[o+2] = 0.85; } else { cor[o] = 1.0; cor[o+1] = 0.60; cor[o+2] = 0.48; }
+    cor[o+3] = 1.0; cor[o+4] = 0.66; cor[o+5] = 0.52;
+    dado[q] = f.carga ? 0.9 : 0.65; dado[q+1] = f.carga ? 0.028 : 0.023;
+    dado[q+2] = 0.75; dado[q+3] = 0.018;
+    o += 6; q += 4;
+  }
+  // ── a abelha ──
+  const A = ABELHA;
+  if(A.fase === 'voando'){
+    const u = Math.min(1, (T - A.t0) / A.dur), s = u * u * (3 - 2 * u), h = Math.sin(Math.PI * u) * 0.35;
+    A.x = A.de[0] + (A.para[0] - A.de[0]) * s; A.y = A.de[1] + (A.para[1] - A.de[1]) * s + h; A.z = A.de[2] + (A.para[2] - A.de[2]) * s;
+    if(u >= 1){
+      A.fase = 'pousada'; A.ate = T + 2.0 + (A.alvo % 3) * 0.6;
+      const al = ALVOS_ABELHA[A.alvo];
+      if(al && al.cog >= 0){ cogPolenEm[al.cog] = T; sinoDoToque(3, 0.18); }
+    }
+  } else {
+    const al = ALVOS_ABELHA[A.alvo] || { x: A.x, y: A.y, z: A.z };
+    A.x = al.x + Math.cos(T * 2.6) * 0.06; A.y = al.y + 0.05 + Math.sin(T * 5.0) * 0.02; A.z = al.z + Math.sin(T * 2.6) * 0.06;
+    if(T > A.ate){
+      let prox = A.alvo; for(let k = 0; k < 6 && prox === A.alvo; k++) prox = Math.floor((0.5 + 0.5 * Math.sin(T * 7.3 + k * 2.9 + A.alvo)) * ALVOS_ABELHA.length) % ALVOS_ABELHA.length;
+      A.alvo = prox; const n = ALVOS_ABELHA[prox];
+      A.de = [A.x, A.y, A.z]; A.para = [n.x, n.y, n.z]; A.t0 = T;
+      A.dur = 1.2 + Math.hypot(n.x - A.x, n.y - A.y, n.z - A.z) / 1.1; A.fase = 'voando';
+    }
+  }
+  A.fuga = Math.max(0, A.fuga - dt);
+  for(const m of MAOS){
+    if(!m.tem || A.fuga > 0) continue;
+    const d = Math.hypot(A.x - m.x, A.y - m.y, A.z - m.z);
+    if(d < 0.22){
+      A.fuga = 1.5; A.de = [A.x, A.y, A.z]; const n = d || 1e-3;
+      A.para = [A.x + (A.x - m.x) / n * 0.9, Math.min(2.3, A.y + 0.7), A.z + (A.z - m.z) / n * 0.9];
+      A.t0 = T; A.dur = 0.7; A.fase = 'voando'; A.ate = 0;
+      if(T - abelhaSomEm > 1.0){ abelhaSomEm = T; sinoDoToque(4, 0.55); abaixarTrilha(1.4); relato('TOCOU-A-ABELHA'); }
+    }
+  }
+  const zx = Math.sin(T * 37.0) * 0.008, zy = Math.sin(T * 29.0) * 0.006, zz = Math.cos(T * 33.0) * 0.008;   // o zumbido
+  const bx = A.x + zx, by = A.y + zy, bz = A.z + zz;
+  if(T - A.ultimoRastro > 0.045){
+    A.ultimoRastro = T;
+    for(let k = ABELHA_RASTRO - 1; k > 0; k--){ A.rastro[k*3] = A.rastro[k*3-3]; A.rastro[k*3+1] = A.rastro[k*3-2]; A.rastro[k*3+2] = A.rastro[k*3-1]; }
+    A.rastro[0] = bx; A.rastro[1] = by; A.rastro[2] = bz;
+  }
+  pos[o] = bx; pos[o+1] = by; pos[o+2] = bz; cor[o] = 1.0; cor[o+1] = 0.92; cor[o+2] = 0.55; dado[q] = 1.1; dado[q+1] = 0.05;
+  const asa = Math.sin(T * 40.0), ax = Math.cos(T * 1.3) * 0.028, az = Math.sin(T * 1.3) * 0.028;   // as asas, uma e outra
+  pos[o+3] = bx + ax; pos[o+4] = by + 0.02; pos[o+5] = bz + az; cor[o+3] = 0.85; cor[o+4] = 0.95; cor[o+5] = 1.0; dado[q+2] = 0.35 + 0.35 * asa; dado[q+3] = 0.035;
+  pos[o+6] = bx - ax; pos[o+7] = by + 0.02; pos[o+8] = bz - az; cor[o+6] = 0.85; cor[o+7] = 0.95; cor[o+8] = 1.0; dado[q+4] = 0.35 - 0.35 * asa; dado[q+5] = 0.035;
+  o += 9; q += 6;
+  for(let k = 0; k < ABELHA_RASTRO; k++){
+    pos[o] = A.rastro[k*3]; pos[o+1] = A.rastro[k*3+1]; pos[o+2] = A.rastro[k*3+2];
+    cor[o] = 1.0; cor[o+1] = 0.85; cor[o+2] = 0.45; dado[q] = 0.35 * (1 - k / ABELHA_RASTRO); dado[q+1] = 0.022;
+    o += 3; q += 2;
+  }
+  enviar(bVida.pos, pos); enviar(bVida.cor, cor); enviar(bVida.dado, dado);
+}
+
+function desenharVida(mvp, escalaPonto){
+  if(!bVida || vidaPresenca <= 0.004) return;
+  gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false); gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(progVida); soltarAtributos();
+  mandarMvp(locVi.mvp, mvp);
+  gl.uniform1f(locVi.escalaPonto, escalaPonto);
+  gl.uniform1f(locVi.presenca, vidaPresenca);
+  ligar(aVi.pos, bVida.pos, 3); ligar(aVi.cor, bVida.cor, 3); ligar(aVi.dado, bVida.dado, 2);
+  gl.drawArrays(gl.POINTS, 0, VIDA_N);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+/* as folhas: solidas, dos dois lados, brotando com os cogumelos; a materia 22 */
+function desenharFolhasPadronadas(){
+  if(!bFolhasP || nFolhasPIdx <= 0 || vidaPresenca <= 0.004) return;
+  gl.useProgram(progSolida); soltarAtributos();
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+  bordaCheia();
+  gl.uniform1f(locSo.tempo, relogio);
+  gl.uniform3f(locSo.olhoPos, ondeOOlhoEsta[0], ondeOOlhoEsta[1], ondeOOlhoEsta[2]);
+  gl.uniform1f(locSo.inverte, 0.0);
+  gl.uniform3f(locSo.desloca, 0, 0, 0);
+  gl.uniform1f(locSo.brota, 1.0);
+  gl.uniform1f(locSo.ondula, 0.0);
+  gl.uniform1f(locSo.bolha, 0.0);
+  gl.uniform1f(locSo.balanca, 1.0);
+  gl.uniform1f(locSo.ondulaMao, 1.0);
+  gl.uniform1f(locSo.materia, 22.0);
+  gl.uniform1f(locSo.crescimento, cogumeloCresce);
+  gl.uniform1f(locSo.presenca, vidaPresenca);
+  gl.uniform4f(locSo.maoA, MAOS[0].x, MAOS[0].y, MAOS[0].z, MAOS[0].tem ? 1 : 0);
+  gl.uniform4f(locSo.maoB, MAOS[1].x, MAOS[1].y, MAOS[1].z, MAOS[1].tem ? 1 : 0);
+  ligar(aSo.pos, bFolhasP.pos, 3); ligar(aSo.nor, bFolhasP.nor, 3);
+  ligar(aSo.alt, bFolhasP.alt, 1); ligar(aSo.fase, bFolhasP.fase, 1); ligar(aSo.borda, bFolhasP.borda, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhasP.idx);
+  gl.drawElements(gl.TRIANGLES, nFolhasPIdx, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(locSo.ondulaMao, 0.0);
+  gl.uniform1f(locSo.materia, 0.0);
+  gl.enable(gl.CULL_FACE);
+}
+montarVida();        // 7.4: depende dos troncos (semearMata) e dos cogumelos
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarSeresDeLuz();  // 6.3
@@ -11557,6 +12052,7 @@ function seguirPartitura(dt){
      quando o mundo de papel sobe, junto com o retorno da floresta. */
   cogumeloCresce  = (c === 1) ? rampa(23, 57, t) * (1 - rampa(172, 180, t))
                   : (c === 4) ? rampa(530, 556, t) : 0;
+  vidaPresenca    = (VIDA_NA_FLORESTA && c === 1) ? rampa(34, 58, t) * (1 - rampa(176, 186, t)) : 0;   // 7.4
   asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
@@ -11781,6 +12277,18 @@ const trilha = document.getElementById('trilha');
    trabalha, em vez de depender de um estado que qualquer clique reverte. */
 const TEM_SOM = !!trilha;
 let volume = 0.16, somLigado = true, tocando = false;
+/* 7.4 -- A TRILHA ABAIXA QUANDO ALGO SOA ("o som da interacao esta ficando muito
+   baixo, o ambiente esta abafando"): cada gesto que soa pede a trilha pela
+   metade por um segundo e pouco, e ela volta devagar. E o ducking de radio. */
+let trilhaBaixaAte = -9, trilhaVolAgora = 0.16;
+function abaixarTrilha(seg){ trilhaBaixaAte = Math.max(trilhaBaixaAte, relogio + (seg || 1.6)); }
+function seguirTrilha(dt){
+  if(!TEM_SOM) return;
+  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0);
+  trilhaVolAgora += (alvo - trilhaVolAgora) * (1 - Math.exp(-dt * (alvo < trilhaVolAgora ? 10 : 1.2)));
+  const v = Math.max(0, Math.min(1, trilhaVolAgora));
+  if(Math.abs(trilha.volume - v) > 0.002) trilha.volume = v;
+}
 /* A TRILHA ENTRA SOZINHA — a obra esta montada, nao em construcao.
 
    Ficou desligada o tempo todo em que se trabalhou: som entrando a cada
@@ -11791,7 +12299,7 @@ let volume = 0.16, somLigado = true, tocando = false;
    Ela nao comeca no carregamento e sim no primeiro gesto, porque nenhum
    navegador deixa som comecar sozinho. No Quest, o proprio toque em
    "Iniciar em RM" ja serve: a trilha entra junto com a realidade mista. */
-if(TEM_SOM) trilha.volume = volume;
+if(TEM_SOM){ trilha.volume = volume; trilhaVolAgora = volume; }
 
 /* UM PEDIDO POR VEZ.
 
@@ -11836,7 +12344,7 @@ function acordarGestos(){
   if(!AC) return;
   try{ audio = new AC(); }catch(e){ audio = null; return; }
   somMestre = audio.createGain();
-  somMestre.gain.value = 0.35;
+  somMestre.gain.value = 0.50;   // 7.4: era 0,35 -- "o som esta ficando muito baixo"
   const teto = audio.createBiquadFilter();
   teto.type = 'lowpass'; teto.frequency.value = 1400; teto.Q.value = 0.5;
   somMestre.connect(teto); teto.connect(audio.destination);
@@ -11884,6 +12392,7 @@ const NOTAS = [130.81, 146.83, 164.81, 196.00, 220.00, 261.63];
 function sinoDoToque(nota, forca){
   if(audio && audio.state !== 'running') acordarGestos();
   if(!podeSoar()) return;
+  abaixarTrilha(1.6);   // 7.4
   const t0 = audio.currentTime, freq = NOTAS[nota % NOTAS.length];
   // o sopro: o ar antes do tom
   if(!ruidoCurto){
@@ -11897,7 +12406,7 @@ function sinoDoToque(nota, forca){
   fAr.type = 'bandpass'; fAr.frequency.value = freq * 2.0; fAr.Q.value = 6.0;
   const gAr = audio.createGain();
   gAr.gain.setValueAtTime(0.0001, t0);
-  gAr.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * 0.26), t0 + 0.010);
+  gAr.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * 0.34), t0 + 0.010);
   gAr.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.075);
   ar.connect(fAr); fAr.connect(gAr); gAr.connect(somMestre);
   ar.start(t0); ar.stop(t0 + 0.10);
@@ -11910,7 +12419,7 @@ function sinoDoToque(nota, forca){
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = 'sine'; o.frequency.value = freq * mult;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * peso * 0.075), t0 + sobe);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, forca * peso * 0.13), t0 + sobe);   // 7.4: era 0,075
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g); g.connect(somMestre);
     o.start(t0); o.stop(t0 + dur + 0.05);
@@ -12050,7 +12559,7 @@ bSom.onclick = ()=>{
 const sV = document.getElementById('sVol'), vV = document.getElementById('vVol');
 sV.addEventListener('input', ()=>{
   volume = sV.value/100;
-  if(TEM_SOM) trilha.volume = volume;
+  if(TEM_SOM){ trilha.volume = volume; trilhaVolAgora = volume; }
   vV.textContent = sV.value+'%';
 });
 
@@ -12886,7 +13395,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                bolha:uSo('bolha'), lamina:uSo('lamina'),
                serpente:uSo('serpente'), serpentes:uSo('serpentes[0]'),
                corrente:uSo('corrente'),
-               maoA:uSo('maoA'), maoB:uSo('maoB'), faseExtra:uSo('faseExtra')};
+               maoA:uSo('maoA'), maoB:uSo('maoB'), faseExtra:uSo('faseExtra'),
+               cogToque:uSo('cogToque[0]'), ondulaMao:uSo('ondulaMao'), maeXZ:uSo('maeXZ')};   // 7.4
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -13400,6 +13910,13 @@ function mandarMvp(loc, m){
    no cenario da deusa, onde a mata do chao esta em zero, sozinhos. Pede
    o progSolida ja ligado, com mvp, tempo, olho e focos no lugar. */
 function desenharCogumelos(){
+  /* 7.4: quanto cada cogumelo esta tocado agora -- sobe em 0,35 s, cai em uns seis;
+     a abelha pousada vale metade. O shader troca a cor por isto. */
+  for(let k = 0; k < 13; k++){
+    const f = x => x < 0 ? 0 : x < 0.35 ? x / 0.35 : Math.max(0, 1 - (x - 0.35) / 5.5);
+    cogToqueArr[k] = Math.max(f(relogio - (ultimoToqueEm['cogumelo-' + k] || -99)), 0.55 * f(relogio - cogPolenEm[k]));
+  }
+  gl.uniform1fv(locSo.cogToque, cogToqueArr);
   /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
      o pe POR DENTRO do chapeu -- e ver dentro de uma coisa opaca nao le
      como transparencia, le como defeito. O perfil dobra e fecha, entao
@@ -13462,7 +13979,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      desenhos que o mostram. Vivia dentro do desenho das superficies, que
      no cosmos nao acontece (nao ha mata la): o planeta rosa era tocado e
      o pulso nunca andava. */
-  toqueLuz[3] = Math.min(1.0, (relogio - toqueEm) / 1.4);
+  toqueLuz[3] = Math.min(1.0, (relogio - toqueEm) / 1.9);   // 7.4: 1,4 -> 1,9 s, o pulso dura mais
 
   // Eixos da câmera no mundo, tirados da matriz de visão. Como ela é a
   // rotação invertida, as LINHAS dela são os eixos da câmera: linha 0 é
@@ -13967,6 +14484,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(presencaMata > 0.004){
       // a veia da mae acende com a mao chegando (23/09); so a materia 15 le
       gl.uniform1f(locSo.veiaPerto, chamadoDe('mae'));
+      // 7.4: as maos chegam a casca -- as veias acendem onde a mao passa, e a arvore respira
+      gl.uniform4f(locSo.maoA, MAOS[0].x, MAOS[0].y, MAOS[0].z, MAOS[0].tem ? 1 : 0);
+      gl.uniform4f(locSo.maoB, MAOS[1].x, MAOS[1].y, MAOS[1].z, MAOS[1].tem ? 1 : 0);
+      gl.uniform2f(locSo.maeXZ, ARVORE_BASE[0], ARVORE_BASE[2]);
       ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
       ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
@@ -14069,6 +14590,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     if(COGUMELOS_NO_CHAO && nCogumelosIdx > 0 && nCogumeloLuzIdx > 0
         && cogumeloCresce > 0.004)
       desenharCogumelos();
+    /* A VIDA MIUDA (7.4): as folhas padronadas (solidas) e os pontos vivos, depois
+       de tudo o que e solido aqui -- os pontos testam profundidade e nao a escrevem. */
+    if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharVida(mvp, escalaPonto); }
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
@@ -15905,9 +16429,11 @@ function quadro(){
   pitch += (tPitch-pitch)*kc;
   relogio += dt;
   seguirPartitura(dt);
+  seguirTrilha(dt);   // 7.4
   pintarPartitura();
   contarQuadro();
   andarGlitter(dt);
+  andarVida(dt);   // 7.4
   maoDoCelular(dt);    // 7.0: o dedo vira a mao
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
   gestoNoAr(dt);
@@ -15996,6 +16522,7 @@ function quadroXR(t, frame){
   baterNosPlanetas(dt);      // 6.9
   andarPlanetasSoltos(dt);
   andarGlitter(dt);
+  andarVida(dt);   // 7.4
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
      capacete nao ha como olhar variavel nenhuma, e sem isto a diferenca
@@ -16009,6 +16536,7 @@ function quadroXR(t, frame){
   }
   relogio += dt;
   seguirPartitura(dt);
+  seguirTrilha(dt);   // 7.4
   contarQuadro();
 
   /* so quando muda: escrever no DOM a cada quadro faz o navegador recalcular
