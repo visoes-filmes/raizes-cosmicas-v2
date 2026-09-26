@@ -182,6 +182,12 @@ se leem com `git log -1` e no `sw.js` — não se escrevem aqui, envelhecem.
 - **segurança antes de efeito**: em nenhum cenário o céu, as deusas ou o papel podem tapar o chão ou a linha dos olhos (6.6) — quem está de óculos precisa ver onde pisa;
 - o padrão de instalação desta seção 1 é conferido em todo PC novo (`fontes/conferir_pc.py`), e o que faltar é **pedido** a ela.
 
+**Quest com a tela preta depois do logo (25/09):** não era defeito, era a **máscara facial nova**
+tampando o sensor de proximidade entre as lentes — a tela só acende quando o sensor sente o rosto,
+e a máscara o cobria. Antes de reiniciar ou pensar em reset, tire a máscara (ou afaste-a do
+sensor) e ponha o capacete. Reiniciar (20 s no botão) não resolve isso; o logo aparece e a tela
+escurece de novo.
+
 ## 4. Como se trabalha
 
 ```bash
