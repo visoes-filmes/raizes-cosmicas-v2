@@ -527,11 +527,25 @@ def args_do_giro():
     return [f"--angle={a:g}"] if abs(a) > 0.05 else []
 
 
-def args_da_rede(serial):
-    """Pela Wi-Fi (serial ip:5555) o video vai mais leve: a rede do modem 4G
-    (UFI, 2,4 GHz) e dividida com o proprio oculos. 4 Mbps a 30 quadros cabe
-    folgado; pelo cabo, o padrao do scrcpy."""
-    return ["--video-bit-rate=4M", "--max-fps=30"] if serial and ":" in serial else []
+def args_da_rede(serial, projetor=False):
+    """O video do oculos conforme o caminho (26/09: "faca um buffer para
+    funcionar melhor no wifi; o projetor e full hd").
+
+    PELA WI-FI (serial ip:5555, a rede do modem 4G UFI, 2,4 GHz, dividida com
+    o proprio oculos): um BUFFER segura os quadros 200 ms (250 no projetor)
+    antes de mostrar -- as rajadas e buracos da Wi-Fi viram atraso constante
+    em vez de engasgo; 8 Mbps a 30 quadros e o que um Full HD pede sem
+    estourar a rede; e um quadro-chave por segundo (i-frame-interval=1) faz a
+    imagem se recompor em 1 s quando um pacote se perde, em vez de borrar ate
+    o proximo. O atraso total fica perto de meio segundo: para quem assiste
+    na tela, nao se nota; para quem esta de oculos, a projecao nao conta.
+
+    PELO CABO: sem buffer; no projetor, 12 Mbps (Full HD com folga)."""
+    wifi = bool(serial and ":" in serial)
+    if wifi:
+        return ["--video-bit-rate=8M", "--max-fps=30", f"--video-buffer={250 if projetor else 200}",
+                "--video-codec-options=i-frame-interval=1"]
+    return ["--video-bit-rate=12M"] if projetor else []
 
 
 def fechar_espelhos():
@@ -682,7 +696,8 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         # horizontal, como a pagina ja fazia
         if espelhar:
             args += ["--display-orientation=flip0"]
-        args += args_do_giro() + [x for x in args_da_rede(s) if not x.startswith('--max-fps')]
+        # o projetor e Full HD: o olho recortado (1816 x 1020) vai inteiro, sem reduzir
+        args += ["--max-size=1920"] + args_do_giro() + [x for x in args_da_rede(s, projetor=True) if not x.startswith('--max-fps')]
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
         if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
