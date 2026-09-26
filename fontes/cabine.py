@@ -84,6 +84,7 @@ ESTADO = {
 }
 OUVINTES = []            # filas dos clientes do /eventos (a pagina de projecao)
 PROJECAO = None          # o processo da projecao (navegador em quiosque ou scrcpy)
+PROJECAO_PEDIDA = None   # (o ultimo pedido, quando) -- para o clique repetido nao reiniciar
 TRAVA = threading.Lock()
 ADB = None
 SERVIDOR_OBRA = None
@@ -547,8 +548,13 @@ def args_da_rede(serial, projetor=False):
         # 26/09: "conseguimos reduzir um pouco a resolucao para melhorar o
         # lag?" -- pelo ar, 1280 de largura (o projetor amplia para Full HD):
         # 55 % menos pixels para codificar no oculos e passar pela Wi-Fi.
-        return ["--max-size=1280", "--video-bit-rate=6M", "--max-fps=30", f"--video-buffer={250 if projetor else 200}",
-                "--video-codec-options=i-frame-interval=1"]
+        # 26/09, a tarde: "esta piscando o espelhamento". Era o quadro-chave a cada
+        # segundo (i-frame-interval=1): na Wi-Fi do modem (ping de 9 a 214 ms) o
+        # quadro grande chegava atrasado todo segundo e a imagem piscava no mesmo
+        # ritmo. Volta o intervalo padrao do scrcpy; o buffer sobe para 400 ms no
+        # projetor (cobre os picos da rede; a plateia nao sente atraso) e a taxa
+        # desce para 5 Mbps, sem rajadas.
+        return ["--max-size=1280", "--video-bit-rate=5M", "--max-fps=30", f"--video-buffer={400 if projetor else 250}"]
     return ["--video-bit-rate=12M"] if projetor else []
 
 
@@ -639,7 +645,15 @@ def achar_navegador():
 
 def projetar(saida, monitor, espelhar=False, recorte=""):
     """saida: 'pagina' (a agua da tela, projecao.html) ou 'espelho' (scrcpy, o que o oculos ve)."""
-    global PROJECAO
+    global PROJECAO, PROJECAO_PEDIDA
+    # 26/09: tres cliques em Projetar em tres segundos reiniciavam o espelho tres vezes
+    # (pela Wi-Fi ele leva uns segundos para aparecer, e parecia que o botao nao fazia
+    # nada). O mesmo pedido repetido em menos de 10 s, com o anterior vivo, e ignorado.
+    pedido = (saida, monitor, bool(espelhar), recorte)
+    if (PROJECAO_PEDIDA and PROJECAO_PEDIDA[0] == pedido and time.time() - PROJECAO_PEDIDA[1] < 10
+            and PROJECAO and PROJECAO.poll() is None):
+        return {"ok": True, "resposta": "já está abrindo — pela Wi-Fi leva alguns segundos"}
+    PROJECAO_PEDIDA = (pedido, time.time())
     parar_projecao()
     lista = ESTADO["monitores"] or monitores()
     # JANELA DE TESTE (25/09): "e so pra saber se vai funcionar, depois vamos
@@ -1110,6 +1124,9 @@ def luz_parar():
 
 def luz_ligar(modo="segue", via="auto"):
     luz_parar()
+    # 26/09: quatro pontes orfas (de Cabines fechadas pelo X do Terminal) consultavam o
+    # oculos pelo DevTools a cada 3 s, pela mesma Wi-Fi do espelho. Uma ponte so.
+    rodar(["pkill", "-f", "fontes/luz-segue-cena.mjs"], timeout=5)
     time.sleep(0.5)
     via = via_da_luz() if via == "auto" else via
     log_f = open(LUZ_LOG, "a", encoding="utf-8")
@@ -1391,6 +1408,15 @@ def main():
     if not os.path.exists(os.path.join(RAIZ, "index.html")):
         ESTADO["avisos"].append("não há index.html: rode python fontes/montar_mr.py")
     log(f"cabine de pé (adb: {ADB})")
+    # 26/09: nada da luz sobra de uma Cabine anterior; e fechar o Terminal (SIGHUP) ou um
+    # kill (SIGTERM) encerram a luz e o espelho junto, em vez de deixa-los orfaos
+    rodar(["pkill", "-f", "fontes/luz-segue-cena.mjs"], timeout=5)
+    import signal
+    for sig in (signal.SIGHUP, signal.SIGTERM):
+        try:
+            signal.signal(sig, lambda *_: encerrar_tudo())
+        except Exception:
+            pass
     threading.Thread(target=sincronizar_sempre, daemon=True).start()
     if os.path.exists(os.path.join(RAIZ, "proxima.html")):   # uma proxima ja preparada antes
         PROXIMA.update(estado="pronta", msg="preparada antes — abra no Quest para conferir")
