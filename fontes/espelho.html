@@ -84,6 +84,7 @@
   <label>lente k1    <input type="range" id="k1"   min="-0.8" max="0.8" step="0.01"><output id="oK1"></output></label>
   <label>lente k2    <input type="range" id="k2"   min="-0.5" max="0.5" step="0.01"><output id="oK2"></output></label>
   <label>suavidade   <input type="range" id="suave" min="0.2" max="2.5" step="0.05"><output id="oSuave"></output></label>
+  <label>resposta    <input type="range" id="resposta" min="0" max="20" step="0.5"><output id="oResposta"></output></label>
   <label>margem      <input type="range" id="margem" min="1.05" max="1.40" step="0.01"><output id="oMargem"></output></label>
   <div class="botoes">
     <button class="primario" id="bCap">Capturar o espelho</button>
@@ -106,13 +107,14 @@ const $ = (id) => document.getElementById(id);
 const PARAM = new URLSearchParams(location.search);
 const AUTO = PARAM.get('auto') === '1';          // modo projetor: aberto pela Cabine
 const CHAVE = AUTO ? 'raizes-espelho-projetor' : 'raizes-espelho-alinhado';
-const PADRAO = { ang:0, zoom:1, dx:0, dy:0, k1:0, k2:0, espelhar:false, estab:AUTO, suave:0.9, margem:1.15 };
+const PADRAO = { ang:0, zoom:1, dx:0, dy:0, k1:0, k2:0, espelhar:false, estab:AUTO, suave:0.9, resposta:6, margem:1.22 };
 let A = Object.assign({}, PADRAO);
 try{ Object.assign(A, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }catch(e){}
 const guardar = () => { try{ localStorage.setItem(CHAVE, JSON.stringify(A)); }catch(e){} };
 
 const CAMPOS = { ang:[v=>v.toFixed(1)+'°'], zoom:[v=>v.toFixed(2)+'×'], dx:[v=>v.toFixed(3)], dy:[v=>v.toFixed(3)],
-                 k1:[v=>v.toFixed(2)], k2:[v=>v.toFixed(2)], suave:[v=>v.toFixed(2)+' s'], margem:[v=>v.toFixed(2)+'×'] };
+                 k1:[v=>v.toFixed(2)], k2:[v=>v.toFixed(2)], suave:[v=>v.toFixed(2)+' s'], resposta:[v=>v.toFixed(1)],
+                 margem:[v=>v.toFixed(2)+'×'] };
 if (PARAM.get('estab') === '1') A.estab = true;
 if (PARAM.get('espelhar') === '1') A.espelhar = true; else if (PARAM.get('espelhar') === '0') A.espelhar = false;
 function mostrar(){
@@ -197,7 +199,21 @@ function quadro(){
 requestAnimationFrame(quadro);
 
 /* ── o estabilizador (26/09) ───────────────────────────────────────────── */
-const EST = { N:128, M:64, P:[0,0], S:[0,0], corr:[0,0], t0:0, conf:0, pulo:0, quadros:0,
+/* O FILTRO "1 EURO" (26/09, "o delay ta bem forte... tente estabilizar mais"). O alisado
+   de antes era um so: forte no tremor, mas atrasado quase um segundo quando a cabeca virava
+   de verdade. Este muda o corte com a velocidade: parado ou tremendo (a velocidade media
+   do tremor e quase zero, porque vai e volta), o corte e baixo -- a imagem fica quieta;
+   virando a cabeca (velocidade sustentada), o corte sobe -- a imagem acompanha logo.
+   suave = o alisado com a cabeca parada (s); resposta = quanto a velocidade abre o corte. */
+function umEuro(f, x, dt, corteMin, beta){
+  const alfa = (corte) => { const tau = 1 / (2 * Math.PI * corte); return 1 / (1 + tau / dt); };
+  if (f.x === undefined){ f.x = x; f.cru = x; f.dx = 0; return x; }
+  const dxCru = (x - f.cru) / dt; f.cru = x;
+  f.dx += (dxCru - f.dx) * alfa(1.0);
+  f.x += (x - f.x) * alfa(corteMin + beta * Math.abs(f.dx));
+  return f.x;
+}
+const EST = { N:128, M:64, P:[0,0], S:[0,0], corr:[0,0], t0:0, conf:0, pulo:0, quadros:0, filtros:[{}, {}],
               re:null, im:null, r0:null, i0:null, cr:null, ci:null, jan:null, ctx:null, tab:{} };
 (function preparar(){
   const N = EST.N, M = EST.M, n = N * M;
@@ -270,14 +286,15 @@ function analisar(){
   }
   if (!EST.r0){ EST.r0 = new Float32Array(n); EST.i0 = new Float32Array(n); }
   EST.r0.set(re); EST.i0.set(im);
-  // o caminho alisado, e a correcao presa dentro da margem
-  const k = 1 - Math.exp(-dt / Math.max(0.05, A.suave));
+  // o caminho alisado pelo 1 euro, e a correcao presa dentro da margem
+  const corteMin = 1 / (2 * Math.PI * Math.max(0.05, A.suave));
   const lim = (1 - 1 / A.margem) / 2 * 0.95;
   for (let a = 0; a < 2; a++){
-    EST.S[a] += (EST.P[a] - EST.S[a]) * k;
+    EST.S[a] = umEuro(EST.filtros[a], EST.P[a], Math.max(1e-3, dt), corteMin, A.resposta);
     let c = EST.P[a] - EST.S[a];
     c = Math.max(-lim, Math.min(lim, c));
     EST.S[a] = EST.P[a] - c;          // o alisado nunca deixa a correcao sair da margem
+    EST.filtros[a].x = EST.S[a];
     EST.corr[a] = c;
   }
   EST.quadros++;
@@ -299,7 +316,7 @@ async function capturar(){
     const fluxo = await navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:{ ideal:60 }, cursor:'never' }, audio:false });
     video.srcObject = fluxo; await video.play();
     $('vazio').style.display = 'none'; aoVivo = true; mostrarAnimacao(false);
-    EST.r0 = null; EST.P = [0, 0]; EST.S = [0, 0]; EST.corr = [0, 0];
+    EST.r0 = null; EST.P = [0, 0]; EST.S = [0, 0]; EST.corr = [0, 0]; EST.filtros = [{}, {}];
     if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(aCadaQuadroNovo); else aCadaQuadroNovo();
     fluxo.getVideoTracks()[0].addEventListener('ended', () => { aoVivo = false; mostrarAnimacao(true); $('vazio').style.display = 'flex'; });
   }catch(e){

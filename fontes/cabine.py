@@ -591,7 +591,11 @@ def args_da_rede(serial, projetor=False):
         # ritmo. Volta o intervalo padrao do scrcpy; o buffer sobe para 400 ms no
         # projetor (cobre os picos da rede; a plateia nao sente atraso) e a taxa
         # desce para 5 Mbps, sem rajadas.
-        return ["--max-size=1280", "--video-bit-rate=5M", "--max-fps=30", f"--video-buffer={400 if projetor else 250}"]
+        # 26/09, mais tarde: "estabilizou, mas o delay ta bem forte; pode reduzir um pouco a
+        # qualidade". O buffer de 400 ms somava quase meio segundo. Agora 1024 de largura e
+        # 4 Mbps (menos para codificar no oculos e para passar pela rede) e 120 ms de buffer
+        # no projetor (60 na janela do Mac, que alimenta o espelho estabilizado).
+        return ["--max-size=1024", "--video-bit-rate=4M", "--max-fps=30", f"--video-buffer={120 if projetor else 60}"]
     return ["--video-bit-rate=12M"] if projetor else []
 
 
