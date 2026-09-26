@@ -379,9 +379,46 @@ LEITURA = ("(function(){var q=function(i){var e=document.getElementById(i);retur
            "tela:(window.raizes&&raizes.tela)?raizes.tela.onde():null}})()")
 
 
+# ── seis ou dez minutos (26/09) ─────────────────────────────────────────
+# "Coloca um controle de tempo pra gente poder alterar o tempo da experiencia, um de
+# 6 minutos e 10 minutos." A escolha fica guardada aqui (por maquina), vai no endereco
+# ao abrir a obra (?min=6|10) e, com a obra aberta e o portao a vista, e aplicada na
+# hora pelo gancho raizes.duracao(). A obra so tem o controle a partir da versao que
+# o trouxe (ramo proxima-deusas-rosa); nas anteriores o endereco e ignorado.
+DURACAO_ARQ = os.path.join(AQUI, "duracao_min.txt")
+
+
+def minutos_escolhidos():
+    try:
+        m = int(open(DURACAO_ARQ).read().strip())
+        return m if m in (6, 10) else 10
+    except Exception:
+        return 10
+
+
+def escolher_duracao(minutos):
+    if minutos not in (6, 10):
+        return {"ok": False, "erro": "so 6 ou 10 minutos"}
+    if experiencia_acontecendo():
+        return {"ok": False, "erro": "no meio da obra não muda — escolha quando o portão voltar"}
+    with open(DURACAO_ARQ, "w") as f:
+        f.write(str(minutos))
+    with TRAVA:
+        ESTADO["duracao_min"] = minutos
+    resposta = f"{minutos} minutos: valem na próxima vez que a obra abrir"
+    if ESTADO["obra"].get("aba"):
+        r, e = avaliar(f"(window.raizes&&raizes.duracao)?raizes.duracao({minutos}):'sem controle'")
+        if r == minutos:
+            resposta = f"{minutos} minutos: já valem para a próxima pessoa"
+        elif r == "sem controle":
+            resposta = f"{minutos} minutos guardados — esta versão da obra ainda não tem o controle (chega com a próxima)"
+    relatar("duração: " + resposta)
+    return {"ok": True, "resposta": resposta}
+
+
 def abrir_no_quest(serial, versao):
     arquivo = VERSOES.get(versao, "")
-    url = f"http://localhost:{PORTA_OBRA}/{arquivo}"
+    url = f"http://localhost:{PORTA_OBRA}/{arquivo}?min={minutos_escolhidos()}"
     aba = aba_da_obra()
     if aba:
         avaliar(f"location.href={json.dumps(url)}; 'indo'")
@@ -563,7 +600,7 @@ def fechar_espelhos():
     rodar(["pkill", "-f", "scrcpy.*Quest"], timeout=5) if MAC else None
 
 
-def espelhar(serial):
+def espelhar(serial, geometria=None):
     exe = achar_scrcpy()
     if not exe:
         return {"ok": False, "erro": "scrcpy não está instalado nesta máquina (winget install Genymobile.scrcpy)"}
@@ -571,7 +608,10 @@ def espelhar(serial):
     # o servidor um do outro -- e com ele os túneis.
     amb = dict(os.environ, ADB=ADB)
     corte = recorte_de_um_olho(serial)
-    subprocess.Popen([exe, "-s", serial] + ([] if ":" in serial else ["--max-size", "1280"]) + ["--no-audio",
+    # geometria (x, y, w, h): a janela-fonte do espelho estabilizado, num canto do Mac
+    geo = ([f"--window-x={geometria[0]}", f"--window-y={geometria[1]}", f"--window-width={geometria[2]}",
+            f"--window-height={geometria[3]}"] if geometria else [])
+    subprocess.Popen([exe, "-s", serial] + geo + ([] if ":" in serial else ["--max-size", "1280"]) + ["--no-audio",
                       "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro() + args_da_rede(serial),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
@@ -694,6 +734,34 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
                                      "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
                                     creationflags=SEM_JANELA)
         relatar(f"projeção (página) aberta {onde} {w}x{h}" + (" espelhada" if espelhar else ""))
+    elif saida == "estavel":
+        # O ESPELHO ESTABILIZADO (26/09): "ainda esta oscilando a imagem do espelhamento".
+        # A imagem balanca com a cabeca de quem esta de oculos (medido: 6 a 12 % da largura
+        # entre fotos de 0,15 s). A pagina fontes/espelho.html (?auto=1) captura a janela
+        # "Quest — espelho" do Mac, mede o pulo quadro a quadro e o desfaz, ficando so o
+        # movimento lento. O Chrome escolhe a janela sozinho e a Cabine dispara a captura
+        # pelo DevTools dele (porta 9333), com gesto. Pede, uma vez, a permissao de Gravacao
+        # de Tela do Chrome nos Ajustes do Mac.
+        s = ESTADO["quest"]["escolhido"]
+        nav = achar_navegador()
+        if not s:
+            return {"ok": False, "erro": "nenhum Quest ao alcance para espelhar"}
+        if not nav:
+            return {"ok": False, "erro": "não achei Chrome nem Edge para a projeção estabilizada"}
+        if not rodar(["pgrep", "-f", "window-title Quest — espelho"], timeout=5)[0].strip():
+            principal = next((m for m in lista if m.get("principal")), {"x": 0, "y": 0, "w": 1440, "h": 900})
+            espelhar(s, (principal.get("x", 0) + principal.get("w", 1440) - 980, principal.get("y", 0) + 60, 960, 540))
+            time.sleep(3)
+        perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+        url = (f"http://localhost:{PORTA_OBRA}/fontes/espelho.html?auto=1&estab=1&espelhar={'1' if espelhar else '0'}")
+        modo = [f"--app={url}"] if janela else ["--kiosk", url]
+        PROJECAO = subprocess.Popen([nav, f"--window-position={x},{y}", f"--window-size={w},{h}",
+                                     f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
+                                     "--remote-debugging-port=9333", "--auto-select-desktop-capture-source=Quest — espelho",
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
+                                    creationflags=SEM_JANELA)
+        threading.Thread(target=disparar_captura_estavel, daemon=True).start()
+        relatar(f"projeção (espelho estabilizado) aberta {onde}" + (", espelhada" if espelhar else ""))
     elif saida == "espelho":
         s = ESTADO["quest"]["escolhido"]
         exe = achar_scrcpy()
@@ -729,6 +797,25 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
                               "monitor": "janela de teste" if janela else alvo.get("nome")}
     return {"ok": True}
+
+
+def disparar_captura_estavel():
+    """Espera a pagina do projetor subir e dispara a captura da janela do espelho, com gesto."""
+    amb = dict(os.environ, CDP_PORTA="9333")
+    for _ in range(20):
+        time.sleep(1)
+        try:
+            abas_p = json.loads(urlopen("http://localhost:9333/json", timeout=2).read())
+        except Exception:
+            continue
+        if not any("espelho.html" in a.get("url", "") for a in abas_p):
+            continue
+        saida, cod = rodar(["node", os.path.join(AQUI, "quest_eval.mjs"), "espelho.html",
+                            "capturar().then(()=>aoVivo?'ao vivo':document.getElementById('vazio').textContent)", "gesto"],
+                           timeout=20, cwd=RAIZ, env=amb)
+        relatar("espelho estabilizado: " + (saida.strip().strip('"')[:160] or "sem resposta"))
+        return
+    relatar("espelho estabilizado: a página do projetor não respondeu no DevTools (9333)")
 
 
 def parar_projecao():
@@ -976,6 +1063,8 @@ def agir(nome, dados):
         with TRAVA:
             ESTADO["proxima"] = dict(PROXIMA)
         return r
+    elif nome == "duracao":
+        return escolher_duracao(int(dados.get("min", 10)))
     elif nome == "atualizar":
         r = sincronizar("botão")
         with TRAVA:
@@ -1418,6 +1507,7 @@ def main():
         except Exception:
             pass
     threading.Thread(target=sincronizar_sempre, daemon=True).start()
+    ESTADO["duracao_min"] = minutos_escolhidos()
     if os.path.exists(os.path.join(RAIZ, "proxima.html")):   # uma proxima ja preparada antes
         PROXIMA.update(estado="pronta", msg="preparada antes — abra no Quest para conferir")
         ESTADO["proxima"] = dict(PROXIMA)

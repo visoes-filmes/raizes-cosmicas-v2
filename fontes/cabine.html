@@ -160,6 +160,13 @@
       </div>
       <button onclick="acao('abrir',{versao:versao()})"><svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>Abrir no Quest</button>
     </div>
+    <!-- 26/09: seis ou dez minutos -->
+    <div class="linha" style="margin-top:8px">
+      <span class="nota">duração da obra</span>
+      <button class="durBt" id="dur6" onclick="acao('duracao',{min:6})" title="o roteiro inteiro em seis minutos reais">6 min</button>
+      <button class="durBt" id="dur10" onclick="acao('duracao',{min:10})" title="o roteiro inteiro em dez minutos reais">10 min</button>
+      <span class="nota" id="durInfo">só muda com o portão à vista</span>
+    </div>
     <div class="linha">
       <button class="primario" style="font-size:16px;padding:12px 18px" onclick="acao('iniciar')"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Iniciar em RM</button>
       <button onclick="acao('escanear')" title="abre a Configuração de Espaço do Quest por cima da sessão; a obra já pede sozinha se em 6 s não vier plano nenhum">Escanear o espaço</button>
@@ -210,6 +217,7 @@
       <div class="seg" id="saidas">
         <label><input type="radio" name="saida" value="pagina" checked><span>tela: desenho + água</span></label>
         <label><input type="radio" name="saida" value="espelho"><span>espelho do óculos</span></label>
+        <label><input type="radio" name="saida" value="estavel"><span>espelho estabilizado</span></label>
       </div>
       <select id="monitor" style="background:#0f121b;color:var(--texto);border:1px solid var(--borda);border-radius:9px;padding:9px"><option value="auto">monitor: o que não é o principal</option></select>
     </div>
@@ -330,7 +338,7 @@ function desenharProjecao(e){
       '<option value="janela">janela de teste (redimensionável)</option>';
     if ([...sel.options].some(o=>o.value===atual)) sel.value = atual;
   }
-  $('prEstado').textContent = pr.ativa ? `ligada · ${pr.saida==='pagina'?'tela: desenho + água':'espelho do óculos'} · ${pr.monitor||''}${pr.espelhar?' · espelhada':''}` : 'desligada';
+  $('prEstado').textContent = pr.ativa ? `ligada · ${{pagina:'tela: desenho + água', espelho:'espelho do óculos', estavel:'espelho estabilizado'}[pr.saida]||pr.saida} · ${pr.monitor||''}${pr.espelhar?' · espelhada':''}` : 'desligada';
   $('prEstado').style.color = pr.ativa ? 'var(--ok)' : '';
   if (tl && typeof tl === 'object'){
     $('tlEstado').textContent = tl.pronta ? `cravada (${tl.origem})${tl.presenca>0.01?' · acesa '+Math.round(tl.presenca*100)+'%':' · apagada'}${tl.forcar===true?' · forçada':tl.forcar===false?' · forçada apagada':''}` : (tl.cravando ? `esperando o canto ${tl.cravando===2?'da direita':'da esquerda'}…` : 'não cravada');
@@ -358,6 +366,15 @@ async function acao(nome, dados){
 function pill(id, classe, texto){ const p=$(id); p.className='pill '+classe; p.lastChild.textContent = texto; }
 
 function desenhar(){
+  { // 26/09: seis ou dez minutos — a escolha acesa, travada no meio da obra
+    const o = estado.obra || {}, onde = o.onde || {};
+    const acontecendo = !!(o.aba && !o.portao && onde.andando);
+    const esc = estado.duracao_min || 10;
+    for (const m of [6, 10]){ const b = $('dur' + m); if (!b) continue;
+      b.classList.toggle('primario', esc === m); b.disabled = acontecendo; }
+    $('durInfo').textContent = acontecendo ? 'no meio da obra não muda'
+      : (onde.min ? 'a obra está em ' + onde.min + ' min' : 'escolhido: ' + esc + ' min');
+  }
   { // 26/09: a próxima versão — botões travados enquanto a experiência acontece
     const o = estado.obra || {}, onde = o.onde || {};
     const acontecendo = !!(o.aba && !o.portao && onde.andando);
