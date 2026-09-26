@@ -10075,6 +10075,25 @@ const bEstrelasCeu = criarBufs(['pos','cor','dado']), bPoeiraCeu = criarBufs(['p
 let nEstrelasCeu = 0, nPoeiraCeu = 0;
 const bFila = criarBufs(['pos','curva','idx']);
 let nFilaIdx = 0;
+/* AS ESTRELAS NO CHAO -- 8.6 (26/09: "lembre que tem que ter estrelas no chao tambem").
+   No cosmos, 420 estrelas miudas deitadas no chao real, de meio metro a cinco e meio,
+   cintilando como as do ceu pelo mesmo progPo: pontos esparsos, o chao continua sendo
+   a sala (seguranca), mas a pessoa esta no espaco. Entram e saem com os planetas. */
+const bEstrelasChao = criarBufs(['pos','cor','dado']);
+let nEstrelasChao = 0;
+function montarEstrelasDoChao(){
+  const rnd = prng(8600), pos = [], cor = [], dado = [];
+  const tons = [[1.0, 1.0, 1.0], [0.72, 0.84, 1.0], [1.0, 0.86, 0.60], [1.0, 0.74, 0.86]];
+  for(let k = 0; k < 420; k++){
+    const a = rnd() * Math.PI * 2, r = 0.5 + Math.sqrt(rnd()) * 5.0, forca = Math.pow(rnd(), 3.0);
+    const tom = tons[Math.floor(rnd() * tons.length)], luz = 0.30 + 0.90 * forca;
+    pos.push(Math.sin(a) * r, 0.012, -Math.cos(a) * r);
+    cor.push(tom[0] * luz, tom[1] * luz, tom[2] * luz);
+    dado.push(rnd(), 0.010 + 0.024 * forca);
+  }
+  enviar(bEstrelasChao.pos, pos); enviar(bEstrelasChao.cor, cor); enviar(bEstrelasChao.dado, dado);
+  nEstrelasChao = pos.length / 3;
+}
 function montarCeuEmCamadas(){
   const rnd = prng(6400);
   const direcao = () => {                       // uniforme no hemisferio de cima
@@ -11699,6 +11718,7 @@ function montarArcos(){
   nArcosIdx = idx.length;
 }
 montarArcos();       // 8.1
+montarEstrelasDoChao();   // 8.6
 
 /* ═══════════ O TAMANDUA DE OLHOS DE CARACOL (8.2) ═══════════
    26/09, a direcao de arte: "crie uma versao de um tamandua com olhos de caracol
@@ -12410,14 +12430,18 @@ function ondeEsta(i, t, cru){
      reagir com fisica". A 2,6 m e 2,35 m de altura nenhuma mao chegava. Vem
      para 1,6-1,9 m e 1,6-2,0 m de altura: ainda acima do rosa e mais longe
      que ele, mas a um passo e um braco. */
-  const rB = p.interativo ? 0.95 : 1.6 + 0.15 * i;
-  const alturaB = p.interativo ? 1.30 : 1.60 + 0.13 * i;
-  const B = [Math.cos(w)*rB, alturaB + Math.sin(w*1.6 + fase)*0.22, Math.sin(w)*rB];
+  /* 8.6 -- MAIS BAIXOS E UM POUCO MAIS PERTO (26/09: "desce um pouco mais os planetas
+     para eles se movimentarem mais para baixo, e aproxime mais perto das pessoas, mas
+     so um pouco"): a orbita de 1,6-1,9 m vai a 1,4-1,65 m, a altura de 1,6-2,0 m vai a
+     1,28-1,55 m, e o sobe-e-desce cresce de 22 para 30 cm. O rosa, que se pega, fica. */
+  const rB = p.interativo ? 0.95 : 1.4 + 0.12 * i;
+  const alturaB = p.interativo ? 1.30 : 1.28 + 0.12 * i;
+  const B = [Math.cos(w)*rB, alturaB + Math.sin(w*1.6 + fase)*0.30, Math.sin(w)*rB];
 
   // C — dispersos no ceu, cada um com espaco em volta
   // (6.9: dispersos, mas ainda ao alcance -- de 1,8 a 2,3 m, de 1,5 a 2,2 de altura)
-  const rC = 1.8 + (i % 2) * 0.5;
-  const C = [Math.cos(w*0.5 + fase)*rC, 1.5 + (i % 3) * 0.35,
+  const rC = 1.6 + (i % 2) * 0.45;   // 8.6: era 1,8 + 0,5
+  const C = [Math.cos(w*0.5 + fase)*rC, 1.2 + (i % 3) * 0.32,   // 8.6: era 1,5 + 0,35
              Math.sin(w*0.5 + fase)*rC];
 
   const ab = [A[0]+(B[0]-A[0])*desceu, A[1]+(B[1]-A[1])*desceu, A[2]+(B[2]-A[2])*desceu];
@@ -16230,6 +16254,18 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   /* AS PARTICULAS E OS FIOS de cada deusa, enquanto ela esta no ceu -- no
      fundo com ela (6.5): os fios vem da pintura ate uns dez metros, e mesmo
      assim estao muito mais longe que qualquer planeta. */
+  // 8.6: as estrelas no chao do cosmos, com os planetas
+  { const pe = rampa(200, 226, t) * (1 - rampa(378, 392, t));
+    if(pe > 0.004 && poeiraOn && nEstrelasChao){
+      gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false);
+      gl.useProgram(progPo); soltarAtributos(); mandarMvp(locPo.mvp, mvp);
+      gl.uniform1f(locPo.tempo, relogio); gl.uniform1f(locPo.escalaPonto, escalaPonto * pe);
+      gl.uniform1f(locPo.sopro, 0.0); gl.uniform1f(locPo.sentido, 1); gl.uniform1f(locPo.fixo, 1.0);
+      ligar(aP.pos, bEstrelasChao.pos, 3); ligar(aP.cor, bEstrelasChao.cor, 3); ligar(aP.dado, bEstrelasChao.dado, 2);
+      gl.drawArrays(gl.POINTS, 0, nEstrelasChao);
+      gl.uniform1f(locPo.fixo, 0.0);
+      gl.depthMask(true); gl.disable(gl.BLEND);
+    } }
   for(const E of ENFEITES){
     const f = FIGURAS[E.fig];
     const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
