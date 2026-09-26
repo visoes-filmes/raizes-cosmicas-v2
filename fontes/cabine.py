@@ -543,7 +543,10 @@ def args_da_rede(serial, projetor=False):
     PELO CABO: sem buffer; no projetor, 12 Mbps (Full HD com folga)."""
     wifi = bool(serial and ":" in serial)
     if wifi:
-        return ["--video-bit-rate=8M", "--max-fps=30", f"--video-buffer={250 if projetor else 200}",
+        # 26/09: "conseguimos reduzir um pouco a resolucao para melhorar o
+        # lag?" -- pelo ar, 1280 de largura (o projetor amplia para Full HD):
+        # 55 % menos pixels para codificar no oculos e passar pela Wi-Fi.
+        return ["--max-size=1280", "--video-bit-rate=6M", "--max-fps=30", f"--video-buffer={250 if projetor else 200}",
                 "--video-codec-options=i-frame-interval=1"]
     return ["--video-bit-rate=12M"] if projetor else []
 
@@ -561,7 +564,7 @@ def espelhar(serial):
     # o servidor um do outro -- e com ele os túneis.
     amb = dict(os.environ, ADB=ADB)
     corte = recorte_de_um_olho(serial)
-    subprocess.Popen([exe, "-s", serial, "--max-size", "1280", "--no-audio",
+    subprocess.Popen([exe, "-s", serial] + ([] if ":" in serial else ["--max-size", "1280"]) + ["--no-audio",
                       "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro() + args_da_rede(serial),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
@@ -697,7 +700,8 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         if espelhar:
             args += ["--display-orientation=flip0"]
         # o projetor e Full HD: o olho recortado (1816 x 1020) vai inteiro, sem reduzir
-        args += ["--max-size=1920"] + args_do_giro() + [x for x in args_da_rede(s, projetor=True) if not x.startswith('--max-fps')]
+        rede = [x for x in args_da_rede(s, projetor=True) if not x.startswith('--max-fps')]
+        args += ([] if any(x.startswith("--max-size") for x in rede) else ["--max-size=1920"]) + args_do_giro() + rede
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
         if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
