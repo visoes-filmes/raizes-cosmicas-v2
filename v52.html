@@ -600,7 +600,8 @@ const ARCOS_NO_FIM       = true;    // os arcos d'agua em semicirculo, convergin
    saem do arquivo. false as devolve (e o montar_mr.py tem de embuti-las de novo). */
 const CEU_EM_CODIGO      = true;
 const FIGURAS_EM_CODIGO  = true;
-const BURACOS_NEGROS     = false;  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
+const BURACOS_NEGROS     = false;
+const TAMPAR_A_TELA      = true;   /* 8.9: a tela real lida some atras de um pedaco de ceu (ver o desenho da cupula) */  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
 /* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
    do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
    fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
@@ -7638,7 +7639,10 @@ void main(){
   /* O SINAL E ESTE, E FOI MEDIDO: com a asa vista de cima na bancada, a
      camada visivel tinha a normal do modelo em -y. Ou seja, no espaco do
      modelo "cima" e -y -- o exportador olhava a borboleta de outro lado. */
-  if(vCima < 0.0 && vCorpo < 0.5){
+  /* 8.9 -- AS FACES ESTAVAM TROCADAS (26/09: "a asa ainda aparece trocada"; medido na
+     bancada de cima e de baixo: o 88 aparecia por cima e o azul por baixo). O azul
+     da 88 vai para a camada de normal +y, que e a que se ve de cima. */
+  if(vCima > 0.0 && vCorpo < 0.5){
     /* A FACE DE CIMA E A PELE DO PROPRIO MODELO, nos UVs do proprio modelo.
 
        Antes era um azul de conta com um aro que seguia uma CAIXA -- "vao"
@@ -13405,7 +13409,7 @@ let agitacao = 0, nivelExtra = 0, furacaoPresenca = 0, retornoInverso = 0;
    encontra a obra parada, no comeco, esperando por ele -- e nao no meio do
    que o anterior deixou. */
 let fecho = 0;        // 0 a 1: quanto o mundo ja se apagou no fim
-let frasePresenca = 0;
+let frasePresenca = 0, estrelasFim = 0, nomeFim = 0;   // 8.9: o epilogo
 let esperando = false;
 let esperaPresenca = 0;
 
@@ -13423,8 +13427,11 @@ function seguirFecho(t){
      (fecho fica em zero): a deusa e o papel ficam ate o fim, e a frase
      entra por cima deles e fica. Quando o relogio chega ao fim a obra para
      nesta imagem; recomeca-se pelo menu da mao ou pela Cabine. */
-  fecho = 0;
-  frasePresenca = rampa(588, 594, t);
+  // 8.9: o fecho volta, so no epilogo -- ver seguirPartitura
+  fecho = rampa(DURACAO + 14 * RITMO, DURACAO + 20 * RITMO, t);
+  frasePresenca = rampa(588, 594, t) * (1 - rampa(DURACAO + 14 * RITMO, DURACAO + 17 * RITMO, t));
+  estrelasFim = rampa(DURACAO + 15 * RITMO, DURACAO + 19 * RITMO, t) * (1 - rampa(DURACAO + 23 * RITMO, DURACAO + 26 * RITMO, t));
+  nomeFim = rampa(DURACAO + 16 * RITMO, DURACAO + 18.5 * RITMO, t) * (1 - rampa(DURACAO + 22.5 * RITMO, DURACAO + 25 * RITMO, t));
 }
 
 /* O BURACO NEGRO QUE ENGOLE O PLANETA ROSA.
@@ -14132,10 +14139,16 @@ function seguirPartitura(dt){
        e quem fica ate o final nao ganha nada por isso.
 
        Os catorze segundos alem dos dez minutos sao o tempo da frase. */
-    if(t > DURACAO + 14 * RITMO){   // catorze segundos REAIS de frase
+    /* 8.9 -- O EPILOGO (26/09: "no final dos 10 minutos coloque 10 segundos a mais indo
+       para so as estrelas, e fica so realidade aumentada, para saber que saiu"). Depois
+       dos catorze segundos da frase, mais doze: o mundo se apaga (fecho), o ceu recua
+       para o zenite e some, ficam so as estrelas e o nome -- Raizes Cosmicas, Plinio
+       Hit e Crisia, Visoes Filmes --, e por fim as estrelas e o nome tambem se vao. A
+       obra para na sala real, e e assim que se sabe que acabou. */
+    if(t > DURACAO + 26 * RITMO){
       andando = false;
       esperando = true;
-      t = DURACAO + 14 * RITMO;
+      t = DURACAO + 26 * RITMO;
     }
   }
   const c = cenaEm(t);
@@ -15831,6 +15844,10 @@ const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
               alto:uS('alto'), giraAng:uS('giraAng'), galaxias:uS('galaxias[0]')};   // 8.4
 const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
+// 8.9: o retangulo que tampa a tela real com ceu (as posicoes mudam a cada quadro; o resto e fixo)
+const bTampaTela = criarBufs(['pos','nor','uv','tipo','idx']);
+enviar(bTampaTela.nor, [0,0,1, 0,0,1, 0,0,1, 0,0,1]); enviar(bTampaTela.uv, [0,0, 1,0, 1,1, 0,1]); enviar(bTampaTela.tipo, [0,0,0,0]);
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTampaTela.idx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
 const locSalaCentro = gl.getUniformLocation(progSala,'centro');
 const locSalaCor = gl.getUniformLocation(progSala,'corCena');
 const uFg = n=>gl.getUniformLocation(progFig,n);
@@ -15890,6 +15907,7 @@ function atualizarTempo(t){
     { texto:'Raízes Cósmicas', fonte:'150px ' + serifa, y:190 },
     { texto:'Plinio Hit  ·  Crisia', fonte:'52px ' + seca, y:330,
       cor:'rgba(214,200,236,0.88)', halo:18 },
+    { texto:'Visões Filmes', fonte:'40px ' + seca, y:430, cor:'rgba(214,200,236,0.72)', halo:14 },   // 8.9
   ], 2048, 512);
 
   /* OS BOTOES DO MENU DA MAO: pilula escura translucida com um fio
@@ -16416,8 +16434,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        rachadura ha cosmos. O chao continua real -- de -0,42 (uns 25 graus
        para baixo; 8.3: era -0,35) em diante o ceu nao chega. */
     const comParedes = PAREDES_RACHADAS && nParedeIdx > 0;
-    gl.uniform1f(locS.inicio, comParedes ? Math.min(degradeIni, -0.42) : degradeIni);
-    gl.uniform1f(locS.fim,    comParedes ? Math.min(degradeFim, -0.18) : degradeFim);
+    const iniS = comParedes ? Math.min(degradeIni, -0.42) : degradeIni, fimS = comParedes ? Math.min(degradeFim, -0.18) : degradeFim;
+    gl.uniform1f(locS.inicio, iniS + (1.25 - iniS) * fecho);   // 8.9: no epilogo o ceu recua para o zenite e some
+    gl.uniform1f(locS.fim,    fimS + (1.35 - fimS) * fecho);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
     gl.uniform1f(locS.alto, altoCeu);          // 8.4
@@ -16443,6 +16462,22 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     ligar(aS.uv,bS.uv,2); ligar(aS.tipo,bS.tipo,1);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bS.idx);
     gl.drawElements(gl.TRIANGLES, nIdxS, gl.UNSIGNED_SHORT, 0);
+    /* 8.9 -- A TELA REAL SOME (26/09: "voce consegue fazer a tela real desaparecer?"):
+       com a tela lida (a Configuracao de Espaco rotulou um plano como tela, ou os
+       cantos foram cravados), um retangulo do tamanho dela, no lugar dela, e pintado
+       com o proprio ceu -- o mesmo shader, mas com a graduacao desligada: ali o ceu e
+       cheio ate a base. E uma janela para o ceu no lugar da tela. So enquanto ha ceu
+       (nao no epilogo), e so com TAMPAR_A_TELA. */
+    if(TAMPAR_A_TELA && TELA.pronta && fecho < 0.98 && bTampaTela){
+      const c = TELA.centro, u = TELA.u, v = TELA.v, hw = TELA.w * 0.52, hh = TELA.h * 0.52, o = olhoPos;
+      const P4 = [[-1, -1], [1, -1], [1, 1], [-1, 1]], pos = [];
+      for(const [sx, sy] of P4) pos.push(c[0] + u[0] * hw * sx + v[0] * hh * sy - o[0], c[1] + u[1] * hw * sx + v[1] * hh * sy - o[1], c[2] + u[2] * hw * sx + v[2] * hh * sy - o[2]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, bTampaTela.pos); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pos), gl.DYNAMIC_DRAW);
+      gl.uniform1f(locS.inicio, -1.5); gl.uniform1f(locS.fim, -1.4);
+      ligar(aS.pos, bTampaTela.pos, 3); ligar(aS.nor, bTampaTela.nor, 3); ligar(aS.uv, bTampaTela.uv, 2); ligar(aS.tipo, bTampaTela.tipo, 1);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTampaTela.idx);
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+    }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
@@ -16455,6 +16490,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      chegam com o mundo, aos 0:20, e os filamentos se desenham ate os 0:44. */
   const pesoCamadas = CEU_EM_CAMADAS
     ? (ceuA === 4 ? 1 - misturaCeu : 0) + (ceuB === 4 ? misturaCeu : 0) : 0;
+  // 8.9: no epilogo, so as estrelas -- a mesma camada, com a presenca do fim
+  if(estrelasFim > 0.004 && nEstrelasCeu > 0){
+    const mCeu = girarCeuY(mvpNoOlho(mvp, olhoPos), anguloDoCeu(t));
+    gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false); gl.disable(gl.CULL_FACE);
+    gl.useProgram(progPo); soltarAtributos();
+    mandarMvp(locPo.mvp, mCeu);
+    gl.uniform1f(locPo.tempo, relogio); gl.uniform1f(locPo.escalaPonto, escalaPonto);
+    gl.uniform1f(locPo.sentido, 1.0); gl.uniform1f(locPo.fixo, 1.0); gl.uniform1f(locPo.sopro, 0.0);
+    gl.uniform1f(locPo.apagar, 1 - estrelasFim);
+    ligar(aP.pos, bEstrelasCeu.pos, 3); ligar(aP.cor, bEstrelasCeu.cor, 3); ligar(aP.dado, bEstrelasCeu.dado, 2);
+    gl.drawArrays(gl.POINTS, 0, nEstrelasCeu);
+    gl.uniform1f(locPo.apagar, 0.0); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
   if(pesoCamadas > 0.004 && nEstrelasCeu > 0){
     const tn = Math.min(1, tinta / 0.6);
     const mCeu = girarCeuY(mvpNoOlho(mvp, olhoPos), anguloDoCeu(t));
@@ -16580,7 +16628,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aFi.xy, bQ.xy, 2);
 
       for(const f of FIGURAS){
-        const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+        const pr = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t)) * (1 - fecho);   // 8.9: cede no epilogo
         if(pr < 0.004) continue;
         desenharFigura(FIGS[f.tex], f.centro, f.tam, pr, f.balanco, false, f);
         if(f.espelha && aguaPresenca > 0.004){
@@ -16619,7 +16667,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     } }
   for(const E of ENFEITES){
     const f = FIGURAS[E.fig];
-    const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t));
+    const pd = rampa(f.de, f.de + 9, t) * (1 - rampa(f.ate - 9, f.ate, t)) * (1 - fecho);   // 8.9
     if(pd < 0.004 || !poeiraOn) continue;
     gl.enable(gl.BLEND);
     somarLuz();
@@ -18547,6 +18595,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        largura ela ficava do tamanho de um cartaz distante, e a frase que
        fecha uma obra de dez minutos nao pode ser lida de esguelha. */
     porTexto(texFrase, [0, 1.52, -2.2], 1.9, 0.475, frasePresenca);
+    if(nomeFim > 0.004) porTexto(texTitulo, [0, 1.58, -2.3], 1.75, 0.4375, nomeFim);   // 8.9: o nome, no epilogo
 
     /* A ESPERA: o titulo em cima, o rizomar ao alcance do braco. */
     /* o menu da mao: o botao na ponta da seta cresce e acende; apertado
