@@ -31,3 +31,6 @@ fontes/devices.json
 fontes/tinytuya.json
 fontes/tuya-raw.json
 fontes/snapshot.json
+
+# a proxima versao preparada pela Cabine (fontes/proxima.py), por maquina
+proxima.html

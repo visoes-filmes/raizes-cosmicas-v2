@@ -187,6 +187,19 @@
       </div>
     </details>
     <div id="oErro"></div>
+    <!-- A PRÓXIMA VERSÃO (26/09): escolhida quando a experiência não estiver acontecendo -->
+    <div id="proxBloco" style="margin-top:14px;padding:12px;border:1px solid #2a3150;border-radius:12px">
+      <div class="linha" style="justify-content:space-between">
+        <b>Próxima versão</b><span class="nota mono" id="proxEstado">—</span>
+      </div>
+      <div class="nota" id="proxTitulo" style="margin:4px 0 8px">o que está pronto no ramo e ainda não foi ao ar</div>
+      <div class="linha">
+        <button class="proxBt" onclick="acao('proxima_preparar')" title="monta a próxima numa pasta à parte; nada é publicado">1 · Preparar</button>
+        <button class="proxBt" onclick="acao('proxima_ver')" title="abre a próxima no Quest para conferir; nada é publicado">2 · Ver no Quest</button>
+        <button class="proxBt primario" onclick="if(confirm('Publicar a próxima versão? Ela vai para o site e para a main no GitHub.')) acao('proxima_publicar')">3 · Publicar</button>
+      </div>
+      <div class="nota" id="proxAviso" style="margin-top:6px">só com ninguém dentro da obra (portão à vista)</div>
+    </div>
   </section>
 
   <!-- PROJEÇÃO E TELA DE TULE (6.0) -->
@@ -345,6 +358,18 @@ async function acao(nome, dados){
 function pill(id, classe, texto){ const p=$(id); p.className='pill '+classe; p.lastChild.textContent = texto; }
 
 function desenhar(){
+  { // 26/09: a próxima versão — botões travados enquanto a experiência acontece
+    const o = estado.obra || {}, onde = o.onde || {};
+    const acontecendo = !!(o.aba && !o.portao && onde.andando);
+    const p = estado.proxima || {estado:'parada'};
+    const ocupada = p.estado === 'preparando' || p.estado === 'publicando';
+    document.querySelectorAll('.proxBt').forEach(b => b.disabled = acontecendo || ocupada);
+    $('proxEstado').textContent = {parada:'—', preparando:'preparando…', pronta:'pronta · ' + (p.commit||''),
+      publicando:'publicando…', publicada:'publicada · ' + (p.commit||''), erro:'erro'}[p.estado] || p.estado;
+    if (p.titulo) $('proxTitulo').textContent = p.titulo;
+    $('proxAviso').textContent = acontecendo ? 'tem gente dentro da obra agora — os botões voltam quando o portão voltar'
+      : (p.msg || 'só com ninguém dentro da obra (portão à vista)');
+  }
   if (estado.sync){ const s = estado.sync; $('syncInfo').textContent = 'GitHub: ' + (s.aviso ? '⚠ ' + s.aviso : (s.commit || '—') + ' · conferido ' + (s.ultimo || '')); }
   const e = estado, q = e.quest||{}, o = e.obra||{}, hs = (e.rede||{}).hotspot||{}, wp = (e.rede||{}).wifi_pc||{};
   // pílulas
