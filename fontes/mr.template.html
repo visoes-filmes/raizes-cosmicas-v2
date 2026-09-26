@@ -3383,7 +3383,8 @@ function ondeAguaViva(av){
    quaternio em dez-milesimos, 16 bits, base64. Vinte e cinco mil vertices
    por quadro na CPU: um milissegundo, medido na bancada. */
 const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, descanso:0, presenca:0,
-                quadro:0, peito:[0, 1.2, 0] };
+                quadro:0, peito:[0, 1.2, 0],
+                ancora:null, yaw:0 };   // 26/09: onde ela esta agora (xz) e para onde olha -- ver andarADancarina
 (function(){
   const d = __MOCAP_DEUSA__;
   if(!d || !d.dados || !d.rotacao) return;
@@ -3393,6 +3394,30 @@ const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, 
   DANCA.altura = d.altura || 0.8; DANCA.descanso = d.descanso || 0;
   d.juntas.forEach((j, k) => DANCA.i[j] = k);
   DANCA.ok = DANCA.n > 1;
+  /* MAIS ORGANICA -- 26/09: "tem um ser dancante que esta estranho, ele precisa ficar
+     mais organico". A captura vem a 15 quadros por segundo, com o tremor de toda
+     captura; lida quadro a quadro, a pele engasgava. Aqui cada junta e ALISADA no
+     tempo (gaussiana de sete quadros, meio segundo): a posicao pela media, o
+     quaternio pela media com os sinais alinhados ao do meio. O gesto fica; o tremor
+     vai embora. So uma vez, ao carregar. */
+  if(DANCA.ok){
+    const nj = DANCA.nj, por = DANCA.por, N = DANCA.n, P = DANCA.pos, Q = new Int16Array(P);
+    const W = [0.05, 0.12, 0.2, 0.26, 0.2, 0.12, 0.05];
+    for(let f = 0; f < N; f++) for(let j = 0; j < nj; j++){
+      const c = (f * nj + j) * por;
+      let sx = 0, sy = 0, sz = 0, qx = 0, qy = 0, qz = 0, qw = 0, sw = 0;
+      for(let k = -3; k <= 3; k++){
+        const g = Math.min(N - 1, Math.max(0, f + k)), a = (g * nj + j) * por, w = W[k + 3];
+        sx += Q[a] * w; sy += Q[a+1] * w; sz += Q[a+2] * w;
+        const sinal = (Q[a+3]*Q[c+3] + Q[a+4]*Q[c+4] + Q[a+5]*Q[c+5] + Q[a+6]*Q[c+6]) < 0 ? -1 : 1;
+        qx += Q[a+3] * w * sinal; qy += Q[a+4] * w * sinal; qz += Q[a+5] * w * sinal; qw += Q[a+6] * w * sinal;
+        sw += w;
+      }
+      const L = Math.hypot(qx, qy, qz, qw) || 1;
+      P[c] = Math.round(sx / sw); P[c+1] = Math.round(sy / sw); P[c+2] = Math.round(sz / sw);
+      P[c+3] = Math.round(qx / L * 1e4); P[c+4] = Math.round(qy / L * 1e4); P[c+5] = Math.round(qz / L * 1e4); P[c+6] = Math.round(qw / L * 1e4);
+    }
+  }
 })();
 /* onde ela danca -- 25/09 (7.3), "longe, mais alta e com os pes no chao":
    a frente e a direita, a 3,8 m (alem das paredes da sala de 3 x 3), os pes
@@ -3526,12 +3551,33 @@ function montarADeusaQueDanca(){
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, o.idx, gl.STATIC_DRAW);
   nDancaIdx = o.idx.length;
 }
+/* NAO FICA EM CIMA DA PESSOA -- 26/09: "nao pode ficar em cima da pessoa". A captura
+   trazia a bailarina andando pelo palco (1,3 m na captura: 2,5 m na dancarina, 88 m
+   na gigante) -- a dancarina chegava a quem estava no meio da sala, e a gigante
+   passava por cima. Agora as duas dancam NO LUGAR (lerADanca tira o caminho do
+   quadril) e a dancarina guarda distancia: o lugar dela e o de sempre, com uma
+   deriva leve; se a pessoa chega a menos de DANCA_LONGE, ela recua devagar, e o
+   corpo vira sempre para quem esta la. */
+const DANCA_LONGE = 1.8, DANCA_RITMO = 0.85;   // 26/09: a distancia minima (m) e a danca um pouco mais lenta
+function andarADancarina(dt){
+  const o = ondeOOlhoEsta;
+  let bx = Math.sin(DANCA_AZ) * DANCA_DIST + 0.15 * Math.sin(relogio * 0.23);
+  let bz = -Math.cos(DANCA_AZ) * DANCA_DIST + 0.15 * Math.cos(relogio * 0.17);
+  const vx = bx - o[0], vz = bz - o[2], d = Math.hypot(vx, vz);
+  if(d < DANCA_LONGE && d > 1e-3){ bx = o[0] + vx / d * DANCA_LONGE; bz = o[2] + vz / d * DANCA_LONGE; }
+  if(!DANCA.ancora){ DANCA.ancora = [bx, bz]; DANCA.yaw = Math.PI - DANCA_AZ; }
+  const k = 1 - Math.exp(-dt * 1.2);
+  DANCA.ancora[0] += (bx - DANCA.ancora[0]) * k; DANCA.ancora[1] += (bz - DANCA.ancora[1]) * k;
+  const yawAlvo = Math.PI - Math.atan2(DANCA.ancora[0] - o[0], -(DANCA.ancora[1] - o[2]));
+  let dy = yawAlvo - DANCA.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
+  DANCA.yaw += dy * (1 - Math.exp(-dt * 0.8));
+}
 /* as juntas deste instante: dois quadros interpolados (posicao linear,
    quaternio nlerp), na altura do modelo, giradas para encarar quem entra */
 const qA = new Float32Array(4), qB = new Float32Array(4), pA = new Float32Array(3), pB = new Float32Array(3);
 function lerADanca(tempo, juntas, quat){
   if(!DANCA.ok) return;
-  if(tempo === undefined){ tempo = relogio; juntas = dancaJuntas; quat = dancaQuat; }   // a dancarina, como sempre
+  if(tempo === undefined){ tempo = relogio * DANCA_RITMO; juntas = dancaJuntas; quat = dancaQuat; }   // a dancarina (26/09: 85 %)
   /* VAI E VOLTA -- 25/09 (7.3): "quando terminar, faca ela fazer a danca de
      tras pra frente, batendo e voltando". A captura nao fecha em laco (a
      bailarina termina longe de onde comecou), e o salto do fim para o
@@ -3555,17 +3601,86 @@ function lerADanca(tempo, juntas, quat){
     const L = Math.hypot(x, y, z, w) || 1;
     quat[j*4] = x / L; quat[j*4+1] = y / L; quat[j*4+2] = z / L; quat[j*4+3] = w / L;
   }
+  // 26/09: NO LUGAR -- o caminho do quadril sai de todas as juntas (as duas: dancarina e gigante)
+  const iq = DANCA.i.pelvis * 3, ox = juntas[iq], oz = juntas[iq+2];
+  for(let j = 0; j < nj; j++){ juntas[j*3] -= ox; juntas[j*3+2] -= oz; }
   if(juntas !== dancaJuntas) return;   // a gigante nao tem peito para o toque
   // o peito no mundo, para o toque
-  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), ip = DANCA.i.chest * 3;
-  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  if(!DANCA.ancora) andarADancarina(0);
+  const yaw = DANCA.yaw, cy = Math.cos(yaw), sy = Math.sin(yaw), ip = DANCA.i.chest * 3;
+  const cx = DANCA.ancora[0], cz = DANCA.ancora[1];
   const px = dancaJuntas[ip] * DANCA_ALTURA, py = dancaJuntas[ip+1] * DANCA_ALTURA, pz = dancaJuntas[ip+2] * DANCA_ALTURA;
   DANCA.peito[0] = cx + px * cy + pz * sy; DANCA.peito[1] = DANCA_PE + py; DANCA.peito[2] = cz - px * sy + pz * cy;
 }
 // a matriz de cada osso (rotacao de agora x inversa da de descanso, depois o giro e a escala), e o corpo
 function fazerOCorpoQueDanca(){
-  const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
-  vestirCorpo(dancaJuntas, dancaQuat, Math.PI - DANCA_AZ, DANCA_ALTURA, cx, DANCA_PE, cz, 0, dancaPos, dancaNor, bDanca);
+  if(!DANCA.ancora) andarADancarina(0);
+  vestirCorpo(dancaJuntas, dancaQuat, DANCA.yaw, DANCA_ALTURA, DANCA.ancora[0], DANCA_PE, DANCA.ancora[1], 0, dancaPos, dancaNor, bDanca);
+}
+/* ═══════════ AS FLORES DA DANCARINA (26/09) ═══════════
+   "Podia sair flores dele." Flores de cinco petalas nascem das maos, do peito e da
+   cabeca dela enquanto danca, sobem devagar girando e se desfazem em cinco a oito
+   segundos -- nas cores da floresta (rosa, coral, lilas, amarelo, turquesa). Pontos
+   em pe (o tamanho em metros vira pixels pela distancia, nos dois olhos), com a flor
+   desenhada no FS_FLOR. Cem no maximo; a conta e da CPU, uma vez por quadro. */
+const FLORES_MAX = 100, FLORES = [];
+const florPos = new Float32Array(FLORES_MAX * 3), florDado = new Float32Array(FLORES_MAX * 4);
+let bFlorPos = null, bFlorDado = null, florAcum = 0;
+const FLOR_JUNTAS = ['hand_l', 'hand_r', 'hand_l', 'hand_r', 'chest', 'head'];
+function juntaDaDanca(nome, saida){
+  const j = DANCA.i[nome] * 3, cy = Math.cos(DANCA.yaw), sy = Math.sin(DANCA.yaw);
+  const px = dancaJuntas[j] * DANCA_ALTURA, py = dancaJuntas[j+1] * DANCA_ALTURA, pz = dancaJuntas[j+2] * DANCA_ALTURA;
+  saida[0] = DANCA.ancora[0] + px * cy + pz * sy; saida[1] = DANCA_PE + py; saida[2] = DANCA.ancora[1] - px * sy + pz * cy;
+}
+const florJ = [0, 0, 0];
+function andarFlores(dt){
+  if(!bFlorPos){ bFlorPos = gl.createBuffer(); bFlorDado = gl.createBuffer(); }
+  if(DANCA.ok && DANCA.presenca > 0.3 && DANCA.ancora){
+    florAcum += dt * 7.0;                                   // sete flores por segundo
+    while(florAcum >= 1){
+      florAcum -= 1;
+      if(FLORES.length >= FLORES_MAX) break;
+      const nome = FLOR_JUNTAS[Math.floor(Math.random() * FLOR_JUNTAS.length)];
+      juntaDaDanca(nome, florJ);
+      const ang = Math.random() * Math.PI * 2, fora = 0.05 + Math.random() * 0.12;
+      FLORES.push({ x:florJ[0], y:florJ[1], z:florJ[2],
+                    vx:Math.cos(ang) * fora, vy:0.05 + Math.random() * 0.08, vz:Math.sin(ang) * fora,
+                    t:0, vida:5 + Math.random() * 3, tam:0.05 + Math.random() * 0.04,   // 5 a 9 cm: a 3,8 m, menor que isso some
+                    h:Math.random(), giro:Math.random() * 6.283, vg:(Math.random() - 0.5) * 1.2,
+                    fase:Math.random() * 6.283 });
+    }
+  } else florAcum = 0;
+  for(let i = FLORES.length - 1; i >= 0; i--){
+    const f = FLORES[i];
+    f.t += dt;
+    if(f.t >= f.vida){ FLORES.splice(i, 1); continue; }
+    const freio = Math.exp(-dt * 0.35);
+    f.vx *= freio; f.vz *= freio;
+    f.x += (f.vx + Math.sin(relogio * 0.7 + f.fase) * 0.03) * dt;
+    f.y += f.vy * dt;
+    f.z += (f.vz + Math.cos(relogio * 0.6 + f.fase) * 0.03) * dt;
+    f.giro += f.vg * dt;
+  }
+  const n = FLORES.length;
+  for(let i = 0; i < n; i++){
+    const f = FLORES[i], cresce = Math.min(1, f.t / 0.6), some = 1 - Math.max(0, (f.t - (f.vida - 1.5)) / 1.5);
+    florPos[i*3] = f.x; florPos[i*3+1] = f.y; florPos[i*3+2] = f.z;
+    florDado[i*4] = f.tam * (0.3 + 0.7 * cresce); florDado[i*4+1] = Math.min(1, f.t / 0.4) * some;
+    florDado[i*4+2] = f.h; florDado[i*4+3] = f.giro;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, bFlorPos); gl.bufferData(gl.ARRAY_BUFFER, florPos, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bFlorDado); gl.bufferData(gl.ARRAY_BUFFER, florDado, gl.DYNAMIC_DRAW);
+}
+function desenharFlores(mvp, escalaPonto){
+  if(!bFlorPos || !FLORES.length) return;
+  gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false); gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(progFlor); soltarAtributos();
+  mandarMvp(locFl.mvp, mvp);
+  gl.uniform1f(locFl.escalaPonto, escalaPonto);
+  gl.uniform1f(locFl.presenca, 1.0);   // cada flor tem a propria vida (nasce, cresce, se desfaz)
+  ligar(aFl.pos, bFlorPos, 3); ligar(aFl.dado, bFlorDado, 4);
+  gl.drawArrays(gl.POINTS, 0, FLORES.length);
+  gl.depthMask(true); gl.disable(gl.BLEND);
 }
 /* A MESMA PELE PARA DOIS CORPOS (8.0): a dancarina e a gigante. As juntas e os
    quaternios de agora, o yaw (para onde o corpo olha), a escala, onde fica o pe,
@@ -7232,6 +7347,41 @@ void main(){
   gl_FragColor = vec4(luz / forte, a * min(forte, 1.0));
 }`;
 
+/* AS FLORES DA DANCARINA (26/09): cinco petalas desenhadas no ponto, miolo dourado,
+   a petala clareando para a ponta; a cor e uma das cinco da floresta. */
+const VS_FLOR = `
+attribute vec3 aPos; attribute vec4 aDado;   // .x tamanho (m), .y vida 0-1, .z cor 0-1, .w giro
+uniform mat4 mvp; uniform float escalaPonto, presenca;
+varying vec3 vCor; varying float vVida; varying float vGiro;
+vec3 corDaFlor(float h){
+  if(h < 0.2) return vec3(0.98, 0.52, 0.72);   // rosa
+  if(h < 0.4) return vec3(1.00, 0.55, 0.42);   // coral
+  if(h < 0.6) return vec3(0.76, 0.62, 0.98);   // lilas
+  if(h < 0.8) return vec3(1.00, 0.86, 0.40);   // amarelo
+  return vec3(0.40, 0.92, 0.86);               // turquesa
+}
+void main(){
+  vec4 clip = mvp * vec4(aPos, 1.0);
+  gl_Position = clip;
+  gl_PointSize = clamp(aDado.x * escalaPonto / max(clip.w, 0.05), 1.5, 48.0);
+  vCor = corDaFlor(aDado.z); vVida = aDado.y * presenca; vGiro = aDado.w;
+}`;
+const FS_FLOR = `
+precision mediump float;
+varying vec3 vCor; varying float vVida; varying float vGiro;
+void main(){
+  vec2 d = gl_PointCoord - 0.5;
+  float r = length(d) * 2.0;
+  if(r > 1.0 || vVida < 0.002) discard;
+  float ang = atan(d.y, d.x) + vGiro;
+  float petala = 0.55 + 0.45 * abs(cos(ang * 2.5));
+  float dentro = 1.0 - smoothstep(petala - 0.12, petala, r);
+  if(dentro < 0.01) discard;
+  float miolo = 1.0 - smoothstep(0.14, 0.24, r);
+  vec3 cor = mix(vCor * (0.78 + 0.30 * smoothstep(0.2, petala, r)), vec3(1.0, 0.84, 0.42), miolo);
+  gl_FragColor = vec4(cor, dentro * vVida);
+}`;
+
 /* ═══════════ BURACOS NEGROS E SERES ═══════════
    Um programa so, com dois desenhos escolhidos por uniforme. Sao as duas
    coisas da obra que nao vem de imagem nenhuma: nao ha quadro da Odara com
@@ -8995,12 +9145,16 @@ const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progVida = programa(VS_VIDA, FS_VIDA);   // 7.4
+const progFlor = programa(VS_FLOR, FS_FLOR);   // 26/09: as flores da dancarina
 const progRastro = programa(VS_RASTRO, FS_RASTRO);   // 7.7
 const uRa = n => gl.getUniformLocation(progRastro, n);
 const locRa = { mvp:uRa('mvp'), tempo:uRa('tempo'), ramo:uRa('ramo'), cor:uRa('cor'), presenca:uRa('presenca') };
 const aRa = { pos:gl.getAttribLocation(progRastro,'aPos'), t:gl.getAttribLocation(progRastro,'aT') };
 const uVi = n => gl.getUniformLocation(progVida, n);
 const locVi = { mvp:uVi('mvp'), escalaPonto:uVi('escalaPonto'), presenca:uVi('presenca') };
+const locFl = { mvp:gl.getUniformLocation(progFlor, 'mvp'), escalaPonto:gl.getUniformLocation(progFlor, 'escalaPonto'),
+                presenca:gl.getUniformLocation(progFlor, 'presenca') };
+const aFl = { pos:gl.getAttribLocation(progFlor, 'aPos'), dado:gl.getAttribLocation(progFlor, 'aDado') };
 const aVi = { pos:gl.getAttribLocation(progVida,'aPos'), cor:gl.getAttribLocation(progVida,'aCor'), dado:gl.getAttribLocation(progVida,'aDado') };
 const progFila = programa(VS_FILA, FS_FILA);   // 6.4: os filamentos do ceu
 const progHoriz = programa(VS_HORIZ, FS_HORIZ); // 6.8: o horizonte desenhado
@@ -14500,7 +14654,8 @@ function seguirPartitura(dt){
   seresDeLuzPresenca = rampa(412, 436, t) * (1 - rampa(512, 534, t));   // 6.3; 8.4
   // 7.1: a deusa que danca vem com a floresta feita e vai com ela
   DANCA.presenca = (DEUSA_QUE_DANCA && DANCA.ok && c === 1) ? rampa(40, 54, t) * (1 - rampa(186, 196, t)) : 0;
-  if(DANCA.presenca > 0.004) lerADanca();
+  if(DANCA.presenca > 0.004){ andarADancarina(dt); lerADanca(); }
+  andarFlores(dt);   // 26/09: as flores dela (seguem vivas um pouco depois de ela sumir)
   if(GIG.ok && SER_NO_CEU) andarAGigante(dt);   // 8.0
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
@@ -15248,8 +15403,9 @@ if(emTesteLocal){
        na junta filha de agora; e o centro da malha tem de estar perto do peito */
     dancaProva(){
       if(!bDanca) return 'sem corpo';
-      const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), S = DANCA_ALTURA;
-      const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+      if(!DANCA.ancora) andarADancarina(0);
+      const yaw = DANCA.yaw, cy = Math.cos(yaw), sy = Math.sin(yaw), S = DANCA_ALTURA;
+      const cx = DANCA.ancora[0], cz = DANCA.ancora[1];
       let pior = 0, ossoPior = '';
       DANCA_OSSOS.forEach(([na, nb], k) => {
         const ja = DANCA.i[na] * 3, jb = DANCA.i[nb] * 3, o = k * 12;
@@ -16063,10 +16219,12 @@ function atualizarTempo(t){
   ], 2048, 512);
 
   texTitulo = textoEmTextura([
-    { texto:'Raízes Cósmicas', fonte:'150px ' + serifa, y:190 },
-    { texto:'Plinio Hit  ·  Crisia', fonte:'52px ' + seca, y:330,
+    { texto:'Raízes Cósmicas', fonte:'150px ' + serifa, y:165 },
+    { texto:'Plinio Hit  ·  Crisia', fonte:'52px ' + seca, y:290,
       cor:'rgba(214,200,236,0.88)', halo:18 },
-    { texto:'Visões Filmes', fonte:'40px ' + seca, y:430, cor:'rgba(214,200,236,0.72)', halo:14 },   // 8.9
+    { texto:'Visões Filmes', fonte:'40px ' + seca, y:370, cor:'rgba(214,200,236,0.72)', halo:14 },   // 8.9
+    /* 26/09: "coloque @visoesfilmes / www.visoesfilmes.com em baixo dos nossos nomes" */
+    { texto:'@visoesfilmes  /  www.visoesfilmes.com', fonte:'36px ' + seca, y:445, cor:'rgba(214,200,236,0.66)', halo:12 },
   ], 2048, 512);
 
   /* OS BOTOES DO MENU DA MAO: pilula escura translucida com um fio
@@ -17233,6 +17391,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* A VIDA MIUDA (7.4): as folhas padronadas (solidas) e os pontos vivos, depois
        de tudo o que e solido aqui -- os pontos testam profundidade e nao a escrevem. */
     if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharTartaruga(); desenharTamandua(); desenharCoruja(); desenharVida(mvp, escalaPonto); }
+    desenharFlores(mvp, escalaPonto);   // 26/09: as flores da dancarina
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
@@ -17533,7 +17692,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1i(locSo.casca, 2);
     gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.uniform1f(locSo.bolha, 0.010);   // 26/09: a pele respira como pelicula de bolha -- mais organica
     porMalha(bDanca, nDancaIdx, 13.0);
+    gl.uniform1f(locSo.bolha, 0.0);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texRaiz);
     gl.uniform1f(locSo.inflar, 0.0);
     gl.uniform1f(locSo.brota, 1.0);
