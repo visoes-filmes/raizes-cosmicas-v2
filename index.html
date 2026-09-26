@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 8.3</title>
+<title>Raízes Cósmicas 8.4</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -294,7 +294,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 8.3</h1>
+  <h1>Raízes Cósmicas 8.4</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -306,7 +306,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>8.3</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>8.4</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -2965,6 +2965,8 @@ let bSeresCeu = [], nSeresCeuIdx = 0;
    plantado, para o toque e o chamado saberem onde eles estao. */
 const GIGANTES_DO_MAR = [], AGUAS_VIVAS = [];
 let bGigantes = [], nGigantesIdx = 0;
+let bCoraisVivos = [], nCoraisVivosIdx = 0;   // 8.4: os corais vivos, opacos e coloridos
+const CORAIS_VIVOS = [];
 /* ALISAR AS NORMAIS -- 25/09 (6.3), "deixa mais organicas as formas, pois
    estao muito geometricas". Os modelos chegam com a normal de cada face nos
    vertices repetidos da quina: cada face acende de um jeito, e o corpo le
@@ -3080,6 +3082,47 @@ function montarFundoDoMar(){
   [bGigantes, nGigantesIdx] = subir(g);
   [bFundo, nFundoIdx] = subir(f);
   [bFundoParado, nFundoParadoIdx] = subir(q);
+  /* ═══ OS CORAIS VIVOS (8.4) ═══ 26/09: "no fundo do mar deixe objetos nao
+     translucidos tambem e com cores diferentes; ao tocar precisam ter movimento e
+     reacao sonora e visual". Sete corpos OPACOS no anel de 1,55 a 2,3 m (fora da
+     area de andar, aquem dos gigantes), cada um numa cor viva propria (materia 27:
+     laranja-coral, magenta, amarelo, lima, violeta, turquesa, rosa), com as malhas
+     do proprio fundo (coral, conchas, estrela-do-mar, alga enrolada). Espalhados
+     pelo mesmo empurrao da 8.3, sem entrar nos gigantes nem uns nos outros.
+     Tocados: a onda do toque corre pelo corpo (o VS ja faz), a cor acende e vira
+     pelicula (vToque, como o cogumelo), soa a nota deles e a agua. */
+  {
+    const mcv = vazio();
+    const tipos = [['coral-', 30, 0.48, 0.62], ['conchas-', 6, 0.50, 0.64], ['estrela-mar-', 1, 0.80, 1.00],
+                   ['coral-', 30, 0.42, 0.56], ['alga-b-', 8, 0.60, 0.80], ['conchas-', 6, 0.46, 0.60], ['coral-', 30, 0.44, 0.58]];
+    const lugares = tipos.map((tp, k) => {
+      const ang = (k / tipos.length) * Math.PI * 2 + (rnd() - 0.5) * 0.5, raio = 1.6 + rnd() * 0.6;
+      return { x: Math.sin(ang) * raio, z: -Math.cos(ang) * raio, esc: tp[2] + rnd() * (tp[3] - tp[2]), giro: rnd() * Math.PI * 2 };
+    });
+    for(let it = 0; it < 40; it++){
+      let mexeu = false;
+      lugares.forEach((L, k) => {
+        for(const g of GIGANTES_DO_MAR) mexeu = empurrarCirculo(L, g.x, g.z, 0.40 * g.esc + 0.35 * L.esc + 0.1) || mexeu;
+        lugares.forEach((M, j) => {
+          if(j <= k) return;
+          const d = Math.hypot(M.x - L.x, M.z - L.z), m = 0.35 * (L.esc + M.esc) + 0.15;
+          if(d < m){ const nx = (M.x - L.x) / (d || 1), nz = (M.z - L.z) / (d || 1), meio = (m - d) / 2;
+                     L.x -= nx * meio; L.z -= nz * meio; M.x += nx * meio; M.z += nz * meio; mexeu = true; }
+        });
+        const d = Math.hypot(L.x, L.z) || 1e-4, dd = Math.min(2.3, Math.max(1.55, d));
+        if(Math.abs(dd - d) > 1e-4){ L.x *= dd / d; L.z *= dd / d; }
+      });
+      if(!mexeu) break;
+    }
+    lugares.forEach((L, k) => {
+      const [prefixo, pecas] = tipos[k], md = medidaDaMalha(prefixo, pecas);
+      const base = [L.x, -md.pe * L.esc, L.z], de = mcv.pos.length;
+      for(let p = 0; p < pecas; p++) plantarMalha(mcv, prefixo + p, base, L.esc, L.giro, k + 0.5);
+      let topo = 0.2; for(let i = de + 1; i < mcv.pos.length; i += 3) topo = Math.max(topo, mcv.pos[i]);
+      CORAIS_VIVOS.push({ x: L.x, z: L.z, esc: L.esc, alt: topo, tipo: prefixo });
+    });
+    [bCoraisVivos, nCoraisVivosIdx] = subir([mcv]);
+  }
 
   /* 2) AS ALGAS DE NEON ROSA, no meio delas.
 
@@ -6051,6 +6094,34 @@ void main(){
      marca do tamandua-bandeira), 1 a cauda (pontas acesas em turquesa), 2 a cabeca
      e o focinho, 3 as pernas, 4 as hastes (luz turquesa), 5 os olhos (ambar, a
      fracao e o raio a partir da pupila), 6 a lingua (rosa acesa). */
+  /* ═══ OS CORAIS VIVOS (8.4) ═══ opacos, cada um numa cor viva (a parte inteira da
+     fase e o indice), nervura de marmore mais escura, luz de cima, fio de luz na
+     borda; a mao perto acende; tocado (vToque), a cor sobe e vira pelicula. */
+  if(materia > 26.5 && materia < 27.5){
+    float idC = floor(vFase);
+    vec3 cores[7];
+    cores[0] = vec3(1.00, 0.45, 0.22); cores[1] = vec3(0.92, 0.20, 0.62); cores[2] = vec3(1.00, 0.86, 0.25);
+    cores[3] = vec3(0.62, 0.95, 0.30); cores[4] = vec3(0.58, 0.32, 0.95); cores[5] = vec3(0.20, 0.90, 0.85);
+    cores[6] = vec3(1.00, 0.55, 0.75);
+    vec3 corC = cores[0];
+    for(int k = 1; k < 7; k++) if(idC > float(k) - 0.5) corC = cores[k];
+    vec3 nC2 = normalize(vNor); vec3 verC2 = normalize(olhoPos - vMundo);
+    float luzC2 = 0.42 + 0.58 * max(0.0, dot(nC2, normalize(vec3(0.25, 1.0, 0.35))));
+    float rimC2 = pow(1.0 - abs(dot(nC2, verC2)), 3.0);
+    vec3 nerv = aMarmore(vMundo * 9.0);
+    float pertoC = pertoDaMao(vMundo);
+    // bioluminescente: a cor propria acesa (a agua por cima come metade), pulsando devagar
+    float pulsoC = 0.85 + 0.25 * sin(tempo * 0.7 + idC * 1.9);
+    c = corC * (0.55 + 0.75 * luzC2) * (0.80 + 0.45 * nerv.r) * pulsoC;
+    c = mix(c, corC * 0.40, smoothstep(0.55, 0.75, nerv.g) * 0.45);
+    c += mix(corC, vec3(1.0), 0.5) * rimC2 * 0.45;
+    c += corC * pertoC * 0.65;
+    if(vToque > 0.003){
+      float angC = dot(nC2, verC2);
+      vec3 pelicula = 0.5 + 0.5 * cos(vec3(0.0, 2.09, 4.19) + angC * 6.0 + vMundo.y * 12.0 + tempo * 2.0);
+      c = mix(c, mix(corC, pelicula, 0.6) * 1.35, vToque * 0.8);
+    }
+  }
   if(materia > 25.5 && materia < 26.5){
     float parte = floor(vFase), fr = clamp(fract(vFase) / 0.98, 0.0, 1.0);
     vec3 nT = normalize(vNor); vec3 verT = normalize(olhoPos - vMundo);
@@ -6172,7 +6243,8 @@ void main(){
      o "cenario quase monocromatico, azul ao preto" (25/09). Acima de 50 m nao ha agua. */
   float fundoAzul = lamina > 50.0 ? 0.0 : 1.0 - smoothstep(lamina - 0.25, lamina, vMundo.y);
   float lumAzul = dot(c, vec3(0.30, 0.50, 0.20));
-  c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * 0.92);
+  // 8.4: os corais vivos (materia 27) guardam a cor deles debaixo d'agua -- azulam so um quarto
+  c = mix(c, lumAzul * vec3(0.30, 0.52, 1.00) + vec3(0.02, 0.07, 0.20), fundoAzul * ((materia > 26.5 && materia < 27.5) ? 0.10 : 0.92));
 
   /* O PE MAIS ESCURO QUE O TOPO. Nao e sombra calculada: e o que todo
      corpo pousado tem, porque a fresta entre ele e o chao nao recebe ceu.
@@ -6358,6 +6430,8 @@ uniform sampler2D panorama, panoramaB;
 uniform float tinta, passthrough, tempo, olho, altura, inicio, fim;
 uniform float longe;        // estrelas finas sobre a pintura, por cenario (o planeta rosa)
 uniform float giroCeu;
+uniform float alto, giraAng;    // 8.4: o ceu mais alto (a pintura encolhe para o zenite) e o angulo dos redemoinhos
+uniform vec3 galaxias[6];       // 8.4: centro (st) e raio de cada galaxia do ceu cosmico
 uniform float mistura;      // 0 = so o ceu A, 1 = so o ceu B
 uniform vec3 corCena;       // o tom do cenario: turquesa no ultimo
 uniform float aspectoCeu;   // largura/altura da pintura em uso
@@ -6437,7 +6511,27 @@ void main(){
      existir. Sem o nadir no denominador, nao ha mais infinito a segurar. */
   vec2 plano = vec2(d.x, -d.z) * (2.0 / (1.0 + abs(d.y)));
   vec2 meia = vec2(CEU_HORIZONTE * aspectoCeu, CEU_HORIZONTE);
-  vec2 st = clamp(plano / (2.0 * meia) + 0.5, 0.0, 1.0);
+  /* 8.4 -- O CEU MAIS ALTO (alto > 0: a pintura encolhe para o zenite, "na cena do
+     planeta rosa deixe o ceu mais alto") e OS REDEMOINHOS (giraAng > 0: cada
+     galaxia do ceu cosmico gira em volta do proprio centro -- rigida no miolo, e
+     na beira o fundo se enrola atras dela: "anime o ceu final, aqueles
+     redemoinhos"). As estrelas finas ficam no plano de sempre, sem subir. */
+  vec2 st = clamp(plano * (1.0 + alto) / (2.0 * meia) + 0.5, 0.0, 1.0);
+  if(giraAng > 0.0){
+    vec2 pg = st * vec2(2.0, 1.0);
+    for(int k = 0; k < 6; k++){
+      vec3 gk = galaxias[k];
+      if(gk.z <= 0.0) continue;
+      vec2 cg2 = gk.xy * vec2(2.0, 1.0);
+      vec2 dg = pg - cg2;
+      float w = 1.0 - smoothstep(0.7, 1.5, length(dg) / gk.z);
+      if(w <= 0.0) continue;
+      float ang = giraAng * w * (mod(float(k), 2.0) < 0.5 ? 1.0 : -1.0);
+      float cs2 = cos(ang), sn2 = sin(ang);
+      pg = cg2 + vec2(dg.x * cs2 - dg.y * sn2, dg.x * sn2 + dg.y * cs2);
+    }
+    st = clamp(pg / vec2(2.0, 1.0), 0.0, 1.0);
+  }
 
   // Dois ceus e uma travessia. Trocar de imagem de um quadro para o outro
   // seria o unico corte duro da obra inteira; misturando, a passagem tem a
@@ -6492,14 +6586,17 @@ void main(){
 
      Por cenario: no planeta rosa longe = 0,8; nos outros, zero. */
   if(longe > 0.002){
-    vec2 cel = floor(plano * 28.0);
+    vec2 cel = floor(plano * 44.0);   // 8.4: mais miudas (era 28)
     vec2 sorte = vec2(fract(sin(dot(cel, vec2(127.1, 311.7))) * 43758.5453),
                       fract(sin(dot(cel, vec2(269.5, 183.3))) * 43758.5453));
-    vec2 centroEstrela = (cel + 0.15 + 0.70 * sorte) / 28.0;
-    float dE = length(plano - centroEstrela) * 28.0;
-    float brilho = smoothstep(0.55, 1.0, sorte.x) * (0.35 + 0.65 * sorte.y);
-    float estrela = exp(-dE * dE * 40.0) * brilho * 0.8;   // macias: ponto duro serrilha
-    arte += vec3(0.95, 0.90, 1.00) * estrela * longe * (0.7 + 0.3 * sin(tempo * 0.7 + sorte.y * 40.0));
+    vec2 centroEstrela = (cel + 0.15 + 0.70 * sorte) / 44.0;
+    float dE = length(plano - centroEstrela) * 44.0;
+    float brilho = smoothstep(0.66, 1.0, sorte.x) * (0.35 + 0.65 * sorte.y);   // 8.4: uma em tres celulas (era quase metade)
+    float estrela = exp(-dE * dE * 90.0) * brilho * 0.75;   // macias: ponto duro serrilha; 8.4: menores
+    /* 8.4: PISCANDO BEM -- cada uma no seu ritmo (1 a 3 Hz), apagando quase de todo
+       no vale e acendendo no pico (era 0,7 a 1,0) */
+    float pisca = pow(0.5 + 0.5 * sin(tempo * (1.3 + sorte.x * 2.2) + sorte.y * 40.0), 2.0);
+    arte += vec3(0.95, 0.90, 1.00) * estrela * longe * (0.25 + 0.95 * pisca);
   }
 
   // DEGRADÊ VERTICAL: cheio no teto, some ao descer, zero no chão.
@@ -7610,6 +7707,15 @@ uniform vec4 fluxo, asas;
 /* A VIDA (6.3): 0 = so o respiro de antes; 1 = manto e cabelo soltos ao
    vento, o peito respirando e a luz subindo pelo corpo. */
 uniform float vida;
+/* 8.4 (26/09): satura = a saturacao dela (a vermelha "muito vermelha" vai a 0,72);
+   danca = quanto as maos e o rosto se mexem; juntas = ate tres pontos (u, v, raio)
+   no quadro -- o rosto e as duas maos --, cada um girando e boiando um pouco em
+   volta de si, "a ilusao de otica como se dancassem no espaco"; mancha1/mancha2 =
+   as cores das manchas de aquarela que nascem no escuro do quadro dela, "para
+   integrar as deusas no ambiente, algo que pareca com a propria arte". */
+uniform float satura, danca;
+uniform vec3 mancha1, mancha2;
+uniform vec3 juntas[3];
 /* Ruido de valor, duas oitavas: e o que faz a beira da pintura ondular em
    vez de terminar numa reta. Barato -- oito leituras de hash. */
 float ruidoFig(vec2 p){
@@ -7686,6 +7792,23 @@ void main(){
        corpo), fechando ate cinco por cento num ciclo de quatro segundos
        com pausa -- o seno elevado ao cubo bate e descansa, e e isso que le
        como batida e nao como tremor. Ao fechar, a ponta sobe um pouco. */
+    /* 8.4 -- AS MAOS E O ROSTO SE MEXEM: em volta de cada junta a leitura da pintura
+       gira (o rosto 3 graus, as maos 6) e boia meio por cento, cada uma no seu
+       ritmo, com peso gaussiano -- longe da junta nada muda, e o escuro do quadro
+       nem se ve mexer. Nao ha tinta nova: e a mesma pintura lida em movimento. */
+    if(danca > 0.0){
+      for(int j = 0; j < 3; j++){
+        vec3 J = juntas[j];
+        if(J.z <= 0.0) continue;
+        vec2 dj = (uv - J.xy) * vec2(1.6, 1.0);
+        float pj = exp(-dot(dj, dj) / (J.z * J.z));
+        float fj = float(j) * 2.1;
+        float ang = (j == 0 ? 0.05 : 0.11) * sin(tempo * (0.55 + 0.17 * float(j)) + fj) * danca;
+        float ca = cos(ang), sa = sin(ang);
+        vec2 rj = vec2(dj.x * ca - dj.y * sa, dj.x * sa + dj.y * ca) - dj;
+        uv += (rj / vec2(1.6, 1.0) + vec2(sin(tempo * 0.7 + fj), cos(tempo * 0.5 + fj)) * 0.004 * danca) * pj;
+      }
+    }
     if(fluxo.z > 0.0){
       float desce = smoothstep(0.0, 0.06, uv.y - fluxo.y);
       float meia = fluxo.z + fluxo.w * max(uv.y - fluxo.y, 0.0);
@@ -7799,6 +7922,32 @@ void main(){
        mistura com a noite nos escuros. Sem o 0,92, com a saturacao um
        quinto acima e o contraste um nada mais fechado, ela volta ao
        arquivo; o que a cena poe por cima (poeira, neblina) e da cena. */
+    /* 8.4 -- A SATURACAO DE CADA UMA ("ajuste a saturacao da deusa vermelha, que esta
+       muito vermelha"): 1 e a pintura como veio; a vermelha vai a 0,72. */
+    c.rgb = mix(vec3(lum), c.rgb, satura);
+    /* 8.4 -- AS MANCHAS DE AQUARELA. No escuro do quadro (onde ele deixava passar as
+       estrelas) nascem manchas macias nas duas cores da pintura dela, com a beira
+       mais escura que o miolo -- como a aguada seca no papel -- e pintas soltas que
+       cintilam, como os respingos que os quadros ja tem. Tudo derivando devagar. Em
+       13/09 uma nebulosa cinza atras da pintura saiu ("formas cinza estranhas"):
+       estas sao coloridas, da propria paleta, e ficam so onde o quadro e noite. */
+    if(mancha1.r + mancha1.g + mancha1.b > 0.01){
+      float seg = smoothstep(-0.03, 0.14, vElev) * smoothstep(0.0, 0.10, min(min(vUV.x, 1.0 - vUV.x), min(vUV.y, 1.0 - vUV.y)));
+      float m1 = ruidoFig(vUV * 3.2 + vec2(tempo * 0.010, -tempo * 0.007));
+      float m2 = ruidoFig(vUV * 7.5 - vec2(tempo * 0.013, tempo * 0.006));
+      float mancha = m1 * 0.62 + m2 * 0.38;
+      float corpoM = smoothstep(0.50, 0.68, mancha);
+      float beiraM = smoothstep(0.50, 0.545, mancha) * (1.0 - smoothstep(0.545, 0.62, mancha));
+      vec3 corM = mix(mancha1, mancha2, ruidoFig(vUV * 2.1 + 5.0));
+      float noEscuro = 1.0 - smoothstep(escuro.y, escuro.y * 3.0, lum);
+      float pesoM = corpoM * noEscuro * seg * presenca * 0.42;
+      vec2 celM = floor(vUV * 46.0);
+      vec2 sM = vec2(fract(sin(dot(celM, vec2(127.1, 311.7))) * 43758.5453), fract(sin(dot(celM, vec2(269.5, 183.3))) * 43758.5453));
+      float dM = length((vUV * 46.0 - celM) - (0.2 + 0.6 * sM));
+      float pinta = (1.0 - smoothstep(0.10, 0.17, dM)) * step(0.74, sM.x) * noEscuro * seg * presenca * (0.45 + 0.55 * sin(tempo * 0.8 + sM.y * 30.0));
+      c.rgb = mix(c.rgb, corM * (0.85 - 0.35 * beiraM), pesoM) + corM * pinta * 0.8;
+      a = max(a, max(pesoM * 0.75, pinta * 0.6));
+    }
     vec3 cc = mix(vec3(lum), c.rgb, 1.22);
     cc = pow(max(cc, 0.0), vec3(1.06)) * 1.04;
     gl_FragColor = vec4(cc, a);
@@ -8111,7 +8260,7 @@ void main(){
     }
   }
 
-  float crista = smoothstep(0.030, 0.052, length(onda));
+  float crista = smoothstep(0.024, 0.062, length(onda));   // 8.4: mais macia (era 0,030/0,052) -- uma crista dura cintila no aparelho
   cor = mix(cor, vec3(0.93, 0.95, 0.99), crista * 0.42);
   // e os aneis do toque acendem, rosa-claro: e o "ressoa" que se ve
   cor = mix(cor, vec3(0.99, 0.90, 0.95), smoothstep(0.004, 0.016, abs(vAnel)) * 0.65);
@@ -8133,6 +8282,11 @@ void main(){
      os vales, mas sem trocar de matiz. */
   float vivo = clamp(agitacao * 1.4 + crista * 0.5, 0.0, 1.2);
   cor = mix(cor, cor * 1.35, vivo * 0.45);
+  /* 8.4 -- DE VOLTA, LEVE (26/09: "volte levemente com a cor iridescente"): um
+     cosseno em tres fases, escorregando pela lamina e com a onda, a um sexto de
+     mistura parada e a um terco com o gesto -- tom que muda, e nao arco-iris. */
+  vec3 iris = 0.5 + 0.5 * cos(vec3(0.0, 2.09, 4.19) + q.x * 0.9 + q.y * 0.7 + tempo * 0.35 + onda.x * 30.0);
+  cor = mix(cor, cor * (0.72 + 0.62 * iris), 0.16 + vivo * 0.22 + crista * 0.10);
 
   /* A lamina cede longe, para nao ter borda. Como ela segue a pessoa, a
      borda nunca chega perto — mas se chegasse, seria uma linha reta no
@@ -8144,7 +8298,7 @@ void main(){
      pino desde 14/09 ("olhando de cima nao se deve ver tanto o que esta
      debaixo"); o pedido novo e o contrario: "deixe o mar translucido". O
      fundo do mar e as pernas se veem atraves dela; de raspao ainda espelha. */
-  float a = presenca * alcance * mix(0.42, 0.80, espelho);
+  float a = presenca * alcance * mix(0.58, 0.86, espelho);   // 8.4: "ficou transparente demais" (era 0,42/0,80)
   if(a < 0.004) discard;
   gl_FragColor = vec4(cor, a);
 }`;
@@ -9775,6 +9929,7 @@ function ceuEmCodigo(tex, pintar){
    galaxias em espiral (bracos azuis, miolo rosa-branco), rios que as ligam --
    miolo vermelho e halo azul, com contas acesas --, ramos dourados finos saindo
    dos rios, e estrelas. */
+const GALAXIAS_ST = new Float32Array(18);   // 8.4: onde as galaxias estao na textura, para girarem
 function gerarCeuCosmico(tex){
   tex.__semente = 1;
   ceuEmCodigo(tex, ({ U, W, H, CX, CY, R, G, B, carimbo, fundo, rnd }) => {
@@ -9787,6 +9942,9 @@ function gerarCeuCosmico(tex){
       const a = k / 8 * Math.PI * 2 + rnd() * 0.5, rr = 0.45 + rnd() * 1.35;
       gal.push({ x: Math.cos(a) * rr, y: Math.sin(a) * rr, raio: 0.22 + rnd() * 0.16, giro: rnd() * 6.283, sentido: rnd() < 0.5 ? 1 : -1 });
     }
+    // 8.4: os centros das seis primeiras, em coordenadas da textura, para o ceu girar em volta delas
+    GALAXIAS_ST.fill(0);
+    gal.slice(0, 6).forEach((g, k) => { GALAXIAS_ST[k * 3] = (CX + g.x * U) / W; GALAXIAS_ST[k * 3 + 1] = (CY + g.y * U) / H; GALAXIAS_ST[k * 3 + 2] = g.raio * U * 1.6 / H; });
     // os rios: a corrente ligando as galaxias na ordem da volta, e dois atalhos
     // so a corrente em volta: atalhos pelo meio cruzavam no zenite e liam como um X
     const ligas = gal.map((g, k) => [k, (k + 1) % gal.length]);
@@ -10177,7 +10335,7 @@ const CENAS = {
      aceso) e ha estrelas finas sobre ela (longe, no FS_SALA). Fechar a
      cupula cedo (fim 0,60) foi tentado e era o contrario do pedido. */
   3: { ceu:2, tinta:0.60, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.68, longe:0.80 },   // 8.3: era 0/0,85
+       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.68, longe:0.80, alto:0.35 },   // 8.3: era 0/0,85; 8.4: o ceu mais alto
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
@@ -10200,7 +10358,7 @@ const CENAS = {
           transparente NA ALTURA DOS OLHOS e lia como "uma mancha cinza" sobre
           a sala -- foi por isso que o cenario virou ceu inteiro. Assim a linha
           dos olhos e toda sala, e o meio-termo fica acima da cabeca. */
-       poeira:2000, sopro:0.8, raizes:0, ini:0.08, fim:0.34 },   // 8.3: era 0,16/0,42
+       poeira:2000, sopro:0.8, raizes:0, ini:0.08, fim:0.34, giraGal:0.07 },   // 8.3: era 0,16/0,42; 8.4: as galaxias giram
 };
 
 function cenaEm(t){
@@ -11177,7 +11335,7 @@ function soltar(x, y, z, vx, vy, vz, vida, tom, cena){
 function andarEfeitoDasMaos(dt){
   if(!bEfeito || dt <= 0) return;
   const T = relogio, c = cenaAtual;
-  const lamina = (c === 3) ? NIVEL_AGUA + nivelExtra : 99;
+  const lamina = aguaPresenca > 0.004 ? NIVEL_AGUA + nivelExtra : 99;   // 8.4: enquanto houver agua, e nao so no cenario 3
   for(let h = 0; h < 2; h++){
     const m = MAOS[h], a = maoDeAntes[h], r = rastro[h];
     if(!m.tem){ a.tem = false; r.n = 0; continue; }
@@ -11470,7 +11628,8 @@ function montarArcos(){
   if(!ARCOS_NO_FIM) return;
   const pos = [], nor = [], alt = [], fase = [], borda = [], idx = [];
   const az0 = Math.atan2(-2.8, 39.9);          // a direcao da deusa (a figura 'integra')
-  const FILAS = [[6, 4, 1.10], [9, 5, 1.55], [13, 6, 2.10], [18, 6, 2.80], [24, 7, 3.60], [31, 7, 4.60]];
+  // 8.4: MAIS LONGE ("ja no cenario final, mais longe"): as fileiras de 6-31 m foram a 8-40 m, com os mesmos raios
+  const FILAS = [[7.8, 4, 1.10], [11.7, 5, 1.55], [16.9, 6, 2.10], [23.4, 6, 2.80], [31.2, 7, 3.60], [40.3, 7, 4.60]];
   const rnd = prng(8181);
   let n = 0;
   FILAS.forEach(([d, qtd, R], f) => {
@@ -11479,7 +11638,7 @@ function montarArcos(){
     for(let k = 0; k < qtd; k++){
       const az = az0 + (-1 + 2 * k / (qtd - 1)) * aberto + (rnd() - 0.5) * 0.08;
       const dd = d * (0.92 + rnd() * 0.16), Rr = R * (0.85 + rnd() * 0.3), T = Rr * 0.30;
-      if(d <= 24 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre
+      if(d <= 32 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre (8.4: as fileiras foram mais longe)
       const meia = Rr / dd;
       if(azAntes !== null && az - azAntes < (meia + meiaAntes) * 1.08) continue;
       azAntes = az; meiaAntes = meia;
@@ -11896,7 +12055,10 @@ const FIGURAS = [
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
-    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09] },
+    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09],
+    // 8.4: o rosto e as maos (medidos no arquivo), a danca e as manchas azul/laranja da pintura
+    danca:1.0, juntas:[[0.505, 0.352, 0.055], [0.43, 0.552, 0.06], [0.575, 0.528, 0.06]],
+    manchas:[[0.16, 0.30, 0.72], [0.85, 0.45, 0.30]] },
   /* A VERMELHA E A INTEGRA, PELO MESMO METODO -- 12/09: o quadro inteiro
      do mesmo momento do recorte antigo (91 s e 152 s da animacao),
      expandido no Magnific, ampliado 2x, so a beirada esmaecendo, o preto
@@ -11918,9 +12080,15 @@ const FIGURAS = [
      (o corpo dela fica um pouco abaixo do centro do quadro), e o pe do
      quadro abaixo do horizonte, onde a pintura ja e preta. Entra depois
      que os planetas descem. Sem reflexo: nao ha agua no cosmos. */
-  { nome:'deusa',     tex:1, centro:[-39.1, 14.6, -8.3], tam:[42.0, 26.25],
+  /* 8.4 -- MAIOR E MENOS VERMELHA (26/09: "ajuste a saturacao da deusa vermelha, que
+     esta muito vermelha; aumente o tamanho dela"): o quadro cresce 35 % (57 x 35 m
+     de meio-lado a 40 m) e o centro vai do azimute -78 ao -84, para a beira direita
+     dele nao chegar ao Sol; a saturacao a 0,72. */
+  { nome:'deusa',     tex:1, centro:[-39.8, 14.6, -4.2], tam:[56.7, 35.4],
     de:226, ate:376, balanco:0.4, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
-    elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09] },
+    elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09],
+    satura:0.72, danca:1.0, juntas:[[0.4925, 0.336, 0.05], [0.44, 0.448, 0.055], [0.5725, 0.37, 0.055]],
+    manchas:[[0.62, 0.10, 0.12], [0.90, 0.55, 0.22]] },
   /* EXPANDIDA DE NOVO em 13/09 ("expande mais o cenario ao redor da imagem
      e faz a graduacao de novo"): de 2048 x 1280 para 2536 x 1584 no site,
      30 px de beira de papel cortados (2476 x 1524), ampliada 2x. O plano
@@ -11931,13 +12099,16 @@ const FIGURAS = [
      beira deixar de ser reta -- ver o ruido na beira). Uma nebulosa de
      ruido atras de cada pintura foi tentada em 13/09 e saiu: no escuro do
      cenario ela lia como "formas cinza estranhas". */
-  { nome:'integra',   tex:2, centro:[-2.8, 14.6, -39.9], tam:[48.4, 29.8],
+  // 8.4: MAIS LONGE ("ja no cenario final, mais longe"): de 40 a 52 m, no mesmo rumo e do mesmo tamanho -- le 23 % menor
+  { nome:'integra',   tex:2, centro:[-3.64, 19.0, -51.9], tam:[48.4, 29.8],
     de:556, ate:640, balanco:0.3, espelha:false, inteira:true, vida:0.5,   // ate o fim: a frase fica sobre ela (24/09)
     elipse:[0.501, 0.542, 0.149, 0.353], escuro:[0.02, 0.10], graduacao:0.26,
     /* medido no arquivo: a boca em (0,502, 0,405); o vestido alarga de 0,02
        de meia-largura na boca a 0,09 no pe; as asas encostam no corpo em
        0,465 e 0,535 e vao de 0,28 a 0,55 de altura */
-    fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135] },
+    fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135],
+    danca:0.7, juntas:[[0.50, 0.406, 0.04], [0.425, 0.593, 0.05], [0.58, 0.569, 0.05]],
+    manchas:[[0.20, 0.40, 0.80], [0.95, 0.60, 0.30]] },
 ];
 
 /* A BORBOLETA. Nao fica parada em lugar nenhum: ela sai do casulo e sobe
@@ -12040,11 +12211,11 @@ const AR_DA_CENA = {1:[0.44,0.63,0.66], 2:[0.60,0.55,0.82],
                     3:[0.85,0.54,0.66], 4:[0.52,0.56,0.85]};
 const AR_DO_TEATRO = AR_DA_CENA[4];
 const CAMADAS_TEATRO = [
-  { nome:'vermelho', v0:0.0000, v1:0.2719, topo:639, altura:282, dist:22.0, bruma:0.42 },
-  { nome:'turquesa', v0:0.2719, v1:0.4986, topo:766, altura:235, dist:19.0, bruma:0.34 },
-  { nome:'roxo',     v0:0.4986, v1:0.6577, topo:896, altura:165, dist:16.5, bruma:0.26 },
-  { nome:'azul',     v0:0.6577, v1:0.8582, topo:930, altura:208, dist:14.0, bruma:0.18 },
-  { nome:'amarelo',  v0:0.8582, v1:1.0000, topo:998, altura:147, dist:12.0, bruma:0.12 },
+  { nome:'vermelho', v0:0.0000, v1:0.2719, topo:639, altura:282, dist:28.6, bruma:0.42 },
+  { nome:'turquesa', v0:0.2719, v1:0.4986, topo:766, altura:235, dist:24.7, bruma:0.34 },
+  { nome:'roxo',     v0:0.4986, v1:0.6577, topo:896, altura:165, dist:21.5, bruma:0.26 },
+  { nome:'azul',     v0:0.6577, v1:0.8582, topo:930, altura:208, dist:18.2, bruma:0.18 },
+  { nome:'amarelo',  v0:0.8582, v1:1.0000, topo:998, altura:147, dist:15.6, bruma:0.12 },
 ];
 const TEATRO_PX = Math.tan(60 / 1490 * Math.PI / 180);   // metros por pixel, por metro de distancia
 const TEATRO_CHAO_PX = 1098, TEATRO_CHAO_ANG = -8 * Math.PI / 180;
@@ -12726,7 +12897,7 @@ function montarRegua(){
     cenaAtual = c2; ceuA = CENAS[c2].ceu; ceuB = CENAS[c2].ceu; misturaCeu = 1;
     const a = CENAS[c2];
     tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina * NEBLINA_FATOR; marmore=a.marmore; leitoso=a.leite;
-    sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
+    sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim; altoCeu=a.alto||0; giraGalaxias=a.giraGal||0;
     quantosPo=a.poeira; raizesOn=a.raizes>0.5;
     pinta();
   });
@@ -12768,6 +12939,7 @@ function passo(){
   return Math.max(0, Math.min(dt, 0.1));
 }
 let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, longeCeu=0, semente=11;
+let altoCeu = 0, giraGalaxias = 0, giraAngulo = 0;   // 8.4: o ceu mais alto (cena 3) e os redemoinhos (cena 4)
 let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
 // 0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o
 // céu era uma caixa; numa cúpula que acompanha a cabeça a altura do
@@ -13080,6 +13252,13 @@ function alvosAgora(){
       const ya = ondeAguaViva(av);
       lista.push({ id:'agua-viva-' + k, nota:k % 6, x:av.x, y:ya, z:av.z, raio:0.10 + 0.5 * av.esc,
                    fazer(m){ pulsarEm(av.x, ya, av.z); sinoDoToque(k % 6, 0.55); relato('TOCOU-UMA-AGUA-VIVA ' + k); } });
+    });
+    // 8.4: os corais vivos -- pelo corpo, ate a altura deles; respondem com a cor, a onda, a nota e a agua
+    CORAIS_VIVOS.forEach((cv, k) => {
+      const rc = 0.16 + 0.32 * cv.esc;
+      lista.push({ id:'coral-vivo-' + k, nota:(k * 2 + 1) % 6, px:cv.x, py:Math.min(1.2, cv.alt * 0.5), pz:cv.z, praio:rc,
+                   dentro(m){ const dx = m.x - cv.x, dz = m.z - cv.z; return m.y < cv.alt + 0.1 && dx*dx + dz*dz < (rc + 0.05) * (rc + 0.05); },
+                   fazer(m){ pulsarEm(m.x, m.y, m.z); sinoDoToque((k * 2 + 1) % 6, 0.8); somDaAgua(); relato('TOCOU-UM-CORAL-VIVO ' + k); } });
     });
   }
   // a deusa que danca (7.1): pelo peito, com folga para os bracos
@@ -13681,7 +13860,12 @@ function seguirPartitura(dt){
      contrario do que a cena conta.
 
      Agora ele nasce com o cenario e sai com ele. */
-  fundoDoMar = rampa(386, 402, t) * (1 - rampa(516, 530, t));
+  /* 8.4 -- O MAR SAI DEVAGAR (26/09: "ele tem que sair suavemente, o cenario todo;
+     a agua pode ir subindo e desaparece tudo depois"). Dos 8:20 aos 8:46 a agua
+     sobe 2,6 m -- passa pelos olhos aos 8:28 e a pessoa fica dentro dela, com as
+     causticas --, e so entao tudo se apaga, ate 9:00: os seres, o fundo, a
+     lamina. Nada some antes de estar coberto. */
+  fundoDoMar = rampa(386, 402, t) * (1 - rampa(520, 540, t));
 
   /* E ELA LEVANTA. "A agua levanta" quando a pessoa se mexe: o nivel sobe
      alguns centimetros com a agitacao e volta sozinho. Poucos centimetros
@@ -13689,7 +13873,7 @@ function seguirPartitura(dt){
      visiveis no corpo inteiro. */
   /* Os furacoes nascem com a mao gigante, aos 8:25, e crescem ate a
      travessia. Antes disso a agua e so agua. */
-  furacaoPresenca = rampa(496, 520, t) * (1 - rampa(524, 532, t));
+  furacaoPresenca = rampa(496, 520, t) * (1 - rampa(526, 538, t));   // 8.4
   seguirBuracoFinal(t);
   seguirFecho(t);
   esperaPresenca = aproximar(esperaPresenca, esperando ? 1 : 0,
@@ -13718,9 +13902,9 @@ function seguirPartitura(dt){
      nunca e vista inteira. */
   retornoInverso = (c === 4 && ARVORES_NO_TETO) ? rampa(528, 576, t) : 0;   // 8.1: sem arvores no teto
 
-  nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
+  nivelExtra = aproximar(nivelExtra, agitacao * 0.085 + rampa(500, 526, t) * 2.6, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);   // 8.4: a subida final
 
-  aguaPresenca = rampa(390, 425, t) * (1 - rampa(508, 526, t));
+  aguaPresenca = rampa(390, 425, t) * (1 - rampa(518, 538, t));   // 8.4: era 508/526
 
   /* O casulo existe do momento em que a arvore termina de crescer ate a
      borboleta sair dele. Os cogumelos vem antes da arvore, na ordem do
@@ -13737,10 +13921,10 @@ function seguirPartitura(dt){
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
   buracoPresenca  = rampa(278, 298, t) * (1 - rampa(374, 388, t));
-  conchaPresenca  = rampa(432, 456, t) * (1 - rampa(508, 522, t));
-  vidroPresenca   = rampa(408, 432, t) * (1 - rampa(508, 522, t));   // o ser de vidro
-  seresPresenca   = rampa(402, 432, t) * (1 - rampa(504, 520, t));
-  seresDeLuzPresenca = rampa(412, 436, t) * (1 - rampa(505, 522, t));   // 6.3
+  conchaPresenca  = rampa(432, 456, t) * (1 - rampa(512, 534, t));   // 8.4
+  vidroPresenca   = rampa(408, 432, t) * (1 - rampa(512, 534, t));   // o ser de vidro; 8.4
+  seresPresenca   = rampa(402, 432, t) * (1 - rampa(512, 534, t));   // 8.4
+  seresDeLuzPresenca = rampa(412, 436, t) * (1 - rampa(512, 534, t));   // 6.3; 8.4
   // 7.1: a deusa que danca vem com a floresta feita e vai com ela
   DANCA.presenca = (DEUSA_QUE_DANCA && DANCA.ok && c === 1) ? rampa(40, 54, t) * (1 - rampa(186, 196, t)) : 0;
   if(DANCA.presenca > 0.004) lerADanca();
@@ -13783,6 +13967,9 @@ function seguirPartitura(dt){
   sopro      = aproximar(sopro, a.sopro, p);
   degradeIni = aproximar(degradeIni, a.ini, p);
   degradeFim = aproximar(degradeFim, a.fim, p);
+  altoCeu = aproximar(altoCeu, a.alto || 0, p);              // 8.4
+  giraGalaxias = aproximar(giraGalaxias, a.giraGal || 0, p);
+  giraAngulo = giraGalaxias > 0.0005 ? giraAngulo + giraGalaxias * Math.max(0, dt) : 0;   // acumula so no cenario 4, e zera fora dele
   const alvoPoeira = (!POEIRA_NA_FLORESTA && c === 1) ? 0 : a.poeira;
   quantosPo  = Math.round(dt > 0 ? aproximar(quantosPo, alvoPoeira, p) : alvoPoeira);
   raizesOn   = a.raizes > 0.5;
@@ -14268,8 +14455,10 @@ const ePortaoDica = document.getElementById('portaoDica');
 let vitrine = false;
 function ligarVitrine(){
   if(andando || ePortao.classList.contains('foi')) return;
-  // aos 0:40 os rios de luz ja estao quase desenhados e os primeiros vagalumes acendem; a dancarina ainda nao
-  t = 40; relogio = 0; esperando = false; cenaAtual = 1; misturaCeu = 0;
+  /* 8.4 -- SO ESTRELAS (26/09: "deixe apenas estrelas nessa tela introdutoria do app,
+     pois esta dando spoiler"): aos 0:04 nao ha arvore, cogumelo, rio de luz nem
+     dancarina -- so o ceu estrelado e a poeira. Era 0:40. */
+  t = 4; relogio = 0; esperando = false; cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
   seguirPartitura(0);
   tPitch = 0.62; vitrine = true;   // 35 graus para cima: mais ceu que chao
@@ -14277,6 +14466,13 @@ function ligarVitrine(){
 function iniciarObra(){
   vitrine = false;
   t = 0; relogio = 0;
+  /* 8.4 -- O CRESCIMENTO DE VOLTA (26/09: "desde que voce mexeu naquela tela
+     introdutoria, perdeu o crescimento das arvores; tem que comecar com ceu
+     estrelado e depois vai surgindo as coisas"). O crescimento so sobe (Math.max)
+     enquanto o relogio anda, e a vitrine da 7.9 deixava a floresta feita aos 0:40:
+     ao Iniciar, t voltava a zero e a arvore nao -- nascia pronta. Zerar aqui e o
+     mesmo gesto do recomecar. */
+  crescimento = 0; folhagem = 0; retornoInverso = 0;
   cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
   andando = true;
@@ -14434,6 +14630,8 @@ if(emTesteLocal){
                tufos: TUFOS_CHAO.map(tf => ({ x: r2(tf.x), z: r2(tf.z), esc: r2(tf.escala), r: r2(tf.raio), d: r2(Math.hypot(tf.x, tf.z)) })),
                pedras: PEDRAS_CHAO.map(pd => ({ x: r2(pd.x), z: r2(pd.z), esc: r2(pd.escala) })),
                paredes: TUFOS_DE_PAREDE.map(tf => ({ c: tf.c.map(r2), n: tf.n })), danca: [r2(DANCA_AZ * 180 / Math.PI), DANCA_DIST] }; },
+    // 8.4: os corais vivos do fundo do mar, para a bancada
+    corais(){ return CORAIS_VIVOS.map(cv => ({ x:+cv.x.toFixed(2), z:+cv.z.toFixed(2), esc:+cv.esc.toFixed(2), alt:+cv.alt.toFixed(2), tipo:cv.tipo, d:+Math.hypot(cv.x, cv.z).toFixed(2) })); },
     // 8.3: quanto um ponto (x, z, na altura y, com raio r) esta dentro de algum corpo -- 0 = livre
     dentro(x, z, y, r){ const p = { x, z }; afastar(p, y, r, null, y < 0.5); return +Math.hypot(p.x - x, p.z - z).toFixed(3); },
     arcos(){ return { ok:!!bArcos, triangulos:nArcosIdx / 3, presenca:+arcosPresenca.toFixed(2) }; },
@@ -14570,7 +14768,7 @@ if(emTesteLocal){
       cenaAtual = c; ceuA = CENAS[c].ceu; ceuB = CENAS[c].ceu; misturaCeu = 1;
       const a = CENAS[c];
       tinta=a.tinta; longeCeu=a.longe||0; neblina=a.neblina; marmore=a.marmore; leitoso=a.leite;
-      sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim;
+      sopro=a.sopro; degradeIni=a.ini; degradeFim=a.fim; altoCeu=a.alto||0; giraGalaxias=a.giraGal||0;
       quantosPo=a.poeira; raizesOn=a.raizes>0.5;
       /* Saltar tem que acertar TAMBEM o que a partitura calcula por quadro
          -- crescimento, presencas, agua. Sem isto, num navegador que limita
@@ -15188,7 +15386,8 @@ const locS = {mvp:uS('mvp'), pano:uS('panorama'), panoB:uS('panoramaB'),
              mistura:uS('mistura'), tinta:uS('tinta'), longe:uS('longe'),
               pass:uS('passthrough'), tempo:uS('tempo'), olho:uS('olho'),
               altura:uS('altura'), inicio:uS('inicio'), fim:uS('fim'),
-              giroCeu:uS('giroCeu'), aspecto:uS('aspectoCeu')};
+              giroCeu:uS('giroCeu'), aspecto:uS('aspectoCeu'),
+              alto:uS('alto'), giraAng:uS('giraAng'), galaxias:uS('galaxias[0]')};   // 8.4
 const aS = {pos:gl.getAttribLocation(progSala,'aPos'), nor:gl.getAttribLocation(progSala,'aNor'),
             uv:gl.getAttribLocation(progSala,'aUV'), tipo:gl.getAttribLocation(progSala,'aTipo')};
 const locSalaCentro = gl.getUniformLocation(progSala,'centro');
@@ -15417,7 +15616,9 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                presenca:uFi('presenca'), corte:uFi('corte'), inteira:uFi('inteira'),
                elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
                graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas'),
-               vida:uFi('vida')};
+               vida:uFi('vida'),
+               satura:uFi('satura'), danca:uFi('danca'), mancha1:uFi('mancha1'), mancha2:uFi('mancha2'), juntas:uFi('juntas[0]')};   // 8.4
+const JUNTAS_BUF = new Float32Array(9);
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
 const uAg = n=>gl.getUniformLocation(progAgua,n);
@@ -15635,7 +15836,8 @@ function desenharCogumelos(){
      a abelha pousada vale metade. O shader troca a cor por isto. */
   for(let k = 0; k < 13; k++){
     const f = x => x < 0 ? 0 : x < 0.35 ? x / 0.35 : Math.max(0, 1 - (x - 0.35) / 5.5);
-    cogToqueArr[k] = Math.max(f(relogio - (ultimoToqueEm['cogumelo-' + k] || -99)), 0.55 * f(relogio - cogPolenEm[k]));
+    cogToqueArr[k] = Math.max(f(relogio - (ultimoToqueEm['cogumelo-' + k] || -99)), 0.55 * f(relogio - cogPolenEm[k]),
+                              f(relogio - (ultimoToqueEm['coral-vivo-' + k] || -99)));   // 8.4: os corais vivos, no mesmo relogio (outro cenario)
   }
   gl.uniform1fv(locSo.cogToque, cogToqueArr);
   /* CORPO FECHADO, e nao casca. Com o descarte de face desligado via-se
@@ -15777,6 +15979,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locS.fim,    comParedes ? Math.min(degradeFim, -0.18) : degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
+    gl.uniform1f(locS.alto, altoCeu);          // 8.4
+    gl.uniform1f(locS.giraAng, giraAngulo);
+    gl.uniform3fv(locS.galaxias, GALAXIAS_ST);
     /* A proporcao e a do ceu que esta na frente. Na travessia os dois
        convivem, mas as tres pinturas da obra tem a mesma forma -- se um dia
        tiverem formas diferentes, e aqui que a travessia vai pedir dois. */
@@ -15900,6 +16105,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform4f(locFi.fluxo, fl[0], fl[1], fl[2], fl[3]);
       gl.uniform4f(locFi.asas, as[0], as[1], as[2], as[3]);
       gl.uniform1f(locFi.vida, f.vida || 0);
+      // 8.4: a saturacao, a danca das juntas e as manchas de cada uma
+      gl.uniform1f(locFi.satura, f.satura === undefined ? 1 : f.satura);
+      gl.uniform1f(locFi.danca, f.danca || 0);
+      const mc = f.manchas || [[0, 0, 0], [0, 0, 0]];
+      gl.uniform3f(locFi.mancha1, mc[0][0], mc[0][1], mc[0][2]);
+      gl.uniform3f(locFi.mancha2, mc[1][0], mc[1][1], mc[1][2]);
+      JUNTAS_BUF.fill(0);
+      (f.juntas || []).slice(0, 3).forEach((j, k) => { JUNTAS_BUF[k * 3] = j[0]; JUNTAS_BUF[k * 3 + 1] = j[1]; JUNTAS_BUF[k * 3 + 2] = j[2]; });
+      gl.uniform3fv(locFi.juntas, JUNTAS_BUF);
       gl.uniform1f(locFi.mergulho, Math.max(0.66, tam[1] * 0.4));
       gl.uniform3f(locFi.ambiente, ar[0], ar[1], ar[2]);
       gl.uniform3f(locFi.centro, cen[0], cen[1], cen[2]);
@@ -16021,7 +16235,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     for(let i = 0; i < CAMADAS_TEATRO.length; i++){
       const c = CAMADAS_TEATRO[i], sb = subidaTeatro(i, t);
       if(sb < 0.004) continue;
-      const px = c.dist * TEATRO_PX;                       // um pixel do quadro, em metros, a esta distancia
+      const px = c.dist * TEATRO_PX * 0.85;                // um pixel do quadro, em metros, a esta distancia (8.4: as camadas 30 % mais longe e 15 % menores -- "mais longe")
       const yc = c.topo + c.altura * 0.5;
       gl.uniform3f(locTe.centro, 0, 1.6 + c.dist * Math.tan(TEATRO_CHAO_ANG) + (TEATRO_CHAO_PX - yc) * px, -c.dist);
       gl.uniform2f(locTe.tamanho, 1280 * px, c.altura * 0.5 * px);
@@ -17247,6 +17461,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.bolha, 0.0);
       gl.uniform1f(locSo.corrente, 0.0);
       for(const r of bFundoParado) porMalha(r.b, r.n, 9.0);
+      // 8.4: os corais vivos, opacos, com um resto de corrente
+      gl.uniform1f(locSo.corrente, CORRENTE_DO_MAR * 0.35);
+      for(const r of bCoraisVivos) porMalha(r.b, r.n, 27.0);
+      gl.uniform1f(locSo.corrente, 0.0);
       gl.uniform1f(locSo.nadar, 1.0);
       /* AS SERPENTES DO MAR, por baixo da lamina: em neon (a materia das
          algas acesas), somando luz -- com a pele dos seres elas sumiam na

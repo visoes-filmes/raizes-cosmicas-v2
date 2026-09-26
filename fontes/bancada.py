@@ -76,8 +76,8 @@ GANCHOS = [
     ("subirRaizes(semearMata(11), 11);",
      "subirRaizes(semearMata(11), 11);\n"
      "window.__semearMata = semearMata; window.__BASES = BASES; window.__malha = decodificarMalha;"),
-    ("    fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135] },\n];",
-     "    fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135] },\n];\n"
+    ("    manchas:[[0.20, 0.40, 0.80], [0.95, 0.60, 0.30]] },\n];",   # 8.4: a integra termina nas manchas
+     "    manchas:[[0.20, 0.40, 0.80], [0.95, 0.60, 0.30]] },\n];\n"
      "window.__FIGURAS = FIGURAS;"),
 ]
 
