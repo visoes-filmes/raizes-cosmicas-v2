@@ -307,13 +307,13 @@ if saida == os.path.join(RAIZ, "index.html"):
     # (o travamento ao mexer a cabeca) e o toque com folga e respiro (esse ja
     # esta no template, vale para todas).
     v52 = (html.replace("const NEBLINA_FATOR         = 1.0;",   "const NEBLINA_FATOR         = 0.5;")
-               .replace("const ESCALA_DESENHO        = 1.0;",   "const ESCALA_DESENHO        = 0.7;")
+               .replace("const ESCALA_DESENHO        = 1.0;",   "const ESCALA_DESENHO        = 0.8;")   # 7.7: era 0,7 ("pixelizado"); a escala viva ainda cede ate 0,82 disso
                .replace("<title>Raízes Cósmicas v2</title>", "<title>Raízes Cósmicas 5.2</title>")
                .replace("<h1>Raízes Cósmicas v2</h1>", "<h1>Raízes Cósmicas 5.2</h1>")
                .replace('Raízes Cósmicas <em>v2</em>', 'Raízes Cósmicas <em>5.2</em>')
                .replace("var PREFIXO_CACHE = 'raizes-cosmicas-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v52-';"))
     if ("const ESPACO_ESCANEADO      = false;" not in v52 or "const PAREDES_RACHADAS      = false;" not in v52
-            or "NEBLINA_FATOR         = 0.5;" not in v52 or "ESCALA_DESENHO        = 0.7;" not in v52
+            or "NEBLINA_FATOR         = 0.5;" not in v52 or "ESCALA_DESENHO        = 0.8;" not in v52
             or "raizes-cosmicas-v52-" not in v52):
         print("AVISO: os interruptores da 5.2 nao foram todos achados")
     with open(os.path.join(RAIZ, "v52.html"), "w", encoding="utf-8") as f:
@@ -332,9 +332,9 @@ if saida == os.path.join(RAIZ, "index.html"):
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
              .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
-             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.6</title>")
-             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.6</h1>")
-             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.6</em>')
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 7.7</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 7.7</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>7.7</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
             or "const ESPACO_ESCANEADO      = true;" not in v6

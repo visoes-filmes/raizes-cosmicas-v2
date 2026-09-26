@@ -696,7 +696,7 @@ const FOVEACAO              = 0.75;
 /* 0,75 e nao 0,65 (mesmo dia): 0,65 sobre os 0,7 da ESCALA_DESENHO dava
    menos da metade da resolucao do olho, e isso se ve. Com a neblina leve
    (NEBLINA_CAMADAS_RM) a folga que faltava veio de onde estava o peso. */
-const ESCALA_VIVA_MIN       = 0.75;
+const ESCALA_VIVA_MIN       = 0.82;   // 7.7: era 0,75 -- com a escala 0,7 dava 0,52 do nativo, e isso e o 'pixelizado'
 /* A NEBLINA EM RM -- 25/09, MEDIDO NO QUEST pela Cabine, com a pessoa dentro:
    ligada, a placa de video gastava 14-17 ms por quadro (55 fps); so ela
    desligada, 8 ms e 72 fps cravados; a poeira desligada nao mudava nada. As
@@ -1614,7 +1614,12 @@ let totalRaizes = 0;
 
    Isso nao e um arranjo de conveniencia: e a primeira imagem da animacao,
    um casulo pendurado num fio, sozinho no escuro. */
-const ARVORE_BASE = [-1.35, 0, -1.75];
+/* A DOIS PASSOS A DIREITA DE QUEM COMECA -- 25/09 (7.7): "o ambiente tem que se
+   distribuir a partir de onde a pessoa comeca; a arvore-mae a dois passos a
+   direita, para nao ficar longe mesmo que a sala seja grande". A origem do
+   espaco (local-floor) e onde o capacete estava ao abrir a sessao, e -z e para
+   onde a pessoa olhava: direita e +x. Era [-1.35, 0, -1.75], a esquerda e a 2,2 m. */
+const ARVORE_BASE = [1.45, 0, -1.05];
 /* UM METRO DO CHAO. A altura nao e estetica: e de quem vai tocar.
    Crianca de seis anos alcanca confortavelmente ate cerca de 1,15 m com o
    braco estendido, e o casulo e o objeto que mais convida ao toque na obra
@@ -1630,7 +1635,7 @@ const ARVORE_BASE = [-1.35, 0, -1.75];
    centro e a 0,73 m na frente do tronco: olhar para a arvore e ve-lo. E
    subiu de 1,00 para 1,45 m, que e altura de peito -- na anterior ele
    ficava abaixo da linha do olhar de quem esta em pe. */
-const CASULO = [-0.85, 1.45, -0.88];
+const CASULO = [0.85, 1.45, -0.50];   // pende do galho da mae, para o lado da pessoa (7.7: acompanhou a mae)
 /* ONDE O GALHO TERMINA: exatamente no topo do pedunculo do casulo. Nao ha
    fio nenhum entre os dois -- o casulo se prende ao galho pelo proprio
    corpo, como pupa faz. CASULO marca a barriga; o pedunculo sobe dali. */
@@ -1809,7 +1814,7 @@ function acharLugarDaMae(){
   for(let giro = Math.PI/18; giro <= Math.PI && !achado; giro += Math.PI/18){
     for(const lado of [1, -1]){
       const a = a0 + lado * giro;
-      for(let d = Math.max(1.30, d0 - 0.70); d <= d0 + 1.00; d += 0.12){
+      for(let d = Math.max(1.30, d0 - 0.70); d <= d0 + 0.45; d += 0.12){   // 7.7: no maximo meio passo mais longe
         const x = Math.sin(a) * d, z = -Math.cos(a) * d;
         if(chaoLivre(x, z, raio, true)){ achado = [x, z]; break; }
       }
@@ -2107,8 +2112,17 @@ function arrumarOEspaco(){
   const semente = 11;
   subirRaizes(semearMata(semente), semente);
   const emCima = COGUMELOS.filter(c => (c.y || 0) > 0.05).length;
+  /* 7.7: a vida miuda segue a mae e os cogumelos, e as plantas pontuais sobem
+     nas paredes lidas (a mesa ja recebe cogumelos pelo pousarNoQueHouver) */
+  let naParede = 0;
+  if(VIDA_NA_FLORESTA){
+    montarTrilhasDaVida();
+    naParede = plantarNasParedes();
+    montarFolhasPadronadas(prng(7476));
+    if(CORUJA.ok) montarPoleiros();
+  }
   relato('ESPACO-ARRUMADO mae=' + daMae + ' cogumelos-em-movel=' + emCima +
-         ' moveis=' + SALA.moveis.length);
+         ' moveis=' + SALA.moveis.length + ' plantas-na-parede=' + naParede);
 }
 
 /* A LEITURA. Chamada por quadro dentro da RM; ela mesma decide quando ja
@@ -3317,7 +3331,7 @@ const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, 
    NO CHAO (DANCA_PE = 0: a captura ja tem o piso em zero), de frente para
    quem entra; 1,55 m na junta da cabeca = uns 1,75 m no topo. Era 2,3 m,
    flutuando a meio metro, com 1,2 m de altura ("um pouco menor", 7.1). */
-const DANCA_AZ = 40 * Math.PI / 180, DANCA_DIST = 3.8, DANCA_PE = 0.0, DANCA_ALTURA = 1.55;
+const DANCA_AZ = -35 * Math.PI / 180, DANCA_DIST = 3.8, DANCA_PE = 0.0, DANCA_ALTURA = 1.55;   // 7.7: a frente-esquerda, ja que a mae foi para a direita
 /* os ossos: cada um vai da junta que o gira ate a filha; o ultimo numero e o
    quanto ele se estende alem da filha (a cabeca continua acima da junta) */
 const DANCA_OSSOS = [ ['pelvis','spine',0], ['spine','chest',0], ['chest','neck',0], ['neck','head',0.10],
@@ -5333,7 +5347,7 @@ void main(){
                        maoB.w * smoothstep(0.95, 0.10, length(vMundo - maoB.xyz)));
       float vCorpo = smoothstep(1.9, 0.7, length(vMundo.xz - olhoPos.xz)) * 0.30;
       float veia = max(max(veiaPerto * 0.35, vMao), vCorpo);
-      if(veia > 0.004){
+      {   // 7.7: sempre (as faixas ficam a um quarto mesmo sem ninguem perto)
         /* A ESCALA E DE ONZE VOLTAS POR METRO NO PLANO e duas na altura: no
            plano o veio se repete a cada nove centimetros, que num tronco de
            sessenta le-se como uma dezena de fios em volta; na altura ele quase
@@ -5358,7 +5372,12 @@ void main(){
         else if(tipoF < 1.5){ float lz = abs(fract(angM * 7.0) * 2.0 - 1.0) + abs(yF * 2.0 - 1.0); des = smoothstep(0.10, 0.04, abs(lz - 0.85)) + smoothstep(0.16, 0.06, lz); }
         else des = smoothstep(0.14, 0.06, length(vec2(fract(angM * 14.0) - 0.5, (yF - 0.5) * 1.6))) + smoothstep(0.05, 0.02, abs(yF - 0.12)) * 0.6;
         des *= smoothstep(0.25, 0.45, vMundo.y) * smoothstep(2.9, 2.5, vMundo.y);
-        c = mix(c, vec3(1.0, 0.72, 0.35), clamp(des, 0.0, 1.0) * veia * 0.85);
+        /* 7.7: "a padronagem pode aparecer quando nao estiver perto, fluorescente, e
+           intensificar ao aproximar, mudando para uma cor complementar: um rosa, nao
+           exagerado". Longe, ocre a um quarto; perto, cheia e rosa. */
+        float pertoF = clamp(max(vMao, vCorpo * 2.0), 0.0, 1.0);
+        vec3 corFaixa = mix(vec3(1.0, 0.72, 0.35), vec3(1.0, 0.50, 0.78), pertoF);
+        c = mix(c, corFaixa, clamp(des, 0.0, 1.0) * (0.25 + 0.65 * pertoF));
       }
     }
   } else if(materia < 0.5){
@@ -5390,8 +5409,10 @@ void main(){
 
        E a saturacao volta um quarto acima de um: media tambem puxa para o
        cinza, e cor puxada para o cinza nao volta so com contraste. */
-    c = clamp((c - 0.052) * 1.62, 0.0, 2.0);
-    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.26);
+    /* 7.7: "a saturacao esta muito alta, principalmente das imagens" -- o contraste
+       cai de 1,62 para 1,45 e a saturacao de 1,26 para 1,05 */
+    c = clamp((c - 0.052) * 1.45, 0.0, 2.0);
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.05);
 
     /* AS ARRANHADURAS. A casca estava LISA -- a aquarela dava cor e nao dava
        superficie.
@@ -5885,6 +5906,52 @@ void main(){
     c = verde * luzF * (1.0 - pad * 0.5) + corPad * pad * acende;
   }
 
+  /* A PLANTARUGA -- 7.7 ("uma mistura de planta com tartaruga; as cores parecidas
+     com as das plantas, com as padronagens das folhas, e uma plantinha grudada
+     nela"). A parte na fase: 0 o casco (a fracao e a volta; vAlt a altura), 1 a
+     pele, 2 os olhos, 3 a barriga, 4 a folha que brota do casco (a fracao e a
+     largura), 5 o cogumelinho. O casco e de escamas em tijolo, cada uma com um
+     dos padroes das folhas (pontos, zigue-zague, losango), no mesmo verde delas,
+     e a costura turquesa. Tocada, o casco pulsa (toque). */
+  if(materia > 23.5 && materia < 24.5){
+    float parte = floor(vFase), fr = clamp(fract(vFase) / 0.98, 0.0, 1.0);
+    vec3 nT = normalize(vNor); vec3 verT = normalize(olhoPos - vMundo);
+    float luzT = 0.45 + 0.55 * max(0.0, dot(nT, normalize(vec3(0.3, 1.0, 0.4))));
+    float rimT = pow(1.0 - abs(dot(nT, verT)), 3.0);
+    vec3 verdeT = mix(vec3(0.12, 0.42, 0.30), vec3(0.20, 0.62, 0.38), clamp(vAlt, 0.0, 1.0)) * luzT;
+    if(parte < 0.5){
+      vec2 g = vec2(fr * 9.0, vAlt * 3.2);
+      g.x += 0.5 * floor(g.y);
+      g.x += (rugas(vec3(g, 3.0)) - 0.5) * 0.25;
+      vec2 cel = floor(g), gg = fract(g) - 0.5;
+      float borda = max(abs(gg.x), abs(gg.y) * 1.1);
+      float linha = smoothstep(0.36, 0.45, borda);
+      float tipoE = mod(cel.x + cel.y * 2.0, 3.0);
+      float pad = 0.0; vec3 corPad = vec3(0.95, 1.0, 0.40);
+      if(tipoE < 0.5){ pad = smoothstep(0.14, 0.06, length(gg)) + smoothstep(0.05, 0.02, abs(length(gg) - 0.28)) * 0.6; }
+      else if(tipoE < 1.5){ float tri = abs(fract(gg.x * 2.5 + 0.5) * 2.0 - 1.0); pad = smoothstep(0.08, 0.03, abs(gg.y + 0.15 - 0.3 * tri)); corPad = vec3(1.0, 0.82, 0.50); }
+      else { float lz = abs(gg.x) * 1.6 + abs(gg.y) * 2.2; pad = smoothstep(0.08, 0.03, abs(lz - 0.6)) + smoothstep(0.12, 0.04, lz); corPad = vec3(0.98, 0.92, 0.70); }
+      c = verdeT * (1.0 - pad * 0.5) + corPad * pad * 0.55;
+      c = mix(c, vec3(0.30, 1.0, 0.85), linha * 0.7);
+      c += vec3(0.35, 0.90, 0.85) * rimT * 0.25;
+      float pulsoT = (toque.w < 1.0) ? (1.0 - toque.w) * (0.5 + 0.5 * sin(toque.w * 30.0)) : 0.0;
+      c += vec3(0.30, 1.0, 0.85) * pulsoT * 0.5;
+    } else if(parte < 1.5){
+      c = verdeT * 0.9 + vec3(0.35, 0.90, 0.85) * rimT * 0.25;
+    } else if(parte < 2.5){
+      c = vec3(0.02, 0.02, 0.03) + vec3(1.0) * pow(max(0.0, dot(nT, verT)), 24.0) * 0.8;
+    } else if(parte < 3.5){
+      c = vec3(0.10, 0.30, 0.22) * luzT;
+    } else if(parte < 4.5){
+      float u = clamp(vAlt, 0.0, 1.0), v = fr;
+      vec2 g = vec2(u * 14.0, (1.0 - v) * 3.0);
+      float pad = smoothstep(0.30, 0.10, length(fract(g) - 0.5)) * step(0.30, v) + smoothstep(0.08, 0.02, 1.0 - v) * 0.7;
+      c = verdeT * (1.0 - pad * 0.5) + vec3(0.95, 1.0, 0.40) * pad * 0.6;
+    } else {
+      c = vec3(0.35, 1.0, 0.85) * (0.8 + 0.4 * rimT);
+    }
+  }
+
   /* A CORUJA-HELICOPTERO -- 7.5 ("como se fosse uma coruja com olhos grandes, pode
      ter apenas um olho, e em vez de asas voasse como um helicoptero"). A parte
      esta na fase: 0 as penas, 1 a iris, 2 as pas, 3 a pupila, 4 o bico, 5 o disco
@@ -5971,7 +6038,16 @@ void main(){
   // e as estrelas por cima de tudo, sem luz e sem piso: elas sao a luz
   c += estrelas;
 
-  float alfa = presenca * vVivo * vBorda;
+  /* A ARVORE CRESCE INTEIRICA -- 7.7 (25/09: "quando as arvores crescem, a gente
+     consegue ver a geometria delas por dentro, por causa da transparencia; poderia
+     ser uma forma inteirica, e e legal como ela vai surgindo"). O surgir continua
+     sendo o do VS_SOLIDA (o vertice sobe do chao com vivo); mas o alfa, que
+     acompanhava vivo e deixava o corpo translucido no meio do caminho, agora fecha
+     nos primeiros 30 % -- a arvore aparece opaca, crescendo, sem mostrar o de dentro.
+     So nas arvores e na folhagem (0, 8, 15, 16, 17); o resto segue como era. */
+  float vivoAlfa = (materia < 0.5 || (materia > 7.5 && materia < 8.5) || (materia > 14.5 && materia < 17.5))
+                   ? smoothstep(0.0, 0.30, vVivo) : vVivo;
+  float alfa = presenca * vivoAlfa * vBorda;
   if(materia > 22.5 && materia < 23.5){   // 7.5: as pas da coruja sao meio transparentes, o disco do rotor quase
     float parteC = floor(vFase);
     if(parteC > 1.5 && parteC < 2.5) alfa *= 0.55;
@@ -6401,6 +6477,34 @@ void main(){
   // a cor de cada quadro: o pulso clareia sem chegar ao branco
   vec3 c = mix(cor, corPulso, pulso);
   gl_FragColor = vec4(c * brilho * presenca, brilho * presenca);
+}`;
+
+/* ═══════════ O RASTRO DAS MAOS EM FIO (7.7) ═══════════
+   Uma linha por mao, do agora (t = 0) ao segundo e meio atras (t = 1),
+   desenhada tres vezes com um desvio pequeno e proprio -- tres fios, como
+   os das deusas -- e sumindo pela cauda. Um pixel, somando luz, bem fraco. */
+const VS_RASTRO = `
+attribute vec3 aPos;
+attribute float aT;          // 0 na mao, 1 na cauda
+uniform mat4 mvp;
+uniform highp float tempo;
+uniform float ramo;          // qual dos tres fios: o desvio e proprio de cada um
+varying float vT;
+void main(){
+  vec3 p = aPos;
+  float f = aT * 9.0 + tempo * 2.0 + ramo * 2.1;
+  p += vec3(sin(f), cos(f * 0.8 + ramo), sin(f * 1.3 + 1.0)) * 0.018 * aT * (0.4 + ramo * 0.3);
+  vT = aT;
+  gl_Position = mvp * vec4(p, 1.0);
+}`;
+const FS_RASTRO = `
+precision mediump float;
+uniform vec3 cor;
+uniform float presenca;
+varying float vT;
+void main(){
+  float b = pow(1.0 - vT, 1.6) * presenca;
+  gl_FragColor = vec4(cor * b, b);
 }`;
 
 /* ═══════════ O CONTORNO PELA PROFUNDIDADE ═══════════
@@ -7940,6 +8044,7 @@ void main(){
      esta longe numa sala escura. Sem isto as cinco folhas eram uma so
      imagem, colada. */
   vec3 c = texture2D(cor, vUV).rgb;
+  c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 0.86);   // 7.7: o papel um pouco menos saturado
   c = mix(c, ar * 0.55, bruma) * (1.0 - 0.25 * bruma);
   gl_FragColor = vec4(c, a);
 }`;
@@ -8459,6 +8564,10 @@ const progSala = programa(VS_SALA, FS_SALA);
 const progFig  = programa(VS_NUVEM, FS_NUVEM);
 const progPo   = programa(VS_PO,   FS_PO);
 const progVida = programa(VS_VIDA, FS_VIDA);   // 7.4
+const progRastro = programa(VS_RASTRO, FS_RASTRO);   // 7.7
+const uRa = n => gl.getUniformLocation(progRastro, n);
+const locRa = { mvp:uRa('mvp'), tempo:uRa('tempo'), ramo:uRa('ramo'), cor:uRa('cor'), presenca:uRa('presenca') };
+const aRa = { pos:gl.getAttribLocation(progRastro,'aPos'), t:gl.getAttribLocation(progRastro,'aT') };
 const uVi = n => gl.getUniformLocation(progVida, n);
 const locVi = { mvp:uVi('mvp'), escalaPonto:uVi('escalaPonto'), presenca:uVi('presenca') };
 const aVi = { pos:gl.getAttribLocation(progVida,'aPos'), cor:gl.getAttribLocation(progVida,'aCor'), dado:gl.getAttribLocation(progVida,'aDado') };
@@ -9929,17 +10038,11 @@ function trilhaDe(pts){
   return { pts, comp, L: comp[comp.length - 1] };
 }
 
-function montarVida(){
-  if(!VIDA_NA_FLORESTA) return;
-  const r = prng(7474);
-  // os vagalumes: cada um com o seu canto, o seu compasso e o seu atraso
-  for(let i = 0; i < VAGA_N; i++){
-    const ang = r() * Math.PI * 2, d = 1.2 + r() * 2.8;
-    VAGAS.push({ hx: Math.sin(ang) * d, hy: 0.5 + r() * 1.8, hz: -Math.cos(ang) * d,
-                 x: Math.sin(ang) * d, y: 0.5 + r() * 1.8, z: -Math.cos(ang) * d,
-                 vx: 0, vy: 0, vz: 0, fase: r() * 6.283, periodo: 1.4 + r() * 1.8, tom: r(), lag: 0.5 + r() * 0.8,
-                 orb: 0.75 + r() * 0.7, w: (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.35), susto: 0 });
-  }
+/* as trilhas, as formiguinhas e as plantas da abelha: refeitas depois do
+   escaneamento, quando a mae e os cogumelos mudam de lugar (7.7) */
+function montarTrilhasDaVida(){
+  TRILHAS.length = 0; FORMIGAS.length = 0; ALVOS_ABELHA.length = 0;
+  const r = prng(7475);
   // as trilhas: a mae (o lado que se ve, de dentro da sala), as arvores, os cogumelos
   for(const tr of TRONCOS){
     const pts = [];
@@ -9973,6 +10076,19 @@ function montarVida(){
     FORMIGAS.push({ tr, s: (fila * 0.05 + r() * 0.02) % Math.max(0.05, tr.L), dir: (i % 2 === 0) ? 1 : -1,
                     v: 0.09 + r() * 0.06, carga: r() < 0.33, fase: r() * 6.283 });
   }
+}
+function montarVida(){
+  if(!VIDA_NA_FLORESTA) return;
+  const r = prng(7474);
+  // os vagalumes: cada um com o seu canto, o seu compasso e o seu atraso
+  for(let i = 0; i < VAGA_N; i++){
+    const ang = r() * Math.PI * 2, d = 1.2 + r() * 2.8;
+    VAGAS.push({ hx: Math.sin(ang) * d, hy: 0.5 + r() * 1.8, hz: -Math.cos(ang) * d,
+                 x: Math.sin(ang) * d, y: 0.5 + r() * 1.8, z: -Math.cos(ang) * d,
+                 vx: 0, vy: 0, vz: 0, fase: r() * 6.283, periodo: 1.4 + r() * 1.8, tom: r(), lag: 0.5 + r() * 0.8,
+                 orb: 0.75 + r() * 0.7, w: (r() < 0.5 ? -1 : 1) * (0.35 + r() * 0.35), susto: 0 });
+  }
+  montarTrilhasDaVida();
   bVida = criarBufs(['pos', 'cor', 'dado']);
   enviar(bVida.pos, vida.pos); enviar(bVida.cor, vida.cor); enviar(bVida.dado, vida.dado);
   montarFolhasPadronadas(r);
@@ -9982,52 +10098,88 @@ function montarVida(){
 
 /* AS FOLHAS: uma fita curva por folha, tres vertices de largura e vinte de
    comprimento, com a ponta caindo e a lamina levemente em calha. */
+/* OS TUFOS DE PAREDE (7.7) chegam com o escaneamento: "integrar um pouco mais a
+   realidade com o virtual, mas nao tudo, so pontual". Um tufo por parede lida,
+   ate quatro, na altura da mao, com as folhas saindo da parede um pouco erguidas. */
+const TUFOS_DE_PAREDE = [];
 function montarFolhasPadronadas(r){
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
   const tufos = [{ c: ARVORE_BASE, n: 7, r0: 0.35, r1: 0.75 }];
   for(const a of [0.55, 2.35, 4.1]) tufos.push({ c: [Math.sin(a) * 1.7, 0, -Math.cos(a) * 1.7], n: 4, r0: 0.05, r1: 0.30 });
+  for(const tp of TUFOS_DE_PAREDE) tufos.push(tp);
   let k = 0;
-  for(const tf of tufos) for(let j = 0; j < tf.n; j++, k++){
-    const ang = r() * Math.PI * 2, d = tf.r0 + r() * (tf.r1 - tf.r0);
-    const b = [tf.c[0] + Math.sin(ang) * d, (tf.c[1] || 0), tf.c[2] - Math.cos(ang) * d];
-    const L = 0.45 + r() * 0.45, W = 0.07 + r() * 0.08, tipo = k % 8;
-    const dir = r() * Math.PI * 2, ox = Math.sin(dir), oz = -Math.cos(dir), cai = 0.25 + r() * 0.5, tw = (r() - 0.5) * 1.2;
-    const P0 = b, P1 = [b[0] + ox * L * 0.10, b[1] + L * 0.50, b[2] + oz * L * 0.10];
-    const P2 = [b[0] + ox * L * 0.55, b[1] + L * 0.85, b[2] + oz * L * 0.55];
-    const P3 = [b[0] + ox * L * 0.95, b[1] + L * (0.95 - cai), b[2] + oz * L * 0.95];
-    const bez = (t) => { const u = 1 - t; return [0, 1, 2].map(c => u*u*u*P0[c] + 3*u*u*t*P1[c] + 3*u*t*t*P2[c] + t*t*t*P3[c]); };
-    const N = 20, base = m.pos.length / 3;
-    for(let i = 0; i <= N; i++){
-      const u = i / N, c0 = bez(u), c1 = bez(Math.min(1, u + 0.01));
-      let T = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]]; const nT = Math.hypot(T[0], T[1], T[2]) || 1; T = T.map(v => v / nT);
-      let S = [T[2], 0, -T[0]]; const nS = Math.hypot(S[0], S[2]) || 1; S = [S[0] / nS, 0, S[2] / nS];
-      const Nn = [S[1]*T[2] - S[2]*T[1], S[2]*T[0] - S[0]*T[2], S[0]*T[1] - S[1]*T[0]];
-      const g = tw * u, cg = Math.cos(g), sg = Math.sin(g);             // a torcao ao longo
-      const S2 = [S[0]*cg + Nn[0]*sg, S[1]*cg + Nn[1]*sg, S[2]*cg + Nn[2]*sg];
-      const N2 = [Nn[0]*cg - S[0]*sg, Nn[1]*cg - S[1]*sg, Nn[2]*cg - S[2]*sg];
-      const w = W * Math.sin(Math.PI * Math.pow(u, 0.75)) + 0.004;
-      for(let v = -1; v <= 1; v++){
-        const calha = 0.35 * w * v * v;
-        m.pos.push(c0[0] + S2[0] * w * v + N2[0] * calha, c0[1] + S2[1] * w * v + N2[1] * calha, c0[2] + S2[2] * w * v + N2[2] * calha);
-        m.nor.push(N2[0], N2[1], N2[2]);
-        // a coordenada atravessada vai na FRACAO da fase: vBorda e alfa no shader, e a folha sumiria pelas beiras
-        m.alt.push(u); m.fase.push(k * 8 + tipo + (1 - Math.abs(v)) * 0.98); m.borda.push(1);
-      }
-      if(i < N) for(let v = 0; v < 2; v++){
-        const a = base + i * 3 + v, b2 = a + 3;
-        m.idx.push(a, b2, a + 1, a + 1, b2, b2 + 1);
+  for(const tf of tufos){
+    /* a base do tufo: no chao, "cima" e +y e "frente" e -z; na parede, "cima" e a
+       normal da parede erguida a 35 graus, e "frente" e o que sobra do vertical */
+    const U = tf.cima || [0, 1, 0], F = tf.frente || [0, 0, -1];
+    const R = [U[1]*F[2] - U[2]*F[1], U[2]*F[0] - U[0]*F[2], U[0]*F[1] - U[1]*F[0]];
+    const M = (v) => [R[0]*v[0] + U[0]*v[1] + F[0]*v[2], R[1]*v[0] + U[1]*v[1] + F[1]*v[2], R[2]*v[0] + U[2]*v[1] + F[2]*v[2]];
+    for(let j = 0; j < tf.n; j++, k++){
+      const ang = r() * Math.PI * 2, d = tf.r0 + r() * (tf.r1 - tf.r0);
+      const b = [Math.sin(ang) * d, 0, -Math.cos(ang) * d];
+      const L = (tf.cima ? 0.30 : 0.45) + r() * (tf.cima ? 0.25 : 0.45), W = 0.07 + r() * 0.08, tipo = k % 8;
+      const dir = r() * Math.PI * 2, ox = Math.sin(dir), oz = -Math.cos(dir), cai = 0.25 + r() * 0.5, tw = (r() - 0.5) * 1.2;
+      const P0 = b, P1 = [b[0] + ox * L * 0.10, b[1] + L * 0.50, b[2] + oz * L * 0.10];
+      const P2 = [b[0] + ox * L * 0.55, b[1] + L * 0.85, b[2] + oz * L * 0.55];
+      const P3 = [b[0] + ox * L * 0.95, b[1] + L * (0.95 - cai), b[2] + oz * L * 0.95];
+      const bez = (t) => { const u = 1 - t; return [0, 1, 2].map(c => u*u*u*P0[c] + 3*u*u*t*P1[c] + 3*u*t*t*P2[c] + t*t*t*P3[c]); };
+      const N = 20, base = m.pos.length / 3;
+      for(let i = 0; i <= N; i++){
+        const u = i / N, c0 = bez(u), c1 = bez(Math.min(1, u + 0.01));
+        let T = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]]; const nT = Math.hypot(T[0], T[1], T[2]) || 1; T = T.map(v => v / nT);
+        let S = [T[2], 0, -T[0]]; const nS = Math.hypot(S[0], S[2]) || 1; S = [S[0] / nS, 0, S[2] / nS];
+        const Nn = [S[1]*T[2] - S[2]*T[1], S[2]*T[0] - S[0]*T[2], S[0]*T[1] - S[1]*T[0]];
+        const g = tw * u, cg = Math.cos(g), sg = Math.sin(g);
+        const S2 = [S[0]*cg + Nn[0]*sg, S[1]*cg + Nn[1]*sg, S[2]*cg + Nn[2]*sg];
+        const N2 = [Nn[0]*cg - S[0]*sg, Nn[1]*cg - S[1]*sg, Nn[2]*cg - S[2]*sg];
+        const w = W * Math.sin(Math.PI * Math.pow(u, 0.75)) + 0.004;
+        for(let v = -1; v <= 1; v++){
+          const calha = 0.35 * w * v * v;
+          const pl = [c0[0] + S2[0] * w * v + N2[0] * calha, c0[1] + S2[1] * w * v + N2[1] * calha, c0[2] + S2[2] * w * v + N2[2] * calha];
+          const pw = M(pl), nw = M(N2);
+          m.pos.push(tf.c[0] + pw[0], tf.c[1] + pw[1], tf.c[2] + pw[2]);
+          m.nor.push(nw[0], nw[1], nw[2]);
+          // a coordenada atravessada vai na FRACAO da fase: vBorda e alfa no shader, e a folha sumiria pelas beiras
+          m.alt.push(u); m.fase.push(k * 8 + tipo + (1 - Math.abs(v)) * 0.98); m.borda.push(1);
+        }
+        if(i < N) for(let v = 0; v < 2; v++){
+          const a = base + i * 3 + v, b2 = a + 3;
+          m.idx.push(a, b2, a + 1, a + 1, b2, b2 + 1);
+        }
       }
     }
   }
   if(!m.idx.length) return;
-  bFolhasP = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  if(!bFolhasP) bFolhasP = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bFolhasP.pos, m.pos); enviar(bFolhasP.nor, m.nor); enviar(bFolhasP.alt, m.alt);
   enviar(bFolhasP.fase, m.fase); enviar(bFolhasP.borda, m.borda);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bFolhasP.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(m.idx), gl.STATIC_DRAW);
   nFolhasPIdx = m.idx.length;
-  // os tufos de folhas tambem sao planta para a abelha
-  for(const tf of tufos) ALVOS_ABELHA.push({ x: tf.c[0], y: 0.55, z: tf.c[2], cog: -1 });
+  // os tufos de folhas tambem sao planta para a abelha (os da parede, no ponto deles)
+  for(const tf of tufos) ALVOS_ABELHA.push(tf.cima ? { x: tf.c[0] + tf.cima[0] * 0.18, y: tf.c[1] + 0.12, z: tf.c[2] + tf.cima[2] * 0.18, cog: -1 }
+                                                   : { x: tf.c[0], y: 0.55, z: tf.c[2], cog: -1 });
+}
+/* as plantas nas paredes lidas, depois do escaneamento (7.7) */
+function plantarNasParedes(){
+  TUFOS_DE_PAREDE.length = 0;
+  let n = 0;
+  for(const pd of SALA.paredes){
+    if(n >= 4) break;
+    const Pp = pd.pts3; if(!Pp || Pp.length < 9) continue;
+    let ax = Pp[3] - Pp[0], az = Pp[5] - Pp[2], L = Math.hypot(ax, az);
+    if(L < 1e-3){ ax = Pp[6] - Pp[0]; az = Pp[8] - Pp[2]; L = Math.hypot(ax, az) || 1; }
+    ax /= L; az /= L;
+    let nx = -az, nz = ax;
+    if(nx * pd.cx + nz * pd.cz > 0){ nx = -nx; nz = -nz; }      // a normal para dentro da sala
+    if(Math.hypot(pd.cx, pd.cz) > 4.5) continue;                 // parede longe demais nao entra
+    const y = Math.min(1.75, Math.max(1.15, pd.y));
+    let U = [nx * 0.82, 0.57, nz * 0.82]; const nU = Math.hypot(U[0], U[1], U[2]); U = U.map(v => v / nU);
+    let Fv = [-U[0] * U[1], 1 - U[1] * U[1], -U[2] * U[1]]; const nF = Math.hypot(Fv[0], Fv[1], Fv[2]) || 1; Fv = Fv.map(v => v / nF);
+    TUFOS_DE_PAREDE.push({ c: [pd.cx + nx * 0.02, y, pd.cz + nz * 0.02], n: 3, r0: 0.02, r1: 0.16, cima: U, frente: Fv });
+    n++;
+  }
+  return n;
 }
 
 const _pv = [0, 0, 0], _pv2 = [0, 0, 0];
@@ -10217,6 +10369,14 @@ const POLEIROS = [];
 let bCoruja = null, nCorujaIdx = 0, corujaLocal = null, corujaNorLocal = null, corujaPos = null, corujaNor = null, corujaParte = null;
 let corujaEyeC = [0, 0.05, 0.135];
 
+function montarPoleiros(){
+  POLEIROS.length = 0;
+  // os poleiros: o vao da mae (o anel 3 da linha de centro, a 1,45 m) e o alto de tres cogumelos
+  const mae = TRONCOS.find(t => t.mae);
+  if(mae && mae.pontos.length > 4){ const p = mae.pontos[4]; POLEIROS.push([p[0], p[1] + 0.22, p[2]]); }
+  else POLEIROS.push([ARVORE_BASE[0], 2.1, ARVORE_BASE[2]]);
+  [0, 5, 9].forEach(i => { const cg = COGUMELOS[i]; if(cg) POLEIROS.push([cg.x, (cg.y || 0) + cg.alt * 0.96 + 0.20, cg.z]); });
+}
 function montarCoruja(){
   if(!VIDA_NA_FLORESTA) return;
   const V = [], N = [], ALT = [], FASE = [], IDX = [];
@@ -10294,11 +10454,7 @@ function montarCoruja(){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bCoruja.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(IDX), gl.STATIC_DRAW);
   nCorujaIdx = IDX.length;
-  // os poleiros: o vao da mae (o anel 3 da linha de centro, a 1,45 m) e o alto de tres cogumelos
-  const mae = TRONCOS.find(t => t.mae);
-  if(mae && mae.pontos.length > 4){ const p = mae.pontos[4]; POLEIROS.push([p[0], p[1] + 0.22, p[2]]); }
-  else POLEIROS.push([ARVORE_BASE[0], 2.1, ARVORE_BASE[2]]);
-  [0, 5, 9].forEach(i => { const cg = COGUMELOS[i]; if(cg) POLEIROS.push([cg.x, (cg.y || 0) + cg.alt * 0.96 + 0.20, cg.z]); });
+  montarPoleiros();
   const p0 = POLEIROS[0];
   CORUJA.x = p0[0]; CORUJA.y = p0[1]; CORUJA.z = p0[2]; CORUJA.poleiro = 0; CORUJA.estado = 'pousada'; CORUJA.ate = 14;
   CORUJA.yaw = Math.atan2(-p0[0], -p0[2]);
@@ -10451,7 +10607,329 @@ function desenharCoruja(){
   gl.uniform1f(locSo.materia, 0.0);
   gl.enable(gl.CULL_FACE);
 }
+
+/* ═══════════ AS MAOS FALAM A LINGUA DE CADA CENARIO (7.7) ═══════════
+   25/09, a direcao de arte: "cada cenario de uma forma diferente, senao fica
+   muito igual... no cenario dos planetas algo mais suave, mais sutil, que
+   converse com o ambiente: as linhas que acompanham as deusas podem sair das
+   maos, de forma bem suave; cada interacao das maos tem que conversar com o
+   ambiente que existe".
+
+   A mao emite pelo MOVIMENTO: parada, nada; mexendo, o cenario responde na
+   propria materia dele. E tudo cabe num tanque so de pontos (o programa da
+   vida miuda) e numa linha por mao:
+
+   1  FLORESTA  esporos: graos turquesa e ambar que a mao solta ao passar,
+                sobem devagar e se apagam em dois segundos -- a mesma luz
+                dos cogumelos e dos vagalumes.
+   2  COSMOS    fios: uma linha fina por mao, o rastro do ultimo segundo e
+                meio, desenhada tres vezes com desvios minimos -- os fios das
+                deusas, na paleta delas (ouro palido), somando luz bem fraco.
+   3  MAR       bolhas de ar: so com a mao EMBAIXO da lamina; sobem, oscilam
+                e estouram na superficie (o toque na lamina ja faz aneis).
+   4  PAPEL     po de estrelas: pontos miudos que cintilam e sobem da mao
+                para o teto, onde a floresta esta -- na luz azul-creme da
+                deusa. */
+const EFEITO_N = 240, RASTRO_N = 44;
+const efeito = { pos:new Float32Array(EFEITO_N * 3), vel:new Float32Array(EFEITO_N * 3), nasc:new Float32Array(EFEITO_N).fill(-99),
+                 vida:new Float32Array(EFEITO_N).fill(1), tom:new Float32Array(EFEITO_N), cena:new Uint8Array(EFEITO_N), prox:0,
+                 gpuPos:new Float32Array(EFEITO_N * 3), gpuCor:new Float32Array(EFEITO_N * 3), gpuDado:new Float32Array(EFEITO_N * 2), vivos:0 };
+const rastro = [ { pos:new Float32Array(RASTRO_N * 3), t:new Float32Array(RASTRO_N), n:0, ultimo:-9 },
+                 { pos:new Float32Array(RASTRO_N * 3), t:new Float32Array(RASTRO_N), n:0, ultimo:-9 } ];
+const maoDeAntes = [ { x:0, y:0, z:0, t:0, tem:false, vx:0, vy:0, vz:0, resto:0 }, { x:0, y:0, z:0, t:0, tem:false, vx:0, vy:0, vz:0, resto:0 } ];
+let bEfeito = null, bRastro = null, sorteEfeito = 1;
+function sorte(){ sorteEfeito = (sorteEfeito * 1664525 + 1013904223) >>> 0; return sorteEfeito / 4294967296; }
+function montarEfeitoDasMaos(){
+  bEfeito = criarBufs(['pos', 'cor', 'dado']);
+  enviar(bEfeito.pos, efeito.gpuPos); enviar(bEfeito.cor, efeito.gpuCor); enviar(bEfeito.dado, efeito.gpuDado);
+  bRastro = [criarBufs(['pos', 't']), criarBufs(['pos', 't'])];
+  for(const b of bRastro){ enviar(b.pos, rastro[0].pos); enviar(b.t, rastro[0].t); }
+  for(let k = 0; k < RASTRO_N; k++){ rastro[0].t[k] = k / (RASTRO_N - 1); rastro[1].t[k] = k / (RASTRO_N - 1); }
+  enviar(bRastro[0].t, rastro[0].t); enviar(bRastro[1].t, rastro[1].t);
+}
+function soltar(x, y, z, vx, vy, vz, vida, tom, cena){
+  const i = efeito.prox; efeito.prox = (i + 1) % EFEITO_N;
+  efeito.pos[i*3] = x; efeito.pos[i*3+1] = y; efeito.pos[i*3+2] = z;
+  efeito.vel[i*3] = vx; efeito.vel[i*3+1] = vy; efeito.vel[i*3+2] = vz;
+  efeito.nasc[i] = relogio; efeito.vida[i] = vida; efeito.tom[i] = tom; efeito.cena[i] = cena;
+}
+function andarEfeitoDasMaos(dt){
+  if(!bEfeito || dt <= 0) return;
+  const T = relogio, c = cenaAtual;
+  const lamina = (c === 3) ? NIVEL_AGUA + nivelExtra : 99;
+  for(let h = 0; h < 2; h++){
+    const m = MAOS[h], a = maoDeAntes[h], r = rastro[h];
+    if(!m.tem){ a.tem = false; r.n = 0; continue; }
+    /* a velocidade e medida a cada 50 ms, e nao por quadro: por quadro, um quadro
+       em que a mao nao foi lida de novo (o rastreio chega em 60 Hz, o desenho em
+       72) daria zero, e o seguinte o dobro -- e a emissao saia aos solucos */
+    if(!a.tem){ a.x = m.x; a.y = m.y; a.z = m.z; a.t = T; a.vx = a.vy = a.vz = 0; a.tem = true; }
+    else if(T - a.t >= 0.05){
+      const et = T - a.t; a.vx = (m.x - a.x) / et; a.vy = (m.y - a.y) / et; a.vz = (m.z - a.z) / et;
+      a.x = m.x; a.y = m.y; a.z = m.z; a.t = T;
+    }
+    const vel = Math.hypot(a.vx, a.vy, a.vz);
+    // ── 2 COSMOS: o rastro em fio, uma amostra a cada 35 ms ──
+    if(c === 2){
+      if(T - r.ultimo > 0.035){
+        r.ultimo = T;
+        for(let k = Math.min(r.n, RASTRO_N - 1); k > 0; k--){ r.pos[k*3] = r.pos[k*3-3]; r.pos[k*3+1] = r.pos[k*3-2]; r.pos[k*3+2] = r.pos[k*3-1]; }
+        r.pos[0] = m.x; r.pos[1] = m.y; r.pos[2] = m.z; r.n = Math.min(RASTRO_N, r.n + 1);
+      } else { r.pos[0] = m.x; r.pos[1] = m.y; r.pos[2] = m.z; }
+    } else r.n = 0;
+    // ── quanto a mao solta: pelo movimento, com um resto para nao perder fracao ──
+    let taxa = 0;
+    if(c === 1) taxa = Math.min(60, Math.max(0, vel - 0.12) * 90);
+    else if(c === 3) taxa = (m.y < lamina - 0.03) ? 6 + Math.min(40, vel * 50) : 0;
+    else if(c === 4) taxa = Math.min(45, Math.max(0, vel - 0.10) * 70);
+    a.resto += taxa * dt;
+    while(a.resto >= 1){
+      a.resto -= 1;
+      const ox = (sorte() - 0.5) * 0.08, oy = (sorte() - 0.5) * 0.08, oz = (sorte() - 0.5) * 0.08;
+      if(c === 1) soltar(m.x + ox, m.y + oy, m.z + oz, a.vx * 0.25 + (sorte() - 0.5) * 0.12, 0.10 + sorte() * 0.14 + a.vy * 0.2, a.vz * 0.25 + (sorte() - 0.5) * 0.12, 1.6 + sorte() * 0.8, sorte(), 1);
+      else if(c === 3) soltar(m.x + ox * 0.6, m.y + oy * 0.6, m.z + oz * 0.6, (sorte() - 0.5) * 0.05, 0.25 + sorte() * 0.20, (sorte() - 0.5) * 0.05, 6.0, sorte(), 3);
+      else if(c === 4) soltar(m.x + ox, m.y + oy, m.z + oz, a.vx * 0.15 + (sorte() - 0.5) * 0.06, 0.22 + sorte() * 0.12, a.vz * 0.15 + (sorte() - 0.5) * 0.06, 3.0 + sorte() * 1.5, sorte(), 4);
+    }
+  }
+  // ── os graos andam, e vao para a placa ──
+  let vivos = 0;
+  const P = efeito.gpuPos, C = efeito.gpuCor, D = efeito.gpuDado;
+  for(let i = 0; i < EFEITO_N; i++){
+    const idade = T - efeito.nasc[i];
+    if(idade < 0 || idade > efeito.vida[i]) continue;
+    const cn = efeito.cena[i], tom = efeito.tom[i];
+    let x = efeito.pos[i*3], y = efeito.pos[i*3+1], z = efeito.pos[i*3+2];
+    let vx = efeito.vel[i*3], vy = efeito.vel[i*3+1], vz = efeito.vel[i*3+2];
+    if(cn === 3){
+      // a bolha oscila ao subir e estoura na lamina
+      x += Math.sin(T * 6.0 + tom * 20.0) * 0.06 * dt; z += Math.cos(T * 5.0 + tom * 17.0) * 0.06 * dt;
+      if(y >= lamina - 0.01){ efeito.nasc[i] = -99; continue; }
+    } else { const fr = Math.exp(-dt * 1.4); vx *= fr; vz *= fr; if(cn === 1) vy *= Math.exp(-dt * 0.5); }
+    x += vx * dt; y += vy * dt; z += vz * dt;
+    efeito.pos[i*3] = x; efeito.pos[i*3+1] = y; efeito.pos[i*3+2] = z;
+    efeito.vel[i*3] = vx; efeito.vel[i*3+1] = vy; efeito.vel[i*3+2] = vz;
+    const u = idade / efeito.vida[i], fade = Math.min(1, idade * 6.0) * (1 - u * u);
+    const o = vivos * 3, q = vivos * 2;
+    P[o] = x; P[o+1] = y; P[o+2] = z;
+    if(cn === 1){ C[o] = 0.35 + 0.6 * tom; C[o+1] = 0.95; C[o+2] = 0.85 - 0.5 * tom; D[q] = 0.95 * fade; D[q+1] = 0.02 + 0.014 * tom; }
+    else if(cn === 3){ C[o] = 0.75; C[o+1] = 0.95; C[o+2] = 1.0; D[q] = 0.75 * fade; D[q+1] = 0.015 + 0.018 * tom; }
+    else { const cint = 0.5 + 0.5 * Math.sin(T * (6.0 + tom * 5.0) + tom * 30.0); C[o] = 0.55 + 0.4 * tom; C[o+1] = 0.70 + 0.25 * tom; C[o+2] = 1.0; D[q] = (0.45 + 0.65 * cint * cint) * fade; D[q+1] = 0.018 + 0.012 * tom; }
+    vivos++;
+  }
+  efeito.vivos = vivos;
+  if(vivos > 0){ enviar(bEfeito.pos, P); enviar(bEfeito.cor, C); enviar(bEfeito.dado, D); }
+  if(c === 2) for(let h = 0; h < 2; h++) if(rastro[h].n > 1) enviar(bRastro[h].pos, rastro[h].pos);
+}
+function desenharEfeitoDasMaos(mvp, escalaPonto){
+  if(!bEfeito) return;
+  const c = cenaAtual;
+  if(efeito.vivos > 0){
+    gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false); gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+    gl.useProgram(progVida); soltarAtributos();
+    mandarMvp(locVi.mvp, mvp);
+    gl.uniform1f(locVi.escalaPonto, escalaPonto);
+    gl.uniform1f(locVi.presenca, 1.0);
+    ligar(aVi.pos, bEfeito.pos, 3); ligar(aVi.cor, bEfeito.cor, 3); ligar(aVi.dado, bEfeito.dado, 2);
+    gl.drawArrays(gl.POINTS, 0, efeito.vivos);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  if(c === 2 && (rastro[0].n > 1 || rastro[1].n > 1)){
+    gl.enable(gl.BLEND); somarLuz(); gl.depthMask(false); gl.enable(gl.DEPTH_TEST);
+    gl.useProgram(progRastro); soltarAtributos();
+    mandarMvp(locRa.mvp, mvp);
+    gl.uniform1f(locRa.tempo, relogio);
+    gl.uniform3f(locRa.cor, 0.92, 0.86, 0.66);    // o ouro palido dos fios da deusa
+    gl.uniform1f(locRa.presenca, 0.55);
+    for(let h = 0; h < 2; h++){
+      if(rastro[h].n < 2) continue;
+      ligar(aRa.pos, bRastro[h].pos, 3); ligar(aRa.t, bRastro[h].t, 1);
+      for(let k = 0; k < 3; k++){ gl.uniform1f(locRa.ramo, k); gl.drawArrays(gl.LINE_STRIP, 0, rastro[h].n); }
+    }
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+}
+
+/* ═══════════ A TARTARUGA (7.7) ═══════════
+   25/09, a direcao de arte: "uma especie de tartaruga, algo que lembre uma
+   tartaruga, que ande lentamente pelo espaco; o casco pode ter uma forma bem
+   bonita, tudo harmonizando com o ambiente".
+
+   O CORPO: um casco em cupula (44 x 56 cm, 13 cm de altura) com a saia, a
+   barriga por baixo, a cabeca que balanca ao andar, quatro patas que se
+   alternam e uma cauda. Malha feita aqui, transformada na CPU a cada
+   quadro (como a coruja): materia 24 -- o casco de escamas com a costura
+   turquesa acesa e o miolo ocre com ponto e anel.
+
+   O ANDAR: devagar (8 cm/s), pelo chao real da sala, escolhendo um ponto
+   novo a cada chegada (dentro de 1,8 m, longe da mae) e virando aos poucos;
+   para de vez em quando por alguns segundos. Tocada (a mao a 28 cm do
+   casco), RECOLHE a cabeca e as patas por tres segundos, o casco pulsa e
+   soa uma nota grave. */
+const TARTA = { ok:false, x:0.8, y:0, z:0.9, yaw:0, alvo:[0, 0, 0], v:0.08, passo:0, parada:0, recolhe:0, somEm:-9, n:0 };
+let bTarta = null, nTartaIdx = 0, tartaLocal = null, tartaNorLocal = null, tartaPos = null, tartaNor = null, tartaParte = null;
+function montarTartaruga(){
+  if(!VIDA_NA_FLORESTA) return;
+  const V = [], N = [], ALT = [], FASE = [], IDX = [];
+  const vert = (p, n, alt, fase) => { V.push(p[0], p[1], p[2]); N.push(n[0], n[1], n[2]); ALT.push(alt); FASE.push(fase); return V.length / 3 - 1; };
+  const elipsoide = (c, rx, ry, rz, la, lo, faseDe, t0, t1) => {
+    const base = V.length / 3; t0 = t0 || 0; t1 = t1 === undefined ? Math.PI : t1;
+    for(let i = 0; i <= la; i++){
+      const t = t0 + (t1 - t0) * i / la, st = Math.sin(t), ct = Math.cos(t);
+      for(let j = 0; j <= lo; j++){
+        const f = j / lo * Math.PI * 2, sf = Math.sin(f), cf = Math.cos(f);
+        const p = [c[0] + rx * st * cf, c[1] + ry * ct, c[2] + rz * st * sf];
+        const n = [st * cf / rx, ct / ry, st * sf / rz]; const nn = Math.hypot(n[0], n[1], n[2]) || 1;
+        vert(p, [n[0] / nn, n[1] / nn, n[2] / nn], (ct + 1) / 2, faseDe(p, j / lo));
+      }
+    }
+    for(let i = 0; i < la; i++) for(let j = 0; j < lo; j++){
+      const a = base + i * (lo + 1) + j, b = a + lo + 1;
+      IDX.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  };
+  // o casco: a metade de cima de um elipsoide achatado, com a volta na fracao da fase
+  elipsoide([0, 0.075, 0], 0.22, 0.13, 0.28, 10, 24, (p, u) => 0.02 + u * 0.96, 0, Math.PI * 0.62);
+  // a barriga: a calota de baixo, rasa
+  elipsoide([0, 0.075, 0], 0.21, 0.05, 0.27, 3, 24, () => 3.02, Math.PI * 0.55, Math.PI);
+  // a cabeca e o pescoco
+  const iCabeca = V.length / 3;
+  elipsoide([0, 0.10, 0.30], 0.05, 0.045, 0.075, 7, 12, () => 1.02);
+  elipsoide([0, 0.09, 0.22], 0.035, 0.03, 0.06, 4, 10, () => 1.02);
+  for(const sx of [-1, 1]) elipsoide([sx * 0.032, 0.115, 0.335], 0.012, 0.012, 0.012, 4, 8, () => 2.02);
+  const fCabeca = V.length / 3;
+  // as patas: frente esquerda, frente direita, tras esquerda, tras direita
+  const PATAS = [[-0.19, 0.16], [0.19, 0.16], [-0.18, -0.17], [0.18, -0.17]], iPata = [];
+  for(const [px, pz] of PATAS){ iPata.push(V.length / 3); elipsoide([px, 0.04, pz], 0.045, 0.035, 0.065, 5, 10, () => 1.02); }
+  const fPata = V.length / 3;
+  // a cauda
+  elipsoide([0, 0.06, -0.31], 0.02, 0.015, 0.05, 4, 8, () => 1.02);
+  // A PLANTINHA NO CASCO: tres folhas curtas brotando do alto (parte 4, a largura na
+  // fracao) e um cogumelinho turquesa (parte 5) com o pe verde
+  for(let f = 0; f < 3; f++){
+    const ang = f * 2.1 + 0.4, ox = Math.sin(ang), oz = Math.cos(ang), Lf = 0.15 + f * 0.02, W = 0.028;
+    const b0 = [0, 0.20, 0.0];
+    const P1 = [b0[0] + ox * Lf * 0.10, b0[1] + Lf * 0.55, b0[2] + oz * Lf * 0.10], P2 = [b0[0] + ox * Lf * 0.55, b0[1] + Lf * 0.85, b0[2] + oz * Lf * 0.55], P3 = [b0[0] + ox * Lf * 0.95, b0[1] + Lf * 0.55, b0[2] + oz * Lf * 0.95];
+    const bez = (t) => { const u = 1 - t; return [0, 1, 2].map(c => u*u*u*b0[c] + 3*u*u*t*P1[c] + 3*u*t*t*P2[c] + t*t*t*P3[c]); };
+    const base = V.length / 3, NN = 8;
+    for(let i = 0; i <= NN; i++){
+      const u = i / NN, c0 = bez(u), c1 = bez(Math.min(1, u + 0.01));
+      let Tg = [c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2]]; const nT = Math.hypot(Tg[0], Tg[1], Tg[2]) || 1; Tg = Tg.map(v => v / nT);
+      let S = [Tg[2], 0, -Tg[0]]; const nS = Math.hypot(S[0], S[2]) || 1; S = [S[0] / nS, 0, S[2] / nS];
+      const Nn = [S[1]*Tg[2] - S[2]*Tg[1], S[2]*Tg[0] - S[0]*Tg[2], S[0]*Tg[1] - S[1]*Tg[0]];
+      const w = W * Math.sin(Math.PI * Math.pow(u, 0.75)) + 0.002;
+      for(let v = -1; v <= 1; v++){
+        vert([c0[0] + S[0] * w * v, c0[1] + S[1] * w * v, c0[2] + S[2] * w * v], Nn, u, 4.02 + (1 - Math.abs(v)) * 0.96);
+      }
+      if(i < NN) for(let v = 0; v < 2; v++){ const a = base + i * 3 + v, b2 = a + 3; IDX.push(a, b2, a + 1, a + 1, b2, b2 + 1); }
+    }
+  }
+  elipsoide([0.07, 0.215, -0.05], 0.010, 0.030, 0.010, 4, 8, () => 1.02);
+  elipsoide([0.07, 0.245, -0.05], 0.036, 0.022, 0.036, 5, 10, () => 5.02);
+  tartaLocal = new Float32Array(V); tartaNorLocal = new Float32Array(N);
+  tartaPos = new Float32Array(V.length); tartaNor = new Float32Array(N.length);
+  tartaParte = { iCabeca, fCabeca, iPata, fPata };
+  TARTA.n = V.length / 3;
+  bTarta = criarBufs(['pos', 'nor', 'alt', 'fase', 'idx']);
+  enviar(bTarta.alt, ALT); enviar(bTarta.fase, FASE);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTarta.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(IDX), gl.STATIC_DRAW);
+  nTartaIdx = IDX.length;
+  TARTA.x = 0.9; TARTA.z = 1.0; TARTA.yaw = Math.PI * 0.8; TARTA.alvo = [-0.6, 0, 1.2]; TARTA.ok = true;
+}
+function andarTartaruga(dt){
+  const Tt = TARTA;
+  if(!Tt.ok || vidaPresenca <= 0.004) return;
+  const T = relogio;
+  // ── tocada: recolhe ──
+  Tt.recolhe = Math.max(0, Tt.recolhe - dt);
+  for(const m of MAOS){
+    if(!m.tem || Tt.recolhe > 0) continue;
+    if(Math.hypot(Tt.x - m.x, Tt.y + 0.1 - m.y, Tt.z - m.z) < 0.30){
+      Tt.recolhe = 3.0; pulsarEm(Tt.x, Tt.y + 0.15, Tt.z);
+      if(T - Tt.somEm > 1.5){ Tt.somEm = T; sinoDoToque(1, 0.45); relato('TOCOU-A-TARTARUGA'); }
+    }
+  }
+  // ── o andar ──
+  let andando = 0;
+  if(Tt.recolhe <= 0){
+    if(Tt.parada > 0) Tt.parada -= dt;
+    else {
+      const dx = Tt.alvo[0] - Tt.x, dz = Tt.alvo[2] - Tt.z, d = Math.hypot(dx, dz);
+      if(d < 0.08){
+        // um ponto novo: dentro de 1,8 m do centro, a mais de 0,9 m da mae e de onde esta
+        let nx = 0, nz = 0;
+        for(let k = 0; k < 8; k++){
+          const a = Math.sin(T * 3.7 + k * 2.3) * Math.PI, r = 0.5 + Math.abs(Math.cos(T * 1.9 + k)) * 1.3;
+          nx = Math.sin(a) * r; nz = -Math.cos(a) * r;
+          if(Math.hypot(nx - ARVORE_BASE[0], nz - ARVORE_BASE[2]) > 0.9 && Math.hypot(nx - Tt.x, nz - Tt.z) > 0.6) break;
+        }
+        Tt.alvo = [nx, 0, nz]; Tt.parada = 2 + 4 * Math.abs(Math.sin(T * 0.83));
+      } else {
+        const yawAlvo = Math.atan2(dx, dz);
+        let dy = yawAlvo - Tt.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
+        const giro = Math.max(-0.6 * dt, Math.min(0.6 * dt, dy)); Tt.yaw += giro;
+        if(Math.abs(dy) < 0.5){ Tt.x += Math.sin(Tt.yaw) * Tt.v * dt; Tt.z += Math.cos(Tt.yaw) * Tt.v * dt; andando = 1; }
+        else andando = 0.3;
+      }
+    }
+  }
+  Tt.passo += dt * 2.6 * andando;
+  const rec = Tt.recolhe > 0 ? Math.min(1, Tt.recolhe > 2.6 ? (3.0 - Tt.recolhe) / 0.4 : Math.min(1, Tt.recolhe / 0.6)) : 0;
+  // ── monta o corpo deste quadro ──
+  const cy = Math.cos(Tt.yaw), sy = Math.sin(Tt.yaw), L = tartaLocal, NL = tartaNorLocal, out = tartaPos, outN = tartaNor, Pp = tartaParte;
+  const balanco = Math.sin(Tt.passo) * 0.01 * andando;
+  for(let i = 0; i < Tt.n; i++){
+    let x = L[i*3], y = L[i*3+1], z = L[i*3+2];
+    const nx = NL[i*3], ny = NL[i*3+1], nz = NL[i*3+2];
+    if(i >= Pp.iCabeca && i < Pp.fCabeca){
+      z -= rec * 0.13; y += Math.sin(Tt.passo * 0.5) * 0.008 * andando - rec * 0.02;     // a cabeca recolhe e balanca
+    } else {
+      for(let k = 0; k < 4; k++) if(i >= Pp.iPata[k] && i < (k < 3 ? Pp.iPata[k + 1] : Pp.fPata)){
+        const fase = (k === 0 || k === 3) ? 0 : Math.PI;                                  // diagonais juntas
+        z += Math.sin(Tt.passo + fase) * 0.03 * andando; y += Math.max(0, Math.cos(Tt.passo + fase)) * 0.012 * andando;
+        x *= 1 - rec * 0.45; z *= 1 - rec * 0.3;                                          // recolhidas, para dentro
+      }
+    }
+    x += balanco;
+    out[i*3]   = cy * x + sy * z + Tt.x;
+    out[i*3+1] = y + Tt.y;
+    out[i*3+2] = -sy * x + cy * z + Tt.z;
+    outN[i*3]   = cy * nx + sy * nz;
+    outN[i*3+1] = ny;
+    outN[i*3+2] = -sy * nx + cy * nz;
+  }
+  enviar(bTarta.pos, out); enviar(bTarta.nor, outN);
+}
+function desenharTartaruga(){
+  if(!TARTA.ok || !bTarta || vidaPresenca <= 0.004) return;
+  gl.useProgram(progSolida); soltarAtributos();
+  // sem descarte de face: a cupula do casco tem o sentido dos elipsoides, e descartada por dentro so se via a barriga
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+  bordaCheia();
+  gl.uniform1f(locSo.tempo, relogio);
+  gl.uniform3f(locSo.olhoPos, ondeOOlhoEsta[0], ondeOOlhoEsta[1], ondeOOlhoEsta[2]);
+  gl.uniform1f(locSo.inverte, 0.0);
+  gl.uniform3f(locSo.desloca, 0, 0, 0);
+  gl.uniform1f(locSo.brota, 0.0);
+  gl.uniform1f(locSo.ondula, 0.0);
+  gl.uniform1f(locSo.bolha, 0.0);
+  gl.uniform1f(locSo.balanca, 0.0);
+  gl.uniform1f(locSo.ondulaMao, 0.0);
+  gl.uniform1f(locSo.materia, 24.0);
+  gl.uniform1f(locSo.crescimento, 9.0);
+  gl.uniform1f(locSo.presenca, vidaPresenca);
+  gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
+  ligar(aSo.pos, bTarta.pos, 3); ligar(aSo.nor, bTarta.nor, 3);
+  ligar(aSo.alt, bTarta.alt, 1); ligar(aSo.fase, bTarta.fase, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTarta.idx);
+  gl.drawElements(gl.TRIANGLES, nTartaIdx, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(locSo.brota, 1.0); gl.uniform1f(locSo.balanca, 1.0);
+  gl.uniform1f(locSo.materia, 0.0);
+  gl.enable(gl.CULL_FACE);   // devolve: e o estado de quem vem depois
+}
 montarVida();        // 7.4: depende dos troncos (semearMata) e dos cogumelos
+montarTartaruga();   // 7.7
+montarEfeitoDasMaos();   // 7.7
 montarCoruja();      // 7.5: depende dos troncos e dos cogumelos
 montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
@@ -11638,6 +12116,8 @@ function alvosAgora(){
                              relato('TOCOU-UM-COGUMELO ' + i); } });
     });
   }
+  if(VIDA_NA_FLORESTA && TARTA.ok && vidaPresenca > 0.3)
+    lista.push({ id:'tartaruga', nota:1, px:TARTA.x, py:TARTA.y + 0.1, pz:TARTA.z, praio:0.30, x:TARTA.x, y:-99, z:TARTA.z, raio:0.0, fazer(){} });   // 7.7: so o chamado
   if(VIDA_NA_FLORESTA && CORUJA.ok && vidaPresenca > 0.3)
     lista.push({ id:'coruja', nota:0, px:CORUJA.x, py:CORUJA.y, pz:CORUJA.z, praio:0.30, x:CORUJA.x, y:-99, z:CORUJA.z, raio:0.0, fazer(){} });   // 7.5: so o chamado; o toque e dela
   if(borboletaPresenteAgora > 0.3)
@@ -11966,13 +12446,24 @@ const MENU = { aberto:false, abertoEm:0, presenca:0, sobre:-1, sobreDesde:0, ult
                fimSeta:[[0,0,0], [0,0,0]], setaNoBotao:[false, false], texPonto:null,
                itens:[ { id:'atualizar', rotulo:'Atualizar',              c:[0,0,0], tex:null },
                        { id:'sair',      rotulo:'Sair da experiência',    c:[0,0,0], tex:null },
-                       { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null } ] };
+                       { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null },
+                       { id:'voltar',    rotulo:'Voltar',                 c:[0,0,0], tex:null } ] };   // 7.7: fecha o menu e volta ao ambiente
 const pontoSeta = [0, 0, 0];   // reusado por quadro no desenho da seta
 const MENU_MEIA_LARG = 0.17, MENU_MEIA_ALT = 0.0425, MENU_PASSO = 0.115, MENU_LONGE = 0.65;
 
 /* O RELOGIO DO MENU E O DE PAREDE, e nao o da obra: o menu tem de
    responder com a obra parada -- no fim, na espera, na bancada. */
 function agoraReal(){ return performance.now() / 1000; }
+/* APONTANDO PARA A FRENTE -- 7.7 ("tem que ser apontando meio que para a frente
+   que vai aparecer o menu; sem estar pegando em nada"). A seta da mao (ou, sem
+   seta, a linha do olho a mao) nao pode apontar para o chao nem para o teto: e o
+   gesto de quem chama o menu, e nao o de quem alcanca uma coisa. */
+function apontandoParaFrente(m){
+  // sem a seta (controle sem raio, ou a mao da bancada) vale so a altura: a mao acima da cintura
+  if(!m.temRaio) return m.y > ondeOOlhoEsta[1] - 0.55;
+  const dy = m.rd[1] / (Math.hypot(m.rd[0], m.rd[1], m.rd[2]) || 1);
+  return dy > -0.40 && dy < 0.55 && m.y > ondeOOlhoEsta[1] - 0.55;
+}
 function pincando(m){
   /* pelas juntas, que e o que a mao nua da: ponta do polegar (4) contra a
      ponta do indicador (9) a menos de dois centimetros. Sem juntas (controle,
@@ -12064,6 +12555,8 @@ function escolherNoMenu(id){
     /* o mesmo que o botao de emergencia "encerrar": fecha a RM e devolve o
        portao, pronto para o proximo */
     setTimeout(() => { try{ bParar.onclick(); }catch(e){ if(sessao) sessao.end(); } }, 250);
+  } else if(id === 'voltar'){
+    fecharOMenu('voltar');   // 7.7: so fecha, e a obra segue
   } else if(id === 'remapear'){
     /* abre a Configuracao de Espaco do Quest por cima da obra; quando ela
        volta, a sala e a tela sao lidas de novo e a obra se replanta */
@@ -12084,10 +12577,13 @@ function seguirMenuDaMao(dt){
     /* a pinca demorada abre e fecha -- mas nao em cima de um botao: ali ela
        e o clique, e segurar um pouco antes de soltar nao pode fechar o menu */
     const livre = m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo && naSeta[i] < 0
-                  && MENU.fechouEm[i] < 0;
+                  && MENU.fechouEm[i] < 0 && (MENU.aberto || apontandoParaFrente(m));
     if(!livre){ MENU.pincaDesde[i] = 0; MENU.pincaUsada[i] = false; continue; }
     if(!MENU.pincaDesde[i]) MENU.pincaDesde[i] = agoraReal() || 0.001;
-    if(!MENU.pincaUsada[i] && agoraReal() - MENU.pincaDesde[i] > 0.9){
+    /* CINCO SEGUNDOS -- 7.7 ("esta abrindo com muita facilidade; melhor um tempo de
+       5 segundos pincando"). Fechar pela pinca continua em um segundo: quem ja esta
+       no menu nao precisa esperar; e ha o botao Voltar. */
+    if(!MENU.pincaUsada[i] && agoraReal() - MENU.pincaDesde[i] > (MENU.aberto ? 1.0 : 5.0)){
       MENU.pincaUsada[i] = true;                  // uma pinca demorada = um gesto
       if(MENU.aberto) fecharOMenu('pinca'); else abrirOMenu(m);
     }
@@ -13026,6 +13522,11 @@ if(emTesteLocal){
     // a deusa que danca (7.1): o quadro da captura, o peito, a presenca
     danca(){ return { ok:DANCA.ok, quadros:DANCA.n, quadro:DANCA.quadro, peito:DANCA.peito.map(v => +v.toFixed(2)), presenca:+DANCA.presenca.toFixed(2) }; },
     // a coruja (7.5): onde esta, o que faz, e um empurrao no estado para a bancada nao esperar
+    efeito(){ return { vivos:efeito.vivos, cena:cenaAtual, mao:maoDeAntes.map(a => ({ tem:a.tem, v:+Math.hypot(a.vx, a.vy, a.vz).toFixed(2), resto:+a.resto.toFixed(2) })), rastro:[rastro[0].n, rastro[1].n] }; },
+    // 7.7: uma parede de mentira, para ver as plantas de parede na bancada
+    paredeDeTeste(x, z, ax, az){ SALA.paredes.push({ y:1.5, cx:x, cz:z, poly:[], rotulo:'wall', pts3:[x - ax*1.5, 0, z - az*1.5, x + ax*1.5, 0, z + az*1.5, x + ax*1.5, 2.5, z + az*1.5] });
+      const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
+    tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
     coruja(estado){ if(estado){ CORUJA.estado = estado; CORUJA.ate = relogio + 8; } return { estado:CORUJA.estado, x:+CORUJA.x.toFixed(2), y:+CORUJA.y.toFixed(2), z:+CORUJA.z.toFixed(2), yaw:+CORUJA.yaw.toFixed(2), poleiro:CORUJA.poleiro, poleiros:POLEIROS.map(p => p.map(v => +v.toFixed(2))) }; },
     /* a prova da pele (7.2): cada osso, levado pela propria matriz, tem de cair
        na junta filha de agora; e o centro da malha tem de estar perto do peito */
@@ -14898,7 +15399,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       desenharCogumelos();
     /* A VIDA MIUDA (7.4): as folhas padronadas (solidas) e os pontos vivos, depois
        de tudo o que e solido aqui -- os pontos testam profundidade e nao a escrevem. */
-    if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharCoruja(); desenharVida(mvp, escalaPonto); }
+    if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharTartaruga(); desenharCoruja(); desenharVida(mvp, escalaPonto); }
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
@@ -16715,6 +17216,7 @@ function desenharContorno(vista, vp, mvp, escalaPonto, profFalsa){
     }
   }
   if(prof){ desenharContornoProfundidade(prof, vp, formato); return; }
+  desenharEfeitoDasMaos(mvp, escalaPonto);   // 7.7: o que a mao solta, na lingua do cenario
   if(CONTORNO_MAOS) desenharContornoMaos(mvp, vp, escalaPonto);
 }
 
@@ -16741,6 +17243,8 @@ function quadro(){
   andarGlitter(dt);
   andarVida(dt);   // 7.4
   andarCoruja(dt); // 7.5
+  andarTartaruga(dt);   // 7.7
+  andarEfeitoDasMaos(dt);   // 7.7
   maoDoCelular(dt);    // 7.0: o dedo vira a mao
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
   gestoNoAr(dt);
@@ -16831,6 +17335,8 @@ function quadroXR(t, frame){
   andarGlitter(dt);
   andarVida(dt);   // 7.4
   andarCoruja(dt); // 7.5
+  andarTartaruga(dt);   // 7.7
+  andarEfeitoDasMaos(dt);   // 7.7
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
      capacete nao ha como olhar variavel nenhuma, e sem isto a diferenca
