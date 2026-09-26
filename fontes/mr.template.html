@@ -7757,6 +7757,11 @@ uniform sampler2D simulada;
 uniform float hibrido;
 uniform vec4 nucleo;
 uniform vec2 misturaSim;       // x = quanto da pintura fica como veu em volta; y = a forca da simulacao
+/* 26/09 -- O CEU DA INTEGRA EM CODIGO: ceuVivo = 0 nada, 1 o ceu do quadro e todo
+   gerado aqui; ceuAte = de que altura (uv, 0 no alto) a que altura o ceu cede para a
+   pintura (a linha dos arcos e das ondas). O corpo (nucleo) fica sempre pintado. */
+uniform float ceuVivo;
+uniform vec2 ceuAte;
 uniform vec3 juntas[3];
 /* Ruido de valor, duas oitavas: e o que faz a beira da pintura ondular em
    vez de terminar numa reta. Barato -- oito leituras de hash. */
@@ -7767,6 +7772,53 @@ float ruidoFig(vec2 p){
   float c = fract(sin(dot(i + vec2(0,1), vec2(127.1, 311.7))) * 43758.5453);
   float d = fract(sin(dot(i + vec2(1,1), vec2(127.1, 311.7))) * 43758.5453);
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+highp float h21(highp vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+/* "A ultima cena da deusa: o ceu tem que ser substituido por um ceu feito em
+   programacao, que imite a imagem, e seja animado lentamente" (26/09). O ceu da
+   pintura da integra, refeito: o azul-noite mais claro para as ondas, as massas
+   escuras no alto, a faixa de nuvem lilas que atravessa o quadro (a via-lactea
+   dela), o po de ouro miudo e as estrelas de quatro pontas. E tudo anda devagar: as
+   nuvens derivam em dois ritmos, o po cintila cada grao no seu tempo e escorrega
+   para o lado quase parado, as estrelas pulsam e giram de leve. p e o uv do
+   quadro (y para baixo); t e o relogio, em segundos. */
+vec3 ceuDaIntegra(highp vec2 p, highp float t){
+  highp vec2 q = vec2(p.x * 1.6, p.y);
+  vec3 cor = mix(vec3(0.030, 0.050, 0.140), vec3(0.085, 0.135, 0.290), smoothstep(0.02, 0.36, p.y));
+  float m = ruidoFig(q * 2.2 + vec2(t * 0.006, 0.0)) * 0.6 + ruidoFig(q * 5.0 - vec2(t * 0.004, t * 0.002)) * 0.4;
+  cor *= 0.70 + 0.45 * m;
+  float meioDaFaixa = 0.17 + 0.05 * sin(q.x * 2.1 + 0.6) - 0.03 * q.x;
+  float faixa = exp(-pow((p.y - meioDaFaixa) / 0.06, 2.0));
+  float fiapo = ruidoFig(q * vec2(5.0, 11.0) + vec2(t * 0.012, t * 0.003)) * 0.65
+              + ruidoFig(q * vec2(11.0, 23.0) - vec2(t * 0.020, 0.0)) * 0.35;
+  float nuvem = faixa * smoothstep(0.35, 0.80, fiapo);
+  cor = mix(cor, vec3(0.62, 0.50, 0.62), nuvem * 0.55);
+  /* os graos e as estrelas no tamanho em que a 52 m ainda se veem (26/09: com 150 graos por
+     altura do quadro eles ficavam menores que um pixel do oculos e sumiam) */
+  highp vec2 gq = (q + vec2(t * 0.0015, 0.0)) * 70.0;
+  highp vec2 gc = floor(gq);
+  float gh = h21(gc);
+  vec2 gp = fract(gq) - (0.2 + 0.6 * vec2(gh, h21(gc + 3.1)));
+  float grao = step(0.60, gh) * (1.0 - smoothstep(0.07, 0.20, length(gp)));
+  float cint = 0.45 + 0.55 * sin(t * (0.5 + 1.8 * h21(gc + 7.7)) + gh * 40.0);
+  cor += vec3(1.0, 0.80, 0.45) * grao * cint * 0.9;
+  highp vec2 eq = (q + vec2(t * 0.0015, 0.0)) * 8.0;
+  highp vec2 ec = floor(eq);
+  float eh = h21(ec + 11.0);
+  if(eh > 0.58){
+    vec2 ep = fract(eq) - (0.25 + 0.5 * vec2(h21(ec + 1.3), h21(ec + 5.9)));
+    float ang = t * 0.03 * (eh - 0.79) + eh * 3.0;
+    float ca = cos(ang), sa = sin(ang);
+    ep = vec2(ca * ep.x - sa * ep.y, sa * ep.x + ca * ep.y);
+    float tam = 1.0 + 1.6 * h21(ec + 2.2);
+    float cruz = exp(-abs(ep.y) * 60.0 / tam) * exp(-abs(ep.x) * 6.0 / tam)
+               + exp(-abs(ep.x) * 60.0 / tam) * exp(-abs(ep.y) * 6.0 / tam);
+    float miolo = exp(-dot(ep, ep) * 500.0 / (tam * tam));
+    float pulso = 0.6 + 0.4 * sin(t * (0.3 + 0.6 * eh) + eh * 20.0);
+    vec3 ce = mix(vec3(1.0, 0.86, 0.55), vec3(0.85, 0.92, 1.0), step(0.86, eh));
+    cor += ce * (cruz * 0.8 + miolo * 1.2) * pulso;
+  }
+  return cor;
 }
 uniform float mergulho;         // quantos metros abaixo da linha d'agua o reflexo ainda existe
 uniform vec3 ambiente;          // a cor do ar do cenario, para ela pertencer a ele
@@ -7885,6 +7937,12 @@ void main(){
     vec3 sim = texture2D(simulada, uv).rgb;
     float fora = (1.0 - pintado) * hibrido;
     c.rgb = mix(c.rgb, max(c.rgb * misturaSim.x, sim * misturaSim.y), fora);
+  }
+  if(ceuVivo > 0.0 && inteira > 0.5){
+    vec2 dc2 = (vUV - nucleo.xy) / nucleo.zw;
+    float corpo = 1.0 - smoothstep(0.80, 1.45, length(dc2));
+    float ceu = (1.0 - smoothstep(ceuAte.x, ceuAte.y, vUV.y)) * (1.0 - corpo) * ceuVivo;
+    if(ceu > 0.001) c.rgb = mix(c.rgb, ceuDaIntegra(vUV, tempo), ceu);
   }
   // a luz que escorre com o liquido: fraca, e so onde ele corre
   c.rgb *= 1.0 + liq * 0.10 * sin(uv.y * 30.0 - tempo * 0.8);
@@ -9619,9 +9677,9 @@ function relatarTex(){
     b.disabled = false;
   }else if(texProntas >= TEX_TOTAL){
     d.textContent = CELULAR
-      ? 'Aponte o celular pela sala e toque nas coisas: os dez minutos correm sozinhos a partir daqui. '
+      ? 'Aponte o celular pela sala e toque nas coisas: os ' + minutosPorExtenso() + ' correm sozinhos a partir daqui. '
         + 'Ele vai pedir a câmera e o movimento.'
-      : 'Ponha o capacete antes de iniciar: os dez minutos correm sozinhos a partir daqui.';
+      : 'Ponha o capacete antes de iniciar: os ' + minutosPorExtenso() + ' correm sozinhos a partir daqui.';
     b.disabled = false;
     if(!vitrine) ligarVitrine();   // 7.9
   }else{
@@ -10641,7 +10699,7 @@ if(FIGURAS_EM_CODIGO){   // 8.8: as tres deusas pintadas ao carregar; o montador
   // 26/09: o entorno simulado -- as mesmas pinturas em codigo da 8.8, agora so em volta do corpo
   if(HIBRIDAS){
     const t0 = performance.now();
-    gerarDeusaGalactica(FIGS_SIM[0]); gerarDeusaVermelha(FIGS_SIM[1]); gerarDeusaIntegra(FIGS_SIM[2]);
+    gerarDeusaGalactica(FIGS_SIM[0]); gerarDeusaVermelha(FIGS_SIM[1]);   // a integra nao: o ceu dela e o ceuDaIntegra, no shader
     relato('DEUSAS-HIBRIDAS ' + Math.round(performance.now() - t0) + ' ms');   // o custo ao carregar, medido no aparelho
   }
 }
@@ -10689,9 +10747,34 @@ const DURACAO = 600;          // a partitura, em segundos DE ROTEIRO: tudo abaix
    movimento de verdade (o relogio, as ondas, os seres, a fisica dos
    planetas) le "relogio" e "dt", que sao reais, e nao acelera. A travessia
    entre cenarios e o tempo da frase final ficam em segundos reais. */
-const DURACAO_REAL = 600;     // dez minutos de novo (7.8, 25/09: "agora tem mais elementos para ver"); foi 360 na 7.3
-const RITMO = DURACAO / DURACAO_REAL;
-const TRAVESSIA = 6 * RITMO;  // seis segundos REAIS de mistura entre cenarios
+/* SEIS OU DEZ MINUTOS, ESCOLHIDOS NA HORA -- 26/09: "coloca um controle de tempo pra
+   gente poder alterar o tempo da experiencia, um de 6 minutos e 10 minutos". O mesmo
+   relogio de ritmo da 7.3, agora variavel: a escolha vem do endereco (?min=6 ou
+   ?min=10), senao da ultima escolha deste aparelho, senao dez. A Cabine troca pelo
+   gancho raizes.duracao(6|10) -- e so com o portao a vista: no meio da obra o ritmo
+   nao muda, porque mudar o relogio no meio salta a partitura. */
+const DURACOES_REAIS = { 6: 360, 10: 600 };
+let DURACAO_REAL = 600;       // dez minutos (7.8); 360 na 7.3 -- agora escolhido (aplicarDuracao)
+let RITMO = DURACAO / DURACAO_REAL;
+let TRAVESSIA = 6 * RITMO;    // seis segundos REAIS de mistura entre cenarios
+function minutosDaObra(){ return Math.round(DURACAO_REAL / 60); }
+function minutosPorExtenso(){ return minutosDaObra() === 6 ? 'seis minutos' : 'dez minutos'; }
+function aplicarDuracao(min){
+  const d = DURACOES_REAIS[min];
+  if(!d) return false;
+  DURACAO_REAL = d; RITMO = DURACAO / d; TRAVESSIA = 6 * RITMO;
+  try{ localStorage.setItem('raizes-minutos', String(min)); }catch(e){}
+  const sub = document.querySelector('.portao-sub');
+  if(sub) sub.textContent = 'Visões Filmes · ' + minutosPorExtenso();
+  const dica = document.getElementById('portaoDica');
+  if(dica) dica.textContent = dica.textContent.replace(/(seis|dez) minutos/, minutosPorExtenso());
+  return true;
+}
+(function(){
+  let min = parseInt(new URLSearchParams(location.search).get('min') || '', 10);
+  if(!DURACOES_REAIS[min]){ try{ min = parseInt(localStorage.getItem('raizes-minutos') || '', 10); }catch(e){ min = NaN; } }
+  aplicarDuracao(DURACOES_REAIS[min] ? min : 10);
+})();
 
 /* O ajuste de cada cenario. Nao sao gostos avulsos: cada linha e o clima
    descrito no roteiro, traduzido nos controles que ja existiam. */
@@ -12552,7 +12635,11 @@ const FIGURAS = [
        0,465 e 0,535 e vao de 0,28 a 0,55 de altura */
     fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135],
     danca:0.7, juntas:[[0.50, 0.406, 0.04], [0.425, 0.593, 0.05], [0.58, 0.569, 0.05]],
-    nucleo:[0.50, 0.53, 0.16, 0.40],   // 26/09: o que fica pintado -- a arvore-cabelo, as asas e o vestido
+    /* 26/09: "o ceu tem que ser substituido por um ceu feito em programacao, que imite a
+       imagem, e seja animado lentamente" -- a integra fica com a pintura (ela, as ondas, os
+       arcos) e so o CEU do quadro e gerado, vivo (ceuDaIntegra no FS_FIGU). O nucleo protege
+       a arvore-cabelo e as asas; o ceu cede para a pintura entre 0,27 e 0,37 de altura. */
+    hibrido:0, ceuVivo:1, ceuAte:[0.27, 0.37], nucleo:[0.50, 0.40, 0.16, 0.20],
     manchas:[[0.20, 0.40, 0.80], [0.95, 0.60, 0.30]] },
 ];
 
@@ -15297,7 +15384,13 @@ if(emTesteLocal){
       return this.onde();
     },
     cena(n){ const m = MOMENTOS.find(x => x[1] === Number(n)); return m ? this.ir(m[0]) : 'cenario 1 a 4'; },
-    onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), cena: cenaEm(t), andando,
+    /* 26/09: seis ou dez minutos -- so com o portao a vista (fora da obra) */
+    duracao(min){ if(min === undefined) return minutosDaObra();
+                  if(andando) return 'no meio da obra nao: ' + minutosDaObra();
+                  const ok = aplicarDuracao(+min);
+                  relato('DURACAO ' + minutosDaObra() + ' min' + (ok ? '' : ' (pedido invalido: ' + min + ')'));
+                  return minutosDaObra(); },
+    onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), min: minutosDaObra(), cena: cenaEm(t), andando,
                      pontosDaMata: nMata, crescimento: +crescimento.toFixed(2),
                      estrelas: nEstrelas, fundoDoMar: (nFundoIdx + nFundoParadoIdx)/3,
                      algaNeon: nAlgaNeonIdx/3, seresDoCeu: nSeresCeuIdx/3,
@@ -15316,7 +15409,7 @@ if(emTesteLocal){
    DevTools do Quest). Sem isto a luz so seguia a obra servida pelo cabo, e
    no estande a obra mora no aparelho, carregada do endereco publicado. Os
    saltos no tempo continuam so fora do publicado. */
-if(!emTesteLocal) window.raizes = { onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), cena: cenaEm(t), andando}; } };
+if(!emTesteLocal) window.raizes = { onde(){ return {tempo: mmss(t), real: mmss(t / RITMO), min: minutosDaObra(), cena: cenaEm(t), andando}; } };
 
 const bReiniciar = document.getElementById('bReiniciar');
 const bParar     = document.getElementById('bParar');
@@ -16143,7 +16236,8 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas'),
                vida:uFi('vida'),
                satura:uFi('satura'), danca:uFi('danca'), mancha1:uFi('mancha1'), mancha2:uFi('mancha2'), juntas:uFi('juntas[0]'),   // 8.4
-               simulada:uFi('simulada'), hibrido:uFi('hibrido'), nucleo:uFi('nucleo'), misturaSim:uFi('misturaSim')};   // 26/09: as hibridas
+               simulada:uFi('simulada'), hibrido:uFi('hibrido'), nucleo:uFi('nucleo'), misturaSim:uFi('misturaSim'),   // 26/09: as hibridas
+               ceuVivo:uFi('ceuVivo'), ceuAte:uFi('ceuAte')};   // 26/09: o ceu da integra em codigo
 const JUNTAS_BUF = new Float32Array(9);
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
@@ -16656,16 +16750,21 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
       // 26/09: as hibridas -- o entorno simulado na unidade 8; a unidade ativa volta a 7
       const sim = HIBRIDAS ? FIGS_SIM[f.tex] : null;
-      if(sim){
+      const hib = sim && f.hibrido !== 0;
+      if(hib){
         gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, sim);
         gl.uniform1i(locFi.simulada, 8);
         gl.activeTexture(gl.TEXTURE7);
-        const nu = f.nucleo || el;
-        gl.uniform4f(locFi.nucleo, nu[0], nu[1], nu[2], nu[3]);
         const ms = f.misturaSim || [0.32, 1.0];
         gl.uniform2f(locFi.misturaSim, ms[0], ms[1]);
       }
-      gl.uniform1f(locFi.hibrido, sim ? (f.hibrido === undefined ? 1 : f.hibrido) : 0);
+      gl.uniform1f(locFi.hibrido, hib ? (f.hibrido === undefined ? 1 : f.hibrido) : 0);
+      const nu = f.nucleo || el;
+      gl.uniform4f(locFi.nucleo, nu[0], nu[1], nu[2], nu[3]);
+      // 26/09: o ceu em codigo (so a integra)
+      gl.uniform1f(locFi.ceuVivo, f.ceuVivo || 0);
+      const ca = f.ceuAte || [0.27, 0.37];
+      gl.uniform2f(locFi.ceuAte, ca[0], ca[1]);
       gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
       gl.uniform2f(locFi.escuro, es[0], es[1]);
       gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
