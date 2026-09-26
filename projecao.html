@@ -114,7 +114,13 @@ for(const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER,
    (u, v, instante, forca). O relogio e local: o toque chega com dezenas de
    milissegundos de atraso pela rede, e uma onda que nasce 50 ms depois nao
    se distingue a olho. */
-const T = { aspecto:1.5, presenca:0, alvo:0, ondas:[], videoOk:false, ultimo:-1, ligado:false };
+/* SEMPRE ACESA -- 26/09: "a animacao tem que ficar ativa no projetor; quando eu aperto no
+   botao projetar ela some". A pagina nascia apagada e so acendia quando o oculos mandava
+   TELA-ACESA (na janela do cosmos), e apagava com TELA-APAGADA e no comeco de cada obra --
+   reaberta pelo Projetar, voltava preta. Agora nasce acesa e fica: o desenho da Odara em
+   laco, e cada toque do oculos vira onda por cima. ?sempre=0 volta ao jeito antigo. */
+const SEMPRE = params.get('sempre') !== '0';
+const T = { aspecto:1.5, presenca:SEMPRE ? 0.6 : 0, alvo:SEMPRE ? 1 : 0, ondas:[], videoOk:false, ultimo:-1, ligado:false };
 const ondasBuf = new Float32Array(64);
 let relogio = 0, ultimoInstante = performance.now();
 
@@ -136,12 +142,12 @@ function ligarCabine(){
     const txt = (r && r.t) || '';
     if(txt.indexOf('TOCOU-A-TELA') === 0){
       const p = txt.split(/\s+/); onda(parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3] || '1'));
-    } else if(txt.indexOf('TELA-ACESA') === 0){ T.alvo = 1; vid.currentTime = 0; tocarVideo(); }
-    else if(txt.indexOf('TELA-APAGADA') === 0){ T.alvo = 0; }
+    } else if(txt.indexOf('TELA-ACESA') === 0){ if(!SEMPRE){ T.alvo = 1; vid.currentTime = 0; } tocarVideo(); }
+    else if(txt.indexOf('TELA-APAGADA') === 0){ if(!SEMPRE) T.alvo = 0; }
     else if(txt.indexOf('TELA-CRAVADA') === 0){
       const w = /w=([\d.]+)/.exec(txt), h = /h=([\d.]+)/.exec(txt);
       if(w && h && +h[1] > 0) T.aspecto = (+w[1]) / (+h[1]);
-    } else if(txt.indexOf('A-OBRA-PARTIU') === 0){ T.alvo = 0; T.ondas = []; }
+    } else if(txt.indexOf('A-OBRA-PARTIU') === 0){ if(!SEMPRE) T.alvo = 0; T.ondas = []; }
   };
 }
 ligarCabine();
