@@ -2128,6 +2128,9 @@ function arrumarOEspaco(){
   const emCima = COGUMELOS.filter(c => (c.y || 0) > 0.05).length;
   /* 7.7: a vida miuda segue a mae e os cogumelos, e as plantas pontuais sobem
      nas paredes lidas (a mesa ja recebe cogumelos pelo pousarNoQueHouver) */
+  // 8.3: com a mae e os cogumelos no lugar novo, cada corpo no seu espaco de novo
+  TUFOS_CHAO.length = 0; separarOsCorpos(); montarCogumelos();
+  COGUMELOS.forEach((cg, i) => { FOCOS[i*3] = cg.x; FOCOS[i*3+1] = cg.z; FOCOS[i*3+2] = cg.fase; });
   let naParede = 0;
   if(VIDA_NA_FLORESTA){
     montarTrilhasDaVida();
@@ -3284,6 +3287,11 @@ function andarSeresDeLuz(dt){
       if(!sl.avisou && w > 0.9){ sl.avisou = true; sussurroDePerto((k + 3) % 6, 0.8); relato('SER-DE-LUZ-CURIOSO ' + k); }
       if(e >= 32){ V.quem = -1; V.proxima = relogio + 3 + (k % 3) * 2; }
     }
+    // 8.3: nenhum ser de luz atravessa um gigante do mar (cogumelo ou planta)
+    for(const g of GIGANTES_DO_MAR){
+      const rr = 0.40 * (g.esc || 1) + 0.35, dx = x - g.x, dz = z - g.z, dd = Math.hypot(dx, dz);
+      if(dd < rr && dd > 1e-4){ x = g.x + dx / dd * rr; z = g.z + dz / dd * rr; }
+    }
     sl.curioso = w;
     sl.p[0] = x + sl.fuga[0]; sl.p[1] = y + sl.fuga[1]; sl.p[2] = z + sl.fuga[2];
     sl.fuga[0] *= volta; sl.fuga[1] *= volta; sl.fuga[2] *= volta;
@@ -3345,7 +3353,8 @@ const DANCA = { ok:false, fps:15, n:0, nj:0, por:7, i:{}, pos:null, altura:0.8, 
    NO CHAO (DANCA_PE = 0: a captura ja tem o piso em zero), de frente para
    quem entra; 1,55 m na junta da cabeca = uns 1,75 m no topo. Era 2,3 m,
    flutuando a meio metro, com 1,2 m de altura ("um pouco menor", 7.1). */
-const DANCA_AZ = -35 * Math.PI / 180, DANCA_DIST = 3.8, DANCA_PE = 0.0, DANCA_ALTURA = 1.55;   // 7.7: a frente-esquerda, ja que a mae foi para a direita
+let DANCA_AZ = -35 * Math.PI / 180, DANCA_DIST = 3.8;   // 8.3: 'let' -- se cair num tronco, anda para o lado livre
+const DANCA_PE = 0.0, DANCA_ALTURA = 1.55;   // 7.7: a frente-esquerda, ja que a mae foi para a direita
 /* os ossos: cada um vai da junta que o gira ate a filha; o ultimo numero e o
    quanto ele se estende alem da filha (a cabeca continua acima da junta) */
 const DANCA_OSSOS = [ ['pelvis','spine',0], ['spine','chest',0], ['chest','neck',0], ['neck','head',0.10],
@@ -10146,11 +10155,17 @@ const TRAVESSIA = 6 * RITMO;  // seis segundos REAIS de mistura entre cenarios
    tinta subindo. E a neblina volta ao valor da abertura --
    ela E a nuvem cosmica do comeco, a mesma marmorizacao --, so que aqui vai
    e vem: o vaivem esta na partitura (nuvemVaiEVem). */
+/* 8.3 -- O CEU DESCE MAIS (26/09: "aumentar a graduacao do ceu ao redor, um pouco mais
+   para baixo; tem muita area em realidade aumentada"). Todos os INICIOS e FINS
+   desceram (sao seno da elevacao): o ceu comeca de 0 a 7 graus acima do horizonte
+   e fecha entre 20 e 43 graus (antes: 0 a 13, fechando entre 25 e 58). Sem paredes
+   lidas nenhum inicio fica abaixo do horizonte -- a linha dos olhos e o chao
+   continuam sendo a sala (seguranca, 6.6). Com as paredes lidas, ver progSala. */
 const CENAS = {
   1: { ceu: CEU_EM_CAMADAS ? 4 : 3, tinta:0.85, neblina:0.20, marmore:0.95, leite:0.14,
-       poeira:3200, sopro:1.0, raizes:1, ini:0.22, fim:0.72 },
+       poeira:3200, sopro:1.0, raizes:1, ini:0.12, fim:0.55 },   // 8.3: o ceu desce mais (era 0,22/0,72)
   2: { ceu:2, tinta:0.0, neblina:0.18, marmore:0.94, leite:0.13,
-       poeira:2600, sopro:0.8, raizes:0, ini:0.12, fim:0.58 },
+       poeira:2600, sopro:0.8, raizes:0, ini:0.06, fim:0.45 },   // 8.3: era 0,12/0,58
   /* O CEU DO PLANETA ROSA -- 14/09, "o fundo esta muito proximo do teto,
      da cabeca; tem que botar mais distante", e depois: "a graduacao esta
      muito ruim; tem que ser bem maior, da parte transparente ate virar o
@@ -10162,7 +10177,7 @@ const CENAS = {
      aceso) e ha estrelas finas sobre ela (longe, no FS_SALA). Fechar a
      cupula cedo (fim 0,60) foi tentado e era o contrario do pedido. */
   3: { ceu:2, tinta:0.60, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.85, longe:0.80 },
+       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.68, longe:0.80 },   // 8.3: era 0/0,85
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
@@ -10185,7 +10200,7 @@ const CENAS = {
           transparente NA ALTURA DOS OLHOS e lia como "uma mancha cinza" sobre
           a sala -- foi por isso que o cenario virou ceu inteiro. Assim a linha
           dos olhos e toda sala, e o meio-termo fica acima da cabeca. */
-       poeira:2000, sopro:0.8, raizes:0, ini:0.16, fim:0.42 },
+       poeira:2000, sopro:0.8, raizes:0, ini:0.08, fim:0.34 },   // 8.3: era 0,16/0,42
 };
 
 function cenaEm(t){
@@ -10276,7 +10291,12 @@ const COGUMELOS = [];
        Repartir e somar um empurrao pequeno da a mesma desordem sem o
        amontoado. E o mesmo remedio que as pedras ja usavam. */
     const ang = (i / 13) * Math.PI * 2 + r() * 0.42;
-    const d = 1.15 + r() * 0.95;          // de 1,15 a 2,1 m: treze chapeus de 60 cm num anel de 1,3 m viravam um muro
+    /* 8.3 -- EM FAIXAS DE DISTANCIA (26/09: "tem os objetos mais proximos, os do campo
+       medio, os mais longe e os muito longe"): um em cada tres PERTO (1,3 a 1,7 m, os
+       que se tocam), os outros no MEIO (1,9 a 2,6 m). As arvores sao o LONGE (2,9 a
+       5 m) e a mata de fundo o MUITO LONGE. O separarOsCorpos mantem cada um na faixa. */
+    const perto = i % 3 === 0;
+    const d = perto ? 1.3 + r() * 0.4 : 1.9 + r() * 0.7;
     COGUMELOS.push({
       x: Math.sin(ang) * d, z: -Math.cos(ang) * d,
       /* ALTOS, PARA TOCAR DE PE -- 25/09 (7.3): "coloque cogumelos mais
@@ -10288,6 +10308,7 @@ const COGUMELOS = [];
          num muro em volta (visto na bancada): por isso esta altura, e o
          anel mais largo, com vao entre um e outro. */
       alt: 0.50 + r() * 0.28,
+      faixa: perto ? [1.25, 1.75] : [1.85, 2.7],   // 8.3: a faixa de distancia dele
       raio: 0.055 + r() * 0.055,
       tom: 0.55 + r() * 0.45,
       fase: r() * 6.283,
@@ -10295,6 +10316,164 @@ const COGUMELOS = [];
   }
 })();
 
+
+/* ═══════════ O ESPACO DE CADA CORPO (8.3) ═══════════
+   26/09, a direcao de arte: "os objetos nao podem se penetrar, entrar um no outro;
+   tem que ter espacamento entre eles, respeitar a forma deles; a tartaruga nao pode
+   passar por dentro da arvore, a coruja nao pode passar por dentro da arvore -- pode
+   passar num buraco ou entre os galhos, mas nao por dentro da forma. Isso em todos os
+   cenarios." E, logo depois: "de acordo com o mapeamento do local... tem os objetos
+   mais proximos, os do campo medio, os mais longe e os muito longe; as coisas nao
+   podem ficar umas sobrepostas as outras; e uma protecao na area do usuario". E: "nao
+   precisa deixar tudo tao separado, mas que respeitem a area do objeto e harmonizem" --
+   por isso as folgas sao de 3 a 6 cm alem da forma, e nao mais.
+
+   DUAS COISAS. (1) O QUE E PARADO se espalha antes de nascer: cogumelos e tufos de
+   folhas se empurram uns aos outros, e todos se afastam dos troncos, das pedras, da
+   AREA DE QUEM ESTA NO MEIO (1 m) e, com a sala lida, das paredes (30 cm) -- sempre
+   dentro da sua faixa de distancia. (2) O QUE ANDA pergunta, a cada quadro, se esta
+   dentro de algo, e sai: o tronco e medido NA ALTURA do bicho (a linha de centro
+   dele, que entorta), o cogumelo e o chapeu (ou so o pe, para quem passa por baixo
+   voando), a pedra e o tufo ate a altura deles. Galhos e copas nao contam -- entre
+   eles se passa. O vao da mae so e porta para a coruja quando ela vai pousar nele. */
+const ZONA_DA_PESSOA = 1.0;
+const TUFOS_CHAO = [];
+const raioDoChapeu = (cg) => 0.48 * cg.alt;
+function pontoDoTronco(tr, y){             // [x, z, raio] da linha de centro na altura y, ou null acima do topo
+  const Pn = tr.pontos;
+  if(y <= Pn[0][1]) return [Pn[0][0], Pn[0][2], tr.raios[0]];
+  for(let k = 1; k < Pn.length; k++){
+    if(Pn[k][1] >= y){
+      const u = (y - Pn[k-1][1]) / Math.max(1e-4, Pn[k][1] - Pn[k-1][1]);
+      return [Pn[k-1][0] + (Pn[k][0] - Pn[k-1][0]) * u, Pn[k-1][2] + (Pn[k][2] - Pn[k-1][2]) * u, tr.raios[k-1] + (tr.raios[k] - tr.raios[k-1]) * u];
+    }
+  }
+  return null;
+}
+function empurrarCirculo(p, cx, cz, m){
+  const dx = p.x - cx, dz = p.z - cz, d = Math.hypot(dx, dz);
+  if(d >= m) return false;
+  if(d < 1e-4){ p.x = cx + m; return true; }
+  p.x = cx + dx / d * m; p.z = cz + dz / d * m; return true;
+}
+/* quem anda: p tem x e z; y e a altura do corpo; r o raio; ignorar e o dono do
+   lugar onde ele quer chegar (o cogumelo que o tamandua lambe, o poleiro da coruja) */
+function afastar(p, y, r, ignorar, noChao){
+  let mexeu = false;
+  for(const tr of TRONCOS){
+    if(tr === ignorar) continue;
+    const q = pontoDoTronco(tr, y); if(!q) continue;
+    mexeu = empurrarCirculo(p, q[0], q[1], (tr.mae ? Math.max(q[2], 0.30) + 0.1 : q[2] + 0.04) + r) || mexeu;
+  }
+  for(const cg of COGUMELOS){
+    if(cg === ignorar) continue;
+    const y0 = cg.y || 0, topo = y0 + cg.alt * 1.02;
+    if(y - r > topo) continue;
+    const chapeu = noChao || y + r > y0 + cg.alt * 0.55;
+    mexeu = empurrarCirculo(p, cg.x, cg.z, (chapeu ? raioDoChapeu(cg) : 0.1 * cg.alt) + r) || mexeu;
+  }
+  for(const pd of PEDRAS_CHAO){
+    if(y - r > (pd.y || 0) + pd.escala * 0.7) continue;
+    mexeu = empurrarCirculo(p, pd.x, pd.z, pd.escala * 0.7 + r) || mexeu;
+  }
+  if(ignorar !== 'tufos') for(const tf of TUFOS_CHAO){
+    if(y - r > tf.escala * 0.85) continue;
+    mexeu = empurrarCirculo(p, tf.x, tf.z, tf.raio * 0.8 + r) || mexeu;
+  }
+  return mexeu;
+}
+function afastarDaPessoa(p, r){
+  const o = ondeOOlhoEsta;
+  return empurrarCirculo(p, o[0], o[2], ZONA_DA_PESSOA * 0.85 + r);
+}
+function livreNoChao(x, z, r){
+  const p = { x, z };
+  return !afastar(p, 0.2, r, null, true) && Math.hypot(x - ondeOOlhoEsta[0], z - ondeOOlhoEsta[2]) > ZONA_DA_PESSOA + r;
+}
+/* a sala lida: dentro do chao, a 30 cm das paredes */
+function dentroDaSala(p, margem){
+  if(!(typeof SALA !== 'undefined' && SALA.pronta && SALA.chao)) return false;
+  const poly = SALA.chao, dentro = dentroDoPoligono(p.x, p.z, poly);
+  let best = 1e9, qx = 0, qz = 0;
+  for(let a = 0, b = poly.length - 2; a < poly.length; b = a, a += 2){
+    const xi = poly[a], zi = poly[a + 1], ex = poly[b] - xi, ez = poly[b + 1] - zi, L = ex * ex + ez * ez;
+    let u = L > 0 ? ((p.x - xi) * ex + (p.z - zi) * ez) / L : 0; u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const cx = xi + ex * u, cz = zi + ez * u, dd = Math.hypot(p.x - cx, p.z - cz);
+    if(dd < best){ best = dd; qx = cx; qz = cz; }
+  }
+  if(dentro && best >= margem) return false;
+  let nx = dentro ? p.x - qx : qx - p.x, nz = dentro ? p.z - qz : qz - p.z;
+  const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+  p.x = qx + nx * margem; p.z = qz + nz * margem;
+  return true;
+}
+/* A FOLHAGEM NO CHAO (8.3): "tem de estar no chao e na base proxima a arvore, nao em
+   cima da arvore; escalas e distancias diferentes". Quatro tufos em volta do pe da
+   mae (fora das sapopemas), um ou dois no pe das tres arvores mais perto, e tres
+   soltos no campo medio. Cada tufo abre em leque PARA FORA do tronco dele. */
+function semearTufosDoChao(){
+  TUFOS_CHAO.length = 0;
+  const r = prng(7480);
+  const mae = TRONCOS.find(t => t.mae);
+  const perto = TRONCOS.filter(t => !t.mae).map(t => ({ t, d: Math.hypot(t.pontos[0][0], t.pontos[0][2]) })).sort((a, b) => a.d - b.d).slice(0, 3);
+  const aoPe = (tr, n, dist0, dist1, esc0, esc1) => {
+    const b = tr.pontos[0];
+    for(let k = 0; k < n; k++){
+      const a = (k / n) * Math.PI * 2 + r() * 0.9, d = dist0 + r() * (dist1 - dist0), esc = esc0 + r() * (esc1 - esc0);
+      const x = b[0] + Math.sin(a) * d, z = b[2] - Math.cos(a) * d;
+      TUFOS_CHAO.push({ x, z, escala: esc, raio: 0.42 * esc + 0.05, n: 3 + Math.floor(r() * 3), ancora: [b[0], b[2]], dmin: dist0, dmax: dist1 + 0.3, faixa: null });
+    }
+  };
+  if(mae) aoPe(mae, 4, 0.95, 1.25, 0.65, 1.15);
+  perto.forEach(({ t }, k) => aoPe(t, 1 + (k % 2), 0.45, 0.75, 0.85, 1.3));
+  for(let k = 0; k < 3; k++){
+    const a = 0.8 + k * 2.1 + r() * 0.5, d = 1.9 + r() * 0.6, esc = 0.5 + r() * 0.35;
+    TUFOS_CHAO.push({ x: Math.sin(a) * d, z: -Math.cos(a) * d, escala: esc, raio: 0.42 * esc + 0.05, n: 3 + Math.floor(r() * 2), ancora: null, faixa: [1.85, 2.7] });
+  }
+}
+function separarOsCorpos(){
+  if(!TUFOS_CHAO.length) semearTufosDoChao();
+  const moveis = COGUMELOS.map(cg => ({ p: cg, r: raioDoChapeu(cg) + 0.03, faixa: cg.faixa || [1.2, 2.7], ancora: null }))
+    .concat(TUFOS_CHAO.map(tf => ({ p: tf, r: tf.raio, faixa: tf.faixa, ancora: tf.ancora ? tf : null })));
+  const fixos = TRONCOS.map(tr => ({ x: tr.pontos[0][0], z: tr.pontos[0][2], r: tr.mae ? 0.72 : tr.raios[0] + 0.06 }))
+    .concat(PEDRAS_CHAO.map(pd => ({ x: pd.x, z: pd.z, r: pd.escala * 0.7 + 0.03 })))
+    .concat([{ x: 0, z: 0, r: ZONA_DA_PESSOA }]);
+  for(let it = 0; it < 120; it++){
+    let mexeu = false;
+    for(let a = 0; a < moveis.length; a++){
+      const A = moveis[a];
+      for(const F of fixos) mexeu = empurrarCirculo(A.p, F.x, F.z, F.r + A.r) || mexeu;
+      for(let b = a + 1; b < moveis.length; b++){
+        const B = moveis[b], dx = B.p.x - A.p.x, dz = B.p.z - A.p.z, d = Math.hypot(dx, dz), m = A.r + B.r;
+        if(d < m){
+          const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0, meio = (m - d) / 2;
+          A.p.x -= nx * meio; A.p.z -= nz * meio; B.p.x += nx * meio; B.p.z += nz * meio; mexeu = true;
+        }
+      }
+      // cada um na sua faixa de distancia (ou perto da arvore dele)
+      if(A.faixa){
+        const d = Math.hypot(A.p.x, A.p.z) || 1e-4, dd = Math.min(A.faixa[1], Math.max(A.faixa[0], d));
+        if(Math.abs(dd - d) > 1e-4){ A.p.x *= dd / d; A.p.z *= dd / d; }
+      } else if(A.ancora){
+        const tf = A.ancora, ax = tf.ancora[0], az = tf.ancora[1], d = Math.hypot(tf.x - ax, tf.z - az) || 1e-4;
+        const dd = Math.min(tf.dmax, Math.max(tf.dmin, d));
+        if(Math.abs(dd - d) > 1e-4){ tf.x = ax + (tf.x - ax) * dd / d; tf.z = az + (tf.z - az) * dd / d; }
+      }
+      // e dentro da sala lida, longe das paredes (so o que e do campo perto e medio)
+      if(A.faixa && dentroDaSala(A.p, 0.3 + A.r * 0.5)) mexeu = true;
+    }
+    if(!mexeu) break;
+  }
+  // o leque de cada tufo de arvore abre para fora do tronco
+  for(const tf of TUFOS_CHAO) tf.leque = tf.ancora ? [Math.atan2(tf.x - tf.ancora[0], -(tf.z - tf.ancora[1])), 1.2] : null;
+  // a dancarina (longe) fora de qualquer tronco: gira para o lado livre
+  for(let k = 0; k < 24; k++){
+    const x = Math.sin(DANCA_AZ) * DANCA_DIST, z = -Math.cos(DANCA_AZ) * DANCA_DIST;
+    if(!TRONCOS.some(tr => Math.hypot(tr.pontos[0][0] - x, tr.pontos[0][2] - z) < (tr.mae ? 1.2 : 0.9))) break;
+    DANCA_AZ += (k % 2 ? -1 : 1) * (k + 1) * 0.06;
+  }
+}
+separarOsCorpos();   // 8.3: antes de o cogumelo virar malha
 montarCogumelos();   // depende da lista COGUMELOS, logo acima
 
 /* ═══════════ A VIDA MIUDA DA FLORESTA (7.4) ═══════════
@@ -10424,8 +10603,8 @@ function montarVida(){
 const TUFOS_DE_PAREDE = [];
 function montarFolhasPadronadas(r){
   const m = {pos:[], nor:[], alt:[], fase:[], borda:[], idx:[]};
-  const tufos = [{ c: ARVORE_BASE, n: 7, r0: 0.35, r1: 0.75 }];
-  for(const a of [0.55, 2.35, 4.1]) tufos.push({ c: [Math.sin(a) * 1.7, 0, -Math.cos(a) * 1.7], n: 4, r0: 0.05, r1: 0.30 });
+  // 8.3: os tufos do chao, espalhados pelo separarOsCorpos (nenhum em cima da arvore)
+  const tufos = TUFOS_CHAO.map(tf => ({ c: [tf.x, 0, tf.z], n: tf.n, r0: 0.02 * tf.escala, r1: 0.12 * tf.escala, escala: tf.escala, leque: tf.leque }));
   for(const tp of TUFOS_DE_PAREDE) tufos.push(tp);
   let k = 0;
   for(const tf of tufos){
@@ -10435,10 +10614,12 @@ function montarFolhasPadronadas(r){
     const R = [U[1]*F[2] - U[2]*F[1], U[2]*F[0] - U[0]*F[2], U[0]*F[1] - U[1]*F[0]];
     const M = (v) => [R[0]*v[0] + U[0]*v[1] + F[0]*v[2], R[1]*v[0] + U[1]*v[1] + F[1]*v[2], R[2]*v[0] + U[2]*v[1] + F[2]*v[2]];
     for(let j = 0; j < tf.n; j++, k++){
-      const ang = r() * Math.PI * 2, d = tf.r0 + r() * (tf.r1 - tf.r0);
-      const b = [Math.sin(ang) * d, 0, -Math.cos(ang) * d];
-      const L = (tf.cima ? 0.30 : 0.45) + r() * (tf.cima ? 0.25 : 0.45), W = 0.07 + r() * 0.08, tipo = k % 8;
-      const dir = r() * Math.PI * 2, ox = Math.sin(dir), oz = -Math.cos(dir), cai = 0.25 + r() * 0.5, tw = (r() - 0.5) * 1.2;
+      // 8.3: a folha nasce no lado para onde vai, e o leque do tufo abre para fora da arvore
+      const dir = tf.leque ? tf.leque[0] + (r() * 2 - 1) * tf.leque[1] : r() * Math.PI * 2, d = tf.r0 + r() * (tf.r1 - tf.r0);
+      const b = [Math.sin(dir) * d, 0, -Math.cos(dir) * d];
+      const esc = tf.escala || 1;
+      const L = ((tf.cima ? 0.30 : 0.45) + r() * (tf.cima ? 0.25 : 0.45)) * esc, W = (0.07 + r() * 0.08) * Math.sqrt(esc), tipo = k % 8;
+      const ox = Math.sin(dir), oz = -Math.cos(dir), cai = 0.25 + r() * 0.5, tw = (r() - 0.5) * 1.2;
       const P0 = b, P1 = [b[0] + ox * L * 0.10, b[1] + L * 0.50, b[2] + oz * L * 0.10];
       const P2 = [b[0] + ox * L * 0.55, b[1] + L * 0.85, b[2] + oz * L * 0.55];
       const P3 = [b[0] + ox * L * 0.95, b[1] + L * (0.95 - cai), b[2] + oz * L * 0.95];
@@ -10485,7 +10666,7 @@ function plantarNasParedes(){
   TUFOS_DE_PAREDE.length = 0;
   let n = 0;
   for(const pd of SALA.paredes){
-    if(n >= 4) break;
+    if(n >= 9) break;   // 8.3: ate nove tufos, ate dois por parede
     const Pp = pd.pts3; if(!Pp || Pp.length < 9) continue;
     let ax = Pp[3] - Pp[0], az = Pp[5] - Pp[2], L = Math.hypot(ax, az);
     if(L < 1e-3){ ax = Pp[6] - Pp[0]; az = Pp[8] - Pp[2]; L = Math.hypot(ax, az) || 1; }
@@ -10496,8 +10677,17 @@ function plantarNasParedes(){
     const y = Math.min(1.75, Math.max(1.15, pd.y));
     let U = [nx * 0.82, 0.57, nz * 0.82]; const nU = Math.hypot(U[0], U[1], U[2]); U = U.map(v => v / nU);
     let Fv = [-U[0] * U[1], 1 - U[1] * U[1], -U[2] * U[1]]; const nF = Math.hypot(Fv[0], Fv[1], Fv[2]) || 1; Fv = Fv.map(v => v / nF);
-    TUFOS_DE_PAREDE.push({ c: [pd.cx + nx * 0.02, y, pd.cz + nz * 0.02], n: 3, r0: 0.02, r1: 0.16, cima: U, frente: Fv });
-    n++;
+    /* 8.3: "nao vi muitas plantas nas paredes; e diminuir um pouco o tamanho delas na
+       parede": numa parede larga, dois tufos (a um quarto de cada ponta), cada um
+       numa altura, com 3 ou 4 folhas a 55 % do tamanho do chao */
+    const larg = Math.hypot(Pp[3] - Pp[0], Pp[5] - Pp[2]);
+    const pontos = larg > 1.6 ? [-0.25, 0.25] : [0];
+    for(const f of pontos){
+      if(n >= 9) break;
+      const yy = 0.95 + ((n * 0.37 + f + 0.5) % 1) * 0.85;
+      TUFOS_DE_PAREDE.push({ c: [pd.cx + ax * larg * f + nx * 0.02, yy, pd.cz + az * larg * f + nz * 0.02], n: 3 + (n % 2), r0: 0.02, r1: 0.10, escala: 0.55, cima: U, frente: Fv });
+      n++;
+    }
   }
   return n;
 }
@@ -10531,6 +10721,7 @@ function andarVida(dt){
     }
     const k = 1 - Math.exp(-dt / lag);
     v.x += (tx - v.x) * k + v.vx * dt; v.y += (ty - v.y) * k + v.vy * dt; v.z += (tz - v.z) * k + v.vz * dt;
+    afastar(v, v.y, 0.05);   // 8.3: nem vagalume entra num tronco
     const fr = Math.exp(-dt * 2.5); v.vx *= fr; v.vy *= fr; v.vz *= fr;
     v.susto = Math.max(0, v.susto - dt / 0.7);
     for(const m of MAOS){
@@ -10591,6 +10782,10 @@ function andarVida(dt){
       A.dur = 1.2 + Math.hypot(n.x - A.x, n.y - A.y, n.z - A.z) / 1.1; A.fase = 'voando';
     }
   }
+  // 8.3: voando, a abelha contorna troncos e chapeus; o alvo dela e porta quando ela chega
+  { const al = ALVOS_ABELHA[A.alvo], perto = al && Math.hypot(al.x - A.x, al.y - A.y, al.z - A.z) < 0.6;
+    if(A.fase === 'voando' && !perto) afastar(A, A.y, 0.06);
+    else if(A.fase === 'voando') afastar(A, A.y, 0.06, al.cog >= 0 ? COGUMELOS[al.cog] : 'tufos'); }
   A.fuga = Math.max(0, A.fuga - dt);
   for(const m of MAOS){
     if(!m.tem || A.fuga > 0) continue;
@@ -10845,6 +11040,12 @@ function andarCoruja(dt){
     if(v > vmax){ C.vx *= vmax / v; C.vy *= vmax / v; C.vz *= vmax / v; }
     C.x += C.vx * dt; C.y += C.vy * dt + Math.sin(T * 2.1) * 0.004; C.z += C.vz * dt;
     C.y = Math.min(2.4, Math.max(0.5, C.y));
+    // 8.3: nao atravessa tronco nem chapeu; o poleiro para onde ela vai (o vao da mae ou o alto
+    // de um cogumelo) e o unico lugar em que ela entra -- e so quando ja esta perto dele
+    { const alvoP = POLEIROS[C.poleiro], perto = alvoP && Math.hypot(alvoP[0] - C.x, alvoP[1] - C.y, alvoP[2] - C.z) < 1.0;
+      const dono = !perto || (C.estado !== 'volta' && C.estado !== 'pousada') ? null
+                 : (C.poleiro === 0 ? TRONCOS.find(t => t.mae) : COGUMELOS[[0, 5, 9][C.poleiro - 1]]);
+      afastar(C, C.y, 0.32, dono); }
     // o nariz para onde vai; parada, olha a pessoa
     const vh = Math.hypot(C.vx, C.vz);
     const yawAlvo = vh > 0.15 ? Math.atan2(C.vx, C.vz) : Math.atan2(ox - C.x, oz - C.z);
@@ -11179,16 +11380,20 @@ function andarTartaruga(dt){
         // um ponto novo: dentro de 1,8 m do centro, a mais de 0,9 m da mae e de onde esta
         let nx = 0, nz = 0;
         for(let k = 0; k < 8; k++){
-          const a = Math.sin(T * 3.7 + k * 2.3) * Math.PI, r = 0.5 + Math.abs(Math.cos(T * 1.9 + k)) * 1.3;
+          const a = Math.sin(T * 3.7 + k * 2.3) * Math.PI, r = 1.3 + Math.abs(Math.cos(T * 1.9 + k)) * 1.1;   // 8.3: no campo medio
           nx = Math.sin(a) * r; nz = -Math.cos(a) * r;
-          if(Math.hypot(nx - ARVORE_BASE[0], nz - ARVORE_BASE[2]) > 0.9 && Math.hypot(nx - Tt.x, nz - Tt.z) > 0.6) break;
+          if(Math.hypot(nx - ARVORE_BASE[0], nz - ARVORE_BASE[2]) > 0.9 && Math.hypot(nx - Tt.x, nz - Tt.z) > 0.6 && livreNoChao(nx, nz, 0.4)) break;
         }
         Tt.alvo = [nx, 0, nz]; Tt.parada = 2 + 4 * Math.abs(Math.sin(T * 0.83));
       } else {
         const yawAlvo = Math.atan2(dx, dz);
         let dy = yawAlvo - Tt.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
         const giro = Math.max(-0.6 * dt, Math.min(0.6 * dt, dy)); Tt.yaw += giro;
-        if(Math.abs(dy) < 0.5){ Tt.x += Math.sin(Tt.yaw) * Tt.v * dt; Tt.z += Math.cos(Tt.yaw) * Tt.v * dt; andando = 1; }
+        if(Math.abs(dy) < 0.5){ Tt.x += Math.sin(Tt.yaw) * Tt.v * dt; Tt.z += Math.cos(Tt.yaw) * Tt.v * dt; andando = 1;
+          // 8.3: nao entra em tronco, cogumelo, pedra, tufo, nem na area de quem esta no meio; nem no tamandua
+          afastar(Tt, 0.15, 0.30, null, true); afastarDaPessoa(Tt, 0.30);
+          if(TAM.ok) empurrarCirculo(Tt, TAM.x, TAM.z, 0.30 + 0.28);
+        }
         else andando = 0.3;
       }
     }
@@ -11270,10 +11475,14 @@ function montarArcos(){
   let n = 0;
   FILAS.forEach(([d, qtd, R], f) => {
     const aberto = 1.45 * (1 - f / FILAS.length * 0.62);     // o leque fecha com a distancia: converge
+    let azAntes = null, meiaAntes = 0;   // 8.3: o vizinho da fileira, para nao se invadirem
     for(let k = 0; k < qtd; k++){
       const az = az0 + (-1 + 2 * k / (qtd - 1)) * aberto + (rnd() - 0.5) * 0.08;
-      if(d <= 24 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre
       const dd = d * (0.92 + rnd() * 0.16), Rr = R * (0.85 + rnd() * 0.3), T = Rr * 0.30;
+      if(d <= 24 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre
+      const meia = Rr / dd;
+      if(azAntes !== null && az - azAntes < (meia + meiaAntes) * 1.08) continue;
+      azAntes = az; meiaAntes = meia;
       const cx = Math.sin(az) * dd, cz = -Math.cos(az) * dd, cy = -0.22 * Rr;
       const dir = [Math.cos(az), 0, Math.sin(az)], nx = -Math.sin(az), nz = Math.cos(az);
       const base = pos.length / 3, SEG = 36;
@@ -11396,6 +11605,19 @@ function montarTamandua(){
   TAM.yaw = Math.atan2(1.3, -1.0);
   TAM.ok = true;
 }
+/* 8.3: o corpo do tamandua sao tres circulos -- o corpo, a cabeca a 62 cm e a cauda a
+   70 cm atras --, e nenhum entra em nada (o cogumelo que ele lambe vale so para o
+   corpo: a cabeca vai por baixo da aba) nem na plantaruga */
+function corpoDoTamandua(A, alvo){
+  const sy = Math.sin(A.yaw), cy = Math.cos(A.yaw);
+  afastar(A, 0.35, 0.26, null, true); afastarDaPessoa(A, 0.26);
+  for(const [off, r, ign] of [[0.62, 0.13, alvo], [-0.70, 0.17, null]]){
+    const q = { x: A.x + sy * off, z: A.z + cy * off }, x0 = q.x, z0 = q.z;
+    afastar(q, 0.40, r, ign, true);
+    A.x += q.x - x0; A.z += q.z - z0;
+  }
+  if(TARTA.ok) empurrarCirculo(A, TARTA.x, TARTA.z, 0.30 + 0.28);
+}
 function tamanduaProximoCogumelo(){
   if(!COGUMELOS.length) return -1;
   let melhor = -1, dMelhor = 1e9;
@@ -11422,7 +11644,9 @@ function andarTamandua(dt){
   const A = TAM;
   if(!A.ok || vidaPresenca <= 0.004 || !COGUMELOS.length) return;
   const T = relogio;
-  if(A.alvo < 0) A.alvo = tamanduaProximoCogumelo();
+  if(A.alvo < 0){ A.alvo = tamanduaProximoCogumelo(); A.desde = T; }
+  // 8.3: se o caminho ate um cogumelo fica bloqueado, depois de 30 s ele escolhe outro
+  if(A.estado === 'andando' && T - (A.desde || 0) > 30){ A.alvo = tamanduaProximoCogumelo(); A.desde = T; }
   const cg = COGUMELOS[A.alvo];
   // ── tocado: recolhe os olhos, como caracol ──
   for(const m of MAOS){
@@ -11455,10 +11679,10 @@ function andarTamandua(dt){
     // e contorna quem esta no meio: perto de 0,9 m, o rumo desvia para fora
     const vx = A.x - o[0], vz = A.z - o[2], vd = Math.hypot(vx, vz);
     if(vd < 0.9 && d > 0.2){ const k = (0.9 - vd) / 0.9 * 1.5; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }
-    const yawAlvo = d > 0.06 ? Math.atan2(ex, ez) : Math.atan2(cg.x - A.x, cg.z - A.z);
+    const yawAlvo = d > 0.12 ? Math.atan2(ex, ez) : Math.atan2(cg.x - A.x, cg.z - A.z);
     let dy = yawAlvo - A.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
     A.yaw += Math.max(-0.9 * dt, Math.min(0.9 * dt, dy));
-    if(d > 0.06){ if(Math.abs(dy) < 0.6){ A.x += Math.sin(A.yaw) * 0.16 * dt; A.z += Math.cos(A.yaw) * 0.16 * dt; andando = 1; } else andando = 0.35; }
+    if(d > 0.12){ if(Math.abs(dy) < 0.6){ A.x += Math.sin(A.yaw) * 0.16 * dt; A.z += Math.cos(A.yaw) * 0.16 * dt; andando = 1; corpoDoTamandua(A, cg); } else andando = 0.35; }
     else if(Math.abs(dy) < 0.08){ A.estado = 'lambendo'; A.ate = T + 4.8; A.lambidas = 0; A.pico = false; }
   } else if(A.estado === 'lambendo' && cg){
     alvoCabeca = 0.42;
@@ -11468,7 +11692,7 @@ function andarTamandua(dt){
     A.lingua = A.linguaMax * onda;
     if(onda > 0.95 && !A.pico){ A.pico = true; A.lambidas++; cogPolenEm[A.alvo] = T; estalinhoDeLingua(); }
     if(onda < 0.3) A.pico = false;
-    if(T > A.ate){ A.estado = 'andando'; A.lingua = 0; A.alvo = tamanduaProximoCogumelo(); }
+    if(T > A.ate){ A.estado = 'andando'; A.lingua = 0; A.alvo = tamanduaProximoCogumelo(); A.desde = T; }
   }
   if(A.estado !== 'lambendo') A.lingua += (0 - A.lingua) * (1 - Math.exp(-dt * 10));
   A.cabeca += (alvoCabeca - A.cabeca) * (1 - Math.exp(-dt * 3));
@@ -12095,6 +12319,18 @@ function andarPlanetasSoltos(dt){
         const lim = CAIXA_SEM_LEITURA - r;
         if(P[eixo] > lim){ P[eixo] = lim; if(V[eixo] > 0){ quique = Math.max(quique, V[eixo]); V[eixo] = -V[eixo] * 0.8; } }
         if(P[eixo] < -lim){ P[eixo] = -lim; if(V[eixo] < 0){ quique = Math.max(quique, -V[eixo]); V[eixo] = -V[eixo] * 0.8; } }
+      }
+    }
+    // 8.3: e nos outros astros -- nenhum entra no outro
+    for(let j = 0; j < PLANETAS.length; j++){
+      if(j === i || presencaAstro(j, t) < 0.05) continue;
+      const q = ondeEsta(j, t), rj = j === 0 ? raioDoRosa() : PLANETAS[j].raio;
+      const dx = P[0] - q[0], dy = P[1] - q[1], dz = P[2] - q[2], dd = Math.hypot(dx, dy, dz), m = r + rj + 0.02;
+      if(dd < m && dd > 1e-4){
+        const nx = dx / dd, ny = dy / dd, nz = dz / dd;
+        P[0] = q[0] + nx * m; P[1] = q[1] + ny * m; P[2] = q[2] + nz * m;
+        const vn = V[0] * nx + V[1] * ny + V[2] * nz;
+        if(vn < 0){ quique = Math.max(quique, -vn); V[0] -= 1.8 * vn * nx; V[1] -= 1.8 * vn * ny; V[2] -= 1.8 * vn * nz; }
       }
     }
     if(quique > 0.3 && relogio - S.paredeEm > 0.2){
@@ -14191,6 +14427,15 @@ if(emTesteLocal){
       const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
     tamandua(){ return { x:+TAM.x.toFixed(2), z:+TAM.z.toFixed(2), yaw:+TAM.yaw.toFixed(2), estado:TAM.estado, alvo:TAM.alvo, lingua:+TAM.lingua.toFixed(2), lambidas:TAM.lambidas, recolhe:+TAM.recolhe.toFixed(2) }; },
     tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
+    // 8.3: o espaco de cada corpo, para a bancada conferir que nada entra em nada
+    espaco(){ const r2 = (v) => +v.toFixed(2);
+      return { troncos: TRONCOS.map(tr => ({ mae: !!tr.mae, x: r2(tr.pontos[0][0]), z: r2(tr.pontos[0][2]), r: r2(tr.raios[0]), topo: r2(tr.pontos[tr.pontos.length - 1][1]) })),
+               cogumelos: COGUMELOS.map(cg => ({ x: r2(cg.x), z: r2(cg.z), alt: r2(cg.alt), r: r2(raioDoChapeu(cg)), d: r2(Math.hypot(cg.x, cg.z)) })),
+               tufos: TUFOS_CHAO.map(tf => ({ x: r2(tf.x), z: r2(tf.z), esc: r2(tf.escala), r: r2(tf.raio), d: r2(Math.hypot(tf.x, tf.z)) })),
+               pedras: PEDRAS_CHAO.map(pd => ({ x: r2(pd.x), z: r2(pd.z), esc: r2(pd.escala) })),
+               paredes: TUFOS_DE_PAREDE.map(tf => ({ c: tf.c.map(r2), n: tf.n })), danca: [r2(DANCA_AZ * 180 / Math.PI), DANCA_DIST] }; },
+    // 8.3: quanto um ponto (x, z, na altura y, com raio r) esta dentro de algum corpo -- 0 = livre
+    dentro(x, z, y, r){ const p = { x, z }; afastar(p, y, r, null, y < 0.5); return +Math.hypot(p.x - x, p.z - z).toFixed(3); },
     arcos(){ return { ok:!!bArcos, triangulos:nArcosIdx / 3, presenca:+arcosPresenca.toFixed(2) }; },
     gigante(){ let topo = -1e9; if(gigPos) for(let v = 0; v < dancaN; v += 97) topo = Math.max(topo, gigPos[v*3+1]);
       return { ok:GIG.ok, yaw:+GIG.yaw.toFixed(2), cabeca:+GIG.cabeca.toFixed(2), topo:+topo.toFixed(1) }; },
@@ -15525,11 +15770,11 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        graduacao de sempre o ceu ja era transparente na altura da parede, e
        pela rachadura nao se via nada alem da propria parede. Agora, havendo
        paredes, o ceu vai ate um pouco abaixo do horizonte: atras de cada
-       rachadura ha cosmos. O chao continua real -- de -0,35 (uns 20 graus
-       para baixo) em diante o ceu nao chega. */
+       rachadura ha cosmos. O chao continua real -- de -0,42 (uns 25 graus
+       para baixo; 8.3: era -0,35) em diante o ceu nao chega. */
     const comParedes = PAREDES_RACHADAS && nParedeIdx > 0;
-    gl.uniform1f(locS.inicio, comParedes ? Math.min(degradeIni, -0.35) : degradeIni);
-    gl.uniform1f(locS.fim,    comParedes ? Math.min(degradeFim, -0.12) : degradeFim);
+    gl.uniform1f(locS.inicio, comParedes ? Math.min(degradeIni, -0.42) : degradeIni);
+    gl.uniform1f(locS.fim,    comParedes ? Math.min(degradeFim, -0.18) : degradeFim);
     gl.uniform1f(locS.mistura, misturaCeu);
     gl.uniform1f(locS.giroCeu, anguloDoCeu(t));
     /* A proporcao e a do ceu que esta na frente. Na travessia os dois
