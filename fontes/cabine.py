@@ -622,6 +622,9 @@ def espelhar(serial, geometria=None):
     return {"ok": True}
 
 
+abrir_espelho_no_mac = espelhar   # o mesmo, por um nome que o parametro de projetar() nao encobre
+
+
 # ── a projeção (6.0): o que vai para o projetor ──────────────────────────
 
 def monitores_mac():
@@ -754,7 +757,8 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
             return {"ok": False, "erro": "não achei Chrome nem Edge para a projeção estabilizada"}
         if not rodar(["pgrep", "-f", "window-title Quest — espelho"], timeout=5)[0].strip():
             principal = next((m for m in lista if m.get("principal")), {"x": 0, "y": 0, "w": 1440, "h": 900})
-            espelhar(s, (principal.get("x", 0) + principal.get("w", 1440) - 980, principal.get("y", 0) + 60, 960, 540))
+            # (dentro de projetar, 'espelhar' e o parametro sim/nao: a funcao vem pelo outro nome)
+            abrir_espelho_no_mac(s, (principal.get("x", 0) + principal.get("w", 1440) - 980, principal.get("y", 0) + 60, 960, 540))
             time.sleep(3)
         perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
         url = (f"http://localhost:{PORTA_OBRA}/fontes/espelho.html?auto=1&estab=1&espelhar={'1' if espelhar else '0'}")
@@ -764,7 +768,7 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
                                      "--remote-debugging-port=9333", "--auto-select-desktop-capture-source=Quest — espelho",
                                      "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
                                     creationflags=SEM_JANELA)
-        threading.Thread(target=disparar_captura_estavel, daemon=True).start()
+        threading.Thread(target=disparar_captura_estavel, args=(monitor, espelhar), daemon=True).start()
         relatar(f"projeção (espelho estabilizado) aberta {onde}" + (", espelhada" if espelhar else ""))
     elif saida == "espelho":
         s = ESTADO["quest"]["escolhido"]
@@ -803,8 +807,11 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
     return {"ok": True}
 
 
-def disparar_captura_estavel():
-    """Espera a pagina do projetor subir e dispara a captura da janela do espelho, com gesto."""
+def disparar_captura_estavel(monitor=None, espelhar_h=False):
+    """Espera a pagina do projetor subir e dispara a captura da janela do espelho, com gesto.
+    Se a captura nao ficar ao vivo, VOLTA SOZINHA para o espelho comum (26/09: sem a
+    permissao de Gravacao de Tela do Terminal, o projetor mostrava a janela de escolha do
+    Chrome e o aviso do macOS na frente do publico)."""
     amb = dict(os.environ, CDP_PORTA="9333")
     for _ in range(20):
         time.sleep(1)
@@ -817,9 +824,17 @@ def disparar_captura_estavel():
         saida, cod = rodar(["node", os.path.join(AQUI, "quest_eval.mjs"), "espelho.html",
                             "capturar().then(()=>aoVivo?'ao vivo':document.getElementById('vazio').textContent)", "gesto"],
                            timeout=20, cwd=RAIZ, env=amb)
-        relatar("espelho estabilizado: " + (saida.strip().strip('"')[:160] or "sem resposta"))
+        resposta = saida.strip().strip('"')
+        relatar("espelho estabilizado: " + (resposta[:160] or "sem resposta"))
+        if resposta != "ao vivo":
+            relatar("espelho estabilizado não começou (falta a permissão de Gravação de Tela para o Terminal, "
+                    "nos Ajustes do Mac?) — voltando ao espelho comum")
+            rodar(["pkill", "-f", "window-title Quest — espelho"], timeout=5)
+            projetar("espelho", monitor, espelhar_h)
         return
-    relatar("espelho estabilizado: a página do projetor não respondeu no DevTools (9333)")
+    relatar("espelho estabilizado: a página do projetor não respondeu no DevTools (9333) — voltando ao espelho comum")
+    rodar(["pkill", "-f", "window-title Quest — espelho"], timeout=5)
+    projetar("espelho", monitor, espelhar_h)
 
 
 def parar_projecao():
