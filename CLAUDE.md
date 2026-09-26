@@ -342,6 +342,13 @@ simplesmente não aparece.
   referência que sumiu — e a obra morre inteira ao carregar.
 - **Trocar uma unidade de textura** troca a imagem de um objeto pela de
   outro, silenciosamente. Tabela no `LEIA-ME-ACER.md`, seção 8.
+- **Um uniforme com valor "neutro" que não é neutro na conta.** `lamina` nascia em
+  99 para dizer "não há água", mas no shader `1 - smoothstep(lamina-0.25, lamina, y)`
+  99 quer dizer "tudo está embaixo d'água": de 3ce6a39 (setembro) até a 7.4 a floresta,
+  o cosmos e o papel inteiros levavam o azul do fundo do mar a 92 %, e ninguém viu
+  porque a obra é azul mesmo. Foi o "cenário quase monocromático" de 25/09. Hoje o
+  shader ignora a lâmina acima de 50 m. Quando um efeito "desligado" ainda mexe na
+  cor, desconfie do valor-sentinela.
 
 ---
 
