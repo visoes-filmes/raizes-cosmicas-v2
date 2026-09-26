@@ -405,6 +405,9 @@
      o fim atravessa o começo num cruzamento de 5 s. Por isso "loop" basta —
      sem isso, cada volta teria um buraco de silêncio. -->
 <audio id="trilha" loop preload="auto" src="__TRILHA__"></audio>
+<!-- 8.5: as musicas de cada cenario (Suno, 26/09), servidas ao lado do arquivo como o video -->
+<audio id="trilhaPlanetas" loop preload="auto" src="./assets/audio/trilha-2-planetas.mp3"></audio>
+<audio id="trilhaMar" loop preload="auto" src="./assets/audio/trilha-3-mar.mp3"></audio>
 
 <div id="fps">—</div>
 <div class="card oculto" id="partitura">
@@ -3067,9 +3070,13 @@ function montarFundoDoMar(){
      subiu um terco. Numa malha propria, alisada e respirando pela pele
      (bolha), porque "estao muito geometricas". */
   const g = [];
-  emAnel(g, 2, 'planta-fantasia-', 12, 2.6, 3.5, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
-  emAnel(g, 2, 'planta-alien-',     2, 2.9, 3.9, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
-  emAnel(g, 2, 'cogumelos-mar-',    6, 3.0, 4.0, 0, 0, 2.05, 1.35, GIGANTES_DO_MAR);
+  /* 8.5 -- MAIS LONGE (26/09: "no cenario do mar, distancie mais as plantas grandes"):
+     o anel foi de 2,05-3,4 m para 3,4-5,0 m. Ficam fora do alcance da mao (o toque
+     nos gigantes deixa de acontecer); os corais vivos e os seres de luz continuam a
+     desviar deles pela lista GIGANTES_DO_MAR. */
+  emAnel(g, 2, 'planta-fantasia-', 12, 2.6, 3.5, 0, 0, 3.4, 1.6, GIGANTES_DO_MAR);
+  emAnel(g, 2, 'planta-alien-',     2, 2.9, 3.9, 0, 0, 3.4, 1.6, GIGANTES_DO_MAR);
+  emAnel(g, 2, 'cogumelos-mar-',    6, 3.0, 4.0, 0, 0, 3.4, 1.6, GIGANTES_DO_MAR);
   for(const mg of g) alisarNormais(mg);
   [bGigantes, nGigantesIdx] = subir(g);
   [bFundo, nFundoIdx] = subir(f);
@@ -4683,7 +4690,15 @@ void main(){
   float frente = crescimento * 1.45;
   float vivo = clamp((frente - aAlt) * 2.6, 0.0, 1.0);
   vivo = vivo * vivo * (3.0 - 2.0 * vivo);
-  p.y *= mix(1.0, vivo, brota);
+  /* 8.5 -- SEM A GEOMETRIA QUEBRADA (26/09: "a arvore mae parece estar com uma
+     geometria quebrada"). O que ainda nao estava vivo ia para o chao (p.y * vivo):
+     cada triangulo entre a frente e um vertice por brotar virava uma fita esticada
+     ate o piso, e a arvore crescendo lia como paineis cortados -- foi o que ela viu
+     assim que o crescimento voltou na 8.4. Agora o que esta acima da frente fica NA
+     ALTURA DA FRENTE (encolhe so ate ela) e o alfa esconde essa tampa: a arvore brota
+     para cima, inteira, sem fitas. Com o crescimento cheio nada muda. */
+  float kFrente = aAlt > 0.001 ? min(1.0, clamp(frente, 0.0, 1.0) / aAlt) : 1.0;
+  p.y *= mix(1.0, kFrente, brota);
   /* CADA ARVORE NASCE DO PROPRIO SOLO, e nao do centro da sala.
 
      Havia um recolhimento para TODO vegetal: o que nao estava vivo ficava
@@ -6151,16 +6166,21 @@ void main(){
      um fio lilas por dentro, uma fileira de pontos dourados no meio e o brilho
      de agua correndo pela curva. A fase e o indice do arco + a volta (0 a 1);
      vAlt vai de 0 (dentro) a 1 (fora). */
+  /* 8.5: o meio-circulo e CHEIO -- vAlt vai de 0 (o centro) a 1 (a borda). Do centro
+     a borda o azul fundo vai ao turquesa, com aneis mais claros como as linhas das
+     ondas da pintura, a borda de ouro, uma fileira de pontos dourados perto dela e o
+     brilho de agua correndo. */
   if(materia > 24.5 && materia < 25.5){
     float uA = clamp(fract(vFase) / 0.98, 0.0, 1.0), rA = clamp(vAlt, 0.0, 1.0), idA = floor(vFase);
-    vec3 c0 = mix(vec3(0.10, 0.22, 0.58), vec3(0.22, 0.72, 0.82), rA);
-    float ouro = smoothstep(0.84, 0.91, rA);
+    vec3 c0 = mix(vec3(0.08, 0.20, 0.55), vec3(0.22, 0.72, 0.82), pow(rA, 0.8));
+    float aneis = pow(0.5 + 0.5 * sin(rA * 34.0 - idA * 1.3), 8.0);
+    c0 = mix(c0, vec3(0.62, 0.90, 0.96), aneis * 0.35 * smoothstep(0.15, 0.4, rA));
+    float ouro = smoothstep(0.90, 0.95, rA);
     c0 = mix(c0, vec3(1.0, 0.82, 0.45), ouro);
-    c0 = mix(c0, vec3(0.72, 0.62, 0.96), 1.0 - smoothstep(0.14, 0.22, rA));
-    vec2 gA = vec2(fract(uA * (18.0 + mod(idA, 3.0) * 6.0)) - 0.5, (rA - 0.52) * 4.0);
+    vec2 gA = vec2(fract(uA * (18.0 + mod(idA, 3.0) * 6.0)) - 0.5, (rA - 0.74) * 5.0);
     c0 = mix(c0, vec3(1.0, 0.90, 0.55), smoothstep(0.24, 0.10, length(gA)) * 0.85);
-    float agua = pow(0.5 + 0.5 * sin(uA * 18.0 - tempo * 1.2 + idA * 1.7), 6.0);
-    c = c0 + vec3(0.45, 0.85, 1.0) * agua * 0.28 * (1.0 - ouro);
+    float agua = pow(0.5 + 0.5 * sin(uA * 18.0 - tempo * 1.2 + idA * 1.7 + rA * 6.0), 6.0);
+    c = c0 + vec3(0.45, 0.85, 1.0) * agua * 0.25 * (1.0 - ouro);
   }
 
   /* A CORUJA-HELICOPTERO -- 7.5 ("como se fosse uma coruja com olhos grandes, pode
@@ -6261,8 +6281,10 @@ void main(){
                    ? smoothstep(0.0, 0.30, vVivo) : vVivo;
   float alfa = presenca * vivoAlfa * vBorda;
   if(materia > 24.5 && materia < 25.5){   // 8.1: os arcos d'agua sao veu, e cedem abaixo da linha dos olhos
-    float rA = clamp(vAlt, 0.0, 1.0);
-    alfa *= mix(0.40, 0.85, smoothstep(0.84, 0.91, rA));
+    float rA = clamp(vAlt, 0.0, 1.0), uA = clamp(fract(vFase) / 0.98, 0.0, 1.0);
+    float hA = rA * sin(uA * 3.14159);                     // 8.5: a altura dentro do meio-disco (0 na base, 1 no topo)
+    alfa *= mix(0.70, 0.94, smoothstep(0.90, 0.95, rA));   // 8.5: o corpo cheio (era 0,40 de faixa), a borda de ouro quase cheia
+    alfa *= smoothstep(0.03, 0.55, hA);                    // 8.5: A GRADUACAO EMBAIXO -- a base dissolve no chao real
     alfa *= mix(0.50, 1.0, smoothstep(olhoPos.y - 0.35, olhoPos.y + 0.25, vMundo.y));   // seguranca: o chao continua a sala
     alfa *= smoothstep(-0.25, 0.35, vMundo.y);                                         // e o pe some na agua
   }
@@ -10327,7 +10349,7 @@ const CENAS = {
      aceso) e ha estrelas finas sobre ela (longe, no FS_SALA). Fechar a
      cupula cedo (fim 0,60) foi tentado e era o contrario do pedido. */
   3: { ceu:2, tinta:0.60, neblina:0.16, marmore:0.98, leite:0.20,
-       poeira:380, sopro:1.5, raizes:0, ini:0.0, fim:0.68, longe:0.80, alto:0.35 },   // 8.3: era 0/0,85; 8.4: o ceu mais alto
+       poeira:380, sopro:1.5, raizes:0, ini:0.10, fim:0.52, longe:0.80, alto:0.35 },   // 8.5: a graduacao para a RA como nos outros (era 0/0,68 -- comecava no horizonte)
   /* O CENARIO 4 E CEU INTEIRO -- 13/09, "tem que ser todo um ceu escuro;
      esta parecendo uma mancha cinza". O ceu comecava a 9 graus e so
      fechava a 50: no meio, meio transparente, a pintura escura se misturava
@@ -11621,37 +11643,42 @@ function montarArcos(){
   const pos = [], nor = [], alt = [], fase = [], borda = [], idx = [];
   const az0 = Math.atan2(-2.8, 39.9);          // a direcao da deusa (a figura 'integra')
   // 8.4: MAIS LONGE ("ja no cenario final, mais longe"): as fileiras de 6-31 m foram a 8-40 m, com os mesmos raios
-  const FILAS = [[7.8, 4, 1.10], [11.7, 5, 1.55], [16.9, 6, 2.10], [23.4, 6, 2.80], [31.2, 7, 3.60], [40.3, 7, 4.60]];
+  /* 8.5 -- ONDAS CHEIAS, E MAIS DELAS (26/09: "a cena final pode colocar mais ondas, e a
+     forma meio-circulo nao pode ser vazada; e ai faz uma graduacao embaixo"). Cada onda
+     e um MEIO-DISCO inteiro (seis aneis do centro a borda), e nao mais uma faixa; as
+     fileiras ganharam ondas (6 a 12 por fileira, eram 4 a 7) e podem se sobrepor como
+     as escamas de onda da pintura -- so o caminho ate a deusa fica livre. A malha
+     nasce da fileira mais longe para a mais perto, para os veus se somarem na ordem
+     certa. A graduacao embaixo e do shader (materia 25, pela altura no disco). */
+  const FILAS = [[7.8, 6, 1.10], [11.7, 8, 1.55], [16.9, 9, 2.10], [23.4, 10, 2.80], [31.2, 12, 3.60], [40.3, 12, 4.60]];
   const rnd = prng(8181);
   let n = 0;
-  FILAS.forEach(([d, qtd, R], f) => {
+  const ANEIS = [0, 0.3, 0.55, 0.75, 0.9, 1.0];
+  for(let f = FILAS.length - 1; f >= 0; f--){
+    const [d, qtd, R] = FILAS[f];
     const aberto = 1.45 * (1 - f / FILAS.length * 0.62);     // o leque fecha com a distancia: converge
-    let azAntes = null, meiaAntes = 0;   // 8.3: o vizinho da fileira, para nao se invadirem
     for(let k = 0; k < qtd; k++){
       const az = az0 + (-1 + 2 * k / (qtd - 1)) * aberto + (rnd() - 0.5) * 0.08;
-      const dd = d * (0.92 + rnd() * 0.16), Rr = R * (0.85 + rnd() * 0.3), T = Rr * 0.30;
+      const dd = d * (0.92 + rnd() * 0.16), Rr = R * (0.85 + rnd() * 0.3);
       if(d <= 32 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre (8.4: as fileiras foram mais longe)
-      const meia = Rr / dd;
-      if(azAntes !== null && az - azAntes < (meia + meiaAntes) * 1.08) continue;
-      azAntes = az; meiaAntes = meia;
       const cx = Math.sin(az) * dd, cz = -Math.cos(az) * dd, cy = -0.22 * Rr;
       const dir = [Math.cos(az), 0, Math.sin(az)], nx = -Math.sin(az), nz = Math.cos(az);
-      const base = pos.length / 3, SEG = 36;
+      const base = pos.length / 3, SEG = 36, NA = ANEIS.length;
       for(let i = 0; i <= SEG; i++){
         const u = i / SEG, th = Math.PI * u, co = Math.cos(th), si = Math.sin(th);
-        for(const rr of [0, 0.5, 1]){
-          const r = Rr - T + T * rr;
+        for(const rr of ANEIS){
+          const r = Rr * rr;
           pos.push(cx + dir[0] * co * r, cy + si * r, cz + dir[2] * co * r);
           nor.push(nx, 0, nz); alt.push(rr); fase.push(n + u * 0.98); borda.push(1);
         }
-        if(i < SEG) for(let v = 0; v < 2; v++){
-          const a = base + i * 3 + v, b = a + 3;
+        if(i < SEG) for(let v = 0; v < NA - 1; v++){
+          const a = base + i * NA + v, b = a + NA;
           idx.push(a, b, a + 1, a + 1, b, b + 1);
         }
       }
       n++;
     }
-  });
+  }
   bArcos = criarBufs(['pos','nor','alt','fase','borda','idx']);
   enviar(bArcos.pos, pos); enviar(bArcos.nor, nor); enviar(bArcos.alt, alt); enviar(bArcos.fase, fase); enviar(bArcos.borda, borda);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bArcos.idx);
@@ -14142,9 +14169,38 @@ let volume = 0.16, somLigado = true, tocando = false;
    metade por um segundo e pouco, e ela volta devagar. E o ducking de radio. */
 let trilhaBaixaAte = -9, trilhaVolAgora = 0.16;
 function abaixarTrilha(seg){ trilhaBaixaAte = Math.max(trilhaBaixaAte, relogio + (seg || 1.6)); }
+/* ═══ AS MUSICAS DE CADA CENARIO (8.5) ═══ 26/09: "aplique Raizes Cosmos A no cenario
+   do mar; no cenario dos planetas coloque a musica Raizes Mar B". Duas faixas do Suno
+   (assets/audio/trilha-2-planetas.mp3 = Mar B, trilha-3-mar.mp3 = Cosmos A), servidas
+   ao lado do arquivo como o video e guardadas pelo guardiao para o estande sem rede.
+   A dos planetas entra dos 3:14 aos 6:32 e a do mar dos 6:28 aos 8:48, cada uma num
+   cross-fade de dez segundos, sempre do comeco; o laco de sempre cede a um quinto
+   enquanto elas tocam, e as duas abaixam com os gestos como ele (abaixarTrilha). */
+const TRILHAS_DA_CENA = [
+  { nome:'planetas', el: document.getElementById('trilhaPlanetas'), de: 194, ate: 392, vol: 0 },
+  { nome:'mar',      el: document.getElementById('trilhaMar'),      de: 388, ate: 528, vol: 0 },
+];
+function seguirTrilhasDaCena(dt){
+  let cede = 1;
+  for(const T of TRILHAS_DA_CENA){
+    if(!T.el) continue;
+    const alvo = (TEM_SOM && andando && somLigado) ? rampa(T.de, T.de + 10, t) * (1 - rampa(T.ate - 10, T.ate, t)) : 0;
+    if(alvo > 0.001 && T.vol <= 0.001){ try{ T.el.currentTime = 0; T.el.play().catch(function(){}); }catch(e){} }
+    T.vol += (alvo - T.vol) * (dt > 0 ? 1 - Math.exp(-dt * 1.5) : 1);
+    if(alvo <= 0.001 && T.vol < 0.004 && !T.el.paused) T.el.pause();
+    const v = Math.max(0, Math.min(1, T.vol * volume * 1.8 * (relogio < trilhaBaixaAte ? 0.5 : 1.0)));
+    if(Math.abs(T.el.volume - v) > 0.002) T.el.volume = v;
+    cede = Math.min(cede, 1 - T.vol * 0.8);
+  }
+  return cede;
+}
+function pararTrilhasDaCena(){
+  for(const T of TRILHAS_DA_CENA){ if(!T.el) continue; T.vol = 0; try{ T.el.pause(); T.el.currentTime = 0; }catch(e){} }
+}
 function seguirTrilha(dt){
+  const cede = seguirTrilhasDaCena(dt);   // 8.5
   if(!TEM_SOM) return;
-  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0);
+  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0) * cede;
   trilhaVolAgora += (alvo - trilhaVolAgora) * (1 - Math.exp(-dt * (alvo < trilhaVolAgora ? 10 : 1.2)));
   const v = Math.max(0, Math.min(1, trilhaVolAgora));
   if(Math.abs(trilha.volume - v) > 0.002) trilha.volume = v;
@@ -14391,6 +14447,8 @@ function acordarSom(){
   trilha.play().then(function(){
     tocando = true; pedindoSom = false;
     for(const ev of GESTOS) removeEventListener(ev, acordarSom);
+    // 8.5: as musicas de cenario acordam no mesmo gesto, mudas, e param em seguida -- so para o navegador deixa-las tocar depois
+    for(const T of TRILHAS_DA_CENA){ if(!T.el) continue; T.el.volume = 0; T.el.play().then(function(){ T.el.pause(); T.el.currentTime = 0; }).catch(function(){}); }
   }).catch(function(){ pedindoSom = false; });
 }
 
@@ -14413,7 +14471,7 @@ bSom.onclick = ()=>{
   if(!TEM_SOM) return;
   somLigado = !somLigado;
   if(somLigado){ tocando = false; acordarSom(); }
-  else { trilha.pause(); tocando = false; }
+  else { trilha.pause(); tocando = false; pararTrilhasDaCena(); }   // 8.5
   pinta();
 };
 const sV = document.getElementById('sVol'), vV = document.getElementById('vVol');
@@ -14622,6 +14680,8 @@ if(emTesteLocal){
                tufos: TUFOS_CHAO.map(tf => ({ x: r2(tf.x), z: r2(tf.z), esc: r2(tf.escala), r: r2(tf.raio), d: r2(Math.hypot(tf.x, tf.z)) })),
                pedras: PEDRAS_CHAO.map(pd => ({ x: r2(pd.x), z: r2(pd.z), esc: r2(pd.escala) })),
                paredes: TUFOS_DE_PAREDE.map(tf => ({ c: tf.c.map(r2), n: tf.n })), danca: [r2(DANCA_AZ * 180 / Math.PI), DANCA_DIST] }; },
+    // 8.5: as musicas de cada cenario, para a bancada
+    trilhas(){ return TRILHAS_DA_CENA.map(T => ({ nome:T.nome, vol:+T.vol.toFixed(3), tocando: !!(T.el && !T.el.paused), pronta: !!(T.el && T.el.readyState >= 2) })); },
     // 8.4: os corais vivos do fundo do mar, para a bancada
     corais(){ return CORAIS_VIVOS.map(cv => ({ x:+cv.x.toFixed(2), z:+cv.z.toFixed(2), esc:+cv.esc.toFixed(2), alt:+cv.alt.toFixed(2), tipo:cv.tipo, d:+Math.hypot(cv.x, cv.z).toFixed(2) })); },
     // 8.3: quanto um ponto (x, z, na altura y, com raio r) esta dentro de algum corpo -- 0 = livre
@@ -14809,6 +14869,7 @@ bParar.onclick = ()=>{
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
   bTocar.textContent = 'tocar';
   if(TEM_SOM){ trilha.pause(); tocando = false; try{ trilha.currentTime = 0; }catch(e){} }
+  pararTrilhasDaCena();   // 8.5
   ePortao.classList.remove('foi');   // o portao de volta, pronto para o proximo
   mostrarEmergencia(false);
   if(sessao) sessao.end();           // 'end' devolve sessao = null la embaixo

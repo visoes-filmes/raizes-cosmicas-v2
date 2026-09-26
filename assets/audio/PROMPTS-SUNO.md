@@ -61,6 +61,7 @@ Quatro faixas em `assets/audio/suno/` — duas de cada prompt, para ela escolher
 | `raizes-mar-A.mp3` | Mar | 3:48 |
 | `raizes-mar-B.mp3` | Mar | 3:38 |
 
-Escolhida uma de cada, ela vira `trilha-2-cosmos.mp3` / `trilha-3-mar.mp3` e entra na obra
-com o cross-fade. A do cenário 4 continua sendo o áudio da própria animação (falta o arquivo).
+**Escolha dela (26/09):** Raízes **Mar B** no cenário dos planetas → `trilha-2-planetas.mp3`;
+Raízes **Cosmos A** no cenário do mar → `trilha-3-mar.mp3`. Estão na obra desde a 8.5 (`TRILHAS_DA_CENA`),
+com cross-fade de 10 s. A do cenário 4 continua sendo o áudio da própria animação (falta o arquivo).
 

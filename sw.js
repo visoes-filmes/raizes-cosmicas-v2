@@ -19,7 +19,7 @@
  * momento em que metade da obra é de uma versão e metade de outra.
  */
 
-const VERSAO = 'raizes-cosmicas-2026-09-26t';
+const VERSAO = 'raizes-cosmicas-2026-09-26x';
 
 /**
  * O que é baixado na instalação, sem esperar ninguém pedir.
@@ -49,6 +49,8 @@ const ESSENCIAL = [
   './index.html',
   './manifest.webmanifest',
   './icone-512.png',
+  './assets/audio/trilha-2-planetas.mp3',   // 8.5: as musicas de cenario (Suno), 10 MB
+  './assets/audio/trilha-3-mar.mp3',
 ];
 
 self.addEventListener('install', (e) => {
