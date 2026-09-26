@@ -1157,7 +1157,8 @@ def vigiar():
                 rede["wifi_pc"] = wifi_do_pc()
                 with TRAVA:
                     ESTADO["monitores"] = monitores()
-                    ESTADO["projecao"]["ativa"] = PROJECAO is not None and PROJECAO.poll() is None
+                    # 26/09: no automatico a animacao e o quiosque (fora do PROJECAO): conta tambem
+                    ESTADO["projecao"]["ativa"] = (PROJECAO is not None and PROJECAO.poll() is None) or (PROJ_AUTO["ativo"] and quiosque_vivo())
             with TRAVA:
                 ESTADO["quest"] = q
                 ESTADO["obra"] = o
