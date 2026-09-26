@@ -42,7 +42,15 @@
             repeating-linear-gradient(to right, rgba(255,255,255,.12) 0 1px, transparent 1px 10%),
             repeating-linear-gradient(to bottom, rgba(255,255,255,.12) 0 1px, transparent 1px 10%); }
   #grade.sim{ display:block; }
-  #vazio{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:var(--texto2); font-size:13px; text-align:center; padding:16px; }
+  #vazio{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; color:var(--texto2); font-size:13px; text-align:center; padding:16px; z-index:2; }
+  /* 8.8 (26/09): "coloca um QR code para nosso site sempre na lateral do espelhamento" --
+     fica em todo estado, inclusive em tela cheia; e "quando acabar o espelhamento,
+     coloque ja a animacao": sem captura ao vivo, a animacao da Odara toca em laco. */
+  #qr{ position:fixed; right:22px; bottom:22px; z-index:4; width:120px; text-align:center; pointer-events:none; }
+  #qr img{ width:120px; height:120px; display:block; background:#000; padding:8px; border-radius:10px; box-sizing:border-box; }
+  #qr span{ display:block; margin-top:5px; font-size:12px; letter-spacing:.06em; color:#fff; text-shadow:0 1px 6px #000; }
+  #anim{ position:fixed; inset:0; width:100%; height:100%; object-fit:cover; background:#000; z-index:1; display:none; }
+  #anim.no{ display:block; }
 </style>
 </head>
 <body>
@@ -69,6 +77,8 @@
 </div>
 
 <video id="fonte" autoplay muted playsinline style="display:none"></video>
+<video id="anim" src="../assets/video/odara-cosmos.mp4" loop muted playsinline preload="auto"></video>
+<div id="qr"><img src="qr-visoesfilmes.svg" alt="visoesfilmes.com"><span>visoesfilmes.com</span></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -128,11 +138,20 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParamet
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 const video = $('fonte');
+/* a animacao entra sempre que nao ha espelho ao vivo: antes da primeira captura e
+   assim que a captura termina (a janela do scrcpy fechou, ou a transmissao parou) */
+const anim = $('anim');
+let aoVivo = false;
+function mostrarAnimacao(sim){
+  anim.classList.toggle('no', sim);
+  if(sim){ anim.play().catch(()=>{}); } else { anim.pause(); }
+}
+mostrarAnimacao(true);
 function quadro(){
   const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
   if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
   gl.viewport(0, 0, w, h);
-  if (video.readyState >= 2 && video.videoWidth){
+  if (aoVivo && video.readyState >= 2 && video.videoWidth){
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video);
     gl.uniform1i(U.fonte, 0);
@@ -151,8 +170,8 @@ async function capturar(){
   try{
     const fluxo = await navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:{ ideal:60 }, cursor:'never' }, audio:false });
     video.srcObject = fluxo; await video.play();
-    $('vazio').style.display = 'none';
-    fluxo.getVideoTracks()[0].addEventListener('ended', () => { $('vazio').style.display = 'flex'; });
+    $('vazio').style.display = 'none'; aoVivo = true; mostrarAnimacao(false);
+    fluxo.getVideoTracks()[0].addEventListener('ended', () => { aoVivo = false; mostrarAnimacao(true); $('vazio').style.display = 'flex'; });
   }catch(e){
     $('vazio').innerHTML = 'Captura recusada (' + e.name + '). No Mac: Ajustes do Sistema → Privacidade → Gravação de Tela → permitir o Chrome, e tentar de novo.';
   }

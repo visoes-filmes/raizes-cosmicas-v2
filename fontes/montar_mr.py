@@ -85,6 +85,8 @@ SEM_SOM = False
 
 # 8.1: os ceus sao gerados em codigo na obra; as pinturas ficam fora do arquivo
 CEUS_EM_CODIGO = True
+# 8.8: as tres deusas pintadas em codigo (FIGURAS_EM_CODIGO no template): os JPEG ficam de fora
+FIGURAS_EM_CODIGO = True
 
 print("Texturas:")
 mapa = {
@@ -130,13 +132,13 @@ mapa = {
     # proporcao): 2048 x 1280, a pintura original no meio com nebulosa
     # continuada em volta e ceu sobre a cabeca. Em 2048 porque ela cobre
     # 106 graus do ceu: sao 19 pixels por grau, o que o Quest resolve.
-    "__FIG_GALACTICO__": embutir(bem("figuras", "fig-galactica-ampliada.jpg"), (3072, 1921), qualidade=86),
+    "__FIG_GALACTICO__": "" if FIGURAS_EM_CODIGO else embutir(bem("figuras", "fig-galactica-ampliada.jpg"), (3072, 1921), qualidade=86),
     # AS OUTRAS DUAS DEUSAS PELO MESMO CAMINHO (12/09): o quadro inteiro do
     # mesmo momento da animacao, expandido e ampliado 2x no Magnific, em
     # JPEG sem alfa; 3072 de largura porque cada uma cobre uns oitenta
     # graus de ceu, e a ampliacao foi pedida para nao ficarem macias.
-    "__FIG_DEUSA__":     embutir(bem("figuras", "fig-vermelha-cosmos.jpg"), (3072, 1920), qualidade=86),
-    "__FIG_INTEGRA__":   embutir(bem("figuras", "fig-integra-ceu.jpg"),  (3072, 1891), qualidade=86),
+    "__FIG_DEUSA__":     "" if FIGURAS_EM_CODIGO else embutir(bem("figuras", "fig-vermelha-cosmos.jpg"), (3072, 1920), qualidade=86),
+    "__FIG_INTEGRA__":   "" if FIGURAS_EM_CODIGO else embutir(bem("figuras", "fig-integra-ceu.jpg"),  (3072, 1891), qualidade=86),
     "__FIG_BORBOLETA__": embutir(bem("figuras", "fig-borboleta.png"), (512,512), com_alfa=True),
     "__TRILHA__":       "" if SEM_SOM else embutir_audio(
         bem("audio", "trilha-loop.mp3")),
@@ -340,9 +342,9 @@ if saida == os.path.join(RAIZ, "index.html"):
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
              .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
-             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 8.7</title>")
-             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 8.7</h1>")
-             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>8.7</em>')
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 8.8</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 8.8</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>8.8</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
             or "const ESPACO_ESCANEADO      = true;" not in v6

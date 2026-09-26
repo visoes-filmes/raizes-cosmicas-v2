@@ -599,6 +599,8 @@ const ARCOS_NO_FIM       = true;    // os arcos d'agua em semicirculo, convergin
    um canto lilas, purpurina e um rio creme) sao gerados ao carregar; as quatro pinturas
    saem do arquivo. false as devolve (e o montar_mr.py tem de embuti-las de novo). */
 const CEU_EM_CODIGO      = true;
+const FIGURAS_EM_CODIGO  = true;
+const BURACOS_NEGROS     = false;  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
 /* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
    do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
    fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
@@ -6136,22 +6138,28 @@ void main(){
     float rimT = pow(1.0 - abs(dot(nT, verT)), 3.0);
     vec3 rim = vec3(0.35, 0.90, 0.85) * rimT * 0.28;
     float fio = 0.5 + 0.5 * sin(fr * 150.0 + rugas(vMundo * 22.0) * 6.0);
-    vec3 pelo = mix(vec3(0.19, 0.16, 0.29), vec3(0.44, 0.38, 0.55), clamp(vAlt, 0.0, 1.0)) * luzT * (0.85 + 0.25 * fio);
+    /* 8.9 -- DE UMA COR SO, COM PADRONAGEM (26/09: "coloque ele de uma cor so; o corpo pode
+       ter padronagem tambem"): o violeta do pelo em tudo -- corpo, cauda, cabeca, pernas e
+       hastes --, e no corpo uma padronagem ancestral em tom mais claro: losangos em
+       fileiras, com um zigue-zague fino entre elas. So os olhos (ambar) e a lingua (rosa)
+       continuam de outra cor, porque sao eles que se leem. */
+    vec3 pelo = mix(vec3(0.22, 0.17, 0.34), vec3(0.46, 0.38, 0.60), clamp(vAlt, 0.0, 1.0)) * luzT * (0.85 + 0.25 * fio);
+    vec3 claro = vec3(0.78, 0.70, 0.92) * luzT;
     if(parte < 0.5){
-      float faixa = fr + (1.0 - clamp(vAlt, 0.0, 1.0)) * 0.35;
-      float nucleo = smoothstep(0.62, 0.66, faixa) * (1.0 - smoothstep(0.74, 0.78, faixa));
-      float creme = smoothstep(0.57, 0.61, faixa) * (1.0 - smoothstep(0.63, 0.66, faixa))
-                  + smoothstep(0.75, 0.78, faixa) * (1.0 - smoothstep(0.80, 0.84, faixa));
-      c = mix(pelo, vec3(0.05, 0.04, 0.08), nucleo);
-      c = mix(c, vec3(0.95, 0.88, 0.70) * luzT, creme * 0.85) + rim;
+      float uP = fr * 7.0, vP = clamp(vAlt, 0.0, 1.0) * 3.0;
+      vec2 cel = fract(vec2(uP, vP)) - 0.5;
+      float losango = 1.0 - smoothstep(0.30, 0.36, abs(cel.x) + abs(cel.y));
+      float miolo = 1.0 - smoothstep(0.08, 0.14, abs(cel.x) + abs(cel.y));
+      float zig = 1.0 - smoothstep(0.03, 0.06, abs(fract(vP + 0.5) - 0.5 - 0.25 * abs(fract(uP * 2.0) * 2.0 - 1.0) + 0.12));
+      c = mix(pelo, claro, (losango - miolo) * 0.75 + zig * 0.6) + rim;
     } else if(parte < 1.5){
-      c = pelo * 0.85 + vec3(0.30, 0.95, 0.85) * pow(fr, 3.0) * 0.45 + rim;
+      c = pelo * 0.9 + claro * pow(fr, 3.0) * 0.25 + rim;
     } else if(parte < 2.5){
-      c = mix(vec3(0.56, 0.50, 0.64), vec3(0.30, 0.26, 0.38), fr) * luzT * (0.9 + 0.15 * fio) + rim;
+      c = pelo * (0.95 + 0.15 * fio) + rim;
     } else if(parte < 3.5){
-      c = pelo * 0.75 + vec3(0.95, 0.88, 0.70) * smoothstep(0.80, 0.90, 1.0 - clamp(vAlt, 0.0, 1.0)) * 0.3 * luzT + rim;
+      c = pelo * 0.8 + rim;
     } else if(parte < 4.5){
-      c = vec3(0.30, 0.95, 0.85) * (0.65 + 0.55 * rimT + 0.25 * fr);
+      c = mix(pelo, claro, 0.5) * (0.75 + 0.45 * rimT + 0.2 * fr);
     } else if(parte < 5.5){
       vec3 ambar = mix(vec3(1.0, 0.80, 0.30), vec3(0.95, 0.45, 0.12), smoothstep(0.35, 0.9, fr));
       c = mix(vec3(0.02, 0.02, 0.04), ambar, smoothstep(0.18, 0.26, fr));
@@ -9564,7 +9572,7 @@ subirEsporos(semearEsporos(71));   // depois de BASES existir
    Por isso o botao so libera quando as onze chegam. E se alguma falhar,
    isso APARECE: falha silenciosa num cenario escuro passa despercebida ate
    alguem reparar que esta faltando uma coisa, e ai ja e no dia. */
-const TEX_TOTAL = CEU_EM_CODIGO ? 14 : 18;   // 8.1: as quatro pinturas do ceu sairam
+const TEX_TOTAL = (CEU_EM_CODIGO ? 14 : 18) - (FIGURAS_EM_CODIGO ? 3 : 0);   // 8.1: as quatro pinturas do ceu sairam; 8.8: as tres deusas tambem
 let texProntas = 0, texFalhas = [];
 function relatarTex(){
   const e = document.getElementById('vTex');
@@ -9952,6 +9960,325 @@ function ceuEmCodigo(tex, pintar){
    galaxias em espiral (bracos azuis, miolo rosa-branco), rios que as ligam --
    miolo vermelho e halo azul, com contas acesas --, ramos dourados finos saindo
    dos rios, e estrelas. */
+/* ═══════════ AS DEUSAS PINTADAS EM CODIGO (8.8) ═══════════
+   26/09, a direcao de arte: "voce ja retirou as imagens do cenario dos planetas e da
+   cena final da deusa? Tem que refazer com a programacao, lembra?" -- o mesmo pedido
+   que tirou as pinturas do ceu na 8.1. As tres deusas (a galactica, a vermelha e a
+   integra) deixam de ser JPEG e passam a ser PINTADAS AO CARREGAR, num ateliezinho de
+   carimbos gaussianos, tracos, fios (passeios aleatorios) e manchas de aquarela com
+   beira de ruido. Cada uma esta no mesmo lugar do quadro em que a pintura estava (o
+   rosto, as maos e a elipse do corpo continuam valendo para o FS_FIGU), e as
+   proporcoes do quadro sao as mesmas (1,6 : 1). O preto do fundo continua virando
+   noite pelo shader; tudo o que tem tinta fica.
+
+   Unidades: a altura do quadro e 1; x vai de 0 a 1,6; y cresce para baixo (como vUV).
+   O interruptor FIGURAS_EM_CODIGO esta no alto, junto do CEU_EM_CODIGO. */
+function pinturaEmCodigo(tex, semente, pintar){
+  const W = 2048, H = 1280, S = H;
+  const R = new Float32Array(W * H), G = new Float32Array(W * H), B = new Float32Array(W * H);
+  const rnd = prng(semente);
+  const px = (x) => x * S, py = (y) => y * S;
+  // o carimbo: um disco macio (gaussiano) de raio em unidades do quadro
+  const carimbo = (x, y, raio, cor, a, sobre) => {
+    const sx = px(x), sy = py(y), rp = Math.max(0.7, raio * S), ext = Math.ceil(rp * 2.2);
+    const y0 = Math.max(0, Math.floor(sy - ext)), y1 = Math.min(H - 1, Math.ceil(sy + ext));
+    const x0 = Math.max(0, Math.floor(sx - ext)), x1 = Math.min(W - 1, Math.ceil(sx + ext));
+    const inv = 1 / (rp * rp);
+    for(let yy = y0; yy <= y1; yy++){
+      const dy = yy + 0.5 - sy;
+      for(let xx = x0; xx <= x1; xx++){
+        const dx = xx + 0.5 - sx, d2 = (dx * dx + dy * dy) * inv;
+        if(d2 > 4.8) continue;
+        const w = a * Math.exp(-d2 * 1.4), k = yy * W + xx;
+        if(sobre){ const q = Math.min(1, w); R[k] += (cor[0] - R[k]) * q; G[k] += (cor[1] - G[k]) * q; B[k] += (cor[2] - B[k]) * q; }
+        else { R[k] += cor[0] * w; G[k] += cor[1] * w; B[k] += cor[2] * w; }
+      }
+    }
+  };
+  // a mancha de aquarela: elipse macia com a beira torcida por ruido, com beira mais escura
+  const mancha = (x, y, rx, ry, cor, a, esc, beira, sobre) => {
+    const sx = px(x), sy = py(y), RX = rx * S * 1.35, RY = ry * S * 1.35;
+    const y0 = Math.max(0, Math.floor(sy - RY)), y1 = Math.min(H - 1, Math.ceil(sy + RY));
+    const x0 = Math.max(0, Math.floor(sx - RX)), x1 = Math.min(W - 1, Math.ceil(sx + RX));
+    const e = esc || 6;
+    for(let yy = y0; yy <= y1; yy++){
+      for(let xx = x0; xx <= x1; xx++){
+        const u = (xx - sx) / (rx * S), v = (yy - sy) / (ry * S);
+        const d = Math.sqrt(u * u + v * v);
+        if(d > 1.35) continue;
+        const n = fbmCeu(xx / S * e + semente, yy / S * e - semente);
+        const borda = 1.0 + (n - 0.5) * 0.7;
+        const t = d / borda;
+        if(t > 1) continue;
+        let w = a * (1 - t * t) * (1 - t * t);
+        if(beira) w *= 1 - 0.55 * Math.max(0, (t - 0.72) / 0.28) * beira;   // a beira mais escura da aguada
+        w *= 0.75 + 0.5 * n;
+        const k = yy * W + xx;
+        if(sobre){ const q = Math.min(1, w); R[k] += (cor[0] - R[k]) * q; G[k] += (cor[1] - G[k]) * q; B[k] += (cor[2] - B[k]) * q; }
+        else { R[k] += cor[0] * w; G[k] += cor[1] * w; B[k] += cor[2] * w; }
+      }
+    }
+  };
+  // o traco: carimbos ao longo de uma linha (pontos), com largura no comeco e no fim
+  const traco = (pts, larg0, larg1, cor, a, passo, sobre) => {
+    let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i-1][0], pts[i][1] - pts[i-1][1]);
+    let percorrido = 0;
+    for(let i = 1; i < pts.length; i++){
+      const ax = pts[i-1][0], ay = pts[i-1][1], bx = pts[i][0], by = pts[i][1], seg = Math.hypot(bx - ax, by - ay);
+      const n = Math.max(1, Math.ceil(seg / ((passo || 0.35) * Math.min(larg0, larg1) + 0.0015)));
+      for(let s = 0; s < n; s++){
+        const t = s / n, u = (percorrido + seg * t) / L, larg = larg0 + (larg1 - larg0) * u;
+        carimbo(ax + (bx - ax) * t, ay + (by - ay) * t, larg * 0.5, cor, sobre ? a * 0.8 : a * 0.55, sobre);
+      }
+      percorrido += seg;
+    }
+  };
+  // o fio: um passeio aleatorio fino, que pode se bifurcar
+  const fio = (x, y, ang, comp, larg, cor, a, tremor, ramos) => {
+    const pilha = [[x, y, ang, comp, 0]];
+    while(pilha.length){
+      let [cx, cy, dir, n, prof] = pilha.pop();
+      const passo = 0.004;
+      for(let s = 0; s < n; s++){
+        dir += (rnd() - 0.5) * (tremor || 0.5);
+        cx += Math.cos(dir) * passo; cy += Math.sin(dir) * passo;
+        if(cx < 0 || cx > 1.6 || cy < 0 || cy > 1) break;
+        carimbo(cx, cy, larg * (1 - 0.5 * s / n) * (1 - prof * 0.2), cor, a * (1 - prof * 0.2));
+        if(ramos && prof < 2 && rnd() < ramos) pilha.push([cx, cy, dir + (rnd() < 0.5 ? 0.8 : -0.8), Math.floor(n * 0.5), prof + 1]);
+      }
+    }
+  };
+  // a luz: um brilho largo e fraco com um miolo forte
+  const luz = (x, y, raio, cor, a) => { carimbo(x, y, raio, cor, a * 0.35); carimbo(x, y, raio * 0.45, cor, a * 0.6); carimbo(x, y, raio * 0.18, [255, 255, 240], a); };
+  // a estrela de quatro pontas
+  const estrelaCruz = (x, y, tam, cor, a) => {
+    traco([[x - tam, y], [x + tam, y]], 0.006, 0.006, cor, a * 0.7, 0.3);
+    traco([[x, y - tam], [x, y + tam]], 0.006, 0.006, cor, a * 0.7, 0.3);
+    traco([[x - tam * 0.45, y - tam * 0.45], [x + tam * 0.45, y + tam * 0.45]], 0.004, 0.004, cor, a * 0.4, 0.3);
+    traco([[x - tam * 0.45, y + tam * 0.45], [x + tam * 0.45, y - tam * 0.45]], 0.004, 0.004, cor, a * 0.4, 0.3);
+    luz(x, y, tam * 0.5, cor, a);
+  };
+  // o anel (bolha): um circulo fino
+  const anel = (x, y, raio, larg, cor, a) => {
+    const pts = []; for(let k = 0; k <= 40; k++){ const t = k / 40 * Math.PI * 2; pts.push([x + Math.cos(t) * raio, y + Math.sin(t) * raio]); }
+    traco(pts, larg, larg, cor, a, 0.4);
+  };
+  // o meio-disco de onda, cheio, com aneis e borda de ouro
+  const meioDisco = (cx, cy, Rr, corIn, corOut, ouro, a) => {
+    const sx = px(cx), sy = py(cy), RP = Rr * S;
+    const y0 = Math.max(0, Math.floor(sy - RP)), x0 = Math.max(0, Math.floor(sx - RP)), x1 = Math.min(W - 1, Math.ceil(sx + RP));
+    for(let yy = y0; yy <= Math.min(H - 1, Math.floor(sy)); yy++){
+      for(let xx = x0; xx <= x1; xx++){
+        const d = Math.hypot(xx - sx, yy - sy) / RP;
+        if(d > 1) continue;
+        const k = yy * W + xx, an = 0.5 + 0.5 * Math.sin(d * 28);
+        const m = Math.pow(an, 6) * 0.35;
+        let cr = corIn[0] + (corOut[0] - corIn[0]) * d, cg = corIn[1] + (corOut[1] - corIn[1]) * d, cb = corIn[2] + (corOut[2] - corIn[2]) * d;
+        cr += (200 - cr) * m; cg += (230 - cg) * m; cb += (245 - cb) * m;
+        if(d > 0.93){ const t = (d - 0.93) / 0.07; cr = cr + (ouro[0] - cr) * t; cg = cg + (ouro[1] - cg) * t; cb = cb + (ouro[2] - cb) * t; }
+        R[k] = R[k] * (1 - a) + cr * a; G[k] = G[k] * (1 - a) + cg * a; B[k] = B[k] * (1 - a) + cb * a;
+      }
+    }
+  };
+  const fundo = (f) => { for(let k = 0; k < W * H; k++){ const c = f((k % W) / S, Math.floor(k / W) / S); R[k] = c[0]; G[k] = c[1]; B[k] = c[2]; } };
+  pintar({ W, H, S, R, G, B, rnd, carimbo, mancha, traco, fio, luz, estrelaCruz, anel, meioDisco, fundo });
+  const dados = new Uint8Array(W * H * 3);
+  for(let k = 0; k < W * H; k++){
+    const tm = (v) => v < 200 ? v : 200 + 55 * (1 - Math.exp(-(v - 200) / 55));
+    dados[k * 3] = tm(R[k]); dados[k * 3 + 1] = tm(G[k]); dados[k * 3 + 2] = tm(B[k]);
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, W, H, 0, gl.RGB, gl.UNSIGNED_BYTE, dados);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  /* SEM MIPMAP: 1280 de altura nao e potencia de dois, e no WebGL 1 uma textura assim com
+     mipmap fica incompleta -- sai PRETA, sem erro nenhum (custou uma rodada em 26/09). E o
+     mesmo caminho dos JPEG de antes: linear, sem mipmap. */
+  for(const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+                       [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
+}
+// as cores prismaticas dos respingos que os quadros tem
+function corPrisma(rnd){
+  const h = rnd() * 6, i = Math.floor(h), f = h - i, q = 1 - f;
+  const c = [[1, f, 0], [q, 1, 0], [0, 1, f], [0, q, 1], [f, 0, 1], [1, 0, q]][i % 6];
+  return [120 + 135 * c[0], 120 + 135 * c[1], 120 + 135 * c[2]];
+}
+
+/* A VERMELHA. A nebulosa vermelha a esquerda, a figura no meio (cabelo em nuvem de
+   flores, corpo vermelho com veias de ouro, os bracos erguidos com luz nas maos, o
+   vestido que abre em branco e vermelho), as raizes de ouro pendendo, o manto que
+   corre para a direita e o barco de filigrana de ouro; respingos prismaticos em volta.
+   No quadro (uv): rosto (0,4925, 0,336), maos (0,44, 0,448) e (0,5725, 0,37). */
+function gerarDeusaVermelha(tex){
+  pinturaEmCodigo(tex, 8801, ({ rnd, carimbo, mancha, traco, fio, luz }) => {
+    const X = (u) => u * 1.6;
+    // a nebulosa vermelha, em pluma para a esquerda
+    mancha(X(0.36), 0.50, 0.30, 0.15, [150, 16, 24], 0.9, 5, 1);
+    mancha(X(0.40), 0.47, 0.17, 0.11, [215, 34, 40], 0.8, 7, 1);
+    mancha(X(0.30), 0.55, 0.12, 0.07, [130, 22, 44], 0.7, 8, 0);
+    mancha(X(0.44), 0.52, 0.09, 0.06, [240, 90, 80], 0.5, 9, 0);
+    for(let k = 0; k < 120; k++){                                   // as petalas
+      const a = rnd() * 6.283, r = Math.sqrt(rnd());
+      carimbo(X(0.40 + 0.11 * r * Math.cos(a)), 0.50 + 0.10 * r * Math.sin(a), 0.004 + rnd() * 0.012, [225, 40 + 30 * rnd(), 45], 0.7);
+    }
+    for(let k = 0; k < 60; k++) carimbo(X(0.30 + rnd() * 0.24), 0.40 + rnd() * 0.22, 0.003 + rnd() * 0.005, [255, 220, 225], 0.6);
+    // os respingos prismaticos em volta
+    for(let k = 0; k < 1100; k++){
+      const a = rnd() * 6.283, r = Math.sqrt(rnd());
+      const x = X(0.50 + 0.44 * r * Math.cos(a)), y = 0.40 + 0.24 * r * Math.sin(a);
+      carimbo(x, y, 0.0014 + rnd() * 0.0024, corPrisma(rnd), 0.30 + 0.35 * rnd());
+    }
+    for(let k = 0; k < 500; k++) carimbo(X(0.2 + rnd() * 0.6), 0.2 + rnd() * 0.5, 0.001 + rnd() * 0.0015, [255, 255, 255], 0.5);
+    // o cabelo: uma nuvem de flores vermelhas
+    for(let k = 0; k < 26; k++){
+      const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 0.045;
+      carimbo(X(0.4925) + Math.cos(a) * r * 1.3, 0.298 + Math.sin(a) * r, 0.014 + rnd() * 0.016, [225, 28 + 25 * rnd(), 40], 0.9, true);
+    }
+    for(let k = 0; k < 10; k++) carimbo(X(0.4925) + (rnd() - 0.5) * 0.09, 0.298 + (rnd() - 0.5) * 0.06, 0.004 + rnd() * 0.006, [255, 160, 150], 0.7);   // as flores claras do cabelo
+    carimbo(X(0.4925), 0.336, 0.017, [150, 34, 34], 1.0, true);                             // o rosto
+    traco([[X(0.4925), 0.350], [X(0.495), 0.372]], 0.014, 0.018, [200, 40, 40], 1.0, 0.35, true);        // o pescoco
+    traco([[X(0.495), 0.372], [X(0.498), 0.44], [X(0.502), 0.505]], 0.046, 0.060, [205, 32, 38], 1.0, 0.35, true);   // o torso
+    for(let k = 0; k < 7; k++) fio(X(0.488 + rnd() * 0.02), 0.38 + rnd() * 0.05, Math.PI / 2 + (rnd() - 0.5) * 0.5, 22 + Math.floor(rnd() * 16), 0.0016, [250, 200, 80], 0.9, 0.35, 0);   // as veias de ouro
+    // os bracos, e a luz nas maos
+    traco([[X(0.477), 0.375], [X(0.455), 0.405], [X(0.44), 0.448]], 0.013, 0.010, [215, 60, 40], 1.0, 0.35, true);
+    traco([[X(0.510), 0.370], [X(0.545), 0.352], [X(0.5725), 0.370]], 0.013, 0.010, [215, 60, 40], 1.0, 0.35, true);
+    luz(X(0.44), 0.448, 0.032, [255, 215, 110], 1.0); luz(X(0.5725), 0.370, 0.032, [255, 215, 110], 1.0);
+    for(const [hx, hy] of [[0.44, 0.448], [0.5725, 0.370]]) for(let k = 0; k < 6; k++) fio(X(hx), hy, -Math.PI / 2 + (rnd() - 0.5) * 2.2, 8 + Math.floor(rnd() * 10), 0.0015, [240, 190, 90], 0.8, 0.5, 0);   // os galhinhos das maos
+    // o vestido: abre para baixo, vermelho no alto, branco e rosa embaixo
+    for(let k = 0; k < 9; k++){
+      const t = k / 8, y = 0.51 + t * 0.19, rx = 0.03 + t * 0.10;
+      const cor = t < 0.62 ? [205, 32, 40] : [235, 150 + 90 * (t - 0.62) / 0.38, 160 + 80 * (t - 0.62) / 0.38];
+      mancha(X(0.505) + (rnd() - 0.5) * 0.01, y, rx, 0.03, cor, 0.9, 9, 1, true);
+    }
+    for(let k = 0; k < 40; k++) carimbo(X(0.46 + rnd() * 0.10), 0.62 + rnd() * 0.10, 0.006 + rnd() * 0.012, rnd() < 0.5 ? [220, 40, 50] : [255, 225, 120], 0.7);
+    // o manto que corre para a direita
+    traco([[X(0.515), 0.545], [X(0.58), 0.565], [X(0.66), 0.558], [X(0.74), 0.535], [X(0.80), 0.51]], 0.045, 0.012, [205, 28, 40], 0.85, 0.3, true);
+    traco([[X(0.52), 0.56], [X(0.60), 0.585], [X(0.70), 0.58]], 0.02, 0.006, [235, 60, 70], 0.6, 0.3, true);
+    // as raizes de ouro pendendo
+    for(let k = 0; k < 14; k++) fio(X(0.44 + rnd() * 0.13), 0.44 + rnd() * 0.12, Math.PI / 2 + (rnd() - 0.5) * 0.8, 40 + Math.floor(rnd() * 60), 0.0018, [225, 175, 70], 0.85, 0.35, 0.06);
+    // o barco de filigrana de ouro, a direita
+    traco([[X(0.60), 0.57], [X(0.66), 0.52], [X(0.71), 0.46], [X(0.735), 0.40]], 0.008, 0.004, [215, 165, 55], 0.95, 0.3);
+    traco([[X(0.62), 0.58], [X(0.69), 0.55], [X(0.75), 0.50]], 0.006, 0.003, [235, 190, 80], 0.9, 0.3);
+    for(let k = 0; k < 9; k++) fio(X(0.70 + rnd() * 0.03), 0.45 + rnd() * 0.08, -Math.PI / 2 + (rnd() - 0.5) * 1.6, 10 + Math.floor(rnd() * 14), 0.0018, [230, 180, 70], 0.8, 0.4, 0);
+    for(let k = 0; k < 30; k++) carimbo(X(0.60 + rnd() * 0.15), 0.42 + rnd() * 0.16, 0.002 + rnd() * 0.003, [255, 215, 110], 0.9);
+    // os pingos vermelhos que caem do vestido
+    for(let k = 0; k < 6; k++) fio(X(0.47 + rnd() * 0.08), 0.70, Math.PI / 2 + (rnd() - 0.5) * 0.3, 14 + Math.floor(rnd() * 20), 0.002, [215, 40, 50], 0.7, 0.2, 0);
+  });
+}
+
+/* A GALACTICA. A explosao azul e laranja em volta do peito, os filamentos eletricos
+   azul-claros, a figura escura com o rosto aceso, os bracos abertos e o vestido em
+   duas caudas azuis que descem, bolhas e respingos. No quadro (uv): rosto (0,505,
+   0,352), maos (0,43, 0,552) e (0,575, 0,528). */
+function gerarDeusaGalactica(tex){
+  pinturaEmCodigo(tex, 8802, ({ rnd, carimbo, mancha, traco, fio, luz, anel }) => {
+    const X = (u) => u * 1.6;
+    // a explosao: manchas azuis e violeta, e tracos radiais
+    mancha(X(0.52), 0.48, 0.33, 0.22, [24, 40, 130], 0.5, 4, 1);
+    mancha(X(0.50), 0.47, 0.20, 0.14, [40, 90, 210], 0.38, 6, 1);
+    mancha(X(0.62), 0.50, 0.16, 0.10, [110, 60, 200], 0.4, 7, 1);
+    for(let k = 0; k < 30; k++){
+      const a = rnd() * 6.283, L = 0.14 + rnd() * 0.34, cor = [[40, 100, 230], [120, 200, 255], [110, 60, 200], [200, 120, 70]][Math.floor(rnd() * 4)];
+      const x0 = X(0.51) + Math.cos(a) * 0.10, y0 = 0.48 + Math.sin(a) * 0.07;
+      traco([[x0, y0], [x0 + Math.cos(a) * L * 0.5 + (rnd() - 0.5) * 0.04, y0 + Math.sin(a) * L * 0.5], [x0 + Math.cos(a) * L, y0 + Math.sin(a) * L + (rnd() - 0.5) * 0.04]], 0.05, 0.012, cor, 0.10, 0.3);
+    }
+    // o miolo quente, laranja
+    for(let k = 0; k < 40; k++){ const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 0.09; carimbo(X(0.50) + Math.cos(a) * r * 1.4, 0.47 + Math.sin(a) * r, 0.008 + rnd() * 0.02, [255, 140 + 60 * rnd(), 60], 0.22); }
+    for(let k = 0; k < 25; k++) carimbo(X(0.46 + rnd() * 0.10), 0.42 + rnd() * 0.10, 0.003 + rnd() * 0.006, [255, 230, 170], 0.5);
+    // os filamentos eletricos
+    for(let k = 0; k < 70; k++){ const a = rnd() * 6.283; fio(X(0.51) + Math.cos(a) * 0.06, 0.48 + Math.sin(a) * 0.05, a, 30 + Math.floor(rnd() * 80), 0.0017, [170, 225, 255], 0.9, 0.55, 0.05); }
+    // as bolhas
+    for(let k = 0; k < 40; k++){ const a = rnd() * 6.283, r = 0.08 + rnd() * 0.3; anel(X(0.52) + Math.cos(a) * r, 0.50 + Math.sin(a) * r * 0.7, 0.005 + rnd() * 0.012, 0.0025, [150, 210, 255], 0.7); }
+    // os respingos
+    for(let k = 0; k < 900; k++){ const a = rnd() * 6.283, r = Math.sqrt(rnd()); carimbo(X(0.52 + 0.42 * r * Math.cos(a)), 0.50 + 0.30 * r * Math.sin(a), 0.0015 + rnd() * 0.003, rnd() < 0.7 ? [200, 235, 255] : corPrisma(rnd), 0.5 + 0.5 * rnd()); }
+    // a figura escura, com o rosto aceso
+    carimbo(X(0.505), 0.352, 0.024, [26, 30, 70], 1.0, true);
+    carimbo(X(0.505), 0.352, 0.013, [90, 140, 255], 0.9); carimbo(X(0.505), 0.352, 0.006, [200, 230, 255], 0.8);
+    traco([[X(0.505), 0.372], [X(0.507), 0.43], [X(0.51), 0.50]], 0.036, 0.044, [24, 28, 66], 1.0, 0.35, true);
+    traco([[X(0.488), 0.385], [X(0.455), 0.47], [X(0.43), 0.552]], 0.014, 0.010, [24, 28, 66], 1.0, 0.35, true);    // os bracos
+    traco([[X(0.522), 0.383], [X(0.552), 0.455], [X(0.575), 0.528]], 0.014, 0.010, [24, 28, 66], 1.0, 0.35, true);
+    luz(X(0.43), 0.552, 0.02, [120, 190, 255], 0.9); luz(X(0.575), 0.528, 0.02, [120, 190, 255], 0.9);
+    // as duas caudas do vestido, azuis, com pontos
+    traco([[X(0.50), 0.52], [X(0.47), 0.62], [X(0.42), 0.76], [X(0.37), 0.95]], 0.06, 0.11, [60, 140, 235], 0.85, 0.3, true);
+    traco([[X(0.52), 0.52], [X(0.565), 0.64], [X(0.60), 0.80], [X(0.62), 0.96]], 0.06, 0.10, [80, 170, 245], 0.85, 0.3, true);
+    traco([[X(0.505), 0.52], [X(0.49), 0.70], [X(0.47), 0.90]], 0.03, 0.05, [30, 60, 160], 0.8, 0.3, true);
+    for(let k = 0; k < 90; k++){ const t = rnd(), lado = rnd() < 0.5 ? -1 : 1; carimbo(X(0.51 + lado * (0.03 + 0.10 * t) + (rnd() - 0.5) * 0.04), 0.52 + t * 0.42, 0.003 + rnd() * 0.005, [230, 245, 255], 0.8); }
+  });
+}
+
+/* A INTEGRA. A noite estrelada com estrelas de quatro pontas, os dois planetas
+   escuros de aro de ouro, as ondas em meio-discos azuis com borda de ouro, e a deusa
+   no meio: a arvore-cabelo coral, o rosto azul, as asas de veios de ouro, o coracao
+   aceso, o vestido laranja em camadas com o manto azul de pontos. No quadro (uv):
+   rosto (0,50, 0,406), maos (0,425, 0,593) e (0,58, 0,569), asas em 0,465/0,535. */
+function gerarDeusaIntegra(tex){
+  pinturaEmCodigo(tex, 8803, ({ rnd, carimbo, mancha, traco, fio, luz, estrelaCruz, meioDisco, fundo }) => {
+    const X = (u) => u * 1.6;
+    fundo((x, y) => { const n = fbmCeu(x * 2.5 + 3, y * 2.5 + 1); return [6 + 12 * n, 9 + 14 * n, 30 + 40 * n]; });
+    mancha(X(0.5), 0.18, 0.5, 0.12, [40, 45, 90], 0.35, 3, 0);                      // a nuvem escura no alto
+    for(let k = 0; k < 900; k++) carimbo(X(rnd()), rnd() * 0.55, 0.0012 + rnd() * 0.002, [235, 205, 130], 0.4 + 0.6 * rnd());   // o po de ouro
+    for(let k = 0; k < 26; k++) estrelaCruz(X(rnd()), 0.02 + rnd() * 0.30, 0.02 + rnd() * 0.035, rnd() < 0.6 ? [255, 235, 170] : [200, 225, 255], 0.9);
+    // os dois planetas escuros com aro de ouro e halo azul
+    for(const cx of [0.16, 0.84]){
+      mancha(X(cx), 0.45, 0.16, 0.16, [60, 90, 190], 0.45, 4, 0);
+      carimbo(X(cx), 0.45, 0.115, [8, 8, 26], 1.6, true);
+      const pts = []; for(let k = 0; k <= 60; k++){ const t = k / 60 * Math.PI * 2; pts.push([X(cx) + Math.cos(t) * 0.112 / 1.0, 0.45 + Math.sin(t) * 0.112]); }
+      traco(pts, 0.006, 0.006, [230, 190, 90], 0.8, 0.3);
+      for(let k = 0; k < 40; k++){ const t = rnd() * 6.283, r = 0.1 + rnd() * 0.04; carimbo(X(cx) + Math.cos(t) * r, 0.45 + Math.sin(t) * r, 0.003 + rnd() * 0.006, [230, 170, 80], 0.7); }
+    }
+    // as ondas, fileiras de meio-discos que se sobrepoem
+    const filas = [[0.80, 0.11], [0.98, 0.14]];
+    filas.forEach(([y, Rr], f) => {
+      for(let x = -0.05 + (f % 2) * Rr; x < 1.7; x += Rr * 1.9){
+        if(Math.abs(x - X(0.5)) < Rr * 1.1 && f < 1) continue;   // o meio fica para o vestido
+        meioDisco(x + (rnd() - 0.5) * 0.03, y, Rr * (0.85 + rnd() * 0.3), [36, 70, 160], [90, 150, 220], [235, 195, 95], 0.82);
+      }
+    });
+    for(let k = 0; k < 220; k++) carimbo(X(rnd()), 0.60 + rnd() * 0.40, 0.003 + rnd() * 0.006, rnd() < 0.5 ? [240, 150, 60] : [235, 210, 120], 0.6);   // os pontos das ondas
+    // as borboletas
+    for(const [bx, by] of [[0.83, 0.30], [0.20, 0.36]]){
+      carimbo(X(bx) - 0.02, by, 0.018, [225, 175, 80], 0.9); carimbo(X(bx) + 0.02, by, 0.018, [225, 175, 80], 0.9);
+      carimbo(X(bx) - 0.018, by + 0.02, 0.012, [200, 140, 70], 0.8); carimbo(X(bx) + 0.018, by + 0.02, 0.012, [200, 140, 70], 0.8);
+      traco([[X(bx), by - 0.02], [X(bx), by + 0.025]], 0.006, 0.004, [40, 30, 40], 1.0);
+    }
+    // as asas: lobos claros com aro de ouro e veios
+    for(const lado of [-1, 1]){
+      const rx = 0.465 + (lado > 0 ? 0.07 : 0), cx = X(0.50 + lado * 0.095), cy = 0.40;
+      mancha(cx, cy, 0.085, 0.12, [235, 225, 195], 0.6, 5, 1, true);
+      mancha(cx + lado * 0.02, cy - 0.03, 0.05, 0.07, [230, 210, 160], 0.25, 6, 0);
+      const pts = []; for(let k = 0; k <= 50; k++){ const t = k / 50 * Math.PI * 2; pts.push([cx + Math.cos(t) * 0.085, cy + Math.sin(t) * 0.12]); }
+      traco(pts, 0.005, 0.005, [225, 185, 90], 0.75, 0.3);
+      for(let k = 0; k < 7; k++) fio(X(0.465 + (lado > 0 ? 0.07 : 0)), 0.415, (lado > 0 ? 0 : Math.PI) + (rnd() - 0.5) * 1.6, 20 + Math.floor(rnd() * 22), 0.0015, [215, 175, 80], 0.7, 0.25, 0);
+    }
+    // a arvore-cabelo, coral, com contas azuis na base
+    mancha(X(0.50), 0.31, 0.105, 0.085, [200, 70, 50], 0.8, 6, 1, true);
+    for(let k = 0; k < 220; k++){ const a = -Math.PI / 2 + (rnd() - 0.5) * 2.6; fio(X(0.50) + (rnd() - 0.5) * 0.05, 0.36, a, 10 + Math.floor(rnd() * 24), 0.0022, [235, 95 + 40 * rnd(), 60], 0.9, 0.5, 0.15); }
+    for(let k = 0; k < 70; k++){ const a = rnd() * Math.PI; carimbo(X(0.50) + Math.cos(a) * (0.05 + rnd() * 0.06), 0.365 + rnd() * 0.02, 0.004 + rnd() * 0.005, [70, 110, 210], 0.9); }
+    // o rosto e o pescoco
+    carimbo(X(0.50), 0.406, 0.021, [70, 100, 190], 1.0, true); carimbo(X(0.50), 0.400, 0.010, [120, 150, 220], 0.4);
+    traco([[X(0.50), 0.424], [X(0.50), 0.445]], 0.013, 0.018, [90, 100, 160], 1.0, 0.35, true);
+    // os ombros e os bracos
+    traco([[X(0.478), 0.45], [X(0.45), 0.52], [X(0.425), 0.593]], 0.016, 0.011, [110, 120, 170], 1.0, 0.35, true);
+    traco([[X(0.522), 0.45], [X(0.552), 0.51], [X(0.58), 0.569]], 0.016, 0.011, [110, 120, 170], 1.0, 0.35, true);
+    carimbo(X(0.425), 0.593, 0.012, [150, 160, 200], 0.9, true); carimbo(X(0.58), 0.569, 0.012, [150, 160, 200], 0.9, true);
+    // o torso e o coracao aceso
+    traco([[X(0.50), 0.445], [X(0.50), 0.56]], 0.036, 0.05, [140, 130, 180], 1.0, 0.35, true);
+    luz(X(0.50), 0.50, 0.05, [255, 240, 200], 1.0);
+    // o vestido: laranja em camadas, com o manto azul de pontos por fora
+    for(let k = 0; k < 12; k++){
+      const t = k / 11, y = 0.57 + t * 0.40, rx = 0.035 + t * 0.26;
+      mancha(X(0.50), y, rx * 1.25, 0.04, [40, 55, 140], 0.95, 6, 1, true);                    // o manto azul
+      mancha(X(0.50), y, rx, 0.03, t < 0.3 ? [250, 200, 140] : [240, 125 + 30 * (1 - t), 60], 0.95, 8, 1, true);   // o laranja
+      traco([[X(0.50) - rx * 0.9, y + 0.012], [X(0.50), y + 0.02], [X(0.50) + rx * 0.9, y + 0.012]], 0.004, 0.004, [255, 215, 150], 0.6, 0.3);   // a listra
+    }
+    for(let k = 0; k < 160; k++){ const t = rnd(), lado = rnd() < 0.5 ? -1 : 1, rx = 0.05 + t * 0.19; carimbo(X(0.50) + lado * rx * (0.75 + rnd() * 0.5), 0.60 + t * 0.38, 0.004 + rnd() * 0.006, rnd() < 0.5 ? [240, 150, 70] : [230, 200, 120], 0.8); }   // os pontos do manto
+    for(let k = 0; k < 6; k++) fio(X(0.49 + rnd() * 0.02), 0.44 + rnd() * 0.1, Math.PI / 2 + (rnd() - 0.5) * 0.4, 20 + Math.floor(rnd() * 30), 0.0016, [255, 240, 210], 0.6, 0.3, 0);   // o liquido que escorre
+  });
+}
+
 const GALAXIAS_ST = new Float32Array(18);   // 8.4: onde as galaxias estao na textura, para girarem
 function gerarCeuCosmico(tex){
   tex.__semente = 1;
@@ -10081,7 +10408,7 @@ function montarEstrelasDoChao(){
   const rnd = prng(8600), pos = [], cor = [], dado = [];
   const tons = [[1.0, 1.0, 1.0], [0.72, 0.84, 1.0], [1.0, 0.86, 0.60], [1.0, 0.74, 0.86]];
   for(let k = 0; k < 420; k++){
-    const a = rnd() * Math.PI * 2, r = 0.5 + Math.sqrt(rnd()) * 5.0, forca = Math.pow(rnd(), 3.0);
+    const a = rnd() * Math.PI * 2, r = 1.5 + Math.sqrt(rnd()) * 4.5, forca = Math.pow(rnd(), 3.0);   // 8.8: de 1,5 a 6 m (era de 0,5): "faz aparecer a grade um pouco mais longe"
     const tom = tons[Math.floor(rnd() * tons.length)], luz = 0.30 + 0.90 * forca;
     pos.push(Math.sin(a) * r, 0.012, -Math.cos(a) * r);
     cor.push(tom[0] * luz, tom[1] * luz, tom[2] * luz);
@@ -10268,9 +10595,13 @@ carregar(PELES[7], '__PELE_FOGO__');
    comum gerava mipmap, a textura ficava incompleta e o teatro saia PRETO. */
 carregarAlfa(texTeatroCor, '__PAPEL_COR__');
 carregarAlfa(texTeatroMascara, '__PAPEL_MASCARA__');
-carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
-carregarAlfa(FIGS[1], '__FIG_DEUSA__');
-carregarAlfa(FIGS[2], '__FIG_INTEGRA__');
+if(FIGURAS_EM_CODIGO){   // 8.8: as tres deusas pintadas ao carregar; o montador deixa os JPEG de fora
+  gerarDeusaGalactica(FIGS[0]); gerarDeusaVermelha(FIGS[1]); gerarDeusaIntegra(FIGS[2]);
+} else {
+  carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
+  carregarAlfa(FIGS[1], '__FIG_DEUSA__');
+  carregarAlfa(FIGS[2], '__FIG_INTEGRA__');
+}
 carregarAlfa(FIGS[3], '__FIG_BORBOLETA__');
 
 // A aurora não usa textura nenhuma: cor e forma saem inteiras da fórmula.
@@ -11890,9 +12221,18 @@ function andarTamandua(dt){
     const dx = (rx * Math.cos(ang) - rz * Math.sin(ang)) / rl, dz = (rx * Math.sin(ang) + rz * Math.cos(ang)) / rl;
     const px = cg.x + dx * 1.30, pz = cg.z + dz * 1.30;
     let ex = px - A.x, ez = pz - A.z; const d = Math.hypot(ex, ez);
-    // e contorna quem esta no meio: perto de 0,9 m, o rumo desvia para fora
+    // e contorna quem esta no meio: perto de 1,3 m, o rumo desvia para fora (8.8: era 0,9 -- a 8.3 o empurra a 1,1 m, e ele travava na beira)
     const vx = A.x - o[0], vz = A.z - o[2], vd = Math.hypot(vx, vz);
-    if(vd < 0.9 && d > 0.2){ const k = (0.9 - vd) / 0.9 * 1.5; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }
+    if(vd < 1.3 && d > 0.2){ const k = (1.3 - vd) / 1.3 * 1.8; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }
+    /* 8.8 -- SE TRAVAR, SAI DE LADO (visto na bancada: 20 s parado entre tres cogumelos,
+       empurrado para tras a cada passo). A cada 3 s ele confere se andou 8 cm; se nao,
+       vira 90 graus para o lado dele, anda 2,5 s naquele rumo e troca de cogumelo. */
+    if(!A.marca) A.marca = { x: A.x, z: A.z, t: T };
+    else if(T - A.marca.t > 3){
+      if(Math.hypot(A.x - A.marca.x, A.z - A.marca.z) < 0.08){ A.yaw += (A.lado || 1) * 1.6; A.desvioAte = T + 2.5; A.alvo = tamanduaProximoCogumelo(); A.desde = T; }
+      A.marca = { x: A.x, z: A.z, t: T };
+    }
+    if(A.desvioAte > T){ ex = Math.sin(A.yaw); ez = Math.cos(A.yaw); }
     const yawAlvo = d > 0.12 ? Math.atan2(ex, ez) : Math.atan2(cg.x - A.x, cg.z - A.z);
     let dy = yawAlvo - A.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
     A.yaw += Math.max(-0.9 * dt, Math.min(0.9 * dt, dy));
@@ -12110,7 +12450,7 @@ const FIGURAS = [
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
-    elipse:[0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09],
+    elipse:[0.505, 0.58, 0.17, 0.40], escuro:[0.012, 0.09],   // 8.8: o corpo pintado em codigo
     // 8.4: o rosto e as maos (medidos no arquivo), a danca e as manchas azul/laranja da pintura
     danca:1.0, juntas:[[0.505, 0.352, 0.055], [0.43, 0.552, 0.06], [0.575, 0.528, 0.06]],
     manchas:[[0.16, 0.30, 0.72], [0.85, 0.45, 0.30]] },
@@ -13274,7 +13614,7 @@ function alvosAgora(){
      que ja fazia, e o ar ganha um brilho com sussurro quando a mao passa
      depressa por ele -- para que no papel (4), onde nada se alcanca, o
      gesto tambem tenha resposta. */
-  if(PEDRAS_NO_CHAO && presencaMata > 0.3)
+  if(PEDRAS_NO_CHAO && presencaMata > 0.3 && aguaPresenca < 0.5)   // 8.9: sem pedras debaixo d'agua
     PEDRAS_CHAO.forEach((pd, k) => {
       const r = 0.16 + 0.22 * (pd.escala || 0.5);
       lista.push({ id:'pedra-' + k, nota:0, x:pd.x, y:(pd.y || 0) + r * 0.5, z:pd.z, raio:r,
@@ -13979,7 +14319,7 @@ function seguirPartitura(dt){
   asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
-  buracoPresenca  = rampa(278, 298, t) * (1 - rampa(374, 388, t));
+  buracoPresenca  = BURACOS_NEGROS ? rampa(278, 298, t) * (1 - rampa(374, 388, t)) : 0;   // 8.9: "remova o buraco negro"
   conchaPresenca  = rampa(432, 456, t) * (1 - rampa(512, 534, t));   // 8.4
   vidroPresenca   = rampa(408, 432, t) * (1 - rampa(512, 534, t));   // o ser de vidro; 8.4
   seresPresenca   = rampa(402, 432, t) * (1 - rampa(512, 534, t));   // 8.4
@@ -16562,8 +16902,9 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     /* AS PEDRAS. Mesmo programa, mesma tinta -- e sem recolhimento:
        elas emergem onde estao, sem se recolher para a origem e sem balancar
        no vento. Pedra que balanca deixa de ser pedra na hora. */
-    if(PEDRAS_NO_CHAO && nPedrasIdx > 0 && presencaMata > 0.004){
+    if(PEDRAS_NO_CHAO && nPedrasIdx > 0 && presencaMata > 0.004 && aguaPresenca < 0.996){   // 8.9: "remova as pedras escuras de baixo da agua"
       gl.uniform1f(locSo.balanca, 0.0);
+      gl.uniform1f(locSo.presenca, presencaMata * (1 - aguaPresenca));   // 8.9: somem quando a agua chega
       /* PIGMENTO MAIS MIUDO NA PEDRA, e nao o mesmo da arvore.
 
          A triplanar le a pintura pelas coordenadas do mundo, entao o quanto
