@@ -86,7 +86,7 @@ SEM_SOM = False
 # 8.1: os ceus sao gerados em codigo na obra; as pinturas ficam fora do arquivo
 CEUS_EM_CODIGO = True
 # 8.8: as tres deusas pintadas em codigo (FIGURAS_EM_CODIGO no template): os JPEG ficam de fora
-FIGURAS_EM_CODIGO = True
+FIGURAS_EM_CODIGO = False   # 26/09: as deusas pintadas voltam (JPEG embutidos); o template acompanha
 
 print("Texturas:")
 mapa = {
