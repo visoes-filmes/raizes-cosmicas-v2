@@ -619,6 +619,7 @@ def espelhar(serial, geometria=None):
                       "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro() + args_da_rede(serial),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
+    devolver_foco()
     return {"ok": True}
 
 
@@ -804,7 +805,47 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
     with TRAVA:
         ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
                               "monitor": "janela de teste" if janela else alvo.get("nome")}
+    if not janela:
+        devolver_foco()          # 26/09: avisos e notificacoes na tela do Mac, nao no projetor
     return {"ok": True}
+
+
+# ── o foco fica na tela do Mac (26/09) ───────────────────────────────────
+# "Tem avisos e notificacoes aparecendo na tela que esta aparecendo a animacao; esses
+# avisos tem que aparecer so nessa primeira tela, e nao na tela de projecao." Com uma
+# area de trabalho por tela (o padrao do macOS), notificacoes e alertas vao para a tela
+# do aplicativo ATIVO -- e abrir o espelho (scrcpy) ou o quiosque no projetor o torna
+# ativo. Depois de projetar, a Cabine devolve o foco ao Chrome dela, na tela do Mac,
+# algumas vezes (pela Wi-Fi o espelho leva segundos para aparecer e rouba o foco de
+# novo). Pelo PID: o Chrome do quiosque e outro processo do mesmo aplicativo.
+def chrome_da_cabine_pid():
+    saida, _ = rodar(["ps", "-axo", "pid=,command="], timeout=5)
+    for linha in saida.splitlines():
+        pid, _, cmd = linha.strip().partition(" ")
+        if (cmd.startswith("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome") and "--type=" not in cmd
+                and "raizes-projecao-perfil" not in cmd and "raizes-teste" not in cmd):
+            try:
+                return int(pid)
+            except ValueError:
+                pass
+    return None
+
+
+def devolver_foco(esperas=(1.5, 3.0, 5.0)):
+    if not MAC:
+        return
+
+    def trazer():
+        for espera in esperas:
+            time.sleep(espera)
+            pid = chrome_da_cabine_pid()
+            if not pid:
+                return
+            rodar(["osascript", "-l", "JavaScript", "-e",
+                   'ObjC.import("AppKit"); $.NSRunningApplication.runningApplicationWithProcessIdentifier(%d)'
+                   '.activateWithOptions($.NSApplicationActivateAllWindows | $.NSApplicationActivateIgnoringOtherApps); "ok"' % pid],
+                  timeout=8)
+    threading.Thread(target=trazer, daemon=True).start()
 
 
 def disparar_captura_estavel(monitor=None, espelhar_h=False):
