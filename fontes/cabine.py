@@ -518,6 +518,13 @@ def args_do_giro():
     return [f"--angle={a:g}"] if abs(a) > 0.05 else []
 
 
+def args_da_rede(serial):
+    """Pela Wi-Fi (serial ip:5555) o video vai mais leve: a rede do modem 4G
+    (UFI, 2,4 GHz) e dividida com o proprio oculos. 4 Mbps a 30 quadros cabe
+    folgado; pelo cabo, o padrao do scrcpy."""
+    return ["--video-bit-rate=4M", "--max-fps=30"] if serial and ":" in serial else []
+
+
 def fechar_espelhos():
     """Fecha os espelhos abertos (janela e projecao), para reabrir com o giro novo."""
     rodar(["pkill", "-f", "scrcpy.*Quest"], timeout=5) if MAC else None
@@ -532,7 +539,7 @@ def espelhar(serial):
     amb = dict(os.environ, ADB=ADB)
     corte = recorte_de_um_olho(serial)
     subprocess.Popen([exe, "-s", serial, "--max-size", "1280", "--no-audio",
-                      "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro(),
+                      "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro() + args_da_rede(serial),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
     return {"ok": True}
@@ -666,7 +673,7 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         # horizontal, como a pagina ja fazia
         if espelhar:
             args += ["--display-orientation=flip0"]
-        args += args_do_giro()
+        args += args_do_giro() + [x for x in args_da_rede(s) if not x.startswith('--max-fps')]
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
         if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
