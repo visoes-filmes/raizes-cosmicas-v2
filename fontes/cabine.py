@@ -745,6 +745,77 @@ def perfil_limpo():
         pass
 
 
+# ── o QR por cima de tudo no projetor (26/09) ─────────────────────────────
+# "O QR code nao esta aparecendo." Ele morava so na pagina da animacao, e no projetor
+# ha coisas POR CIMA dela: o espelho do oculos (scrcpy em tela cheia, num Space proprio
+# do macOS) e o video da Odara no QLab (no nivel do protetor de tela). O
+# fontes/qr_sobre.swift poe o QR numa janelinha acima de tudo, em todos os Spaces do
+# projetor, no mesmo canto e tamanho do QR da animacao, sem foco nem clique. A Cabine
+# compila uma vez (swiftc, das Command Line Tools / Xcode) e o mantem aberto enquanto
+# houver projecao no projetor -- a troca espelho <-> animacao nao mexe nele; a animacao
+# entao abre sem o QR dela (?qr=0), para nao sair dois. Sem swiftc (ou no Windows), fica
+# o QR da animacao, como antes.
+QR_FONTE = os.path.join(AQUI, "qr_sobre.swift")
+QR_BIN = os.path.join(AQUI, ".bin", "raizes-qr")
+QR_IMG = os.path.join(AQUI, "qr-visoesfilmes.png")
+QR = {"proc": None, "args": None, "ok": None}
+QR_TRAVA = threading.Lock()
+
+
+def preparar_qr():
+    """True quando o programa do QR esta compilado e em dia com a fonte."""
+    if not MAC:
+        return False
+    with QR_TRAVA:
+        try:
+            if os.path.getmtime(QR_BIN) >= os.path.getmtime(QR_FONTE):
+                QR["ok"] = True
+                return True
+        except OSError:
+            pass
+        if QR["ok"] is False:            # ja falhou nesta Cabine: nao tenta de novo a cada troca
+            return False
+        if rodar(["xcode-select", "-p"], timeout=10)[1] != 0:   # sem as ferramentas (e sem abrir o instalador)
+            QR["ok"] = False
+            relatar("QR por cima do projetor: faltam as Command Line Tools (xcode-select --install); o QR fica só na animação")
+            return False
+        os.makedirs(os.path.dirname(QR_BIN), exist_ok=True)
+        saida, cod = rodar(["swiftc", "-O", "-o", QR_BIN, QR_FONTE], timeout=600)
+        QR["ok"] = cod == 0 and os.path.exists(QR_BIN)
+        if not QR["ok"]:
+            relatar("QR por cima do projetor: a compilação falhou; o QR fica só na animação — " + saida[-160:])
+        return QR["ok"]
+
+
+def mostrar_qr(monitor, espelhar_h):
+    """Abre (ou mantem) o QR por cima do projetor. False quando nao da."""
+    if monitor == "janela" or not preparar_qr():
+        return False
+    args = [QR_BIN, "--tela", "" if monitor in (None, "auto") else str(monitor),
+            "--espelhar", "1" if espelhar_h else "0", "--img", QR_IMG,
+            "--texto", "visoesfilmes.com", "--pai", str(os.getpid())]
+    with QR_TRAVA:
+        p = QR["proc"]
+        if p and p.poll() is None and QR["args"] == args:
+            return True
+        if p and p.poll() is None:
+            p.terminate()
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)     # nenhum sobrando de antes
+        QR["proc"] = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QR["args"] = args
+    return True
+
+
+def esconder_qr():
+    with QR_TRAVA:
+        p = QR["proc"]
+        if p and p.poll() is None:
+            p.terminate()
+        QR["proc"] = QR["args"] = None
+    if MAC:
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)
+
+
 def oculos_na_cabeca(serial):
     if not serial:
         return None
@@ -782,6 +853,7 @@ def trocar_auto(quer):
         garantir_quiosque(m, e)
         with TRAVA:
             ESTADO["projecao"] = {"ativa": True, "saida": "pagina", "espelhar": bool(e), "monitor": m, "auto": True}
+        mostrar_qr(m, e)                               # o mesmo QR, no mesmo lugar, nos dois estados
         devolver_foco()
     else:
         if not quiosque_vivo():                        # a animacao por baixo, antes do espelho
@@ -795,6 +867,9 @@ def garantir_quiosque(m, e):
     antigo, o Chrome novo entregava o pedido ao que ainda estava saindo e fechava -- e o
     projetor ficava com o fundo de tela do Mac). Ate tres tentativas."""
     global PROJECAO, AUTO_QUIOSQUE
+    if (quiosque_vivo() and preparar_qr()
+            and rodar(["pgrep", "-f", "raizes-projecao-perfil.*qr=1"], timeout=5)[0].strip()):
+        fechar_quiosques()           # um quiosque de antes, com o QR dele: reabre sem (o QR vem por cima)
     for tentativa in range(3):
         if quiosque_vivo():
             time.sleep(2.5)                            # ficou mesmo?
@@ -862,9 +937,11 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
             return {"ok": False, "erro": "não achei Chrome nem Edge para abrir a projeção"}
         perfil = PERFIL_PROJ
         perfil_limpo()
-        # 26/09: o QR no canto, nenhum texto de operador, a animacao enchendo o projetor
+        # 26/09: o QR no canto, nenhum texto de operador, a animacao enchendo o projetor.
+        # Com o QR por cima de tudo (mostrar_qr), a pagina abre sem o dela.
+        qr_proprio = "0" if (not janela and preparar_qr()) else "1"
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
-               f"&qr=1&quiosque=1&musica=1&cabine=http://localhost:{PORTA_CABINE}")   # 26/09: e a trilha da obra nos fones
+               f"&qr={qr_proprio}&quiosque=1&musica=1&cabine=http://localhost:{PORTA_CABINE}")   # 26/09: e a trilha da obra nos fones
         # quiosque ocupa o monitor inteiro; a janela de teste e uma janela de
         # aplicativo (sem barra de endereco), do tamanho que se quiser
         modo = [f"--app={url}"] if janela else ["--kiosk", url]
@@ -938,6 +1015,11 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
         ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
                               "monitor": "janela de teste" if janela else alvo.get("nome"),
                               "auto": bool(por_auto and PROJ_AUTO["ativo"])}
+    # 26/09: o QR por cima de tudo no projetor (o espelho estabilizado desenha o dele)
+    if not janela and saida in ("pagina", "espelho"):
+        mostrar_qr(alvo.get("nome") or monitor, espelhar)
+    else:
+        esconder_qr()
     if not janela:
         devolver_foco()          # 26/09: avisos e notificacoes na tela do Mac, nao no projetor
     return {"ok": True}
@@ -1347,6 +1429,7 @@ def agir(nome, dados):
     elif nome == "parar_projecao":
         PROJ_AUTO["ativo"] = False
         fechar_quiosques()
+        esconder_qr()
         return parar_projecao()
     elif nome == "tela_cravar":
         return tela_js("raizes.tela.cravar()")
@@ -1474,6 +1557,7 @@ def encerrar_tudo():
     log("cabine encerrando")
     try:
         parar_projecao()
+        esconder_qr()
         luz_parar()
         if SERVIDOR_OBRA and SERVIDOR_OBRA.poll() is None:
             SERVIDOR_OBRA.terminate()
@@ -1710,6 +1794,9 @@ def main():
     # 26/09: nada da luz sobra de uma Cabine anterior; e fechar o Terminal (SIGHUP) ou um
     # kill (SIGTERM) encerram a luz e o espelho junto, em vez de deixa-los orfaos
     rodar(["pkill", "-f", "fontes/luz-segue-cena.mjs"], timeout=5)
+    if MAC:
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)                # o QR de uma Cabine anterior
+        threading.Thread(target=preparar_qr, daemon=True).start()      # compila ja, antes do Projetar
     import signal
     for sig in (signal.SIGHUP, signal.SIGTERM):
         try:
