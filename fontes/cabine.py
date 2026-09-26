@@ -848,7 +848,7 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
         perfil_limpo()
         # 26/09: o QR no canto, nenhum texto de operador, a animacao enchendo o projetor
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
-               f"&qr=1&quiosque=1&cabine=http://localhost:{PORTA_CABINE}")
+               f"&qr=1&quiosque=1&musica=1&cabine=http://localhost:{PORTA_CABINE}")   # 26/09: e a trilha da obra nos fones
         # quiosque ocupa o monitor inteiro; a janela de teste e uma janela de
         # aplicativo (sem barra de endereco), do tamanho que se quiser
         modo = [f"--app={url}"] if janela else ["--kiosk", url]
@@ -1463,6 +1463,9 @@ class Cabine(BaseHTTPRequestHandler):
         self.send_response(cod)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        # 26/09: a pagina da projecao (outra porta) le o tempo da obra para tocar a trilha;
+        # a Cabine so atende o proprio Mac (127.0.0.1)
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(corpo)))
         self.end_headers()
         self.wfile.write(corpo)

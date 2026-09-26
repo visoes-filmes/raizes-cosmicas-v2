@@ -172,11 +172,63 @@ function ligarCabine(){
 }
 ligarCabine();
 
+
+/* A MUSICA DO AMBIENTE -- 26/09: "tem fones tocando uma musica da animacao; queriamos que
+   fosse a musica do nosso ambiente virtual". Com ?musica=1 esta pagina (que fica sempre
+   aberta no projetor) toca a trilha da obra no Mac -- e sai onde os fones estiverem
+   ligados. As mesmas faixas e as mesmas janelas da obra: o laco principal o tempo todo,
+   que CEDE quando entram "planetas" (3:14 a 6:32 do roteiro) e "mar" (6:28 a 8:48), com
+   dez segundos de entrada e saida. O tempo do roteiro vem da Cabine (/estado, a cada 2 s,
+   o que ela le do oculos), andando no ritmo da obra entre uma leitura e outra. Sem
+   sessao (portao, fim, oculos fora), fica o laco principal. */
+const MUSICA = params.get('musica') === '1';
+const SOM = { t:null, ritmo:1, andando:false, ultimo:0, faixas:null, vol:{ base:0, planetas:0, mar:0 } };
+if(MUSICA){
+  const faixa = (src) => { const a = new Audio(src); a.loop = true; a.preload = 'auto'; a.volume = 0; return a; };
+  SOM.faixas = { base: faixa('./assets/audio/trilha-loop.mp3'),
+                 planetas: faixa('./assets/audio/trilha-2-planetas.mp3'),
+                 mar: faixa('./assets/audio/trilha-3-mar.mp3') };
+  const lerCabine = async () => {
+    try{
+      const e = await (await fetch(CABINE + '/estado', { cache:'no-store' })).json();
+      const o = e.obra && e.obra.aba && !e.obra.portao ? e.obra.onde : null;
+      if(o && o.andando && o.tempo){
+        const p = String(o.tempo).split(':').map(Number);
+        SOM.t = (p[0] || 0) * 60 + (p[1] || 0); SOM.ritmo = 10 / (o.min || 10); SOM.andando = true;
+      } else { SOM.andando = false; SOM.t = null; }
+    }catch(err){ SOM.andando = false; }
+  };
+  lerCabine(); setInterval(lerCabine, 2000);
+}
+const JANELAS_SOM = { planetas:[194, 392], mar:[388, 528] };
+function rampaSom(a, b, x){ return Math.max(0, Math.min(1, (x - a) / (b - a))); }
+function musica(dt){
+  if(!MUSICA || !SOM.faixas) return;
+  if(SOM.andando && SOM.t !== null) SOM.t += dt * SOM.ritmo;
+  const t = SOM.t, alvo = { planetas:0, mar:0 };
+  if(SOM.andando && t !== null)
+    for(const k in JANELAS_SOM){ const [de, ate] = JANELAS_SOM[k]; alvo[k] = rampaSom(de, de + 10, t) * (1 - rampaSom(ate - 10, ate, t)); }
+  alvo.base = 1 - Math.max(alvo.planetas, alvo.mar);
+  const k = 1 - Math.exp(-dt * 1.5);
+  for(const nome of ['base', 'planetas', 'mar']){
+    const a = SOM.faixas[nome];
+    if(alvo[nome] > 0.001 && a.paused){
+      // a faixa de um cenario entra do ponto em que a obra ja esta (a base, do comeco)
+      if(nome !== 'base' && t !== null && a.duration) a.currentTime = ((t - JANELAS_SOM[nome][0]) / SOM.ritmo) % a.duration;
+      const p = a.play(); if(p && p.catch) p.catch(() => {});
+    }
+    SOM.vol[nome] += (alvo[nome] - SOM.vol[nome]) * k;
+    a.volume = Math.max(0, Math.min(1, SOM.vol[nome] * 0.85));
+    if(alvo[nome] <= 0.001 && SOM.vol[nome] < 0.004 && !a.paused) a.pause();
+  }
+}
+
 /* O QUADRO: a tela ocupa o maior retangulo com o aspecto dela dentro da
    janela; o resto e preto (o projetor nao joga luz fora do tule). */
 function quadro(){
   const agora = performance.now(); const dt = Math.min(0.1, (agora - ultimoInstante) / 1000); ultimoInstante = agora;
   relogio += dt;
+  musica(dt);
   T.presenca += (T.alvo - T.presenca) * (1 - Math.exp(-dt * 1.2));
   if(T.videoOk && T.presenca > 0.01 && vid.paused) tocarVideo();
   if(T.presenca <= 0.01 && !vid.paused) vid.pause();
