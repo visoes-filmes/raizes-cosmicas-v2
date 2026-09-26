@@ -6029,6 +6029,43 @@ void main(){
     }
   }
 
+  /* O TAMANDUA DE OLHOS DE CARACOL -- 8.2. A parte na fase: 0 o corpo (a fracao vai
+     da cauda ao pescoco; e nela que corre a faixa diagonal escura de borda creme, a
+     marca do tamandua-bandeira), 1 a cauda (pontas acesas em turquesa), 2 a cabeca
+     e o focinho, 3 as pernas, 4 as hastes (luz turquesa), 5 os olhos (ambar, a
+     fracao e o raio a partir da pupila), 6 a lingua (rosa acesa). */
+  if(materia > 25.5 && materia < 26.5){
+    float parte = floor(vFase), fr = clamp(fract(vFase) / 0.98, 0.0, 1.0);
+    vec3 nT = normalize(vNor); vec3 verT = normalize(olhoPos - vMundo);
+    float luzT = 0.45 + 0.55 * max(0.0, dot(nT, normalize(vec3(0.3, 1.0, 0.4))));
+    float rimT = pow(1.0 - abs(dot(nT, verT)), 3.0);
+    vec3 rim = vec3(0.35, 0.90, 0.85) * rimT * 0.28;
+    float fio = 0.5 + 0.5 * sin(fr * 150.0 + rugas(vMundo * 22.0) * 6.0);
+    vec3 pelo = mix(vec3(0.19, 0.16, 0.29), vec3(0.44, 0.38, 0.55), clamp(vAlt, 0.0, 1.0)) * luzT * (0.85 + 0.25 * fio);
+    if(parte < 0.5){
+      float faixa = fr + (1.0 - clamp(vAlt, 0.0, 1.0)) * 0.35;
+      float nucleo = smoothstep(0.62, 0.66, faixa) * (1.0 - smoothstep(0.74, 0.78, faixa));
+      float creme = smoothstep(0.57, 0.61, faixa) * (1.0 - smoothstep(0.63, 0.66, faixa))
+                  + smoothstep(0.75, 0.78, faixa) * (1.0 - smoothstep(0.80, 0.84, faixa));
+      c = mix(pelo, vec3(0.05, 0.04, 0.08), nucleo);
+      c = mix(c, vec3(0.95, 0.88, 0.70) * luzT, creme * 0.85) + rim;
+    } else if(parte < 1.5){
+      c = pelo * 0.85 + vec3(0.30, 0.95, 0.85) * pow(fr, 3.0) * 0.45 + rim;
+    } else if(parte < 2.5){
+      c = mix(vec3(0.56, 0.50, 0.64), vec3(0.30, 0.26, 0.38), fr) * luzT * (0.9 + 0.15 * fio) + rim;
+    } else if(parte < 3.5){
+      c = pelo * 0.75 + vec3(0.95, 0.88, 0.70) * smoothstep(0.80, 0.90, 1.0 - clamp(vAlt, 0.0, 1.0)) * 0.3 * luzT + rim;
+    } else if(parte < 4.5){
+      c = vec3(0.30, 0.95, 0.85) * (0.65 + 0.55 * rimT + 0.25 * fr);
+    } else if(parte < 5.5){
+      vec3 ambar = mix(vec3(1.0, 0.80, 0.30), vec3(0.95, 0.45, 0.12), smoothstep(0.35, 0.9, fr));
+      c = mix(vec3(0.02, 0.02, 0.04), ambar, smoothstep(0.18, 0.26, fr));
+      c += vec3(1.0) * pow(max(0.0, dot(nT, verT)), 30.0) * 0.8;
+    } else {
+      c = vec3(1.0, 0.45, 0.70) * (0.75 + 0.45 * rimT);
+    }
+  }
+
   /* OS ARCOS D'AGUA -- 8.1. As formas de semicirculo da imagem da deusa (os
      portais e as ondas do papel): faixa azul que vai ao turquesa, borda de ouro,
      um fio lilas por dentro, uma fileira de pontos dourados no meio e o brilho
@@ -11254,6 +11291,274 @@ function montarArcos(){
   nArcosIdx = idx.length;
 }
 montarArcos();       // 8.1
+
+/* ═══════════ O TAMANDUA DE OLHOS DE CARACOL (8.2) ═══════════
+   26/09, a direcao de arte: "crie uma versao de um tamandua com olhos de caracol
+   que lambe cogumelos".
+
+   O CORPO: tamandua-bandeira estilizado na paleta da floresta -- pelo
+   violeta-acinzentado, a faixa diagonal escura com borda creme, focinho comprido
+   e fino, cauda grande e peluda com as pontas acesas em turquesa --, e no alto da
+   cabeca, em vez de olhos de tamandua, DUAS HASTES DE CARACOL luminosas com olhos
+   ambar na ponta, balancando. Uns 1,6 m do focinho a ponta da cauda. Malha feita
+   aqui, transformada na CPU a cada quadro (materia 26).
+
+   O QUE ELE FAZ: anda devagar pelo chao ate um cogumelo, para a um passo dele,
+   ergue o focinho e LAMBE o chapeu tres vezes com a lingua rosa comprida -- a cada
+   lambida o cogumelo muda de cor (a mesma pelicula do toque, pela metade) e ha um
+   estalinho. Depois escolhe outro cogumelo. Tocado, faz como caracol: RECOLHE os
+   olhos, para, e so volta a andar quando eles saem de novo. */
+const TAM = { ok:false, x:-1.3, z:1.0, yaw:0, alvo:-1, estado:'andando', ate:0, passo:0, cabeca:0,
+              lingua:0, linguaMax:0.3, lambidas:0, pico:false, recolhe:0, somEm:-9, n:0, lado:1, ladoDe:-2 };
+let bTam = null, nTamIdx = 0, tamLocal = null, tamNorLocal = null, tamGrupo = null, tamU = null, tamPos = null, tamNor = null;
+const TAM_PIVO = [0, 0.50, 0.40], TAM_BOCA = [0, 0.345, 0.965];
+const TAM_HASTE = [[-0.045, 0.555, 0.50, -0.075, 0.80, 0.60], [0.045, 0.555, 0.50, 0.075, 0.80, 0.60]];   // base e ponta
+function montarTamandua(){
+  if(!VIDA_NA_FLORESTA) return;
+  const V = [], N = [], ALT = [], FASE = [], IDX = [], GR = [], UU = [];
+  const vert = (p, n, alt, fase, gr, u) => { V.push(p[0], p[1], p[2]); N.push(n[0], n[1], n[2]); ALT.push(alt); FASE.push(fase); GR.push(gr); UU.push(u || 0); return V.length / 3 - 1; };
+  const elipsoide = (c, rx, ry, rz, la, lo, faseDe, gr, altDe) => {
+    const base = V.length / 3;
+    for(let i = 0; i <= la; i++){
+      const t = i / la * Math.PI, st = Math.sin(t), ct = Math.cos(t);
+      for(let j = 0; j <= lo; j++){
+        const f = j / lo * Math.PI * 2, sf = Math.sin(f), cf = Math.cos(f);
+        const p = [c[0] + rx * st * cf, c[1] + ry * ct, c[2] + rz * st * sf];
+        const n = [st * cf / rx, ct / ry, st * sf / rz]; const nn = Math.hypot(n[0], n[1], n[2]) || 1;
+        const nu = [n[0] / nn, n[1] / nn, n[2] / nn];
+        vert(p, nu, altDe ? altDe(p) : (ct + 1) / 2, faseDe(p, nu), gr);
+      }
+    }
+    for(let i = 0; i < la; i++) for(let j = 0; j < lo; j++){
+      const a = base + i * (lo + 1) + j, b = a + lo + 1;
+      IDX.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  };
+  // um tubo por uma curva: pts (u de 0 a 1), raio(u), fase(u)
+  const tubo = (curva, raio, lados, passos, faseDe, gr, uDe) => {
+    const base = V.length / 3;
+    for(let i = 0; i <= passos; i++){
+      const u = i / passos, c0 = curva(u), c1 = curva(Math.min(1, u + 0.01)), c_ = curva(Math.max(0, u - 0.01));
+      let T = [c1[0] - c_[0], c1[1] - c_[1], c1[2] - c_[2]]; const nT = Math.hypot(T[0], T[1], T[2]) || 1; T = T.map(v => v / nT);
+      let S = Math.abs(T[1]) < 0.9 ? [T[2], 0, -T[0]] : [1, 0, 0]; const nS = Math.hypot(S[0], S[1], S[2]) || 1; S = S.map(v => v / nS);
+      const Bv = [T[1]*S[2] - T[2]*S[1], T[2]*S[0] - T[0]*S[2], T[0]*S[1] - T[1]*S[0]];
+      const r = raio(u);
+      for(let k = 0; k <= lados; k++){
+        const a = k / lados * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const n = [S[0]*ca + Bv[0]*sa, S[1]*ca + Bv[1]*sa, S[2]*ca + Bv[2]*sa];
+        vert([c0[0] + n[0] * r, c0[1] + n[1] * r, c0[2] + n[2] * r], n, u, faseDe(u), gr, uDe ? uDe(u) : u);
+      }
+    }
+    for(let i = 0; i < passos; i++) for(let k = 0; k < lados; k++){
+      const a = base + i * (lados + 1) + k, b = a + lados + 1;
+      IDX.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  };
+  // o corpo (a fracao da fase vai da cauda, z -0,45, ao pescoco, z +0,45)
+  elipsoide([0, 0.44, 0], 0.16, 0.21, 0.45, 14, 20, (p) => 0.02 + Math.min(0.96, Math.max(0, (p[2] + 0.45) / 0.9) * 0.96), 0,
+            (p) => (p[1] - 0.23) / 0.42);
+  // a cabeca e o focinho: um tubo que afina e desce
+  tubo((u) => [0, 0.50 - 0.155 * u * u, 0.36 + 0.61 * u], (u) => 0.115 * (1 - u) + 0.022 * u, 12, 18, (u) => 2.02 + u * 0.96, 6);
+  // as orelhas, pequenas
+  for(const sx of [-1, 1]) elipsoide([sx * 0.07, 0.60, 0.40], 0.025, 0.04, 0.02, 4, 8, () => 2.02, 6);
+  // as pernas: frente esquerda, frente direita, tras esquerda, tras direita (grupos 1 a 4)
+  [[-0.10, 0.28], [0.10, 0.28], [-0.10, -0.28], [0.10, -0.28]].forEach(([px, pz], k) =>
+    elipsoide([px, 0.17, pz], 0.05, 0.18, 0.065, 6, 10, () => 3.02, 1 + k, (p) => p[1] / 0.35));
+  // a cauda peluda (grupo 5), erguida para tras
+  tubo((u) => [0, 0.48 + 0.10 * u, -0.40 - 0.58 * u], (u) => 0.05 + 0.20 * Math.sin(Math.PI * Math.min(1, u * 1.15)) * (1 - 0.3 * u), 12, 14,
+       (u) => 1.02 + u * 0.96, 5);
+  // as hastes de caracol (grupos 7 e 8) e os olhos (9 e 10)
+  TAM_HASTE.forEach((h, k) => {
+    tubo((u) => [h[0] + (h[3] - h[0]) * u, h[1] + (h[4] - h[1]) * u + 0.03 * Math.sin(u * Math.PI), h[2] + (h[5] - h[2]) * u],
+         (u) => 0.016 * (1 - 0.35 * u), 8, 8, (u) => 4.02 + u * 0.96, 7 + k);
+    const olho = [h[3], h[4], h[5]];
+    elipsoide(olho, 0.032, 0.032, 0.032, 8, 12, (p, n) => 5.02 + Math.min(0.96, Math.acos(Math.max(-1, Math.min(1, n[2]))) / Math.PI * 0.96), 9 + k);
+  });
+  // a lingua (grupo 11): um tubo unitario ao longo de z; o quadro a estica e aponta
+  tubo((u) => [0, 0, u], (u) => 0.009 * (1 - 0.5 * u) + 0.002, 6, 16, (u) => 6.02, 11);
+  tamLocal = new Float32Array(V); tamNorLocal = new Float32Array(N);
+  tamGrupo = new Uint8Array(GR); tamU = new Float32Array(UU);
+  tamPos = new Float32Array(V.length); tamNor = new Float32Array(N.length);
+  TAM.n = V.length / 3;
+  bTam = criarBufs(['pos', 'nor', 'alt', 'fase', 'idx']);
+  enviar(bTam.alt, ALT); enviar(bTam.fase, FASE);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTam.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(IDX), gl.STATIC_DRAW);
+  nTamIdx = IDX.length;
+  TAM.yaw = Math.atan2(1.3, -1.0);
+  TAM.ok = true;
+}
+function tamanduaProximoCogumelo(){
+  if(!COGUMELOS.length) return -1;
+  let melhor = -1, dMelhor = 1e9;
+  for(let k = 0; k < COGUMELOS.length; k++){
+    if(k === TAM.alvo) continue;
+    const cg = COGUMELOS[k];
+    // um cogumelo que peca caminhada: os vizinhos ele lambia sem sair do lugar
+    if(Math.hypot(cg.x - TAM.x, cg.z - TAM.z) < 1.9 && COGUMELOS.length > 3) continue;
+    // um pouco de acaso deterministico, para nao ir sempre ao mais perto
+    const d = Math.hypot(cg.x - TAM.x, cg.z - TAM.z) * (0.7 + 0.6 * (0.5 + 0.5 * Math.sin(k * 12.9898 + relogio * 0.37)));
+    if(d < dMelhor){ dMelhor = d; melhor = k; }
+  }
+  return melhor;
+}
+function estalinhoDeLingua(){
+  if(audio && audio.state !== 'running') acordarGestos();
+  if(!podeSoar()) return;
+  const t0 = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(520, t0); o.frequency.exponentialRampToValueAtTime(260, t0 + 0.09);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+  o.connect(g); g.connect(somMestre); o.start(t0); o.stop(t0 + 0.14);
+}
+function andarTamandua(dt){
+  const A = TAM;
+  if(!A.ok || vidaPresenca <= 0.004 || !COGUMELOS.length) return;
+  const T = relogio;
+  if(A.alvo < 0) A.alvo = tamanduaProximoCogumelo();
+  const cg = COGUMELOS[A.alvo];
+  // ── tocado: recolhe os olhos, como caracol ──
+  for(const m of MAOS){
+    if(!m.tem || A.estado === 'susto') continue;
+    const cy0 = Math.cos(A.yaw), sy0 = Math.sin(A.yaw);
+    const cabX = A.x + sy0 * 0.65, cabZ = A.z + cy0 * 0.65;
+    if(Math.hypot(cabX - m.x, 0.55 - m.y, cabZ - m.z) < 0.35 || Math.hypot(A.x - m.x, 0.45 - m.y, A.z - m.z) < 0.35){
+      A.estado = 'susto'; A.ate = T + 2.8; A.lingua = 0;
+      if(T - A.somEm > 1.5){ A.somEm = T; sinoDoToque(0, 0.45); relato('TOCOU-O-TAMANDUA'); }
+    }
+  }
+  const alvoRec = A.estado === 'susto' ? 1 : 0;
+  A.recolhe += (alvoRec - A.recolhe) * (1 - Math.exp(-dt * (alvoRec ? 9 : 1.5)));
+  let andando = 0, alvoCabeca = 0;
+  if(A.estado === 'susto'){
+    if(T > A.ate && A.recolhe < 0.4) A.estado = 'andando';
+  } else if(A.estado === 'andando' && cg){
+    /* o ponto de lamber: 1,3 m do cogumelo (o focinho, 0,97 m a frente, fica a uns
+       30 cm do pe e a lingua sobe ate a aba), NA LATERAL dele -- a direcao que sai
+       do centro da sala girada 75 graus para o lado de onde ele vem. Pelo lado de
+       dentro, ele parava em cima de quem esta no meio (visto na bancada). */
+    const o = ondeOOlhoEsta, rx = cg.x - o[0], rz = cg.z - o[2], rl = Math.hypot(rx, rz) || 1;
+    // o lado e decidido UMA vez por cogumelo: recalculado a cada passo, ele trocava no
+    // meio do caminho e o bicho ficava indo e voltando (visto na bancada)
+    if(A.ladoDe !== A.alvo){ A.lado = (rx * (A.z - cg.z) - rz * (A.x - cg.x)) > 0 ? -1 : 1; A.ladoDe = A.alvo; }
+    const ang = 1.31 * A.lado;
+    const dx = (rx * Math.cos(ang) - rz * Math.sin(ang)) / rl, dz = (rx * Math.sin(ang) + rz * Math.cos(ang)) / rl;
+    const px = cg.x + dx * 1.30, pz = cg.z + dz * 1.30;
+    let ex = px - A.x, ez = pz - A.z; const d = Math.hypot(ex, ez);
+    // e contorna quem esta no meio: perto de 0,9 m, o rumo desvia para fora
+    const vx = A.x - o[0], vz = A.z - o[2], vd = Math.hypot(vx, vz);
+    if(vd < 0.9 && d > 0.2){ const k = (0.9 - vd) / 0.9 * 1.5; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }
+    const yawAlvo = d > 0.06 ? Math.atan2(ex, ez) : Math.atan2(cg.x - A.x, cg.z - A.z);
+    let dy = yawAlvo - A.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
+    A.yaw += Math.max(-0.9 * dt, Math.min(0.9 * dt, dy));
+    if(d > 0.06){ if(Math.abs(dy) < 0.6){ A.x += Math.sin(A.yaw) * 0.16 * dt; A.z += Math.cos(A.yaw) * 0.16 * dt; andando = 1; } else andando = 0.35; }
+    else if(Math.abs(dy) < 0.08){ A.estado = 'lambendo'; A.ate = T + 4.8; A.lambidas = 0; A.pico = false; }
+  } else if(A.estado === 'lambendo' && cg){
+    alvoCabeca = 0.42;
+    const tl = 4.8 - (A.ate - T);
+    const ciclo = Math.max(0, (tl - 0.8) * 0.85);
+    const onda = ciclo < 3 ? Math.pow(Math.max(0, Math.sin(Math.PI * (ciclo % 1))), 1.4) : 0;
+    A.lingua = A.linguaMax * onda;
+    if(onda > 0.95 && !A.pico){ A.pico = true; A.lambidas++; cogPolenEm[A.alvo] = T; estalinhoDeLingua(); }
+    if(onda < 0.3) A.pico = false;
+    if(T > A.ate){ A.estado = 'andando'; A.lingua = 0; A.alvo = tamanduaProximoCogumelo(); }
+  }
+  if(A.estado !== 'lambendo') A.lingua += (0 - A.lingua) * (1 - Math.exp(-dt * 10));
+  A.cabeca += (alvoCabeca - A.cabeca) * (1 - Math.exp(-dt * 3));
+  A.passo += dt * 3.2 * andando;
+  // ── o corpo deste quadro ──
+  const cy = Math.cos(A.yaw), sy = Math.sin(A.yaw), cc = Math.cos(A.cabeca), sc = Math.sin(A.cabeca);
+  const L0 = tamLocal, NL = tamNorLocal, out = tamPos, outN = tamNor;
+  const cabecaRot = (p) => {                   // o focinho sobe em torno do pescoco
+    const dy = p[1] - TAM_PIVO[1], dz = p[2] - TAM_PIVO[2];
+    return [p[0], TAM_PIVO[1] + dy * cc + dz * sc, TAM_PIVO[2] - dy * sc + dz * cc];
+  };
+  const cabecaRotN = (n) => [n[0], n[1] * cc + n[2] * sc, -n[1] * sc + n[2] * cc];
+  const paraMundo = (p, k) => { out[k*3] = cy * p[0] + sy * p[2] + A.x; out[k*3+1] = p[1]; out[k*3+2] = -sy * p[0] + cy * p[2] + A.z; };
+  const paraMundoN = (n, k) => { outN[k*3] = cy * n[0] + sy * n[2]; outN[k*3+1] = n[1]; outN[k*3+2] = -sy * n[0] + cy * n[2]; };
+  // a haste: recolhida, encolhe ate um quarto; e balanca
+  const ret = 1 - 0.75 * A.recolhe;
+  const pontaHaste = TAM_HASTE.map((h, k) => {
+    const sw = Math.sin(T * 1.9 + k * 1.3) * 0.03 * (1 - A.recolhe), sw2 = Math.cos(T * 1.5 + k) * 0.02 * (1 - A.recolhe);
+    return [h[0] + (h[3] - h[0]) * ret + sw, h[1] + (h[4] - h[1]) * ret, h[2] + (h[5] - h[2]) * ret + sw2];
+  });
+  // a boca no mundo e para onde a lingua aponta
+  const bocaL = cabecaRot(TAM_BOCA);
+  const bocaW = [cy * bocaL[0] + sy * bocaL[2] + A.x, bocaL[1], -sy * bocaL[0] + cy * bocaL[2] + A.z];
+  let Dl = [sy * cc, sc * 0.4, cy * cc];
+  if(cg){
+    const ph = cg.y || 0, capY = ph + cg.alt * 0.82;
+    let hx = bocaW[0] - cg.x, hz = bocaW[2] - cg.z; const hl = Math.hypot(hx, hz) || 1;
+    const alvoL = [cg.x + hx / hl * cg.alt * 0.28, capY, cg.z + hz / hl * cg.alt * 0.28];
+    const dl = [alvoL[0] - bocaW[0], alvoL[1] - bocaW[1], alvoL[2] - bocaW[2]], ll = Math.hypot(dl[0], dl[1], dl[2]) || 1;
+    if(A.estado === 'lambendo'){ Dl = dl.map(v => v / ll); A.linguaMax = Math.min(0.7, ll + 0.03); }
+  }
+  let Sl = [Dl[2], 0, -Dl[0]]; const nsl = Math.hypot(Sl[0], Sl[2]) || 1; Sl = [Sl[0] / nsl, 0, Sl[2] / nsl];
+  const Ul = [Sl[1]*Dl[2] - Sl[2]*Dl[1], Sl[2]*Dl[0] - Sl[0]*Dl[2], Sl[0]*Dl[1] - Sl[1]*Dl[0]];
+  const Lg = Math.max(0.001, A.lingua), fechada = A.lingua < 0.01 ? 0 : 1;
+  for(let i = 0; i < A.n; i++){
+    let p = [L0[i*3], L0[i*3+1], L0[i*3+2]], n = [NL[i*3], NL[i*3+1], NL[i*3+2]];
+    const g = tamGrupo[i], u = tamU[i];
+    if(g === 11){
+      // a lingua: direto no mundo, da boca ao chapeu, com um tremor que corre
+      const tre = Math.sin(u * 9 - T * 22) * 0.012 * u * fechada;
+      const rx = p[0] * fechada, ry = p[1] * fechada;
+      for(let c = 0; c < 3; c++){
+        out[i*3+c] = bocaW[c] + Dl[c] * (u * Lg) + Sl[c] * (rx + tre) + Ul[c] * ry;
+        outN[i*3+c] = Sl[c] * n[0] + Ul[c] * n[1] + Dl[c] * n[2];
+      }
+      continue;
+    }
+    if(g >= 1 && g <= 4){                                   // as pernas, diagonais juntas
+      const fase = (g === 1 || g === 4) ? 0 : Math.PI;
+      const sobe = p[1] / 0.35;
+      p[2] += Math.sin(A.passo + fase) * 0.07 * (1 - sobe) * andando;
+      p[1] += Math.max(0, Math.cos(A.passo + fase)) * 0.025 * (1 - sobe) * andando;
+    } else if(g === 5){                                     // a cauda balanca
+      const q = Math.max(0, (-p[2] - 0.40) / 0.58);
+      p[0] += Math.sin(T * 1.2) * 0.07 * q; p[1] += Math.sin(T * 0.8 + 1) * 0.02 * q;
+    } else if(g === 7 || g === 8 || g === 9 || g === 10){   // hastes e olhos
+      const k = (g === 7 || g === 9) ? 0 : 1, h = TAM_HASTE[k];
+      if(g <= 8){
+        const t = u;                                        // a haste: da base a ponta deformada
+        const bx = h[0] + (pontaHaste[k][0] - h[0]) * t, by = h[1] + (pontaHaste[k][1] - h[1]) * t, bz = h[2] + (pontaHaste[k][2] - h[2]) * t;
+        const cx0 = h[0] + (h[3] - h[0]) * t, cy0 = h[1] + (h[4] - h[1]) * t + 0.03 * Math.sin(t * Math.PI), cz0 = h[2] + (h[5] - h[2]) * t;
+        p = [bx + (p[0] - cx0), by + (p[1] - cy0) + 0.03 * Math.sin(t * Math.PI) * ret, bz + (p[2] - cz0)];
+      } else {
+        const s = 1 - 0.3 * A.recolhe;
+        p = [pontaHaste[k][0] + (p[0] - h[3]) * s, pontaHaste[k][1] + (p[1] - h[4]) * s, pontaHaste[k][2] + (p[2] - h[5]) * s];
+      }
+    }
+    if(g === 6 || (g >= 7 && g <= 10)){ p = cabecaRot(p); n = cabecaRotN(n); }
+    paraMundo(p, i); paraMundoN(n, i);
+  }
+  enviar(bTam.pos, out); enviar(bTam.nor, outN);
+}
+function desenharTamandua(){
+  if(!TAM.ok || !bTam || vidaPresenca <= 0.004) return;
+  gl.useProgram(progSolida); soltarAtributos();
+  gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+  bordaCheia();
+  gl.uniform1f(locSo.tempo, relogio);
+  gl.uniform3f(locSo.olhoPos, ondeOOlhoEsta[0], ondeOOlhoEsta[1], ondeOOlhoEsta[2]);
+  gl.uniform1f(locSo.inverte, 0.0);
+  gl.uniform3f(locSo.desloca, 0, 0, 0);
+  gl.uniform1f(locSo.brota, 0.0);
+  gl.uniform1f(locSo.ondula, 0.0);
+  gl.uniform1f(locSo.bolha, 0.0);
+  gl.uniform1f(locSo.balanca, 0.0);
+  gl.uniform1f(locSo.ondulaMao, 0.0);
+  gl.uniform1f(locSo.materia, 26.0);
+  gl.uniform1f(locSo.crescimento, 9.0);
+  gl.uniform1f(locSo.presenca, vidaPresenca);
+  ligar(aSo.pos, bTam.pos, 3); ligar(aSo.nor, bTam.nor, 3);
+  ligar(aSo.alt, bTam.alt, 1); ligar(aSo.fase, bTam.fase, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTam.idx);
+  gl.drawElements(gl.TRIANGLES, nTamIdx, gl.UNSIGNED_SHORT, 0);
+  gl.uniform1f(locSo.brota, 1.0); gl.uniform1f(locSo.balanca, 1.0);
+  gl.uniform1f(locSo.materia, 0.0);
+  gl.enable(gl.CULL_FACE);
+}
+montarTamandua();    // 8.2
 montarVida();        // 7.4: depende dos troncos (semearMata) e dos cogumelos
 montarTartaruga();   // 7.7
 montarEfeitoDasMaos();   // 7.7
@@ -12444,6 +12749,8 @@ function alvosAgora(){
                              relato('TOCOU-UM-COGUMELO ' + i); } });
     });
   }
+  if(VIDA_NA_FLORESTA && TAM.ok && vidaPresenca > 0.3)
+    lista.push({ id:'tamandua', nota:0, px:TAM.x + Math.sin(TAM.yaw) * 0.6, py:0.55, pz:TAM.z + Math.cos(TAM.yaw) * 0.6, praio:0.30, x:TAM.x, y:-99, z:TAM.z, raio:0.0, fazer(){} });   // 8.2: so o chamado
   if(VIDA_NA_FLORESTA && TARTA.ok && vidaPresenca > 0.3)
     lista.push({ id:'tartaruga', nota:1, px:TARTA.x, py:TARTA.y + 0.1, pz:TARTA.z, praio:0.30, x:TARTA.x, y:-99, z:TARTA.z, raio:0.0, fazer(){} });   // 7.7: so o chamado
   if(VIDA_NA_FLORESTA && CORUJA.ok && vidaPresenca > 0.3)
@@ -13874,6 +14181,7 @@ if(emTesteLocal){
     // 7.7: uma parede de mentira, para ver as plantas de parede na bancada
     paredeDeTeste(x, z, ax, az){ SALA.paredes.push({ y:1.5, cx:x, cz:z, poly:[], rotulo:'wall', pts3:[x - ax*1.5, 0, z - az*1.5, x + ax*1.5, 0, z + az*1.5, x + ax*1.5, 2.5, z + az*1.5] });
       const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
+    tamandua(){ return { x:+TAM.x.toFixed(2), z:+TAM.z.toFixed(2), yaw:+TAM.yaw.toFixed(2), estado:TAM.estado, alvo:TAM.alvo, lingua:+TAM.lingua.toFixed(2), lambidas:TAM.lambidas, recolhe:+TAM.recolhe.toFixed(2) }; },
     tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
     arcos(){ return { ok:!!bArcos, triangulos:nArcosIdx / 3, presenca:+arcosPresenca.toFixed(2) }; },
     gigante(){ let topo = -1e9; if(gigPos) for(let v = 0; v < dancaN; v += 97) topo = Math.max(topo, gigPos[v*3+1]);
@@ -15777,7 +16085,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       desenharCogumelos();
     /* A VIDA MIUDA (7.4): as folhas padronadas (solidas) e os pontos vivos, depois
        de tudo o que e solido aqui -- os pontos testam profundidade e nao a escrevem. */
-    if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharTartaruga(); desenharCoruja(); desenharVida(mvp, escalaPonto); }
+    if(VIDA_NA_FLORESTA && vidaPresenca > 0.004){ desenharFolhasPadronadas(); desenharTartaruga(); desenharTamandua(); desenharCoruja(); desenharVida(mvp, escalaPonto); }
 
     /* A CRISALIDA. Duas cascas: a de dentro, menor, SOMA LUZ e e o que
        pulsa; a de fora e translucida e cobre. Nenhuma escreve
@@ -17635,6 +17943,7 @@ function quadro(){
   andarVida(dt);   // 7.4
   andarCoruja(dt); // 7.5
   andarTartaruga(dt);   // 7.7
+  andarTamandua(dt);    // 8.2
   andarEfeitoDasMaos(dt);   // 7.7
   maoDoCelular(dt);    // 7.0: o dedo vira a mao
   conferirToque(dt);   // na tela so ha mao se a bancada puser uma
@@ -17727,6 +18036,7 @@ function quadroXR(t, frame){
   andarVida(dt);   // 7.4
   andarCoruja(dt); // 7.5
   andarTartaruga(dt);   // 7.7
+  andarTamandua(dt);    // 8.2
   andarEfeitoDasMaos(dt);   // 7.7
   medirAgitacao(dt, [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z]);
   /* O PRIMEIRO QUADRO CONTA O QUE ENCONTROU. Uma vez so: dentro do
