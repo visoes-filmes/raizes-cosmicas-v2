@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 7.9</title>
+<title>Raízes Cósmicas 8.0</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -294,7 +294,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 7.9</h1>
+  <h1>Raízes Cósmicas 8.0</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -306,7 +306,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>7.9</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>8.0</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -3461,8 +3461,9 @@ function montarADeusaQueDanca(){
 /* as juntas deste instante: dois quadros interpolados (posicao linear,
    quaternio nlerp), na altura do modelo, giradas para encarar quem entra */
 const qA = new Float32Array(4), qB = new Float32Array(4), pA = new Float32Array(3), pB = new Float32Array(3);
-function lerADanca(){
+function lerADanca(tempo, juntas, quat){
   if(!DANCA.ok) return;
+  if(tempo === undefined){ tempo = relogio; juntas = dancaJuntas; quat = dancaQuat; }   // a dancarina, como sempre
   /* VAI E VOLTA -- 25/09 (7.3): "quando terminar, faca ela fazer a danca de
      tras pra frente, batendo e voltando". A captura nao fecha em laco (a
      bailarina termina longe de onde comecou), e o salto do fim para o
@@ -3470,22 +3471,23 @@ function lerADanca(){
      periodo e o dobro, e na volta os mesmos dois quadros se interpolam ao
      contrario -- nao ha emenda em lugar nenhum. */
   const volta = 2 * (DANCA.n - 1);
-  let f = (relogio * DANCA.fps) % volta;
+  let f = (tempo * DANCA.fps) % volta;
   if(f > DANCA.n - 1) f = volta - f;
   const k0 = Math.floor(f), k1 = Math.min(k0 + 1, DANCA.n - 1), u = f - k0;
-  DANCA.quadro = k0;
+  if(juntas === dancaJuntas) DANCA.quadro = k0;
   const esc = 1 / (DANCA.altura * 1000), nj = DANCA.nj, P = DANCA.pos, por = DANCA.por;
   for(let j = 0; j < nj; j++){
     const a = (k0 * nj + j) * por, b = (k1 * nj + j) * por;
-    dancaJuntas[j*3]   = (P[a]   + (P[b]   - P[a])   * u) * esc;
-    dancaJuntas[j*3+1] = (P[a+1] + (P[b+1] - P[a+1]) * u) * esc;
-    dancaJuntas[j*3+2] = (P[a+2] + (P[b+2] - P[a+2]) * u) * esc;
+    juntas[j*3]   = (P[a]   + (P[b]   - P[a])   * u) * esc;
+    juntas[j*3+1] = (P[a+1] + (P[b+1] - P[a+1]) * u) * esc;
+    juntas[j*3+2] = (P[a+2] + (P[b+2] - P[a+2]) * u) * esc;
     let x = P[a+3], y = P[a+4], z = P[a+5], w = P[a+6], x2 = P[b+3], y2 = P[b+4], z2 = P[b+5], w2 = P[b+6];
     if(x*x2 + y*y2 + z*z2 + w*w2 < 0){ x2 = -x2; y2 = -y2; z2 = -z2; w2 = -w2; }
     x += (x2 - x) * u; y += (y2 - y) * u; z += (z2 - z) * u; w += (w2 - w) * u;
     const L = Math.hypot(x, y, z, w) || 1;
-    dancaQuat[j*4] = x / L; dancaQuat[j*4+1] = y / L; dancaQuat[j*4+2] = z / L; dancaQuat[j*4+3] = w / L;
+    quat[j*4] = x / L; quat[j*4+1] = y / L; quat[j*4+2] = z / L; quat[j*4+3] = w / L;
   }
+  if(juntas !== dancaJuntas) return;   // a gigante nao tem peito para o toque
   // o peito no mundo, para o toque
   const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), ip = DANCA.i.chest * 3;
   const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
@@ -3494,26 +3496,41 @@ function lerADanca(){
 }
 // a matriz de cada osso (rotacao de agora x inversa da de descanso, depois o giro e a escala), e o corpo
 function fazerOCorpoQueDanca(){
-  const yaw = Math.PI - DANCA_AZ, cy = Math.cos(yaw), sy = Math.sin(yaw), S = DANCA_ALTURA;
   const cx = Math.sin(DANCA_AZ) * DANCA_DIST, cz = -Math.cos(DANCA_AZ) * DANCA_DIST;
+  vestirCorpo(dancaJuntas, dancaQuat, Math.PI - DANCA_AZ, DANCA_ALTURA, cx, DANCA_PE, cz, 0, dancaPos, dancaNor, bDanca);
+}
+/* A MESMA PELE PARA DOIS CORPOS (8.0): a dancarina e a gigante. As juntas e os
+   quaternios de agora, o yaw (para onde o corpo olha), a escala, onde fica o pe,
+   e quanto a CABECA inclina para baixo por cima da captura -- e o que faz a
+   gigante olhar para quem esta la embaixo. */
+function vestirCorpo(juntas, quat, yaw, S, cx, cyBase, cz, cabecaBaixa, outPos, outNor, buf){
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(cabecaBaixa), sp = Math.sin(cabecaBaixa);
   for(let k = 0; k < DANCA_OSSOS.length; k++){
     const j = DANCA.i[DANCA_OSSOS[k][0]];
     // r = q_agora * conj(q_descanso)
-    const ax = dancaQuat[j*4], ay = dancaQuat[j*4+1], az = dancaQuat[j*4+2], aw = dancaQuat[j*4+3];
+    const ax = quat[j*4], ay = quat[j*4+1], az = quat[j*4+2], aw = quat[j*4+3];
     const bx = -dancaBindQuat[j*4], by = -dancaBindQuat[j*4+1], bz = -dancaBindQuat[j*4+2], bw = dancaBindQuat[j*4+3];
     const x = ax*bw + aw*bx + ay*bz - az*by, y = ay*bw + aw*by + az*bx - ax*bz, z = az*bw + aw*bz + ax*by - ay*bx, w = aw*bw - ax*bx - ay*by - az*bz;
     // 3x3 do quaternio
-    const m00 = 1 - 2*(y*y + z*z), m01 = 2*(x*y - w*z), m02 = 2*(x*z + w*y);
-    const m10 = 2*(x*y + w*z), m11 = 1 - 2*(x*x + z*z), m12 = 2*(y*z - w*x);
-    const m20 = 2*(x*z - w*y), m21 = 2*(y*z + w*x), m22 = 1 - 2*(x*x + y*y);
+    let m00 = 1 - 2*(y*y + z*z), m01 = 2*(x*y - w*z), m02 = 2*(x*z + w*y);
+    let m10 = 2*(x*y + w*z), m11 = 1 - 2*(x*x + z*z), m12 = 2*(y*z - w*x);
+    let m20 = 2*(x*z - w*y), m21 = 2*(y*z + w*x), m22 = 1 - 2*(x*x + y*y);
+    /* a cabeca (o osso pescoco->cabeca) inclina em torno do eixo lateral do corpo
+       (x do modelo): Rx(cabecaBaixa) * m, so nesse osso; negativo e para a frente */
+    if(cabecaBaixa !== 0 && DANCA_OSSOS[k][0] === 'neck'){
+      const n10 = cp*m10 - sp*m20, n11 = cp*m11 - sp*m21, n12 = cp*m12 - sp*m22;
+      const n20 = sp*m10 + cp*m20, n21 = sp*m11 + cp*m21, n22 = sp*m12 + cp*m22;
+      m10 = n10; m11 = n11; m12 = n12; m20 = n20; m21 = n21; m22 = n22;
+    }
     // Ry(yaw) * m, vezes a escala
     const o = k * 12;
     dancaMat[o]   = (cy*m00 + sy*m20) * S; dancaMat[o+1] = (cy*m01 + sy*m21) * S; dancaMat[o+2] = (cy*m02 + sy*m22) * S;
     dancaMat[o+3] = m10 * S;               dancaMat[o+4] = m11 * S;               dancaMat[o+5] = m12 * S;
     dancaMat[o+6] = (-sy*m00 + cy*m20) * S; dancaMat[o+7] = (-sy*m01 + cy*m21) * S; dancaMat[o+8] = (-sy*m02 + cy*m22) * S;
     // a translacao: a junta de agora no mundo
-    const px = dancaJuntas[j*3] * S, py = dancaJuntas[j*3+1] * S, pz = dancaJuntas[j*3+2] * S;
-    dancaMat[o+9] = cx + px * cy + pz * sy; dancaMat[o+10] = DANCA_PE + py; dancaMat[o+11] = cz - px * sy + pz * cy;
+    const px = juntas[j*3] * S, py = juntas[j*3+1] * S, pz = juntas[j*3+2] * S;
+    dancaMat[o+9] = cx + px * cy + pz * sy; dancaMat[o+10] = cyBase + py; dancaMat[o+11] = cz - px * sy + pz * cy;
   }
   for(let v = 0; v < dancaN; v++){
     let X = 0, Y = 0, Z = 0, NX = 0, NY = 0, NZ = 0;
@@ -3531,12 +3548,58 @@ function fazerOCorpoQueDanca(){
       NY += wgt * (dancaMat[o+3]*nx + dancaMat[o+4]*ny + dancaMat[o+5]*nz);
       NZ += wgt * (dancaMat[o+6]*nx + dancaMat[o+7]*ny + dancaMat[o+8]*nz);
     }
-    dancaPos[v*3] = X; dancaPos[v*3+1] = Y; dancaPos[v*3+2] = Z;
+    outPos[v*3] = X; outPos[v*3+1] = Y; outPos[v*3+2] = Z;
     const L = Math.hypot(NX, NY, NZ) || 1;
-    dancaNor[v*3] = NX / L; dancaNor[v*3+1] = NY / L; dancaNor[v*3+2] = NZ / L;
+    outNor[v*3] = NX / L; outNor[v*3+1] = NY / L; outNor[v*3+2] = NZ / L;
   }
-  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.pos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaPos);
-  gl.bindBuffer(gl.ARRAY_BUFFER, bDanca.nor); gl.bufferSubData(gl.ARRAY_BUFFER, 0, dancaNor);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf.pos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, outPos);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf.nor); gl.bufferSubData(gl.ARRAY_BUFFER, 0, outNor);
+}
+
+/* ═══════════ A GIGANTE VIVA (8.0) ═══════════
+   26/09, a direcao de arte: "a deusa gigante precisa ficar virada para o usuario,
+   e a cabeca tem que mexer -- voce tem o tracking do corpo dela, nao tem?". Tem:
+   a mesma captura da dancarina, na mesma pele por proximidade, so que a UM
+   QUINTO da velocidade (um colosso nao danca, ondula), 55 vezes maior (o alto da
+   cabeca a uns 62 m), no lugar do ser camuflado de antes e com a mesma deriva.
+   O corpo VIRA para a pessoa (yaw lento para onde ela esta) e a cabeca, por cima
+   da captura, inclina para olhar quem esta la embaixo. O desenho e o de sempre
+   (materia 13, camuflada no ceu do cenario); so os vertices mudam por quadro. */
+const GIG = { ok:false, S:55, x:-19.5, y:3.0, z:-41.6, yaw:0, cabeca:0 };
+const gigJuntas = new Float32Array(21 * 3), gigQuat = new Float32Array(21 * 4);
+let gigPos = null, gigNor = null, bGig = null;
+function montarAGigante(){
+  if(!DANCA.ok || !bDanca || !dancaN) return;
+  const alt = new Float32Array(dancaN), fase = new Float32Array(dancaN), borda = new Float32Array(dancaN);
+  const macio = (t) => { const u = Math.min(1, Math.max(0, t)); return u*u*(3 - 2*u); };
+  for(let v = 0; v < dancaN; v++){
+    const x = dancaRest[v*3], y = dancaRest[v*3+1], z = dancaRest[v*3+2];
+    alt[v] = y;
+    // a camuflagem de antes: inteira no tronco e no alto, quase nada nas pontas
+    const acima = macio((y - 0.30) / 0.32), meio = 1 - macio((Math.hypot(x, z) - 0.10) / 0.18);
+    borda[v] = 0.05 + 0.95 * acima * meio;
+  }
+  gigPos = new Float32Array(dancaN * 3); gigNor = new Float32Array(dancaN * 3);
+  bGig = criarBufs(['pos','nor','alt','fase','borda']);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bGig.pos); gl.bufferData(gl.ARRAY_BUFFER, gigPos, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bGig.nor); gl.bufferData(gl.ARRAY_BUFFER, gigNor, gl.DYNAMIC_DRAW);
+  enviar(bGig.alt, alt); enviar(bGig.fase, fase); enviar(bGig.borda, borda);
+  GIG.yaw = Math.PI - Math.atan2(GIG.x, -GIG.z);
+  GIG.ok = true;
+}
+function andarAGigante(dt){
+  if(!GIG.ok) return;
+  lerADanca(relogio * 0.2, gigJuntas, gigQuat);
+  const o = ondeOOlhoEsta;
+  // o corpo vira para a pessoa: o yaw que a faz encarar o ponto onde a pessoa esta
+  const yawAlvo = Math.PI - Math.atan2(GIG.x - o[0], -(GIG.z - o[2]));
+  let dy = yawAlvo - GIG.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
+  GIG.yaw += dy * (1 - Math.exp(-dt * 0.6));
+  // a cabeca olha para baixo, para a pessoa: do alto (S m) ate o olho dela, a 70 % do angulo
+  const d = Math.hypot(GIG.x - o[0], GIG.z - o[2]);
+  const alvoCab = Math.max(-0.55, Math.min(0.15, -Math.atan2(GIG.S * 0.95 - o[1], d) * 0.7));
+  GIG.cabeca += (alvoCab - GIG.cabeca) * (1 - Math.exp(-dt * 0.8));
+  vestirCorpo(gigJuntas, gigQuat, GIG.yaw, GIG.S, GIG.x, GIG.y, GIG.z, GIG.cabeca, gigPos, gigNor, bGig);
 }
 
 /* ═══════════ O SER DE VIDRO ═══════════
@@ -10944,6 +11007,7 @@ montarSeres();       // depende so das malhas, que ja estao carregadas
 montarFundoDoMar();  // idem, e depende de NIVEL_AGUA, que ja existe
 montarSeresDeLuz();  // 6.3
 if(DEUSA_QUE_DANCA) montarADeusaQueDanca();   // 7.1
+if(DEUSA_QUE_DANCA && SER_NO_CEU) montarAGigante();   // 8.0: a gigante com a mesma pele
 montarHorizonteSolido();   // idem
 montarSerDeVidro();
 montarSerpentes();
@@ -12873,6 +12937,7 @@ function seguirPartitura(dt){
   // 7.1: a deusa que danca vem com a floresta feita e vai com ela
   DANCA.presenca = (DEUSA_QUE_DANCA && DANCA.ok && c === 1) ? rampa(40, 54, t) * (1 - rampa(186, 196, t)) : 0;
   if(DANCA.presenca > 0.004) lerADanca();
+  if(GIG.ok && SER_NO_CEU) andarAGigante(dt);   // 8.0
 
   /* A suavizacao tem que valer o mesmo em qualquer maquina. Multiplicar
      por dt parece resolver, mas nao resolve: a fracao que falta encolhe
@@ -13554,6 +13619,8 @@ if(emTesteLocal){
     paredeDeTeste(x, z, ax, az){ SALA.paredes.push({ y:1.5, cx:x, cz:z, poly:[], rotulo:'wall', pts3:[x - ax*1.5, 0, z - az*1.5, x + ax*1.5, 0, z + az*1.5, x + ax*1.5, 2.5, z + az*1.5] });
       const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
     tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
+    gigante(){ let topo = -1e9; if(gigPos) for(let v = 0; v < dancaN; v += 97) topo = Math.max(topo, gigPos[v*3+1]);
+      return { ok:GIG.ok, yaw:+GIG.yaw.toFixed(2), cabeca:+GIG.cabeca.toFixed(2), topo:+topo.toFixed(1) }; },
     coruja(estado){ if(estado){ CORUJA.estado = estado; CORUJA.ate = relogio + 8; } return { estado:CORUJA.estado, x:+CORUJA.x.toFixed(2), y:+CORUJA.y.toFixed(2), z:+CORUJA.z.toFixed(2), yaw:+CORUJA.yaw.toFixed(2), poleiro:CORUJA.poleiro, poleiros:POLEIROS.map(p => p.map(v => +v.toFixed(2))) }; },
     /* a prova da pele (7.2): cada osso, levado pela propria matriz, tem de cair
        na junta filha de agora; e o centro da malha tem de estar perto do peito */
@@ -15796,7 +15863,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          RESPIRA PELA NORMAL. O inflar empurra cada vertice na direcao da
          propria normal, e oito centimetros num corpo de vinte e seis metros
          e um sopro -- a unica coisa que o entrega alem da borda. */
-      if(SER_NO_CEU && bAlien && nAlienIdx){
+      if(SER_NO_CEU && (GIG.ok || (bAlien && nAlienIdx))){
         gl.useProgram(progSolida);
         soltarAtributos();
         gl.enable(gl.BLEND);
@@ -15844,17 +15911,19 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
         /* MEIO METRO DE ONDULACAO. Num corpo de vinte e seis metros e dois
            por cento -- perto do que o proprio ar faz com uma arvore --, e a
            quase quarenta metros de distancia sao poucos pixels por minuto. */
-        gl.uniform1f(locSo.ondula, 2.2);   // 6.3: dois metros nos bracos, e nao meio
+        gl.uniform1f(locSo.ondula, GIG.ok ? 0.35 : 2.2);   // 6.3: dois metros nos bracos; 8.0: com a captura viva, so um respiro
         gl.uniform1f(locSo.materia, 13.0);
         gl.uniform1f(locSo.aspectoCeu, ASPECTO_CEU[ceuA] || 1.7778);
         gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
         gl.uniform1i(locSo.casca, 2);
-        ligar(aSo.pos, bAlien.pos, 3); ligar(aSo.nor, bAlien.nor, 3);
-        ligar(aSo.alt, bAlien.alt, 1); ligar(aSo.fase, bAlien.fase, 1);
-        ligar(aSo.borda, bAlien.borda, 1);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bAlien.idx);
+        // 8.0: com a gigante viva, os vertices dela e os indices da dancarina (a mesma malha)
+        const bG = GIG.ok ? bGig : bAlien, nG = GIG.ok ? nDancaIdx : nAlienIdx;
+        ligar(aSo.pos, bG.pos, 3); ligar(aSo.nor, bG.nor, 3);
+        ligar(aSo.alt, bG.alt, 1); ligar(aSo.fase, bG.fase, 1);
+        ligar(aSo.borda, bG.borda, 1);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, GIG.ok ? bDanca.idx : bAlien.idx);
         /* UMA DEMAO SO -- 25/09 (6.3). As manchas escuras e poligonais que
            se viam nele no espelho do oculos eram as DOBRAS: o corpo e
            translucido, e onde um braco passa na frente do tronco a tinta do
@@ -15870,12 +15939,12 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
           gl.stencilFunc(gl.NOTEQUAL, 0x80, 0x80);
           gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
         }
-        gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.TRIANGLES, nG, gl.UNSIGNED_SHORT, 0);
         if(umaDemao){
           gl.colorMask(false, false, false, false);
           gl.stencilFunc(gl.ALWAYS, 0, 0x80);
           gl.stencilOp(gl.KEEP, gl.KEEP, gl.ZERO);
-          gl.drawElements(gl.TRIANGLES, nAlienIdx, gl.UNSIGNED_SHORT, 0);
+          gl.drawElements(gl.TRIANGLES, nG, gl.UNSIGNED_SHORT, 0);
           gl.colorMask(true, true, true, true);
           gl.stencilMask(0xFF);
           gl.disable(gl.STENCIL_TEST);
