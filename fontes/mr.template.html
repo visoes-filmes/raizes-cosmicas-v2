@@ -306,7 +306,7 @@
 <div id="portao">
   <div class="portao-caixa">
     <h1 class="portao-nome">Raízes Cósmicas <em>v2</em></h1>
-    <p class="portao-sub">Visões Filmes · seis minutos</p>
+    <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
     <p class="portao-dica" id="portaoDica">carregando as imagens…</p>
@@ -9233,9 +9233,9 @@ function relatarTex(){
     b.disabled = false;
   }else if(texProntas >= TEX_TOTAL){
     d.textContent = CELULAR
-      ? 'Aponte o celular pela sala e toque nas coisas: os seis minutos correm sozinhos a partir daqui. '
+      ? 'Aponte o celular pela sala e toque nas coisas: os dez minutos correm sozinhos a partir daqui. '
         + 'Ele vai pedir a câmera e o movimento.'
-      : 'Ponha o capacete antes de iniciar: os seis minutos correm sozinhos a partir daqui.';
+      : 'Ponha o capacete antes de iniciar: os dez minutos correm sozinhos a partir daqui.';
     b.disabled = false;
   }else{
     d.textContent = 'carregando as imagens…  ' + texProntas + ' de ' + TEX_TOTAL;
@@ -9778,7 +9778,7 @@ const DURACAO = 600;          // a partitura, em segundos DE ROTEIRO: tudo abaix
    movimento de verdade (o relogio, as ondas, os seres, a fisica dos
    planetas) le "relogio" e "dt", que sao reais, e nao acelera. A travessia
    entre cenarios e o tempo da frase final ficam em segundos reais. */
-const DURACAO_REAL = 360;     // seis minutos, de verdade
+const DURACAO_REAL = 600;     // dez minutos de novo (7.8, 25/09: "agora tem mais elementos para ver"); foi 360 na 7.3
 const RITMO = DURACAO / DURACAO_REAL;
 const TRAVESSIA = 6 * RITMO;  // seis segundos REAIS de mistura entre cenarios
 
