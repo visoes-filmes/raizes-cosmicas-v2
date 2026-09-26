@@ -601,7 +601,7 @@ const ARCOS_NO_FIM       = true;    // os arcos d'agua em semicirculo, convergin
 const CEU_EM_CODIGO      = true;
 const FIGURAS_EM_CODIGO  = true;
 const BURACOS_NEGROS     = false;
-const TAMPAR_A_TELA      = true;   /* 8.9: a tela real lida some atras de um pedaco de ceu (ver o desenho da cupula) */  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
+const TAMPAR_A_TELA      = false;  /* 8.9: a tela real lida atras de um pedaco de ceu -- DESLIGADO em 26/09 ("tire a tela preta da tela real"): na altura dos olhos o ceu e quase preto e a tampa lia como um retangulo preto sobre a tela */  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
 /* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
    do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
    fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
@@ -8970,12 +8970,17 @@ void main(){
     brilho += amp * max(0.0, fase) * 0.5;
   }
   vec2 uv = clamp(vUV + desloca, 0.001, 0.999);
-  vec3 cor = (temVideo > 0.5) ? texture2D(video, uv).rgb : vec3(0.05, 0.04, 0.10);
+  /* 8.9b (26/09, "tire a tela preta da tela real"): sem o video (ainda baixando, ou
+     faltando), a tela NAO e pintada de escuro -- so as ondas do toque aparecem, e o
+     resto e a tela real, transparente. O retangulo quase preto de 0,05/0,04/0,10 cobria
+     o tule de verdade enquanto os 70 MB nao chegavam. */
+  vec3 cor = (temVideo > 0.5) ? texture2D(video, uv).rgb : vec3(0.0);
   cor += brilho * vec3(0.85, 0.9, 1.0);
+  float base = (temVideo > 0.5) ? 1.0 : clamp(brilho * 2.5, 0.0, 1.0);
   /* beira macia: o tule nao tem moldura */
   float beira = smoothstep(0.0, 0.03, vUV.x) * smoothstep(0.0, 0.03, 1.0 - vUV.x)
               * smoothstep(0.0, 0.05, vUV.y) * smoothstep(0.0, 0.05, 1.0 - vUV.y);
-  gl_FragColor = vec4(cor, presenca * beira);
+  gl_FragColor = vec4(cor, presenca * beira * base);
 }`;
 const progTela = programa(VS_TELA, FS_TELA);
 const uTl = n => gl.getUniformLocation(progTela, n);
