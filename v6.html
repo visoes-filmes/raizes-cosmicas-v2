@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 7.5</title>
+<title>Raízes Cósmicas 7.6</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -293,7 +293,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 7.5</h1>
+  <h1>Raízes Cósmicas 7.6</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -305,7 +305,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>7.5</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>7.6</em></h1>
     <p class="portao-sub">Visões Filmes · seis minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -615,6 +615,13 @@ const PAPEL_NO_CENARIO      = true;
    LINHA DO HORIZONTE, que e a altura dos olhos -- abaixo dela continua a
    sala, e o chao nunca e tapado. false volta o modelo. */
 const HORIZONTE_DESENHADO   = true;
+/* SEM MONTANHAS -- 25/09 (7.6), a direcao de arte: "as montanhas nao tem muito
+   sentido: estao num horizonte, e esse horizonte, quando vai para a realidade
+   aumentada, nao faz sentido. Melhor tirar". false apaga as duas versoes -- o
+   horizonte desenhado e o modelo antigo --; o que fica na linha dos olhos e a
+   sala real, e acima dela as arvores e o ceu. true volta ao que HORIZONTE_DESENHADO
+   escolher. */
+const MONTANHAS             = false;
 /* A DEUSA QUE DANCA -- 25/09 (7.1): "tem um motion capture num projeto no
    Unreal que gostaria de ter em uma deusa, em escala um pouco menor, que
    fique dancando no espaco". A captura e a PraiaC0094 do SketchbookGabi
@@ -14426,7 +14433,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      a altura dos olhos. Nasce com o mundo (0:16 a 0:32) e vai com a floresta
      na subida da borboleta (3:06 a 3:18). Do fundo para a frente, numa
      chamada so: a ordem no buffer ja e essa. */
-  const presHoriz = HORIZONTE_DESENHADO ? rampa(16, 32, t) * (1 - rampa(186, 198, t)) : 0;
+  const presHoriz = (MONTANHAS && HORIZONTE_DESENHADO) ? rampa(16, 32, t) * (1 - rampa(186, 198, t)) : 0;
   if(presHoriz > 0.004 && nHorizIdx > 0){
     gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false); gl.disable(gl.CULL_FACE);
     gl.useProgram(progHoriz); soltarAtributos();
@@ -14729,7 +14736,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        diferenca entre a pedra e o ceu -- e e essa perda que diz ao olho
        QUAO longe elas estao. Sem ela, montanha longe parece pedra grande
        perto, que e o erro classico. */
-    if(nMontanhasIdx > 0 && presencaMata > 0.004 && !HORIZONTE_DESENHADO){   // 6.8: o horizonte desenhado as substitui
+    if(MONTANHAS && nMontanhasIdx > 0 && presencaMata > 0.004 && !HORIZONTE_DESENHADO){   // 6.8: o horizonte desenhado as substitui; 7.6: MONTANHAS apaga as duas
       gl.uniform1f(locSo.materia, 1.0);
       gl.uniform1f(locSo.escalaTinta, 0.055);  // o grao acompanha o tamanho
       /* 0,72 E NAO 0,26 -- e o motivo esta na conta errada, nao no gosto.
