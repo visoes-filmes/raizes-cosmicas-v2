@@ -599,6 +599,7 @@ const ARCOS_NO_FIM       = true;    // os arcos d'agua em semicirculo, convergin
    um canto lilas, purpurina e um rio creme) sao gerados ao carregar; as quatro pinturas
    saem do arquivo. false as devolve (e o montar_mr.py tem de embuti-las de novo). */
 const CEU_EM_CODIGO      = true;
+const FIGURAS_HIBRIDAS   = true;   /* 26/09: "lembro que pedi pra voce fazer elas ficarem mais integradas ao ambiente, entao simule parte da imagem delas" -- o corpo e a pintura, o entorno e simulado (FS_FIGU, 'AS DEUSAS HIBRIDAS'); pede FIGURAS_EM_CODIGO = false */
 const FIGURAS_EM_CODIGO  = false;  /* 26/09: "percebi que as deusas sumiram... volte com elas" -- as tres pinturas originais de volta (os JPEG); true = as pintadas em codigo da 8.8 */
 const BURACOS_NEGROS     = false;
 const TAMPAR_A_TELA      = false;  /* 8.9: a tela real lida atras de um pedaco de ceu -- DESLIGADO em 26/09 ("tire a tela preta da tela real"): na altura dos olhos o ceu e quase preto e a tampa lia como um retangulo preto sobre a tela */  /* 8.9 (26/09): "remova o buraco negro" -- os buracos negros do cosmos ficam de fora */   /* 8.8: as tres deusas pintadas ao carregar (gerarDeusa*), sem JPEG; o montador acompanha */
@@ -7750,6 +7751,12 @@ uniform float vida;
    integrar as deusas no ambiente, algo que pareca com a propria arte". */
 uniform float satura, danca;
 uniform vec3 mancha1, mancha2;
+/* 26/09 -- AS DEUSAS HIBRIDAS: simulada = o entorno pintado em codigo; hibrido = 0 a pintura
+   inteira, 1 o entorno todo simulado; nucleo = a elipse do que fica pintado (uv). */
+uniform sampler2D simulada;
+uniform float hibrido;
+uniform vec4 nucleo;
+uniform vec2 misturaSim;       // x = quanto da pintura fica como veu em volta; y = a forca da simulacao
 uniform vec3 juntas[3];
 /* Ruido de valor, duas oitavas: e o que faz a beira da pintura ondular em
    vez de terminar numa reta. Barato -- oito leituras de hash. */
@@ -7863,6 +7870,22 @@ void main(){
     }
   }
   vec4 c = texture2D(figura, uv);
+  /* AS DEUSAS HIBRIDAS -- 26/09: "lembro que pedi pra voce fazer elas ficarem mais
+     integradas ao ambiente, entao simule parte da imagem delas". A 8.8 pintava a deusa
+     INTEIRA em codigo, e o corpo virava mancha ("as deusas sumiram"); a pintura inteira
+     volta a ser um quadro no ceu. O meio-termo: o CORPO e a pintura -- rosto, maos,
+     asas, vestido, como a Odara pintou --, e em volta dele o quadro recua a um veu
+     (um terco) e quem fala e a SIMULACAO: os fios, os respingos, as nuvens e as ondas
+     da 8.8, pintados em codigo com as cores dela, no mesmo lugar do quadro. O preto da
+     simulacao vira noite como o da pintura, entao o que fica em volta dela e ceu, e
+     nao a beira de um retangulo. A simulacao e lida com o mesmo balanco do fundo. */
+  if(hibrido > 0.0 && inteira > 0.5){
+    vec2 dn = (vUV - nucleo.xy) / nucleo.zw;
+    float pintado = 1.0 - smoothstep(0.80, 1.45, length(dn));
+    vec3 sim = texture2D(simulada, uv).rgb;
+    float fora = (1.0 - pintado) * hibrido;
+    c.rgb = mix(c.rgb, max(c.rgb * misturaSim.x, sim * misturaSim.y), fora);
+  }
   // a luz que escorre com o liquido: fraca, e so onde ele corre
   c.rgb *= 1.0 + liq * 0.10 * sin(uv.y * 30.0 - tempo * 0.8);
   /* E A LUZ SOBE PELO CORPO (6.3): uma faixa de luz dos pes a cabeca a cada
@@ -9824,6 +9847,11 @@ const PELES = [
 const texTeatroCor = novaTex([20,18,30]), texTeatroMascara = novaTex([0,0,0]);   // a mascara nasce preta: invisivel ate chegar
 /* As quatro figuras recortadas. Vao com alfa, entao a textura e RGBA. */
 const FIGS = [novaTexAlfa(), novaTexAlfa(), novaTexAlfa(), novaTexAlfa()];
+/* AS DEUSAS HIBRIDAS (26/09): a parte simulada de cada uma mora numa segunda textura, na
+   unidade 8 -- as unidades 0 a 7 ja tem dono, e trocar uma delas troca a imagem de outro
+   objeto sem erro nenhum. O Quest tem 16; um aparelho com so 8 fica com a pintura inteira. */
+const HIBRIDAS = FIGURAS_HIBRIDAS && !FIGURAS_EM_CODIGO && gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS) >= 9;
+const FIGS_SIM = HIBRIDAS ? [novaTexAlfa(), novaTexAlfa(), novaTexAlfa()] : [];
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
 if(!CEU_EM_CODIGO){   // 8.1: com os ceus em codigo, estas quatro nem vem no arquivo
@@ -10610,6 +10638,12 @@ if(FIGURAS_EM_CODIGO){   // 8.8: as tres deusas pintadas ao carregar; o montador
   carregarAlfa(FIGS[0], '__FIG_GALACTICO__');
   carregarAlfa(FIGS[1], '__FIG_DEUSA__');
   carregarAlfa(FIGS[2], '__FIG_INTEGRA__');
+  // 26/09: o entorno simulado -- as mesmas pinturas em codigo da 8.8, agora so em volta do corpo
+  if(HIBRIDAS){
+    const t0 = performance.now();
+    gerarDeusaGalactica(FIGS_SIM[0]); gerarDeusaVermelha(FIGS_SIM[1]); gerarDeusaIntegra(FIGS_SIM[2]);
+    relato('DEUSAS-HIBRIDAS ' + Math.round(performance.now() - t0) + ' ms');   // o custo ao carregar, medido no aparelho
+  }
 }
 carregarAlfa(FIGS[3], '__FIG_BORBOLETA__');
 
@@ -12459,9 +12493,11 @@ const FIGURAS = [
      o pe do plano abaixo do horizonte, onde a pintura ja e preta. */
   { nome:'galactico', tex:0, centro:[26.5, 30.0, -36.4], tam:[75.0, 47.0],
     de:206, ate:376, balanco:0.3, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
-    elipse:[0.505, 0.58, 0.17, 0.40], escuro:[0.012, 0.09],   // 8.8: o corpo pintado em codigo
+    // o corpo dela no quadro: o da pintura (JPEG) ou o da pintada em codigo (8.8) -- cada um no seu lugar
+    elipse: FIGURAS_EM_CODIGO ? [0.505, 0.58, 0.17, 0.40] : [0.56, 0.62, 0.21, 0.44], escuro:[0.012, 0.09],
     // 8.4: o rosto e as maos (medidos no arquivo), a danca e as manchas azul/laranja da pintura
     danca:1.0, juntas:[[0.505, 0.352, 0.055], [0.43, 0.552, 0.06], [0.575, 0.528, 0.06]],
+    nucleo:[0.52, 0.50, 0.14, 0.30],   // 26/09: o que fica pintado -- o rosto, os bracos, o peito e o comeco das caudas
     manchas:[[0.16, 0.30, 0.72], [0.85, 0.45, 0.30]] },
   /* A VERMELHA E A INTEGRA, PELO MESMO METODO -- 12/09: o quadro inteiro
      do mesmo momento do recorte antigo (91 s e 152 s da animacao),
@@ -12492,6 +12528,10 @@ const FIGURAS = [
     de:226, ate:376, balanco:0.4, espelha:false, inteira:true, vida:1.0,   // 6.3: com vida
     elipse:[0.50, 0.44, 0.10, 0.30], escuro:[0.012, 0.09],
     satura:0.72, danca:1.0, juntas:[[0.4925, 0.336, 0.05], [0.44, 0.448, 0.055], [0.5725, 0.37, 0.055]],
+    /* 26/09: o que fica pintado -- o cabelo, os bracos com as maos acesas, o vestido, e o manto
+       e o barco de ouro a direita (o manto em codigo saia uma faixa vermelha crua); a nebulosa
+       simulada a esquerda vai mais baixa, e o quadro fica mais presente como veu */
+    nucleo:[0.55, 0.47, 0.17, 0.27], misturaSim:[0.42, 0.72],
     manchas:[[0.62, 0.10, 0.12], [0.90, 0.55, 0.22]] },
   /* EXPANDIDA DE NOVO em 13/09 ("expande mais o cenario ao redor da imagem
      e faz a graduacao de novo"): de 2048 x 1280 para 2536 x 1584 no site,
@@ -12512,6 +12552,7 @@ const FIGURAS = [
        0,465 e 0,535 e vao de 0,28 a 0,55 de altura */
     fluxo:[0.502, 0.405, 0.02, 0.12], asas:[0.465, 0.535, 0.415, 0.135],
     danca:0.7, juntas:[[0.50, 0.406, 0.04], [0.425, 0.593, 0.05], [0.58, 0.569, 0.05]],
+    nucleo:[0.50, 0.53, 0.16, 0.40],   // 26/09: o que fica pintado -- a arvore-cabelo, as asas e o vestido
     manchas:[[0.20, 0.40, 0.80], [0.95, 0.60, 0.30]] },
 ];
 
@@ -12954,7 +12995,9 @@ function presencaSol(t){
 const rosaNaMao = { por:-1, desvio:[0,0,0], pos:null, escala:1, escala0:1, dist0:0, escalando:false,
                     /* 23/09: pousar tambem pega (quanto tempo cada mao ja
                        esta em cima), e a obra lembra COMO foi pego. */
-                    dentro:[0, 0], pinca:false, grande:0, noRosto:0 };
+                    dentro:[0, 0], pinca:false, grande:0, noRosto:0,
+                    /* 26/09: quando foi solto (relogio) e ha quanto tempo esta na mao */
+                    soltoEm:-9, naMao:0 };
 function raioDoRosa(){ return PLANETAS[0].raio * rosaNaMao.escala; }
 function seguirRosa(dt){
   const R = rosaNaMao;
@@ -12974,9 +13017,16 @@ function seguirRosa(dt){
        por POUSAR, abrir a mao nao quer dizer nada -- ela ja estava aberta --
        e ai quem solta e um pinca deliberado. O terceiro jeito de soltar e o
        da obra: as 6:18 o planeta se apaga e a mao fica vazia sozinha. */
-    const soltou = !m.tem || (R.pinca ? !m.apertando : (m.apertando && R.dentro[R.por] > 1.2));
+    /* NAO GRUDA -- 26/09: "o planeta rosa nao pode ficar grudado na mao da pessoa".
+       Pego por POUSAR (23/09), so um pinca deliberado soltava -- e quem nao sabia
+       disso andava com ele colado ate as 6:18. Agora so o pinca pega, e abrir a mao
+       solta, sempre. E se o rastreio prender o pinca (dedos escondidos, o Quest
+       "segura" o aperto), ele se solta sozinho em quinze segundos. */
+    R.naMao += dt;
+    const soltou = !m.tem || !m.apertando || R.naMao > 15;
     if(soltou){ R.por = -1; R.escalando = false; R.pinca = false; R.dentro[0] = R.dentro[1] = 0;
-                relato('SOLTOU-O-ROSA escala=' + R.escala.toFixed(2)); }
+                R.soltoEm = relogio;
+                relato('SOLTOU-O-ROSA escala=' + R.escala.toFixed(2) + (R.naMao > 15 ? ' (15 s)' : '')); }
     else {
       R.dentro[R.por] += dt;
       // segue a mao com um atraso de uns 70 ms: e o que lixa o tremor do rastreio
@@ -13044,18 +13094,37 @@ function seguirRosa(dt){
      sem pinca nenhum. O pinca continua valendo e pega na hora, para quem ja
      sabe. E o halo do planeta ja vinha crescendo com a mao chegando, entao a
      pessoa ve que esta no lugar certo ANTES de conseguir. */
-  if(vivo) for(let i = 0; i < 2; i++){
+  /* 26/09: POUSAR NAO PEGA MAIS -- so o pinca (ou o dedo segurando, no celular), e
+     nao no primeiro segundo depois de solto: a mao que acabou de abrir ainda esta la
+     dentro, e pegar de novo na hora e o que parecia cola. */
+  if(relogio < R.soltoEm) R.soltoEm = -9;   // o relogio voltou a zero (a obra recomecou)
+  if(vivo && relogio - R.soltoEm > 1.0) for(let i = 0; i < 2; i++){
     const m = MAOS[i];
     if(!m.tem){ R.dentro[i] = 0; continue; }
     const emCima = perto(m, 0.26);
     R.dentro[i] = emCima ? R.dentro[i] + dt : 0;
-    if(emCima && (m.apertando || R.dentro[i] > 0.5)){
-      R.por = i; R.pinca = !!m.apertando; R.pos = onde.slice();
+    if(emCima && m.apertando){
+      R.por = i; R.pinca = true; R.naMao = 0; R.pos = onde.slice();
       R.desvio = [onde[0] - m.x, onde[1] - m.y, onde[2] - m.z];
       R.grande = 0; R.noRosto = 0;
       sinoDoToque(4, 0.6);
       relato('PEGOU-O-ROSA mao=' + i + (R.pinca ? ' pincando' : ' pousando'));
       return;
+    }
+  }
+  /* A MAO QUE ENCOSTA SEM PINCAR EMPURRA -- 26/09. Encostar tem resposta (o halo ja
+     cresce com a mao chegando), mas nao prende: a casca cede para longe da mao, como
+     uma bolha, e o caminho de volta a orbita (logo abaixo) a traz de novo, devagar. */
+  if(vivo) for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
+    if(!m.tem || m.apertando) continue;
+    const at = R.pos || orb;
+    const dx = at[0] - m.x, dy = at[1] - m.y, dz = at[2] - m.z;
+    const d = Math.hypot(dx, dy, dz), lim = raioDoRosa() + 0.04;
+    if(d < lim && d > 1e-4){
+      if(!R.pos) R.pos = at.slice();
+      const k = Math.min(1, dt * 10) * (lim - d) / d;
+      R.pos[0] += dx * k; R.pos[1] += dy * k; R.pos[2] += dz * k;
     }
   }
   // ninguem segura: volta para a orbita, devagar
@@ -13698,7 +13767,7 @@ function recomecarAViagem(){
   tocouCasulo = 0; tocouConcha = 0;
   CURIOSIDADE.quem = -1; CURIOSIDADE.proxima = 0;
   for(const S of SOLTOS) if(S) S.ativo = false;
-  rosaNaMao.por = -1; rosaNaMao.pos = null; rosaNaMao.escala = 1; rosaNaMao.escalando = false;
+  rosaNaMao.por = -1; rosaNaMao.pos = null; rosaNaMao.escala = 1; rosaNaMao.escalando = false; rosaNaMao.soltoEm = -9; rosaNaMao.naMao = 0;   // 26/09: o relogio volta a zero
   agitacao = 0; nivelExtra = 0;
   cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
@@ -16073,7 +16142,8 @@ const locFi = {mvp:uFi('mvp'), olhoPos:uFi('olhoPos'), ambiente:uFi('ambiente'),
                elipse:uFi('elipse'), escuro:uFi('escuro'), mergulho:uFi('mergulho'),
                graduacao:uFi('graduacao'), fluxo:uFi('fluxo'), asas:uFi('asas'),
                vida:uFi('vida'),
-               satura:uFi('satura'), danca:uFi('danca'), mancha1:uFi('mancha1'), mancha2:uFi('mancha2'), juntas:uFi('juntas[0]')};   // 8.4
+               satura:uFi('satura'), danca:uFi('danca'), mancha1:uFi('mancha1'), mancha2:uFi('mancha2'), juntas:uFi('juntas[0]'),   // 8.4
+               simulada:uFi('simulada'), hibrido:uFi('hibrido'), nucleo:uFi('nucleo'), misturaSim:uFi('misturaSim')};   // 26/09: as hibridas
 const JUNTAS_BUF = new Float32Array(9);
 const aFi = {xy: gl.getAttribLocation(progFigu,'aXY')};
 
@@ -16584,6 +16654,18 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1i(locFi.figura, 7);
       gl.uniform1f(locFi.inteira, f.inteira ? 1 : 0);
       const el = f.elipse || [0.5, 0.5, 0.3, 0.4], es = f.escuro || [0.012, 0.09];
+      // 26/09: as hibridas -- o entorno simulado na unidade 8; a unidade ativa volta a 7
+      const sim = HIBRIDAS ? FIGS_SIM[f.tex] : null;
+      if(sim){
+        gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, sim);
+        gl.uniform1i(locFi.simulada, 8);
+        gl.activeTexture(gl.TEXTURE7);
+        const nu = f.nucleo || el;
+        gl.uniform4f(locFi.nucleo, nu[0], nu[1], nu[2], nu[3]);
+        const ms = f.misturaSim || [0.32, 1.0];
+        gl.uniform2f(locFi.misturaSim, ms[0], ms[1]);
+      }
+      gl.uniform1f(locFi.hibrido, sim ? (f.hibrido === undefined ? 1 : f.hibrido) : 0);
       gl.uniform4f(locFi.elipse, el[0], el[1], el[2], el[3]);
       gl.uniform2f(locFi.escuro, es[0], es[1]);
       gl.uniform1f(locFi.graduacao, f.graduacao || 0.15);
