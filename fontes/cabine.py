@@ -691,7 +691,54 @@ def achar_navegador():
     return None
 
 
-def projetar(saida, monitor, espelhar=False, recorte=""):
+# ── a projecao automatica: espelho com o oculos na cabeca, animacao fora (26/09) ──
+# "Precisa mostrar animacao quando a gente retirar o oculos. E parece que esta
+# inverso: ele so ativa quando colocamos o oculos na cabeca, parece que esta
+# dependente do sensor." E o sensor de presenca: fora da cabeca a tela do Quest
+# apaga e o espelho fica preto. O Quest diz se esta na cabeca pela propriedade
+# sys.hmt.mounted (1 na cabeca, 0 fora) -- uma leitura levissima pelo adb. Aqui a
+# Cabine le a cada segundo e troca o projetor: na cabeca (2 s seguidos), o espelho;
+# fora (3 s seguidos), a animacao da Odara (projecao.html, sempre acesa). Qualquer
+# escolha manual no Projetar, ou Parar projecao, desliga o automatico.
+PROJ_AUTO = {"ativo": False, "monitor": None, "espelhar": False, "modo": None, "thread": None}
+
+
+def oculos_na_cabeca(serial):
+    if not serial:
+        return None
+    v = adb("shell", "getprop", "sys.hmt.mounted", serial=serial, timeout=6).strip()
+    return True if v == "1" else (False if v == "0" else None)
+
+
+def vigiar_projecao_auto():
+    seguidos, ultimo = 0, None
+    while PROJ_AUTO["ativo"]:
+        s = ESTADO["quest"]["escolhido"]
+        na = oculos_na_cabeca(s)
+        if na is None:
+            time.sleep(1.5)
+            continue
+        seguidos = seguidos + 1 if na == ultimo else 1
+        ultimo = na
+        quer = "espelho" if na else "pagina"
+        precisa = 2 if na else 3
+        if quer != PROJ_AUTO["modo"] and seguidos >= precisa and PROJ_AUTO["ativo"]:
+            PROJ_AUTO["modo"] = quer
+            relatar("projeção automática: " + ("óculos na cabeça — espelho" if na else "óculos fora da cabeça — animação"))
+            projetar(quer, PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"], por_auto=True)
+        time.sleep(1.0)
+
+
+def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
+    if saida == "auto":
+        PROJ_AUTO.update(ativo=True, monitor=monitor, espelhar=bool(espelhar), modo=None)
+        if not (PROJ_AUTO["thread"] and PROJ_AUTO["thread"].is_alive()):
+            PROJ_AUTO["thread"] = threading.Thread(target=vigiar_projecao_auto, daemon=True)
+            PROJ_AUTO["thread"].start()
+        relatar("projeção automática ligada: espelho com o óculos na cabeça, animação fora")
+        return {"ok": True, "resposta": "automático: troca sozinho pelo sensor do óculos"}
+    if not por_auto:
+        PROJ_AUTO["ativo"] = False       # uma escolha manual desliga o automatico
     """saida: 'pagina' (a agua da tela, projecao.html) ou 'espelho' (scrcpy, o que o oculos ve)."""
     global PROJECAO, PROJECAO_PEDIDA
     # 26/09: tres cliques em Projetar em tres segundos reiniciavam o espelho tres vezes
@@ -804,7 +851,8 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         return {"ok": False, "erro": f"saída desconhecida: {saida}"}
     with TRAVA:
         ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
-                              "monitor": "janela de teste" if janela else alvo.get("nome")}
+                              "monitor": "janela de teste" if janela else alvo.get("nome"),
+                              "auto": bool(por_auto and PROJ_AUTO["ativo"])}
     if not janela:
         devolver_foco()          # 26/09: avisos e notificacoes na tela do Mac, nao no projetor
     return {"ok": True}
@@ -1201,6 +1249,7 @@ def agir(nome, dados):
     elif nome == "projetar":
         return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
     elif nome == "parar_projecao":
+        PROJ_AUTO["ativo"] = False
         return parar_projecao()
     elif nome == "tela_cravar":
         return tela_js("raizes.tela.cravar()")
