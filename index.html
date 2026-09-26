@@ -7216,8 +7216,15 @@ void main(){
      E o sinal do lado resolve o espelho de graca. Girar (x, y) em torno de
      z sobe a ponta da asa direita e desceria a da esquerda; multiplicar o
      angulo pelo lado inverte a esquerda, e as duas sobem juntas. */
-  vec3 q = aPos;
-  vec3 n = aNor;
+  /* A ASA CERTA DE CADA LADO -- 25/09 (7.9): "parece que a asa da direita esta na
+     parte esquerda, e vice-versa". No espaco do modelo +z e a cabeca e +y e cima;
+     num sistema de mao direita isso faz +x ser a ESQUERDA do bicho. E o mundo poe
+     +x na direita de quem olha (lado = frente x cima). Resultado: a asa esquerda
+     do modelo, com a pintura dela, ficava na direita. Espelhar x aqui resolve; a
+     batida usa o sinal de q.x depois do espelho, e a aquarela tambem. Sem descarte
+     de face no desenho da borboleta, o espelho nao vira triangulo nenhum. */
+  vec3 q = vec3(-aPos.x, aPos.y, aPos.z);
+  vec3 n = vec3(-aNor.x, aNor.y, aNor.z);
   vCorpo = abs(aLado) < 0.5 ? 1.0 : 0.0;
   vAsa = vec2(0.0, 0.5);          // o corpo: nem beira nem ponta
   /* QUAL FACE E A DE CIMA -- pela NORMAL DO MODELO, e nao pelo
@@ -7241,7 +7248,7 @@ void main(){
     float vao   = clamp((abs(q.x) - 0.03) / 0.47, 0.0, 1.0);
     float corda = clamp(q.z * 1.6 + 0.5, 0.0, 1.0);
     vAsa = vec2(vao, corda);
-    float a = baterEm(fase - vao*0.95 - corda*0.22) * aLado;
+    float a = baterEm(fase - vao*0.95 - corda*0.22) * (q.x > 0.0 ? 1.0 : -1.0);
     float c = cos(a), sn = sin(a);
     q = vec3(q.x*c - q.y*sn, q.x*sn + q.y*c, q.z);
     n = vec3(n.x*c - n.y*sn, n.x*sn + n.y*c, n.z);
@@ -7266,7 +7273,7 @@ void main(){
 
      E o UV sai da posicao ANTES do giro, senao a tinta escorrega pela asa a
      cada batida -- a asa se moveria por dentro da propria pintura. */
-  vUV = vec2(aPos.x + 0.5, 0.5 - aPos.z * 1.15);
+  vUV = vec2(-aPos.x + 0.5, 0.5 - aPos.z * 1.15);   // no espelho, com a asa
   vUVm = aUVm;
   gl_Position = mvp * vec4(p, 1.0);
 }`;
@@ -16723,6 +16730,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       if(relogio !== rumoBorbo.em){
         const dtR = Math.min(0.1, Math.max(0, relogio - rumoBorbo.em));
         rumoBorbo.em = relogio;
+        const yawAntes = Math.atan2(rumoBorbo.x, rumoBorbo.z);
         if(horiz > 0.002){
           const k = 1 - Math.exp(-4.0 * dtR);
           rumoBorbo.x += (fx / horiz - rumoBorbo.x) * k;
@@ -16730,6 +16738,15 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
           const L = Math.hypot(rumoBorbo.x, rumoBorbo.z) || 1;
           rumoBorbo.x /= L; rumoBorbo.z /= L;
         }
+        /* A INCLINACAO SEGUE A CURVA -- 26/09 (7.9). Era um seno solto (+-20 graus a
+           cada 7 s), que rolava o corpo sem curva nenhuma: uma asa subia enquanto a
+           outra descia, e lia como 'as asas batendo ao contrario, a direita do lado
+           esquerdo'. Agora ela pende para dentro da curva, na medida da curva, e
+           volta a zero em reta. */
+        let dyaw = Math.atan2(rumoBorbo.x, rumoBorbo.z) - yawAntes;
+        while(dyaw > Math.PI) dyaw -= 2 * Math.PI; while(dyaw < -Math.PI) dyaw += 2 * Math.PI;
+        const alvoIncl = dtR > 0 ? Math.max(-0.30, Math.min(0.30, -(dyaw / dtR) * 0.18)) : 0;
+        rumoBorbo.inclina = (rumoBorbo.inclina || 0) + (alvoIncl - (rumoBorbo.inclina || 0)) * (1 - Math.exp(-3.0 * dtR));
       }
       const incl = Math.max(-0.52, Math.min(0.52, Math.atan2(fy, horiz)));
       fx = Math.cos(incl) * rumoBorbo.x; fy = Math.sin(incl); fz = Math.cos(incl) * rumoBorbo.z;
@@ -16772,7 +16789,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
          coisa em silencio (a armadilha da tabela do LEIA-ME). */
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texMorpho);
       gl.uniform1i(locBb.morpho, 1);
-      gl.uniform1f(locBb.inclina, Math.sin(relogio * 0.9) * 0.35);
+      gl.uniform1f(locBb.inclina, rumoBorbo.inclina || 0);   // 26/09: pende na curva, e nao num seno solto
       gl.uniform3f(locBb.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
       gl.uniform1f(locBb.inflar, 0.0);
 
