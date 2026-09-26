@@ -15172,7 +15172,9 @@ if(TEM_SOM){
     try{ trilha.currentTime = 0; trilha.play().catch(function(){}); }catch(e){}
   });
 }
-const GESTOS = ['pointerdown','keydown','touchstart'];
+/* 26/09: 'click' tambem -- o Iniciar em RM da Cabine e um click() pelo DevTools, e sem ele a obra
+   iniciada pela Cabine ficava muda a sessao inteira (dentro do oculos nao ha outro gesto de pagina) */
+const GESTOS = ['pointerdown','keydown','touchstart','click'];
 for(const ev of GESTOS) addEventListener(ev, acordarSom, {passive:true});
 
 const bSom = document.getElementById('bSom');
