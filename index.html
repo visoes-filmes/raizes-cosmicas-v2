@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Raízes Cósmicas 7.8</title>
+<title>Raízes Cósmicas 7.9</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="manifest" href="./manifest.webmanifest">
 <!-- Sem isto todo carregamento pede /favicon.ico e leva 404. Nao quebra
@@ -149,11 +149,12 @@
      Agora nada anda ate alguem mandar. */
   #portao{
     position:fixed; inset:0; z-index:100; display:grid; place-items:center;
-    background:rgba(8,6,14,.94); backdrop-filter:blur(6px);
+    /* 7.9: a obra viva aparece por tras (a vitrine); o escuro e um vinheta, e nao uma tampa */
+    background:radial-gradient(ellipse at center, rgba(8,6,14,.72) 0%, rgba(8,6,14,.50) 55%, rgba(8,6,14,.82) 100%);
     text-align:center; padding:24px;
   }
   #portao.foi{ display:none; }
-  .portao-caixa{ max-width:420px; }
+  .portao-caixa{ max-width:420px; background:rgba(8,6,14,.42); padding:26px 30px 22px; border-radius:18px; text-shadow:0 1px 8px rgba(0,0,0,.8); }
   .portao-nome{ font-family:Georgia,"Times New Roman",serif; font-weight:400;
                 font-size:clamp(30px,7vw,46px); color:var(--ink);
                 margin:0 0 6px; letter-spacing:-.01em; }
@@ -293,7 +294,7 @@
 <canvas id="gl"></canvas>
 
 <div class="card oculto" id="head">
-  <h1>Raízes Cósmicas 7.8</h1>
+  <h1>Raízes Cósmicas 7.9</h1>
   <p>A sala simulada aqui tem as medidas reais do rider: <b>4,00 × 4,70 m</b>,
   pé-direito <b>3,00 m</b>, olho a 1,60 m do chão.</p>
   <p>A obra toma o alto e vai sumindo ao descer: embaixo fica a sala real,
@@ -305,7 +306,7 @@
 
 <div id="portao">
   <div class="portao-caixa">
-    <h1 class="portao-nome">Raízes Cósmicas <em>7.8</em></h1>
+    <h1 class="portao-nome">Raízes Cósmicas <em>7.9</em></h1>
     <p class="portao-sub">Visões Filmes · dez minutos</p>
     <button id="bIniciar">Iniciar em RM</button>
     <button id="bIniciarTela">Iniciar na tela</button>
@@ -9245,6 +9246,7 @@ function relatarTex(){
         + 'Ele vai pedir a câmera e o movimento.'
       : 'Ponha o capacete antes de iniciar: os dez minutos correm sozinhos a partir daqui.';
     b.disabled = false;
+    if(!vitrine) ligarVitrine();   // 7.9
   }else{
     d.textContent = 'carregando as imagens…  ' + texProntas + ' de ' + TEX_TOTAL;
     b.disabled = true;
@@ -13376,7 +13378,25 @@ const ePortao  = document.getElementById('portao');
 const bIniciar = document.getElementById('bIniciar');
 const ePortaoDica = document.getElementById('portaoDica');
 
+/* A VITRINE -- 7.9 (25/09: "a capa inicial esta muito sem graca; uma imagem do
+   cenario se movendo num loop, sem dar spoiler"). Atras do portao a propria obra
+   fica viva, parada no instante 0:40 do roteiro -- a floresta crescida e o ceu
+   desenhando os rios de luz, antes dos vagalumes, da coruja e da dancarina --,
+   com a camera olhando para cima entre as arvores e girando devagar, uma volta a
+   cada dois minutos. O relogio anda (o balanco, as estrelas, os rios), a
+   partitura nao. Liga quando as imagens terminam de carregar e sempre que o
+   portao volta; Iniciar desliga e zera tudo. */
+let vitrine = false;
+function ligarVitrine(){
+  if(andando || ePortao.classList.contains('foi')) return;
+  // aos 0:40 os rios de luz ja estao quase desenhados e os primeiros vagalumes acendem; a dancarina ainda nao
+  t = 40; relogio = 0; esperando = false; cenaAtual = 1; misturaCeu = 0;
+  ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
+  seguirPartitura(0);
+  tPitch = 0.62; vitrine = true;   // 35 graus para cima: mais ceu que chao
+}
 function iniciarObra(){
+  vitrine = false;
   t = 0; relogio = 0;
   cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
@@ -14144,6 +14164,7 @@ async function entrarXR(aoEntrar){
     ePortao.classList.remove('foi');
     mostrarEmergencia(false);
     relatarTex();
+    ligarVitrine();   // 7.9: o portao volta com a obra viva atras, e nao com o meio de onde parou
     requestAnimationFrame(quadro);
   });
   /* O GATILHO. Encostar ja basta, mas quem esta de controle espera que
@@ -17232,6 +17253,7 @@ function quadro(){
   const dt = passo();
 
   // camera com constante de tempo, nao fracao por quadro
+  if(vitrine && !andando) tYaw += dt * 0.052;   // 7.9: a vitrine gira devagar
   const kc = calmo ? 1 : (1 - Math.exp(-9.0 * dt));
   yaw += (tYaw-yaw)*kc;
   pitch += (tPitch-pitch)*kc;
