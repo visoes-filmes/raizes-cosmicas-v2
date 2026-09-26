@@ -83,19 +83,25 @@ def embutir_ceu(nome, largura=2048, qualidade=86):
 # em "somLigado" no template. O botao Som liga quando se quiser ouvir.
 SEM_SOM = False
 
+# 8.1: os ceus sao gerados em codigo na obra; as pinturas ficam fora do arquivo
+CEUS_EM_CODIGO = True
+
 print("Texturas:")
 mapa = {
     "__TEX_RAIZ__":     embutir(bem("texturas", "tex-raiz.png"), (256, 512)),
     # o panorama inteiro: a sala vira superficie de projecao dele, entao a
     # obra envolve o espaco uma vez so, sem azulejo repetido
-    "__TEX_PANORAMA__": embutir_ceu(bem("ceus", "ceu-floresta-2048.png"), 2048, 88),
-    "__CEU_COSMICO__":  embutir_ceu(bem("ceus", "ceu-cosmico-2048.png")),
-    "__CEU_ROSA__":     embutir_ceu(bem("ceus", "ceu-rosa-2048.png")),
+    # 8.1 -- OS CEUS EM CODIGO (CEU_EM_CODIGO no template): as quatro pinturas nao
+    # entram mais; o cosmico e o rosa sao gerados ao carregar. Para voltar a elas,
+    # CEUS_EM_CODIGO = False aqui E CEU_EM_CODIGO = false la.
+    "__TEX_PANORAMA__": "" if CEUS_EM_CODIGO else embutir_ceu(bem("ceus", "ceu-floresta-2048.png"), 2048, 88),
+    "__CEU_COSMICO__":  "" if CEUS_EM_CODIGO else embutir_ceu(bem("ceus", "ceu-cosmico-2048.png")),
+    "__CEU_ROSA__":     "" if CEUS_EM_CODIGO else embutir_ceu(bem("ceus", "ceu-rosa-2048.png")),
     # O QUARTO CEU: o da floresta encantada, trazido em 10/09. A ordem
     # aqui E o indice em CEUS -- ASPECTOS e preenchido na sequencia em que
     # embutir_ceu e chamado, entao acrescentar no meio renumeraria os ceus
     # sem avisar. Novo ceu entra no fim.
-    "__CEU_MATA__":     embutir_ceu(bem("ceus", "ceu-mata-2048.png")),
+    "__CEU_MATA__":     "" if CEUS_EM_CODIGO else embutir_ceu(bem("ceus", "ceu-mata-2048.png")),
     # A DEUSA QUE DANCA (7.1): a captura de movimento, ja compactada pelo
     # fontes/mocap_para_obra.py. Sem o arquivo, entra "null" e ela nao existe.
     "__MOCAP_DEUSA__":  embutir_mocap(bem("mocap", "deusa-danca.json")),
@@ -183,6 +189,8 @@ else:
 # as proporcoes reais das pinturas, medidas na hora de embutir: assim o
 # shader nunca discorda do arquivo, do mesmo jeito que a versao do cache
 # nunca discorda da montagem 
+if CEUS_EM_CODIGO:
+    ASPECTOS[:] = [2.0, 2.0, 2.0, 2.0]   # a forma dos ceus gerados (a obra a reescreve de todo jeito)
 mapa["__ASPECTOS_CEU__"] = "[" + ", ".join(str(a) for a in ASPECTOS) + "]"
 print(f"  proporcoes dos ceus: {ASPECTOS}")
 
@@ -332,9 +340,9 @@ if saida == os.path.join(RAIZ, "index.html"):
     v6 = (v52.replace("const TELA_DE_TULE          = false;", "const TELA_DE_TULE          = true;")
              .replace("const ESPACO_ESCANEADO      = false;", "const ESPACO_ESCANEADO      = true;")
              .replace("const TELA_VISIVEL          = true;",  "const TELA_VISIVEL          = false;")
-             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 8.0</title>")
-             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 8.0</h1>")
-             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>8.0</em>')
+             .replace("<title>Raízes Cósmicas 5.2</title>", "<title>Raízes Cósmicas 8.1</title>")
+             .replace("<h1>Raízes Cósmicas 5.2</h1>", "<h1>Raízes Cósmicas 8.1</h1>")
+             .replace('Raízes Cósmicas <em>5.2</em>', 'Raízes Cósmicas <em>8.1</em>')
              .replace("var PREFIXO_CACHE = 'raizes-cosmicas-v52-';", "var PREFIXO_CACHE = 'raizes-cosmicas-v6-';"))
     if ("const TELA_DE_TULE          = true;" not in v6 or "raizes-cosmicas-v6-" not in v6
             or "const ESPACO_ESCANEADO      = true;" not in v6

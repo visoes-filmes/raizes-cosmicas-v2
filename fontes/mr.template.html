@@ -583,6 +583,19 @@ const COGUMELOS_NO_CHAO  = true;
 /* 7.4 -- a vida miuda do cenario 1: vagalumes, a abelha, as formiguinhas e as
    folhas padronadas. Tudo num interruptor so; ver "A VIDA MIUDA DA FLORESTA". */
 const VIDA_NA_FLORESTA   = true;
+/* 8.1 -- O CENARIO 4 (26/09): "tirar aquelas arvores do ultimo cenario, nao esta dando
+   certo aquela inversao; tirar os cogumelos; e reproduzir as formas de semicirculo da
+   imagem da deusa, em varias partes do ambiente, convergindo com ela, como se ela
+   estivesse num ambiente de agua". */
+const ARVORES_NO_TETO    = false;   // a floresta invertida do retorno (true a devolve)
+const COGUMELOS_NO_FIM   = false;   // os cogumelos que brotavam de novo no cenario 4
+const ARCOS_NO_FIM       = true;    // os arcos d'agua em semicirculo, convergindo para a deusa
+/* 8.1 -- OS CEUS EM CODIGO: "tirar todos os ceus que sao de imagem, para ficar mais leve;
+   faca uma imagem baseada naquelas artes, com a programacao, ainda estelar". O cosmico
+   (galaxias em espiral, rios vermelhos e azuis, ramos dourados) e o rosa (marmore rosa,
+   um canto lilas, purpurina e um rio creme) sao gerados ao carregar; as quatro pinturas
+   saem do arquivo. false as devolve (e o montar_mr.py tem de embuti-las de novo). */
+const CEU_EM_CODIGO      = true;
 /* O CONTORNO DOS CORPOS -- 12/09, "contorno para as maos e demais partes
    do corpo que entrarem na nossa visao, inclusive de outras pessoas". Duas
    fontes: o MAPA DE PROFUNDIDADE do aparelho (WebXR depth-sensing), que ve
@@ -4576,6 +4589,7 @@ uniform vec4 maoA, maoB;
 uniform vec4 toque;
 uniform float cogToque[13];  // 7.4: quanto cada cogumelo esta tocado agora (1 = acabou de ser)
 uniform float ondulaMao;     // 7.4: 1 nas folhas padronadas -- elas ondulam com a mao perto
+uniform float arcoOnda;      // 8.1: 1 nos arcos d'agua -- cada arco boia no seu compasso
 /* BOLHA -- 14/09: "como uma bolha de sabao no ar, um movimento organico,
    nao simetrico". Amplitude em metros: cada vertice anda pela propria
    normal por tres ondas lentas e primas entre si, lidas na posicao do
@@ -4680,6 +4694,13 @@ void main(){
     p += aNor * sin(aAlt * 12.0 - tempo * 7.0) * 0.06 * pm * ondulaMao * aAlt;
   }
   vToque = cogToque[int(clamp(floor(aFase), 0.0, 12.0))];
+  /* OS ARCOS BOIAM (8.1): cada um sobe e desce no seu compasso, e uma onda corre
+     por ele; tudo proporcional a distancia, para ler igual de perto e de longe. */
+  if(arcoOnda > 0.0){
+    float idA = floor(aFase), uA = fract(aFase), dA = length(p.xz);
+    p.y += sin(tempo * 0.55 + idA * 1.37) * 0.012 * dA * arcoOnda;
+    p.y += sin(uA * 12.566 + tempo * 0.9 + idA) * 0.004 * dA * arcoOnda;
+  }
 
   /* E A ONDULACAO, para quem a pedir. Devagar de proposito: 0,11 radiano
      por segundo da um ciclo de quase um minuto, e o que se ve nao e o
@@ -6008,6 +6029,23 @@ void main(){
     }
   }
 
+  /* OS ARCOS D'AGUA -- 8.1. As formas de semicirculo da imagem da deusa (os
+     portais e as ondas do papel): faixa azul que vai ao turquesa, borda de ouro,
+     um fio lilas por dentro, uma fileira de pontos dourados no meio e o brilho
+     de agua correndo pela curva. A fase e o indice do arco + a volta (0 a 1);
+     vAlt vai de 0 (dentro) a 1 (fora). */
+  if(materia > 24.5 && materia < 25.5){
+    float uA = clamp(fract(vFase) / 0.98, 0.0, 1.0), rA = clamp(vAlt, 0.0, 1.0), idA = floor(vFase);
+    vec3 c0 = mix(vec3(0.10, 0.22, 0.58), vec3(0.22, 0.72, 0.82), rA);
+    float ouro = smoothstep(0.84, 0.91, rA);
+    c0 = mix(c0, vec3(1.0, 0.82, 0.45), ouro);
+    c0 = mix(c0, vec3(0.72, 0.62, 0.96), 1.0 - smoothstep(0.14, 0.22, rA));
+    vec2 gA = vec2(fract(uA * (18.0 + mod(idA, 3.0) * 6.0)) - 0.5, (rA - 0.52) * 4.0);
+    c0 = mix(c0, vec3(1.0, 0.90, 0.55), smoothstep(0.24, 0.10, length(gA)) * 0.85);
+    float agua = pow(0.5 + 0.5 * sin(uA * 18.0 - tempo * 1.2 + idA * 1.7), 6.0);
+    c = c0 + vec3(0.45, 0.85, 1.0) * agua * 0.28 * (1.0 - ouro);
+  }
+
   /* A CORUJA-HELICOPTERO -- 7.5 ("como se fosse uma coruja com olhos grandes, pode
      ter apenas um olho, e em vez de asas voasse como um helicoptero"). A parte
      esta na fase: 0 as penas, 1 a iris, 2 as pas, 3 a pupila, 4 o bico, 5 o disco
@@ -6104,6 +6142,12 @@ void main(){
   float vivoAlfa = (materia < 0.5 || (materia > 7.5 && materia < 8.5) || (materia > 14.5 && materia < 17.5))
                    ? smoothstep(0.0, 0.30, vVivo) : vVivo;
   float alfa = presenca * vivoAlfa * vBorda;
+  if(materia > 24.5 && materia < 25.5){   // 8.1: os arcos d'agua sao veu, e cedem abaixo da linha dos olhos
+    float rA = clamp(vAlt, 0.0, 1.0);
+    alfa *= mix(0.40, 0.85, smoothstep(0.84, 0.91, rA));
+    alfa *= mix(0.50, 1.0, smoothstep(olhoPos.y - 0.35, olhoPos.y + 0.25, vMundo.y));   // seguranca: o chao continua a sala
+    alfa *= smoothstep(-0.25, 0.35, vMundo.y);                                         // e o pe some na agua
+  }
   if(materia > 22.5 && materia < 23.5){   // 7.5: as pas da coruja sao meio transparentes, o disco do rotor quase
     float parteC = floor(vFase);
     if(parteC > 1.5 && parteC < 2.5) alfa *= 0.55;
@@ -9289,7 +9333,7 @@ subirEsporos(semearEsporos(71));   // depois de BASES existir
    Por isso o botao so libera quando as onze chegam. E se alguma falhar,
    isso APARECE: falha silenciosa num cenario escuro passa despercebida ate
    alguem reparar que esta faltando uma coisa, e ai ja e no dia. */
-const TEX_TOTAL = 18;
+const TEX_TOTAL = CEU_EM_CODIGO ? 14 : 18;   // 8.1: as quatro pinturas do ceu sairam
 let texProntas = 0, texFalhas = [];
 function relatarTex(){
   const e = document.getElementById('vTex');
@@ -9534,10 +9578,12 @@ const texTeatroCor = novaTex([20,18,30]), texTeatroMascara = novaTex([0,0,0]);  
 const FIGS = [novaTexAlfa(), novaTexAlfa(), novaTexAlfa(), novaTexAlfa()];
 const texPano = CEUS[0];
 carregar(texRaiz, '__TEX_RAIZ__');
-carregar(CEUS[0], '__TEX_PANORAMA__', true);
-carregar(CEUS[1], '__CEU_COSMICO__', true);
-carregar(CEUS[2], '__CEU_ROSA__', true);
-carregar(CEUS[3], '__CEU_MATA__', true);
+if(!CEU_EM_CODIGO){   // 8.1: com os ceus em codigo, estas quatro nem vem no arquivo
+  carregar(CEUS[0], '__TEX_PANORAMA__', true);
+  carregar(CEUS[1], '__CEU_COSMICO__', true);
+  carregar(CEUS[2], '__CEU_ROSA__', true);
+  carregar(CEUS[3], '__CEU_MATA__', true);
+}
 
 /* ═══════════ O CEU EM CAMADAS (6.4) ═══════════
    Ver CEU_EM_CAMADAS. Quatro camadas, e cada uma tem o tamanho que o olho
@@ -9615,6 +9661,167 @@ function gerarNebulosa(tex){
   for(const [k, v] of [[gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
                        [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]])
     gl.texParameteri(gl.TEXTURE_2D, k, v);
+}
+
+/* ═══════════ OS CEUS EM CODIGO (8.1) ═══════════
+   Mesma forma das pinturas (2:1, a estereografica: zenite no meio, horizonte no
+   raio 2), entao o shader que as lia le estas sem mudar nada. 2048 x 1024, e so o
+   disco que o ceu usa e calculado. O fundo sai de ruido em blocos de 2 x 2 (e
+   macio de proposito); os detalhes -- estrelas, rios, espirais, ramos -- sao
+   CARIMBOS gaussianos no tamanho do pixel, e e deles que vem a nitidez. */
+function ceuEmCodigo(tex, pintar){
+  const W = 2048, H = 1024, U = 256, CX = W / 2, CY = H / 2;
+  const R = new Float32Array(W * H), G = new Float32Array(W * H), B = new Float32Array(W * H);
+  const carimbo = (x, y, raio, r, g, b, a) => {
+    const sx = CX + x * U, sy = CY + y * U, rp = Math.max(0.6, raio * U), ext = Math.ceil(rp * 2.4);
+    const y0 = Math.max(0, Math.floor(sy - ext)), y1 = Math.min(H - 1, Math.ceil(sy + ext));
+    const x0 = Math.max(0, Math.floor(sx - ext)), x1 = Math.min(W - 1, Math.ceil(sx + ext));
+    const inv = 1 / (rp * rp);
+    for(let yy = y0; yy <= y1; yy++){
+      const dy = yy + 0.5 - sy;
+      for(let xx = x0; xx <= x1; xx++){
+        const dx = xx + 0.5 - sx, d2 = (dx * dx + dy * dy) * inv;
+        if(d2 > 5.8) continue;
+        const w = a * Math.exp(-d2), k = yy * W + xx;
+        R[k] += r * w; G[k] += g * w; B[k] += b * w;
+      }
+    }
+  };
+  const fundo = (f) => {                  // f(px, py) -> [r, g, b], em blocos de 2 x 2
+    for(let j = 0; j < H; j += 2){
+      const py = (j + 1 - CY) / U;
+      for(let i = CX - 580; i < CX + 580; i += 2){
+        const px = (i + 1 - CX) / U;
+        if(px * px + py * py > 4.9) continue;
+        const c = f(px, py);
+        for(const k of [j * W + i, j * W + i + 1, (j + 1) * W + i, (j + 1) * W + i + 1]){ R[k] = c[0]; G[k] = c[1]; B[k] = c[2]; }
+      }
+    }
+  };
+  pintar({ W, H, U, CX, CY, R, G, B, carimbo, fundo, rnd: prng(8100 + tex.__semente | 0) });
+  const dados = new Uint8Array(W * H * 3);
+  for(let k = 0; k < W * H; k++){
+    // um joelho suave no alto: o carimbo somado nunca estoura em branco chapado
+    const tm = (v) => v < 200 ? v : 200 + 55 * (1 - Math.exp(-(v - 200) / 55));
+    dados[k * 3] = tm(R[k]); dados[k * 3 + 1] = tm(G[k]); dados[k * 3 + 2] = tm(B[k]);
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, W, H, 0, gl.RGB, gl.UNSIGNED_BYTE, dados);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  for(const [k, v] of [[gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+                       [gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
+  if(extAniso && ANISO > 1) gl.texParameterf(gl.TEXTURE_2D, extAniso.TEXTURE_MAX_ANISOTROPY_EXT, ANISO);
+}
+/* O COSMICO, da pintura das galaxias: noite quase preta com um veu azul, oito
+   galaxias em espiral (bracos azuis, miolo rosa-branco), rios que as ligam --
+   miolo vermelho e halo azul, com contas acesas --, ramos dourados finos saindo
+   dos rios, e estrelas. */
+function gerarCeuCosmico(tex){
+  tex.__semente = 1;
+  ceuEmCodigo(tex, ({ U, W, H, CX, CY, R, G, B, carimbo, fundo, rnd }) => {
+    fundo((px, py) => {
+      const n = fbmCeu(px * 1.6 + 11, py * 1.6 - 5), h = Math.max(0, n - 0.46) * 2.2;
+      return [2 + 10 * h, 3 + 12 * h, 10 + 48 * h];
+    });
+    const gal = [];
+    for(let k = 0; k < 8; k++){
+      const a = k / 8 * Math.PI * 2 + rnd() * 0.5, rr = 0.45 + rnd() * 1.35;
+      gal.push({ x: Math.cos(a) * rr, y: Math.sin(a) * rr, raio: 0.22 + rnd() * 0.16, giro: rnd() * 6.283, sentido: rnd() < 0.5 ? 1 : -1 });
+    }
+    // os rios: a corrente ligando as galaxias na ordem da volta, e dois atalhos
+    // so a corrente em volta: atalhos pelo meio cruzavam no zenite e liam como um X
+    const ligas = gal.map((g, k) => [k, (k + 1) % gal.length]);
+    const amostras = [];
+    for(const [ia, ib] of ligas){
+      const A = gal[ia], Bg = gal[ib];
+      const dx = Bg.x - A.x, dy = Bg.y - A.y, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
+      /* um carimbo a cada 1,5 px, e o halo so a cada quatro: somados a cada pixel
+         eles estouravam em azul chapado e o miolo vermelho sumia */
+      const curva = (0.25 + rnd() * 0.35) * L * (rnd() < 0.5 ? -1 : 1), fase = rnd() * 6.283, passos = Math.ceil(L * U / 1.5);
+      for(let s = 0; s <= passos; s++){
+        const t = s / passos, ond = Math.sin(t * Math.PI) * curva + Math.sin(t * 9 + fase) * 0.06 * Math.sin(t * Math.PI);
+        const x = A.x + dx * t + nx * ond, y = A.y + dy * t + ny * ond;
+        if(s % 4 === 0) carimbo(x, y, 0.032, 45, 60, 200, 0.05);        // o halo azul
+        carimbo(x, y, 0.010, 225, 45, 60, 0.30);                        // o miolo vermelho
+        if(s % 3 === 0) amostras.push([x, y]);
+        if(rnd() < 0.004) carimbo(x, y, 0.022, 255, 190, 220, 0.9);    // as contas acesas
+      }
+    }
+    // os ramos dourados: passeios que se bifurcam, saindo dos rios
+    for(let b = 0; b < 260; b++){
+      const o = amostras[Math.floor(rnd() * amostras.length)];
+      const pilha = [[o[0], o[1], rnd() * 6.283, 26 + Math.floor(rnd() * 40), 0]];
+      while(pilha.length){
+        let [x, y, dir, n, prof] = pilha.pop();
+        for(let s = 0; s < n; s++){
+          dir += (rnd() - 0.5) * 0.7; x += Math.cos(dir) * 0.0045; y += Math.sin(dir) * 0.0045;
+          if(x * x + y * y > 4.4) break;
+          carimbo(x, y, 0.0028, 245, 175, 70, 0.55 - prof * 0.12);   // ouro quente: o frio lia verde sobre o azul
+          if(prof < 3 && rnd() < 0.05) pilha.push([x, y, dir + (rnd() < 0.5 ? 0.9 : -0.9), Math.floor(n * 0.55), prof + 1]);
+        }
+      }
+    }
+    // as galaxias em espiral, pixel a pixel dentro da caixa de cada uma
+    for(const g of gal){
+      const sx = CX + g.x * U, sy = CY + g.y * U, rp = g.raio * U * 1.6;
+      for(let yy = Math.max(0, Math.floor(sy - rp)); yy <= Math.min(H - 1, Math.ceil(sy + rp)); yy++){
+        for(let xx = Math.max(0, Math.floor(sx - rp)); xx <= Math.min(W - 1, Math.ceil(sx + rp)); xx++){
+          const lx = (xx + 0.5 - sx) / (g.raio * U), ly = (yy + 0.5 - sy) / (g.raio * U), r = Math.hypot(lx, ly);
+          if(r > 1.6) continue;
+          const th = Math.atan2(ly, lx) * g.sentido + g.giro;
+          const braco = Math.pow(0.5 + 0.5 * Math.cos(2 * (th - Math.log(r + 0.05) * 2.2)), 2.2);
+          const queda = Math.exp(-r * 1.9), miolo = Math.exp(-(r / 0.13) * (r / 0.13));
+          const k = yy * W + xx;
+          R[k] += 110 * braco * queda + 18 * queda + 255 * miolo;
+          G[k] += 125 * braco * queda + 22 * queda + 200 * miolo;
+          B[k] += 255 * braco * queda + 70 * queda + 225 * miolo;
+        }
+      }
+    }
+    // as estrelas
+    for(let k = 0; k < 7000; k++){
+      const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 2.12, x = Math.cos(a) * r, y = Math.sin(a) * r, q = rnd();
+      carimbo(x, y, 0.0026 + q * q * 0.006, 210 + 45 * rnd(), 215 + 40 * rnd(), 255, 0.35 + 0.65 * q);
+    }
+  });
+}
+/* O ROSA, da pintura do planeta de agua: marmore rosa e coral, um canto lilas-azul
+   do lado de cima, purpurina branca por tudo e um rio creme cruzando na diagonal. */
+function gerarCeuRosa(tex){
+  tex.__semente = 2;
+  ceuEmCodigo(tex, ({ carimbo, fundo, rnd }) => {
+    fundo((px, py) => {
+      const n = fbmCeu(px * 1.3 + 2, py * 1.3 + 7), m = fbmCeu(px * 3.1 - 4, py * 3.1 + 1);
+      const azul = Math.min(1, Math.max(0, ((-py * 0.7 + px * 0.35) / 1.5) + (n - 0.5) * 1.2 + 0.1));
+      const az2 = azul * azul * (3 - 2 * azul);
+      let r = 236 + (240 - 236) * m, g = 112 - 18 * m, b = 140 - 32 * m;       // rosa para coral
+      r += (118 - r) * az2 * 0.8; g += (126 - g) * az2 * 0.8; b += (196 - b) * az2 * 0.8;
+      const luz = 0.80 + 0.32 * m;
+      return [r * luz, g * luz, b * luz];
+    });
+    for(let k = 0; k < 9000; k++){                                  // a purpurina
+      const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 2.12, q = rnd();
+      carimbo(Math.cos(a) * r, Math.sin(a) * r, 0.0024 + q * q * 0.005, 255, 245, 250, 0.25 + 0.6 * q);
+    }
+    for(let k = 0; k < 70; k++){                                    // e as manchas brancas macias
+      const a = rnd() * 6.283, r = Math.sqrt(rnd()) * 2.0;
+      carimbo(Math.cos(a) * r, Math.sin(a) * r, 0.02 + rnd() * 0.035, 255, 235, 245, 0.18);
+    }
+    for(const [off, forca] of [[0, 1.0], [0.05, 0.35]]){          // o rio creme, e um fio paralelo
+      for(let s = 0; s <= 900; s++){                               // um carimbo a cada ~1,5 px
+        const t = s / 900, x = -2.1 + 4.2 * t;
+        const y = 0.95 - 1.9 * t + 0.32 * Math.sin(t * 5.1 + 0.6) + 0.05 * Math.sin(t * 31) + off;
+        if(x * x + y * y > 4.4) continue;
+        carimbo(x, y, 0.0065, 252, 226, 160, 0.60 * forca);
+        if(s % 4 === 0) carimbo(x, y, 0.024, 255, 205, 180, 0.05 * forca);
+      }
+    }
+  });
 }
 // a direcao no ceu (unitaria, y para cima) e o ponto dela no plano da nebulosa
 const noPlanoDoCeu = (d) => { const k = 2 / (1 + Math.abs(d[1])); return [d[0] * k, -d[2] * k]; };
@@ -9788,6 +9995,10 @@ if(CEU_EM_CAMADAS){
   CEUS.push(novaTex([4, 6, 18]));
   ASPECTO_CEU[4] = 2.0;           // a nebulosa sai na mesma forma das pinturas (2:1)
   gerarNebulosa(CEUS[4]);
+  if(CEU_EM_CODIGO){   // 8.1: o cosmico e o rosa, gerados como a nebulosa
+    gerarCeuCosmico(CEUS[1]); gerarCeuRosa(CEUS[2]);
+    ASPECTO_CEU[0] = ASPECTO_CEU[1] = ASPECTO_CEU[2] = ASPECTO_CEU[3] = 2.0;
+  }
   montarCeuEmCamadas();
 }
 carregar(PELES[0], '__TEX_MARMORE__');
@@ -10991,6 +11202,58 @@ function desenharTartaruga(){
   gl.uniform1f(locSo.materia, 0.0);
   gl.enable(gl.CULL_FACE);   // devolve: e o estado de quem vem depois
 }
+
+/* ═══════════ OS ARCOS D'AGUA (8.1) ═══════════
+   26/09, a direcao de arte, sobre o cenario 4: "reproduzir aqueles shapes que
+   existem na imagem da deusa, aquelas formas de semicirculos, para juntar com a
+   imagem original; em varias partes do ambiente, convergindo com a deusa, como
+   se ela estivesse num ambiente meio de agua".
+
+   Seis fileiras de arcos, de 6 a 31 m, cada um virado para quem esta no centro,
+   maiores quanto mais longe, e as fileiras cada vez mais estreitas em volta da
+   direcao da deusa -- as linhas convergem para ela, como a perspectiva de um
+   corredor de ondas. O setor bem na frente fica livre ate 24 m, para a deusa e o
+   papel continuarem inteiros. O pe de cada arco afunda na "agua" (some no chao)
+   e, abaixo da linha dos olhos, eles viram veu (seguranca: o chao e a sala). */
+let bArcos = null, nArcosIdx = 0, arcosPresenca = 0;
+function montarArcos(){
+  if(!ARCOS_NO_FIM) return;
+  const pos = [], nor = [], alt = [], fase = [], borda = [], idx = [];
+  const az0 = Math.atan2(-2.8, 39.9);          // a direcao da deusa (a figura 'integra')
+  const FILAS = [[6, 4, 1.10], [9, 5, 1.55], [13, 6, 2.10], [18, 6, 2.80], [24, 7, 3.60], [31, 7, 4.60]];
+  const rnd = prng(8181);
+  let n = 0;
+  FILAS.forEach(([d, qtd, R], f) => {
+    const aberto = 1.45 * (1 - f / FILAS.length * 0.62);     // o leque fecha com a distancia: converge
+    for(let k = 0; k < qtd; k++){
+      const az = az0 + (-1 + 2 * k / (qtd - 1)) * aberto + (rnd() - 0.5) * 0.08;
+      if(d <= 24 && Math.abs(az - az0) < 0.26) continue;        // o caminho ate a deusa fica livre
+      const dd = d * (0.92 + rnd() * 0.16), Rr = R * (0.85 + rnd() * 0.3), T = Rr * 0.30;
+      const cx = Math.sin(az) * dd, cz = -Math.cos(az) * dd, cy = -0.22 * Rr;
+      const dir = [Math.cos(az), 0, Math.sin(az)], nx = -Math.sin(az), nz = Math.cos(az);
+      const base = pos.length / 3, SEG = 36;
+      for(let i = 0; i <= SEG; i++){
+        const u = i / SEG, th = Math.PI * u, co = Math.cos(th), si = Math.sin(th);
+        for(const rr of [0, 0.5, 1]){
+          const r = Rr - T + T * rr;
+          pos.push(cx + dir[0] * co * r, cy + si * r, cz + dir[2] * co * r);
+          nor.push(nx, 0, nz); alt.push(rr); fase.push(n + u * 0.98); borda.push(1);
+        }
+        if(i < SEG) for(let v = 0; v < 2; v++){
+          const a = base + i * 3 + v, b = a + 3;
+          idx.push(a, b, a + 1, a + 1, b, b + 1);
+        }
+      }
+      n++;
+    }
+  });
+  bArcos = criarBufs(['pos','nor','alt','fase','borda','idx']);
+  enviar(bArcos.pos, pos); enviar(bArcos.nor, nor); enviar(bArcos.alt, alt); enviar(bArcos.fase, fase); enviar(bArcos.borda, borda);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bArcos.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  nArcosIdx = idx.length;
+}
+montarArcos();       // 8.1
 montarVida();        // 7.4: depende dos troncos (semearMata) e dos cogumelos
 montarTartaruga();   // 7.7
 montarEfeitoDasMaos();   // 7.7
@@ -12902,7 +13165,7 @@ function seguirPartitura(dt){
      E ACABA DE DESCER AOS 9:36, nao aos 9:46: o fecho comeca aos 9:45, e
      uma arvore que so termina de chegar quando tudo ja esta se apagando
      nunca e vista inteira. */
-  retornoInverso = (c === 4) ? rampa(528, 576, t) : 0;
+  retornoInverso = (c === 4 && ARVORES_NO_TETO) ? rampa(528, 576, t) : 0;   // 8.1: sem arvores no teto
 
   nivelExtra = aproximar(nivelExtra, agitacao * 0.085, dt > 0 ? 1 - Math.exp(-2.2*dt) : 1);
 
@@ -12916,8 +13179,9 @@ function seguirPartitura(dt){
      aparece as folhinhas, nem os cogumelos"). Brotam de novo do chao real
      quando o mundo de papel sobe, junto com o retorno da floresta. */
   cogumeloCresce  = (c === 1) ? rampa(23, 57, t) * (1 - rampa(172, 180, t))
-                  : (c === 4) ? rampa(530, 556, t) : 0;
+                  : (c === 4 && COGUMELOS_NO_FIM) ? rampa(530, 556, t) : 0;   // 8.1: sem cogumelos no fim
   vidaPresenca    = (VIDA_NA_FLORESTA && c === 1) ? rampa(34, 58, t) * (1 - rampa(176, 186, t)) : 0;   // 7.4
+  arcosPresenca   = (ARCOS_NO_FIM && c === 4) ? rampa(530, 562, t) : 0;   // 8.1
   asteroidePres   = rampa(238, 262, t) * (1 - rampa(374, 388, t));
   /* Os buracos negros NAO estao la desde o comeco: aparecem depois que os
      planetas ja se montaram e o cenario ja respirou. */
@@ -13611,6 +13875,7 @@ if(emTesteLocal){
     paredeDeTeste(x, z, ax, az){ SALA.paredes.push({ y:1.5, cx:x, cz:z, poly:[], rotulo:'wall', pts3:[x - ax*1.5, 0, z - az*1.5, x + ax*1.5, 0, z + az*1.5, x + ax*1.5, 2.5, z + az*1.5] });
       const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
     tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
+    arcos(){ return { ok:!!bArcos, triangulos:nArcosIdx / 3, presenca:+arcosPresenca.toFixed(2) }; },
     gigante(){ let topo = -1e9; if(gigPos) for(let v = 0; v < dancaN; v += 97) topo = Math.max(topo, gigPos[v*3+1]);
       return { ok:GIG.ok, yaw:+GIG.yaw.toFixed(2), cabeca:+GIG.cabeca.toFixed(2), topo:+topo.toFixed(1) }; },
     coruja(estado){ if(estado){ CORUJA.estado = estado; CORUJA.ate = relogio + 8; } return { estado:CORUJA.estado, x:+CORUJA.x.toFixed(2), y:+CORUJA.y.toFixed(2), z:+CORUJA.z.toFixed(2), yaw:+CORUJA.yaw.toFixed(2), poleiro:CORUJA.poleiro, poleiros:POLEIROS.map(p => p.map(v => +v.toFixed(2))) }; },
@@ -14290,7 +14555,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                serpente:uSo('serpente'), serpentes:uSo('serpentes[0]'),
                corrente:uSo('corrente'),
                maoA:uSo('maoA'), maoB:uSo('maoB'), faseExtra:uSo('faseExtra'),
-               cogToque:uSo('cogToque[0]'), ondulaMao:uSo('ondulaMao'), maeXZ:uSo('maeXZ')};   // 7.4
+               cogToque:uSo('cogToque[0]'), ondulaMao:uSo('ondulaMao'), maeXZ:uSo('maeXZ'),
+               arcoOnda:uSo('arcoOnda')};   // 7.4, 8.1
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -15208,6 +15474,31 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     }
     gl.depthMask(true);
     gl.disable(gl.BLEND);
+  }
+
+  /* 1a-quater) OS ARCOS D'AGUA (8.1), junto do papel e da deusa: veu, sem
+     escrever profundidade, logo depois deles. */
+  if(ARCOS_NO_FIM && bArcos && nArcosIdx > 0 && arcosPresenca > 0.004){
+    gl.useProgram(progSolida); soltarAtributos();
+    gl.enable(gl.BLEND); sobrepor(); gl.depthMask(false); gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST);
+    mandarMvp(locSo.mvp, mvp);
+    gl.uniform1f(locSo.tempo, relogio);
+    gl.uniform3f(locSo.olhoPos, olhoPos[0], olhoPos[1], olhoPos[2]);
+    gl.uniform1f(locSo.inverte, 0.0); gl.uniform3f(locSo.desloca, 0, 0, 0);
+    gl.uniform1f(locSo.brota, 0.0); gl.uniform1f(locSo.balanca, 0.0); gl.uniform1f(locSo.ondula, 0.0);
+    gl.uniform1f(locSo.bolha, 0.0); gl.uniform1f(locSo.nadar, 0.0); gl.uniform1f(locSo.serpente, 0.0);
+    gl.uniform1f(locSo.corrente, 0.0); gl.uniform1f(locSo.inflar, 0.0); gl.uniform1f(locSo.escalaObj, 1.0);
+    gl.uniform1f(locSo.ondulaMao, 0.0); gl.uniform1f(locSo.crescimento, 9.0); gl.uniform1f(locSo.lamina, 99.0);
+    gl.uniform1f(locSo.arcoOnda, 1.0);
+    gl.uniform1f(locSo.materia, 25.0);
+    gl.uniform1f(locSo.presenca, arcosPresenca * (1 - fecho));
+    ligar(aSo.pos, bArcos.pos, 3); ligar(aSo.nor, bArcos.nor, 3);
+    ligar(aSo.alt, bArcos.alt, 1); ligar(aSo.fase, bArcos.fase, 1); ligar(aSo.borda, bArcos.borda, 1);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bArcos.idx);
+    gl.drawElements(gl.TRIANGLES, nArcosIdx, gl.UNSIGNED_SHORT, 0);
+    gl.uniform1f(locSo.arcoOnda, 0.0); gl.uniform1f(locSo.materia, 0.0);
+    gl.uniform1f(locSo.brota, 1.0); gl.uniform1f(locSo.balanca, 1.0);
+    gl.depthMask(true); gl.disable(gl.BLEND);
   }
 
   /* 1b) AS PAREDES, logo depois do ceu (5.0). Primeiro a TAMPA: sem
