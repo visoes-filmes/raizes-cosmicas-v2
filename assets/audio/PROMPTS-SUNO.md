@@ -49,3 +49,18 @@ faltar tempo no fim, a obra segura a última nota na frase final. Falta o arquiv
   "same key as a calm D minor ambient piece" ajuda o Suno a não brigar na travessia.
 - Baixar em MP3 e guardar em `assets/audio/` como `trilha-2-cosmos.mp3`,
   `trilha-3-mar.mp3`, `trilha-4-papel.mp3`. Aí eu ligo o cross-fade na obra.
+
+## Geradas em 26/09 (Suno v6, conta da Crisia)
+
+Quatro faixas em `assets/audio/suno/` — duas de cada prompt, para ela escolher:
+
+| arquivo | prompt | duração |
+|---|---|---|
+| `raizes-cosmos-A.mp3` | Cosmos | 3:30 |
+| `raizes-cosmos-B.mp3` | Cosmos | 3:28 |
+| `raizes-mar-A.mp3` | Mar | 3:48 |
+| `raizes-mar-B.mp3` | Mar | 3:38 |
+
+Escolhida uma de cada, ela vira `trilha-2-cosmos.mp3` / `trilha-3-mar.mp3` e entra na obra
+com o cross-fade. A do cenário 4 continua sendo o áudio da própria animação (falta o arquivo).
+
