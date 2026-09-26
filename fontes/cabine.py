@@ -57,7 +57,8 @@ PORTA_DEVTOOLS = 9222
 LOG = os.path.join(AQUI, "cabine.log")
 IP_GUARDADO = os.path.join(AQUI, "guardiao_quest.ip")   # o mesmo do guardião
 NAVEGADOR_QUEST = "com.oculus.browser"
-VERSOES = {"v6": "v6.html", "v52": "v52.html", "v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html"}
+VERSOES = {"v6": "v6.html", "v52": "v52.html", "v2": "", "v4": "v4.html", "v5": "v5.html", "oficina": "oficina.html",
+           "proxima": "proxima.html"}   # 26/09: a proxima versao, preparada do ramo (fontes/proxima.py), sem publicar
 NOMES_CENAS = {1: "floresta", 2: "cosmos", 3: "planeta rosa", 4: "papel"}
 
 # no Windows sem console (pythonw), nenhum subprocesso pode abrir janela
@@ -956,6 +957,11 @@ def agir(nome, dados):
         r, e = avaliar("(window.raizes&&raizes.escanear)?raizes.escanear():'sem gancho aqui (abra pela Cabine)'", gesto=True)
         relatar(f"escaneamento do espaço: {r or e}")
         return {"ok": r == "pedido", "resposta": r or e}
+    elif nome in ("proxima_preparar", "proxima_ver", "proxima_publicar"):
+        r = proxima(nome.split("_", 1)[1])
+        with TRAVA:
+            ESTADO["proxima"] = dict(PROXIMA)
+        return r
     elif nome == "atualizar":
         r = sincronizar("botão")
         with TRAVA:
@@ -1305,6 +1311,59 @@ def sincronizar_sempre():
         time.sleep(300)
 
 
+# ── a proxima versao, escolhida quando a experiencia nao estiver acontecendo (26/09) ──
+# "Coloque um botao para selecionar quando a experiencia nao estiver acontecendo."
+# Preparar monta o ramo em proxima.html (nada publicado); Ver abre no Quest;
+# Publicar junta o ramo a main e publica. Os tres recusam com gente na obra.
+PROXIMA = {"estado": "parada", "msg": "", "commit": None, "hora": None, "titulo": ""}
+
+
+def experiencia_acontecendo():
+    o = ESTADO["obra"]
+    if not o.get("aba") or o.get("portao"):
+        return False                     # sem obra aberta, ou com o portao a vista: ninguem dentro
+    return bool((o.get("onde") or {}).get("andando"))
+
+
+def _proxima_em_fundo(acao):
+    PROXIMA.update(estado="preparando" if acao == "preparar" else "publicando", msg="", hora=datetime.now().strftime("%H:%M"))
+    saida, _ = rodar([sys.executable, os.path.join(AQUI, "proxima.py"), acao], timeout=1500)
+    try:
+        r = json.loads(saida.strip().splitlines()[-1])
+    except Exception:
+        r = {"ok": False, "erro": saida.strip()[-300:] or "sem resposta"}
+    if r.get("ok"):
+        if acao == "preparar":
+            PROXIMA.update(estado="pronta", commit=r.get("commit"), titulo=r.get("titulo", ""),
+                           msg=f"pronta ({r.get('kb', 0) // 1024} MB) — abra no Quest para conferir; nada foi publicado")
+            relatar(f"próxima versão pronta para ver no Quest ({r.get('commit')}) — nada publicado")
+        else:
+            PROXIMA.update(estado="publicada", commit=r.get("commit"), msg="publicada: o site e a main já têm a nova")
+            relatar(f"próxima versão PUBLICADA ({r.get('commit')})")
+            if ESTADO["obra"].get("aba") and not experiencia_acontecendo():
+                abrir_no_quest(ESTADO["quest"]["escolhido"], "v6")   # o oculos passa para a nova, que agora e a de sempre
+    else:
+        PROXIMA.update(estado="erro", msg=r.get("erro", "falhou"))
+        relatar("próxima versão: " + r.get("erro", "falhou"))
+    with TRAVA:
+        ESTADO["proxima"] = dict(PROXIMA)
+
+
+def proxima(acao):
+    if PROXIMA["estado"] in ("preparando", "publicando"):
+        return {"ok": False, "erro": "já estou " + PROXIMA["estado"]}
+    if experiencia_acontecendo():
+        return {"ok": False, "erro": "tem gente dentro da obra agora — espere o portão voltar"}
+    if acao == "ver":
+        if not os.path.exists(os.path.join(RAIZ, "proxima.html")):
+            return {"ok": False, "erro": "prepare a próxima antes"}
+        if not ESTADO["quest"]["escolhido"]:
+            return {"ok": False, "erro": "o Quest não está ao alcance"}
+        return abrir_no_quest(ESTADO["quest"]["escolhido"], "proxima")
+    threading.Thread(target=_proxima_em_fundo, args=(acao,), daemon=True).start()
+    return {"ok": True, "resposta": ("preparando" if acao == "preparar" else "publicando") + " — leva alguns minutos"}
+
+
 def ja_esta_de_pe():
     try:
         urlopen(f"http://127.0.0.1:{PORTA_CABINE}/estado", timeout=2).read()
@@ -1333,6 +1392,9 @@ def main():
         ESTADO["avisos"].append("não há index.html: rode python fontes/montar_mr.py")
     log(f"cabine de pé (adb: {ADB})")
     threading.Thread(target=sincronizar_sempre, daemon=True).start()
+    if os.path.exists(os.path.join(RAIZ, "proxima.html")):   # uma proxima ja preparada antes
+        PROXIMA.update(estado="pronta", msg="preparada antes — abra no Quest para conferir")
+        ESTADO["proxima"] = dict(PROXIMA)
     subir_servidor_da_obra()
     if ADB:
         threading.Thread(target=vigiar, daemon=True).start()
