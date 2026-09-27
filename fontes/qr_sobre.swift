@@ -138,6 +138,10 @@ final class Vista: NSView {
             t.concat()
         }
         ctx.imageInterpolation = .high
+        /* o mesmo tamanho de modulo nos tres (27/09, "pode diminuir mais um pouco"): o do maior QR
+           enche o cartao; os menores ficam com mais margem branca. Sem suavizar, mesmo fracionado. */
+        let maiorPx = cartoes.map { CGFloat($0.imagem.representations.first?.pixelsWide ?? 0) }.max() ?? 0
+        let porModulo = maiorPx > 0 ? lado.rounded() / maiorPx : 0
         for (k, c) in cartoes.enumerated() {
             let x0 = folga + CGFloat(k) * (vaga + entre)
             let r = NSRect(x: (x0 + (vaga - lado) / 2).rounded(), y: (folga + linha + vao).rounded(),
@@ -149,9 +153,8 @@ final class Vista: NSView {
                inteiro de pixels do projetor e sem suavizar -- borda borrada a camera do celular nao
                le no tule. A imagem ja vem com 1 pixel por modulo e os 4 de margem branca. */
             let px = CGFloat(c.imagem.representations.first?.pixelsWide ?? 0)
-            let k = px > 0 ? floor(r.width / px) : 0
-            if k >= 1 {
-                let lq = k * px
+            if px > 0 && porModulo >= 1 {
+                let lq = (px * porModulo).rounded()
                 let q = NSRect(x: r.minX + ((r.width - lq) / 2).rounded(), y: r.minY + ((r.height - lq) / 2).rounded(), width: lq, height: lq)
                 ctx.imageInterpolation = .none
                 c.imagem.draw(in: q, from: .zero, operation: .sourceOver, fraction: 1)
