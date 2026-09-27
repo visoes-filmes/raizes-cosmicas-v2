@@ -119,6 +119,43 @@
   body.celular{background:transparent;}
   body.celular #cam{display:block;}
   body.celular #emergencia button{width:46px;height:46px;opacity:.6;}
+  /* 9.0 -- O CELULAR (27/09). Os botoes de quem segura: virar a camera e a foto, no canto do
+     polegar; a dica no alto; a foto aberta para salvar. Na camera da frente a tela inteira
+     (camera e obra) e espelhada, como espelho, e o meio fica aberto para o rosto. Na RA do
+     Android a camera e do navegador: o canvas e o video da pagina nao aparecem. */
+  #celularBotoes{position:fixed;right:16px;bottom:16px;z-index:12;display:none;gap:12px;align-items:center;}
+  body.celular #celularBotoes{display:flex;}
+  #celularBotoes button{width:52px;height:52px;padding:0;border-radius:50%;display:grid;place-items:center;
+    background:rgba(21,15,38,.55);border:1px solid rgba(201,168,255,.45);color:var(--ink);opacity:.85;
+    backdrop-filter:blur(8px);}
+  #celularBotoes svg{width:24px;height:24px;display:block;}
+  #celularBotoes #bFoto{width:62px;height:62px;background:rgba(201,168,255,.30);}
+  #dicaCelular{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:12;max-width:min(88vw,460px);
+    padding:8px 14px;border-radius:14px;background:rgba(8,6,14,.62);color:var(--ink);font-size:13px;line-height:1.4;
+    text-align:center;pointer-events:none;backdrop-filter:blur(8px);}
+  #fotoPrevia{position:fixed;inset:0;z-index:200;background:rgba(8,6,14,.94);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;padding:16px;}
+  #fotoPrevia img{max-width:100%;max-height:calc(100% - 84px);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.6);}
+  #fotoPrevia .fotoAcoes{display:flex;gap:12px;}
+  #fotoPrevia .fotoAcoes button{font-size:15px;padding:11px 24px;}
+  #fotoPrevia #bFotoSalvar{background:var(--accent);color:#1c1030;border-color:var(--accent);font-weight:600;}
+  body.selfie #cam, body.selfie #gl{transform:scaleX(-1);}
+  body.selfie #gl{-webkit-mask-image:radial-gradient(ellipse 30% 36% at 50% 42%, transparent 55%, #000 100%);
+                  mask-image:radial-gradient(ellipse 30% 36% at 50% 42%, transparent 55%, #000 100%);}
+  body.ra #gl, body.ra #cam{visibility:hidden;}
+  /* 9.0 -- O CELULAR DEITADO (27/09: "a versao mobile nao esta funcionando em horizontal").
+     Com 360 px de altura o portao nao cabia e o Iniciar ficava fora da tela, sem como
+     rolar. Em tela baixa ele encolhe; se ainda nao couber, rola. */
+  #portao{overflow:auto;}
+  @media (max-height: 520px){
+    #portao{place-items:start center;padding:10px;}
+    .portao-caixa{padding:12px 20px;margin:auto;}
+    .portao-nome{font-size:clamp(24px, 7vh, 34px);margin:0 0 2px;}
+    .portao-sub{margin:0 0 12px;}
+    #bIniciar{padding:10px 30px;font-size:15px;}
+    #bIniciarTela{margin-top:8px;}
+    .portao-dica{margin-top:10px;font-size:12px;}
+  }
   #gl:active{cursor:grabbing;}
 
   .card{
@@ -437,6 +474,9 @@
      dentro. Servem no portao, na tela do computador e no espelho — que e
      onde quem opera esta. O que precisar ser tocado DENTRO da obra tem
      que ser desenhado na cena. -->
+<!-- 9.0: tudo o que se toca no celular mora aqui dentro -- e e esta a raiz do dom-overlay
+     da RA no Android (no Quest nao ha dom-overlay: ele pendura; ver entrarXR) -->
+<div id="sobreCelular">
 <div id="emergencia">
   <button id="bReiniciar" title="reiniciar do zero" aria-label="reiniciar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -454,6 +494,30 @@
       <path d="M6 6l12 12M18 6L6 18"/>
     </svg>
   </button>
+</div>
+<div id="celularBotoes">
+  <button id="bVirar" title="virar a câmera" aria-label="virar a câmera">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><path d="M9.5 12.5a2.8 2.8 0 0 1 5 -1.2M14.5 14.5a2.8 2.8 0 0 1 -5 1.2"/>
+      <path d="M14.8 9.8v1.6h-1.6M9.2 17.2v-1.6h1.6"/>
+    </svg>
+  </button>
+  <button id="bFoto" title="tirar uma foto" aria-label="tirar uma foto">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/>
+    </svg>
+  </button>
+</div>
+<div id="dicaCelular" class="oculto"></div>
+<div id="fotoPrevia" class="oculto">
+  <img id="fotoImg" alt="a foto tirada dentro da Raízes Cósmicas">
+  <div class="fotoAcoes">
+    <button id="bFotoSalvar">Salvar ou compartilhar</button>
+    <button id="bFotoVoltar">Voltar</button>
+  </div>
+</div>
 </div>
 
 <script>
@@ -519,6 +583,11 @@ const SER_NO_CEU         = true;
    foram pedidas DEPOIS de o chao ser limpo, entao apaga-las junto com a
    grama seria desfazer o pedido novo com o interruptor do pedido velho. */
 const PEDRAS_NO_CHAO     = true;
+/* 9.0 -- AS PEDRAS ESCURAS DO MAR SAEM DE VERDADE. O pedido de 26/09 ("remova as pedras
+   escuras de baixo da agua") foi feito na 8.9 nas pedras da FLORESTA -- que nem aparecem
+   no mar. As do mar sao outra lista (PEDRAS, as seis do planeta rosa na linha d'agua,
+   escuras e achatadas), e continuavam la; aparecem nas fotos da bancada entre as plantas. */
+const PEDRAS_NO_MAR      = false;
 /* MATA_SOLIDA -- as arvores como superficie, e nao como nuvem de pontos.
    false devolve a nuvem inteira, e nada mais muda: as duas crescem pela
    mesma conta, entao a troca e de materia e nao de coreografia. */
@@ -5172,6 +5241,15 @@ uniform vec4 maoA, maoB;
 /* A COR DE CADA SER DE LUZ (6.3): a malha e uma so para todos, e o que os
    distingue vem daqui. */
 uniform float faseExtra;
+uniform float soFundo;       // 9.0: 1 = so a profundidade (a passada que ordena a mata translucida)
+uniform float matizBicho;    // 9.0: o giro de matiz do bicho tocado (radianos) -- so as materias 24 e 26 leem
+uniform float brilhoBicho;   // 9.0: o clarao do toque, de 1 a 0 enquanto ele treme
+/* 9.0: gira o matiz em volta do eixo cinza (Rodrigues): o claro-escuro fica, a cor anda */
+vec3 girarMatiz(vec3 c, float a){
+  const vec3 k = vec3(0.57735);
+  float ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
 // quanto a mao mais perto esta deste ponto: um encostando, zero a meio metro
 float pertoDaMao(vec3 q){
   float a = maoA.w * (1.0 - smoothstep(0.06, 0.50, distance(q, maoA.xyz)));
@@ -5295,6 +5373,18 @@ void main(){
 
   // o angulo de raspao serve a iridescencia e a translucidez
   float raspaoC = 1.0 - abs(dot(n, normalize(olhoPos - vMundo)));
+
+  /* 9.0 -- A PASSADA DE PROFUNDIDADE (ver ordenarAMata no JS). So a forma conta: o que ja
+     brotou (vivo), a borda e a silhueta. A presenca geral fica de fora -- e justamente ela
+     que esta entre 0 e 1 quando a mata e translucida, e a ordem tem de valer igual. */
+  if(soFundo > 0.5){
+    float va = (materia < 0.5 || (materia > 7.5 && materia < 8.5) || (materia > 14.5 && materia < 17.5))
+               ? smoothstep(0.0, 0.30, vVivo) : vVivo;
+    va *= vBorda * smoothstep(0.0, 0.10, 1.0 - raspaoC);
+    if(va < 0.5) discard;
+    gl_FragColor = vec4(0.0);
+    return;
+  }
 
   vec3 c;
   /* AS ESTRELAS SAO LUZ, e luz nao se sombreia: elas ficam guardadas aqui e
@@ -6215,6 +6305,8 @@ void main(){
     } else {
       c = vec3(0.35, 1.0, 0.85) * (0.8 + 0.4 * rimT);
     }
+    // 9.0: tocada, ela muda de cor (o olho fica como e) e acende enquanto treme
+    if(parte < 1.5 || parte > 2.5) c = max(girarMatiz(c, matizBicho), vec3(0.0)) * (1.0 + brilhoBicho * 0.7);
   }
 
   /* O TAMANDUA DE OLHOS DE CARACOL -- 8.2. A parte na fase: 0 o corpo (a fracao vai
@@ -6286,6 +6378,8 @@ void main(){
     } else {
       c = vec3(1.0, 0.45, 0.70) * (0.75 + 0.45 * rimT);
     }
+    // 9.0: tocado, muda de cor -- corpo, cauda, cabeca, pernas e hastes; olhos e lingua ficam
+    if(parte < 4.5) c = max(girarMatiz(c, matizBicho), vec3(0.0)) * (1.0 + brilhoBicho * 0.7);
   }
 
   /* OS ARCOS D'AGUA -- 8.1. As formas de semicirculo da imagem da deusa (os
@@ -8406,6 +8500,7 @@ uniform float altura, inicio, fim;   // o mesmo degrade da cupula
 uniform float giroCeu;               // e a mesma volta: reflexo tem que bater
 uniform float agitacao;              // quanto a pessoa esta mexendo a agua
 uniform float furacao;               // 0 no meio da cena, 1 no fim dela
+uniform float giroFuracao;           // 9.0: o giro ja acumulado, em radianos (ver o JS)
 varying float vOnda;
 varying float vAnel;
 varying vec3 vMundo;
@@ -8522,7 +8617,16 @@ void main(){
       vec2 d = q - olhos[k];
       float r = length(d);
       float forca = furacao * 2.4 / (1.0 + r*r*5.0);
-      float ang = forca - tempo * 0.55 * furacao;
+      /* 9.0 -- O MAR PISCAVA AO SUMIR (27/09: "o mar do planeta rosa ainda esta piscando
+         quando desaparece"). O giro era tempo x 0,55 x furacao: o relogio da obra inteira
+         vezes uma forca que sobe e desce. Enquanto a forca muda, a derivada do produto e o
+         relogio (quinhentos e tantos segundos) vezes a rampa -- o redemoinho disparava a
+         varias voltas por segundo justo na entrada (8:16-8:40) e na saida (8:46-8:58), e a
+         borda da lamina (que era medida pelo ponto ja torcido) ligava e desligava a cada
+         quadro. Medido na bancada: dos 8:48 aos 8:55, a lamina inteira alternava entre um
+         quadro e o seguinte. Agora o giro e ACUMULADO no JS (giroFuracao += 0,55 x forca x dt):
+         no maximo 0,55 rad/s, e so enquanto ha furacao. */
+      float ang = forca - giroFuracao;
       float cs = cos(ang), sn = sin(ang);
       q = olhos[k] + vec2(d.x*cs - d.y*sn, d.x*sn + d.y*cs);
     }
@@ -8559,7 +8663,8 @@ void main(){
   /* A lamina cede longe, para nao ter borda. Como ela segue a pessoa, a
      borda nunca chega perto — mas se chegasse, seria uma linha reta no
      meio de um mundo que nao tem nenhuma. */
-  float d = length(q - olhoPos.xz);
+  // 9.0: a borda pela posicao de verdade, e nao pela torcida do furacao (que a fazia piscar)
+  float d = length(vMundo.xz - olhoPos.xz);
   float alcance = 1.0 - smoothstep(6.5, 9.0, d);
 
   /* TRANSLUCIDA -- 25/09 (7.3): 0,42 a pino e 0,80 de raspao. Era 0,72 a
@@ -10909,12 +11014,12 @@ const DURACAO = 600;          // a partitura, em segundos DE ROTEIRO: tudo abaix
    ?min=10), senao da ultima escolha deste aparelho, senao dez. A Cabine troca pelo
    gancho raizes.duracao(6|10) -- e so com o portao a vista: no meio da obra o ritmo
    nao muda, porque mudar o relogio no meio salta a partitura. */
-const DURACOES_REAIS = { 6: 360, 10: 600 };
+const DURACOES_REAIS = { 5: 300, 6: 360, 10: 600 };   // 9.0: cinco, no celular
 let DURACAO_REAL = 600;       // dez minutos (7.8); 360 na 7.3 -- agora escolhido (aplicarDuracao)
 let RITMO = DURACAO / DURACAO_REAL;
 let TRAVESSIA = 6 * RITMO;    // seis segundos REAIS de mistura entre cenarios
 function minutosDaObra(){ return Math.round(DURACAO_REAL / 60); }
-function minutosPorExtenso(){ return minutosDaObra() === 6 ? 'seis minutos' : 'dez minutos'; }
+function minutosPorExtenso(){ const m = minutosDaObra(); return m === 5 ? 'cinco minutos' : m === 6 ? 'seis minutos' : 'dez minutos'; }
 function aplicarDuracao(min){
   const d = DURACOES_REAIS[min];
   if(!d) return false;
@@ -10923,11 +11028,13 @@ function aplicarDuracao(min){
   const sub = document.querySelector('.portao-sub');
   if(sub) sub.textContent = 'Visões Filmes · ' + minutosPorExtenso();
   const dica = document.getElementById('portaoDica');
-  if(dica) dica.textContent = dica.textContent.replace(/(seis|dez) minutos/, minutosPorExtenso());
+  if(dica) dica.textContent = dica.textContent.replace(/(cinco|seis|dez) minutos/, minutosPorExtenso());
   return true;
 }
 (function(){
   let min = parseInt(new URLSearchParams(location.search).get('min') || '', 10);
+  // 9.0: no celular a obra e de cinco minutos (27/09: "vamos fazer a versao ser 5 min") -- so o endereco muda isso
+  if(!DURACOES_REAIS[min] && CELULAR) min = 5;
   if(!DURACOES_REAIS[min]){ try{ min = parseInt(localStorage.getItem('raizes-minutos') || '', 10); }catch(e){ min = NaN; } }
   aplicarDuracao(DURACOES_REAIS[min] ? min : 10);
 })();
@@ -11183,7 +11290,9 @@ function afastar(p, y, r, ignorar, noChao){
   for(const tr of TRONCOS){
     if(tr === ignorar) continue;
     const q = pontoDoTronco(tr, y); if(!q) continue;
-    mexeu = empurrarCirculo(p, q[0], q[1], (tr.mae ? Math.max(q[2], 0.30) + 0.1 : q[2] + 0.04) + r) || mexeu;
+    // 9.0: rente ao chao a mae tem a saia de sapopemas (0,80 m do eixo), e nao so o tronco
+    const rTr = tr.mae ? Math.max(q[2] + 0.1, 0.40, y < 0.7 ? 0.85 : 0) : q[2] + 0.04;
+    mexeu = empurrarCirculo(p, q[0], q[1], rTr + r) || mexeu;
   }
   for(const cg of COGUMELOS){
     if(cg === ignorar) continue;
@@ -11210,6 +11319,66 @@ function livreNoChao(x, z, r){
   const p = { x, z };
   return !afastar(p, 0.2, r, null, true) && Math.hypot(x - ondeOOlhoEsta[0], z - ondeOOlhoEsta[2]) > ZONA_DA_PESSOA + r;
 }
+/* 9.0 -- OS BICHOS MAIS PERTO DO CENTRO, MAS NUNCA EM CIMA DE QUEM ESTA LA (27/09: "faz
+   a tartaruga e o tamandua ficarem mais para o centro, mas nao em cima da pessoa. E eles
+   nao podem entrar dentro dos outros objetos"). Para eles a zona da pessoa cai de 0,85 m +
+   corpo para 0,50 m + corpo: a tartaruga chega a uns 35 cm dos pes, que e ao alcance da
+   mao de quem se abaixa. E eles passam a sair tambem da dancarina, dos moveis lidos pelo
+   Quest e das paredes (antes so troncos, cogumelos, pedras e tufos contavam). */
+const ZONA_DO_BICHO = 0.50;
+/* o caminho reto de um bicho de raio r, de 15 em 15 cm: nada no meio */
+function caminhoLivre(x0, z0, x1, z1, r){
+  const L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 0.15)), p = { x:0, z:0 };
+  // os primeiros 30 cm nao contam: quem ja esta encostado em algo sai dali andando
+  for(let i = Math.min(n, 2); i <= n; i++){
+    const u = i / n; p.x = x0 + (x1 - x0) * u; p.z = z0 + (z1 - z0) * u;
+    if(afastar(p, 0.2, r, null, true)) return false;
+    p.x = x0 + (x1 - x0) * u; p.z = z0 + (z1 - z0) * u;
+    if(afastarDosOutros(p, r)) return false;
+  }
+  return true;
+}
+function distAoSegmento(px, pz, ax, az, bx, bz){
+  const ex = bx - ax, ez = bz - az, L = ex * ex + ez * ez;
+  let u = L > 0 ? ((px - ax) * ex + (pz - az) * ez) / L : 0; u = u < 0 ? 0 : u > 1 ? 1 : u;
+  return Math.hypot(px - (ax + ex * u), pz - (az + ez * u));
+}
+function afastarDaPessoaBicho(p, r){
+  const o = ondeOOlhoEsta;
+  return empurrarCirculo(p, o[0], o[2], ZONA_DO_BICHO + r);
+}
+/* para fora de um poligono (um movel lido), a margem da beirada */
+function sairDoPoligono(p, poly, margem){
+  const dentro = dentroDoPoligono(p.x, p.z, poly);
+  let best = 1e9, qx = 0, qz = 0;
+  for(let a = 0, b = poly.length - 2; a < poly.length; b = a, a += 2){
+    const xi = poly[a], zi = poly[a + 1], ex = poly[b] - xi, ez = poly[b + 1] - zi, L = ex * ex + ez * ez;
+    let u = L > 0 ? ((p.x - xi) * ex + (p.z - zi) * ez) / L : 0; u = u < 0 ? 0 : u > 1 ? 1 : u;
+    const cx = xi + ex * u, cz = zi + ez * u, dd = Math.hypot(p.x - cx, p.z - cz);
+    if(dd < best){ best = dd; qx = cx; qz = cz; }
+  }
+  if(!dentro && best >= margem) return false;
+  let nx = dentro ? qx - p.x : p.x - qx, nz = dentro ? qz - p.z : p.z - qz;
+  const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+  p.x = qx + nx * margem; p.z = qz + nz * margem;
+  return true;
+}
+function afastarDosOutros(p, r){
+  let mexeu = false;
+  if(DANCA.ok && DANCA.ancora && DANCA.presenca > 0.05) mexeu = empurrarCirculo(p, DANCA.ancora[0], DANCA.ancora[1], 0.40 + r) || mexeu;
+  if(typeof SALA !== 'undefined' && SALA.pronta){
+    for(const m of SALA.moveis) mexeu = sairDoPoligono(p, m.poly, r + 0.05) || mexeu;
+    if(SALA.chao) mexeu = dentroDaSala(p, r + 0.10) || mexeu;
+  }
+  return mexeu;
+}
+function livreParaBicho(x, z, r){
+  const p = { x, z };
+  if(afastar(p, 0.2, r, null, true) || afastarDosOutros(p, r)) return false;
+  return Math.hypot(x - ondeOOlhoEsta[0], z - ondeOOlhoEsta[2]) > ZONA_DO_BICHO + r + 0.15;
+}
+/* o celular vibra no toque (27/09: "mudar de cor quando tocar nela e vibrar") -- no Quest nao ha o que vibrar */
+function vibrarOCelular(ms){ if(CELULAR && navigator.vibrate){ try{ navigator.vibrate(ms); }catch(e){} } }
 /* a sala lida: dentro do chao, a 30 cm das paredes */
 function dentroDaSala(p, margem){
   if(!(typeof SALA !== 'undefined' && SALA.pronta && SALA.chao)) return false;
@@ -12106,7 +12275,8 @@ function desenharEfeitoDasMaos(mvp, escalaPonto){
    para de vez em quando por alguns segundos. Tocada (a mao a 28 cm do
    casco), RECOLHE a cabeca e as patas por tres segundos, o casco pulsa e
    soa uma nota grave. */
-const TARTA = { ok:false, x:0.8, y:0, z:0.9, yaw:0, alvo:[0, 0, 0], v:0.08, passo:0, parada:0, recolhe:0, somEm:-9, n:0 };
+const TARTA = { ok:false, x:0.8, y:0, z:0.9, yaw:0, alvo:[0, 0, 0], v:0.08, passo:0, parada:0, recolhe:0, somEm:-9, n:0,
+                matiz:0, matizAlvo:0, treme:0, tocadaEm:-9, dentro:[false, false], marca:null };   // 9.0
 let bTarta = null, nTartaIdx = 0, tartaLocal = null, tartaNorLocal = null, tartaPos = null, tartaNor = null, tartaParte = null;
 function montarTartaruga(){
   if(!VIDA_NA_FLORESTA) return;
@@ -12175,21 +12345,31 @@ function montarTartaruga(){
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTarta.idx);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(IDX), gl.STATIC_DRAW);
   nTartaIdx = IDX.length;
-  TARTA.x = 0.9; TARTA.z = 1.0; TARTA.yaw = Math.PI * 0.8; TARTA.alvo = [-0.6, 0, 1.2]; TARTA.ok = true;
+  // 9.0: o primeiro destino e escolhido como os outros (caminho livre), e nao um ponto fixo do outro lado
+  TARTA.x = 0.9; TARTA.z = 1.0; TARTA.yaw = Math.PI * 0.8; TARTA.alvo = [0.9, 0, 1.0]; TARTA.ok = true;
 }
 function andarTartaruga(dt){
   const Tt = TARTA;
   if(!Tt.ok || vidaPresenca <= 0.004) return;
   const T = relogio;
-  // ── tocada: recolhe ──
-  Tt.recolhe = Math.max(0, Tt.recolhe - dt);
-  for(const m of MAOS){
-    if(!m.tem || Tt.recolhe > 0) continue;
-    if(Math.hypot(Tt.x - m.x, Tt.y + 0.1 - m.y, Tt.z - m.z) < 0.30){
-      Tt.recolhe = 3.0; pulsarEm(Tt.x, Tt.y + 0.15, Tt.z);
-      if(T - Tt.somEm > 1.5){ Tt.somEm = T; sinoDoToque(1, 0.45); relato('TOCOU-A-TARTARUGA'); }
+  /* ── 9.0: TOCADA, MUDA DE COR E TREME (27/09: "e melhor fazer a tartaruga mudar de cor
+     quando tocar nela e vibrar, ao inves de fugir"). Ela nao recolhe mais a cabeca nem as
+     patas: cada toque (a mao ENTRANDO nos 30 cm do casco) gira a cor para a proxima de
+     cinco, ela treme 1,2 s, para um segundo e segue; o celular vibra junto. ── */
+  Tt.recolhe = 0;
+  Tt.treme = Math.max(0, Tt.treme - dt);
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
+    const perto = m.tem && Math.hypot(Tt.x - m.x, Tt.y + 0.1 - m.y, Tt.z - m.z) < 0.30;
+    if(perto && !Tt.dentro[i] && Math.abs(T - Tt.tocadaEm) > 0.5){
+      Tt.tocadaEm = T; Tt.treme = 1.2; Tt.matizAlvo += Math.PI * 2 / 5; Tt.parada = Math.max(Tt.parada, 1.0);
+      pulsarEm(Tt.x, Tt.y + 0.15, Tt.z);
+      vibrarOCelular(40);
+      if(Math.abs(T - Tt.somEm) > 0.6){ Tt.somEm = T; sinoDoToque(1, 0.45); relato('TOCOU-A-TARTARUGA cor ' + (Math.round(Tt.matizAlvo / (Math.PI * 2 / 5)) % 5)); }
     }
+    Tt.dentro[i] = perto;
   }
+  Tt.matiz += (Tt.matizAlvo - Tt.matiz) * (1 - Math.exp(-dt * 4));
   // ── o andar ──
   let andando = 0;
   if(Tt.recolhe <= 0){
@@ -12197,28 +12377,60 @@ function andarTartaruga(dt){
     else {
       const dx = Tt.alvo[0] - Tt.x, dz = Tt.alvo[2] - Tt.z, d = Math.hypot(dx, dz);
       if(d < 0.08){
-        // um ponto novo: dentro de 1,8 m do centro, a mais de 0,9 m da mae e de onde esta
-        let nx = 0, nz = 0;
-        for(let k = 0; k < 8; k++){
-          const a = Math.sin(T * 3.7 + k * 2.3) * Math.PI, r = 1.3 + Math.abs(Math.cos(T * 1.9 + k)) * 1.1;   // 8.3: no campo medio
-          nx = Math.sin(a) * r; nz = -Math.cos(a) * r;
-          if(Math.hypot(nx - ARVORE_BASE[0], nz - ARVORE_BASE[2]) > 0.9 && Math.hypot(nx - Tt.x, nz - Tt.z) > 0.6 && livreNoChao(nx, nz, 0.4)) break;
+        /* um ponto novo. 9.0: mais perto do centro -- de 0,85 a 1,7 m (era 1,3 a 2,4) --,
+           fora da saia da mae, longe de quem esta la, sem movel nem parede */
+        /* o caminho tambem nao pode cruzar a pessoa: ele nao chega mais perto dela do que a
+           tartaruga ja esta. Sem lugar livre agora, ela espera um pouco e procura de novo --
+           e nunca parte para um ponto invalido (ficava empurrando a borda da pessoa). */
+        const o = ondeOOlhoEsta, dAgora = Math.hypot(Tt.x - o[0], Tt.z - o[2]);
+        let nx = Tt.x, nz = Tt.z, achou = false;
+        /* um PASSEIO: quarenta pontos a 0,5-1,3 m de onde ela esta, espalhados por igual (sequencia
+           aurea), comecando num lugar diferente a cada busca -- e o destino tem de cair no anel do
+           meio da sala, de 0,85 a 2,1 m do centro. O chao ali e cheio, e ponto perto tem caminho
+           livre muito mais vezes que ponto do outro lado da sala. */
+        const giro0 = (T * 0.37) % 1, raio0 = (T * 0.113) % 1;
+        for(let k = 0; k < 40 && !achou; k++){
+          const a = ((giro0 + k * 0.6180339) % 1) * Math.PI * 2, passo = 0.5 + ((raio0 + k * 0.3819660) % 1) * 0.8;
+          const cx = Tt.x + Math.sin(a) * passo, cz = Tt.z + Math.cos(a) * passo, rc = Math.hypot(cx, cz);
+          if(rc < 0.85 || rc > 2.1) continue;
+          if(Math.hypot(cx - ARVORE_BASE[0], cz - ARVORE_BASE[2]) > 1.25 && livreParaBicho(cx, cz, 0.30)
+             && distAoSegmento(o[0], o[2], Tt.x, Tt.z, cx, cz) > Math.min(ZONA_DO_BICHO + 0.45, dAgora - 0.02)
+             && (Tt.semLugar >= 2 || caminhoLivre(Tt.x, Tt.z, cx, cz, 0.28))){ nx = cx; nz = cz; achou = true; }
         }
-        Tt.alvo = [nx, 0, nz]; Tt.parada = 2 + 4 * Math.abs(Math.sin(T * 0.83));
+        /* o chao do meio e cheio (cogumelos, tufos, a saia da mae): so vale ponto com o caminho
+           reto livre, senao ela ficava espremida entre um cogumelo e a pessoa. Duas buscas sem
+           nada e a exigencia do caminho cai, para ela nunca ficar presa num canto. */
+        Tt.semLugar = achou ? 0 : (Tt.semLugar || 0) + 1;
+        Tt.alvo = [nx, 0, nz]; Tt.desde = T; Tt.parada = achou ? 2 + 4 * Math.abs(Math.sin(T * 0.83)) : 1.5;
       } else {
         const yawAlvo = Math.atan2(dx, dz);
         let dy = yawAlvo - Tt.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
         const giro = Math.max(-0.6 * dt, Math.min(0.6 * dt, dy)); Tt.yaw += giro;
         if(Math.abs(dy) < 0.5){ Tt.x += Math.sin(Tt.yaw) * Tt.v * dt; Tt.z += Math.cos(Tt.yaw) * Tt.v * dt; andando = 1;
           // 8.3: nao entra em tronco, cogumelo, pedra, tufo, nem na area de quem esta no meio; nem no tamandua
-          afastar(Tt, 0.15, 0.30, null, true); afastarDaPessoa(Tt, 0.30);
-          if(TAM.ok) empurrarCirculo(Tt, TAM.x, TAM.z, 0.30 + 0.28);
+          afastar(Tt, 0.15, 0.30, null, true); afastarDosOutros(Tt, 0.30); afastarDaPessoaBicho(Tt, 0.30);   // 9.0
+          if(TAM.ok){   // 9.0: o tamandua e comprido -- o meio, a cabeca e a cauda contam
+            const sy = Math.sin(TAM.yaw), cy = Math.cos(TAM.yaw);
+            empurrarCirculo(Tt, TAM.x, TAM.z, 0.30 + 0.28);
+            empurrarCirculo(Tt, TAM.x + sy * 0.62, TAM.z + cy * 0.62, 0.30 + 0.15);
+            empurrarCirculo(Tt, TAM.x - sy * 0.70, TAM.z - cy * 0.70, 0.30 + 0.20);
+          }
         }
         else andando = 0.3;
       }
     }
   }
   Tt.passo += dt * 2.6 * andando;
+  // 9.0: se ela empaca (4 s andando sem sair 5 cm do lugar), ou nao chega em 14 s (contornando alguem), escolhe outro ponto
+  if(Tt.parada <= 0 && Math.abs(T - (Tt.desde || 0)) > 14){ Tt.alvo = [Tt.x, 0, Tt.z]; Tt.desde = T; }
+  if(!Tt.marca) Tt.marca = { x: Tt.x, z: Tt.z, t: T };
+  else if(Math.abs(T - Tt.marca.t) > 4){
+    if(andando > 0.5 && Math.hypot(Tt.x - Tt.marca.x, Tt.z - Tt.marca.z) < 0.05) Tt.alvo = [Tt.x, 0, Tt.z];
+    Tt.marca = { x: Tt.x, z: Tt.z, t: T };
+  }
+  // 9.0: o tremor do toque -- uns 15 Hz, um centimetro, morrendo em 1,2 s
+  const trT = Tt.treme > 0 ? Tt.treme / 1.2 : 0;
+  const tremX = Math.sin(T * 97) * 0.012 * trT, tremZ = Math.cos(T * 83) * 0.010 * trT, tremY = Math.abs(Math.sin(T * 71)) * 0.006 * trT;
   const rec = Tt.recolhe > 0 ? Math.min(1, Tt.recolhe > 2.6 ? (3.0 - Tt.recolhe) / 0.4 : Math.min(1, Tt.recolhe / 0.6)) : 0;
   // ── monta o corpo deste quadro ──
   const cy = Math.cos(Tt.yaw), sy = Math.sin(Tt.yaw), L = tartaLocal, NL = tartaNorLocal, out = tartaPos, outN = tartaNor, Pp = tartaParte;
@@ -12235,7 +12447,7 @@ function andarTartaruga(dt){
         x *= 1 - rec * 0.45; z *= 1 - rec * 0.3;                                          // recolhidas, para dentro
       }
     }
-    x += balanco;
+    x += balanco + tremX; z += tremZ; y += tremY;   // 9.0: o tremor
     out[i*3]   = cy * x + sy * z + Tt.x;
     out[i*3+1] = y + Tt.y;
     out[i*3+2] = -sy * x + cy * z + Tt.z;
@@ -12263,6 +12475,7 @@ function desenharTartaruga(){
   gl.uniform1f(locSo.materia, 24.0);
   gl.uniform1f(locSo.crescimento, 9.0);
   gl.uniform1f(locSo.presenca, vidaPresenca);
+  gl.uniform1f(locSo.matizBicho, TARTA.matiz); gl.uniform1f(locSo.brilhoBicho, TARTA.treme / 1.2);   // 9.0
   gl.uniform4f(locSo.toque, toqueLuz[0], toqueLuz[1], toqueLuz[2], toqueLuz[3]);
   ligar(aSo.pos, bTarta.pos, 3); ligar(aSo.nor, bTarta.nor, 3);
   ligar(aSo.alt, bTarta.alt, 1); ligar(aSo.fase, bTarta.fase, 1);
@@ -12353,7 +12566,8 @@ montarEstrelasDoChao();   // 8.6
    estalinho. Depois escolhe outro cogumelo. Tocado, faz como caracol: RECOLHE os
    olhos, para, e so volta a andar quando eles saem de novo. */
 const TAM = { ok:false, x:-1.3, z:1.0, yaw:0, alvo:-1, estado:'andando', ate:0, passo:0, cabeca:0,
-              lingua:0, linguaMax:0.3, lambidas:0, pico:false, recolhe:0, somEm:-9, n:0, lado:1, ladoDe:-2 };
+              lingua:0, linguaMax:0.3, lambidas:0, pico:false, recolhe:0, somEm:-9, n:0, lado:1, ladoDe:-2,
+              matiz:0, matizAlvo:0, treme:0, tocadaEm:-9, dentro:[false, false], pausaAte:0 };   // 9.0
 let bTam = null, nTamIdx = 0, tamLocal = null, tamNorLocal = null, tamGrupo = null, tamU = null, tamPos = null, tamNor = null;
 const TAM_PIVO = [0, 0.50, 0.40], TAM_BOCA = [0, 0.345, 0.965];
 const TAM_HASTE = [[-0.045, 0.555, 0.50, -0.075, 0.80, 0.60], [0.045, 0.555, 0.50, 0.075, 0.80, 0.60]];   // base e ponta
@@ -12437,10 +12651,10 @@ function montarTamandua(){
    corpo: a cabeca vai por baixo da aba) nem na plantaruga */
 function corpoDoTamandua(A, alvo){
   const sy = Math.sin(A.yaw), cy = Math.cos(A.yaw);
-  afastar(A, 0.35, 0.26, null, true); afastarDaPessoa(A, 0.26);
+  afastar(A, 0.35, 0.26, null, true); afastarDosOutros(A, 0.26); afastarDaPessoaBicho(A, 0.26);   // 9.0
   for(const [off, r, ign] of [[0.62, 0.13, alvo], [-0.70, 0.17, null]]){
     const q = { x: A.x + sy * off, z: A.z + cy * off }, x0 = q.x, z0 = q.z;
-    afastar(q, 0.40, r, ign, true);
+    afastar(q, 0.40, r, ign, true); afastarDosOutros(q, r); afastarDaPessoaBicho(q, r);   // 9.0: a cabeca e a cauda tambem
     A.x += q.x - x0; A.z += q.z - z0;
   }
   if(TARTA.ok) empurrarCirculo(A, TARTA.x, TARTA.z, 0.30 + 0.28);
@@ -12454,7 +12668,9 @@ function tamanduaProximoCogumelo(){
     // um cogumelo que peca caminhada: os vizinhos ele lambia sem sair do lugar
     if(Math.hypot(cg.x - TAM.x, cg.z - TAM.z) < 1.9 && COGUMELOS.length > 3) continue;
     // um pouco de acaso deterministico, para nao ir sempre ao mais perto
-    const d = Math.hypot(cg.x - TAM.x, cg.z - TAM.z) * (0.7 + 0.6 * (0.5 + 0.5 * Math.sin(k * 12.9898 + relogio * 0.37)));
+    // 9.0: e os do meio da sala valem mais -- "mais para o centro"
+    const d = Math.hypot(cg.x - TAM.x, cg.z - TAM.z) * (0.7 + 0.6 * (0.5 + 0.5 * Math.sin(k * 12.9898 + relogio * 0.37)))
+            * (1 + 0.35 * Math.max(0, Math.hypot(cg.x, cg.z) - 1.5));
     if(d < dMelhor){ dMelhor = d; melhor = k; }
   }
   return melhor;
@@ -12475,16 +12691,25 @@ function andarTamandua(dt){
   // 8.3: se o caminho ate um cogumelo fica bloqueado, depois de 30 s ele escolhe outro
   if(A.estado === 'andando' && T - (A.desde || 0) > 30){ A.alvo = tamanduaProximoCogumelo(); A.desde = T; }
   const cg = COGUMELOS[A.alvo];
-  // ── tocado: recolhe os olhos, como caracol ──
-  for(const m of MAOS){
-    if(!m.tem || A.estado === 'susto') continue;
+  /* ── 9.0: TOCADO, MUDA DE COR E TREME ("a mesma coisa do tamandua"). Nao recolhe mais os
+     olhos nem para de lamber: a mao entrando na cabeca ou no corpo gira a cor para a
+     proxima de cinco, ele treme 1,2 s e, se estava andando, espera um instante. ── */
+  A.treme = Math.max(0, A.treme - dt);
+  for(let i = 0; i < 2; i++){
+    const m = MAOS[i];
     const cy0 = Math.cos(A.yaw), sy0 = Math.sin(A.yaw);
     const cabX = A.x + sy0 * 0.65, cabZ = A.z + cy0 * 0.65;
-    if(Math.hypot(cabX - m.x, 0.55 - m.y, cabZ - m.z) < 0.35 || Math.hypot(A.x - m.x, 0.45 - m.y, A.z - m.z) < 0.35){
-      A.estado = 'susto'; A.ate = T + 2.8; A.lingua = 0;
-      if(T - A.somEm > 1.5){ A.somEm = T; sinoDoToque(0, 0.45); relato('TOCOU-O-TAMANDUA'); }
+    const perto = m.tem && (Math.hypot(cabX - m.x, 0.55 - m.y, cabZ - m.z) < 0.35 || Math.hypot(A.x - m.x, 0.45 - m.y, A.z - m.z) < 0.35);
+    if(perto && !A.dentro[i] && Math.abs(T - A.tocadaEm) > 0.5){
+      A.tocadaEm = T; A.treme = 1.2; A.matizAlvo += Math.PI * 2 / 5; A.pausaAte = T + 0.9;
+      pulsarEm(A.x, 0.5, A.z);
+      vibrarOCelular(40);
+      if(Math.abs(T - A.somEm) > 0.6){ A.somEm = T; sinoDoToque(0, 0.45); relato('TOCOU-O-TAMANDUA cor ' + (Math.round(A.matizAlvo / (Math.PI * 2 / 5)) % 5)); }
     }
+    A.dentro[i] = perto;
   }
+  A.matiz += (A.matizAlvo - A.matiz) * (1 - Math.exp(-dt * 4));
+  if(A.estado === 'susto') A.estado = 'andando';
   const alvoRec = A.estado === 'susto' ? 1 : 0;
   A.recolhe += (alvoRec - A.recolhe) * (1 - Math.exp(-dt * (alvoRec ? 9 : 1.5)));
   let andando = 0, alvoCabeca = 0;
@@ -12499,13 +12724,17 @@ function andarTamandua(dt){
     // o lado e decidido UMA vez por cogumelo: recalculado a cada passo, ele trocava no
     // meio do caminho e o bicho ficava indo e voltando (visto na bancada)
     if(A.ladoDe !== A.alvo){ A.lado = (rx * (A.z - cg.z) - rz * (A.x - cg.x)) > 0 ? -1 : 1; A.ladoDe = A.alvo; }
-    const ang = 1.31 * A.lado;
+    /* 9.0: MAIS PARA O CENTRO -- 115 graus da direcao que sai do centro (eram 75: ele lambia
+       pelo lado de fora), e a distancia pelo tamanho do chapeu, para o focinho nunca entrar
+       nele (1,2 m num cogumelo pequeno, 1,46 m no maior) */
+    const ang = 2.0 * A.lado;
+    const dist = 0.97 + raioDoChapeu(cg) * 0.9 + 0.10;
     const dx = (rx * Math.cos(ang) - rz * Math.sin(ang)) / rl, dz = (rx * Math.sin(ang) + rz * Math.cos(ang)) / rl;
-    const px = cg.x + dx * 1.30, pz = cg.z + dz * 1.30;
+    const px = cg.x + dx * dist, pz = cg.z + dz * dist;
     let ex = px - A.x, ez = pz - A.z; const d = Math.hypot(ex, ez);
     // e contorna quem esta no meio: perto de 1,3 m, o rumo desvia para fora (8.8: era 0,9 -- a 8.3 o empurra a 1,1 m, e ele travava na beira)
     const vx = A.x - o[0], vz = A.z - o[2], vd = Math.hypot(vx, vz);
-    if(vd < 1.3 && d > 0.2){ const k = (1.3 - vd) / 1.3 * 1.8; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }
+    if(vd < 0.95 && d > 0.2){ const k = (0.95 - vd) / 0.95 * 1.8; ex += vx / (vd || 1) * k; ez += vz / (vd || 1) * k; }   // 9.0: era 1,3
     /* 8.8 -- SE TRAVAR, SAI DE LADO (visto na bancada: 20 s parado entre tres cogumelos,
        empurrado para tras a cada passo). A cada 3 s ele confere se andou 8 cm; se nao,
        vira 90 graus para o lado dele, anda 2,5 s naquele rumo e troca de cogumelo. */
@@ -12518,7 +12747,7 @@ function andarTamandua(dt){
     const yawAlvo = d > 0.12 ? Math.atan2(ex, ez) : Math.atan2(cg.x - A.x, cg.z - A.z);
     let dy = yawAlvo - A.yaw; while(dy > Math.PI) dy -= 2 * Math.PI; while(dy < -Math.PI) dy += 2 * Math.PI;
     A.yaw += Math.max(-0.9 * dt, Math.min(0.9 * dt, dy));
-    if(d > 0.12){ if(Math.abs(dy) < 0.6){ A.x += Math.sin(A.yaw) * 0.16 * dt; A.z += Math.cos(A.yaw) * 0.16 * dt; andando = 1; corpoDoTamandua(A, cg); } else andando = 0.35; }
+    if(d > 0.12){ if(Math.abs(dy) < 0.6 && T >= A.pausaAte){ A.x += Math.sin(A.yaw) * 0.16 * dt; A.z += Math.cos(A.yaw) * 0.16 * dt; andando = 1; corpoDoTamandua(A, cg); } else andando = T < A.pausaAte ? 0 : 0.35; }
     else if(Math.abs(dy) < 0.08){ A.estado = 'lambendo'; A.ate = T + 4.8; A.lambidas = 0; A.pico = false; }
   } else if(A.estado === 'lambendo' && cg){
     alvoCabeca = 0.42;
@@ -12541,7 +12770,10 @@ function andarTamandua(dt){
     return [p[0], TAM_PIVO[1] + dy * cc + dz * sc, TAM_PIVO[2] - dy * sc + dz * cc];
   };
   const cabecaRotN = (n) => [n[0], n[1] * cc + n[2] * sc, -n[1] * sc + n[2] * cc];
-  const paraMundo = (p, k) => { out[k*3] = cy * p[0] + sy * p[2] + A.x; out[k*3+1] = p[1]; out[k*3+2] = -sy * p[0] + cy * p[2] + A.z; };
+  // 9.0: o tremor do toque, uns 15 Hz, um centimetro, morrendo em 1,2 s
+  const trA = A.treme > 0 ? A.treme / 1.2 : 0;
+  const tremX = Math.sin(T * 97) * 0.012 * trA, tremZ = Math.cos(T * 83) * 0.010 * trA, tremY = Math.abs(Math.sin(T * 71)) * 0.006 * trA;
+  const paraMundo = (p, k) => { out[k*3] = cy * p[0] + sy * p[2] + A.x + tremX; out[k*3+1] = p[1] + tremY; out[k*3+2] = -sy * p[0] + cy * p[2] + A.z + tremZ; };
   const paraMundoN = (n, k) => { outN[k*3] = cy * n[0] + sy * n[2]; outN[k*3+1] = n[1]; outN[k*3+2] = -sy * n[0] + cy * n[2]; };
   // a haste: recolhida, encolhe ate um quarto; e balanca
   const ret = 1 - 0.75 * A.recolhe;
@@ -12618,6 +12850,7 @@ function desenharTamandua(){
   gl.uniform1f(locSo.materia, 26.0);
   gl.uniform1f(locSo.crescimento, 9.0);
   gl.uniform1f(locSo.presenca, vidaPresenca);
+  gl.uniform1f(locSo.matizBicho, TAM.matiz); gl.uniform1f(locSo.brilhoBicho, TAM.treme / 1.2);   // 9.0
   ligar(aSo.pos, bTam.pos, 3); ligar(aSo.nor, bTam.nor, 3);
   ligar(aSo.alt, bTam.alt, 1); ligar(aSo.fase, bTam.fase, 1);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bTam.idx);
@@ -13390,10 +13623,13 @@ const eCam = document.getElementById('cam');
 const bCentrar = document.getElementById('bCentrar');
 
 function fovDoCelular(){
-  // a camera de tras de um celular ve uns 65 graus na largura; a lente da obra acompanha
+  // a camera de tras de um celular ve uns 65 graus na largura (9.0: a da frente, uns 72); a lente da obra acompanha
   const asp = (cv.clientWidth || innerWidth) / (cv.clientHeight || innerHeight);
-  return 2 * Math.atan(Math.tan(65 * Math.PI / 360) / asp);
+  return 2 * Math.atan(Math.tan((selfie ? 72 : 65) * Math.PI / 360) / asp);
 }
+/* 9.0: a camera da frente olha para TRAS do aparelho -- meia volta em torno do eixo vertical
+   dele: as colunas x e z da rotacao trocam de sinal */
+function virarParaTras(R){ R[0] = -R[0]; R[3] = -R[3]; R[6] = -R[6]; R[2] = -R[2]; R[5] = -R[5]; R[8] = -R[8]; }
 
 /* O GIROSCOPIO. alpha/beta/gamma viram a rotacao da camera do aparelho, a
    mesma conta do three.js (DeviceOrientationControls): euler YXZ de (beta,
@@ -13434,6 +13670,7 @@ function rotacaoDoCelular(){
     const cy=Math.cos(yaw), sy=Math.sin(yaw), cp=Math.cos(pitch), sp=Math.sin(pitch);
     const r = [ cy, sy*sp, sy*cp,  0, cp, -sp,  -sy, cy*sp, cy*cp ];
     for(let i = 0; i < 9; i++) rotCel[i] = r[i];
+    if(selfie) virarParaTras(rotCel);   // 9.0
     return rotCel;
   }
   const th = giroCel.extra - (giroCel.yaw0 || 0), c = Math.cos(th), sn = Math.sin(th), R = giroCel.R;
@@ -13441,6 +13678,7 @@ function rotacaoDoCelular(){
   rotCel[0] = c*R[0] + sn*R[6]; rotCel[1] = c*R[1] + sn*R[7]; rotCel[2] = c*R[2] + sn*R[8];
   rotCel[3] = R[3]; rotCel[4] = R[4]; rotCel[5] = R[5];
   rotCel[6] = -sn*R[0] + c*R[6]; rotCel[7] = -sn*R[1] + c*R[7]; rotCel[8] = -sn*R[2] + c*R[8];
+  if(selfie) virarParaTras(rotCel);   // 9.0
   return rotCel;
 }
 const visCel = new Float32Array(16);
@@ -13512,6 +13750,7 @@ function maoDoCelular(dt){
 }
 function ndc(e, d){
   d.x = (e.clientX / (cv.clientWidth || innerWidth)) * 2 - 1;
+  if(selfie) d.x = -d.x;   // 9.0: a tela esta espelhada
   d.y = 1 - (e.clientY / (cv.clientHeight || innerHeight)) * 2;
 }
 cv.addEventListener('pointerdown', e => {
@@ -13550,40 +13789,324 @@ cv.addEventListener('touchstart', e => { if(janelaMagica) e.preventDefault(); },
 cv.addEventListener('touchmove', e => { if(janelaMagica) e.preventDefault(); }, { passive:false });
 
 function iniciarCelular(){
+  document.body.classList.add('celular');
+  if(arNoCelular){
+    /* 9.0: com RA no aparelho (Android com ARCore) o cenario fica preso ao chao. O pedido sai
+       AGORA, dentro do toque -- a RA so abre com gesto; recusada, vai a janela magica. */
+    entrarRAnoCelular(false).then(ok => { if(!ok) iniciarJanela(false, false); });
+    return;
+  }
+  iniciarJanela(false, false);
+}
+/* A JANELA MAGICA (7.0): so o giro do aparelho, com a camera por tras. frente = a camera da
+   frente (9.0); continuar = a obra ja esta andando (a troca de camera), nao recomeca. */
+function iniciarJanela(frente, continuar){
   janelaMagica = true;
+  selfie = !!frente; document.body.classList.toggle('selfie', selfie);
   document.body.classList.add('celular');
   bCentrar.style.display = '';
   fov = fovDoCelular();
-  addEventListener('resize', () => { if(janelaMagica) fov = fovDoCelular(); });
+  if(!iniciarJanela.ouvindo){ iniciarJanela.ouvindo = true; addEventListener('resize', () => { if(janelaMagica) fov = fovDoCelular(); }); }
   // tela cheia, quando o navegador deixa (o iPhone nao deixa em pagina comum)
   try{ const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if(r && r.catch) r.catch(()=>{}); }catch(e){}
   /* O GIROSCOPIO PEDE LICENCA NO IPHONE, e so dentro de um toque -- e este
      e o toque. No Android vem sem pedir. */
-  const ligarGiro = () => { addEventListener('deviceorientation', lerGiro, true); };
+  const ligarGiro = () => { removeEventListener('deviceorientation', lerGiro, true); addEventListener('deviceorientation', lerGiro, true); };
   if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
     DeviceOrientationEvent.requestPermission().then(r => { if(r === 'granted') ligarGiro(); relato('GIRO ' + r); }).catch(() => relato('GIRO recusado'));
   } else ligarGiro();
-  // a camera de tras: sem ela a obra roda sobre a noite escura, como no computador
-  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false })
-      .then(fluxo => { camDoCelular = fluxo; eCam.srcObject = fluxo; eCam.play().catch(()=>{}); relato('CAMERA-DO-CELULAR ligada'); })
-      .catch(err => { camDoCelular = null; relato('CAMERA-DO-CELULAR recusada ' + (err && err.name)); });
+  // a camera (de tras, ou a da frente na selfie): sem ela a obra roda sobre a noite escura, como no computador
+  ligarCamera(selfie);
+  relato('JANELA-MAGICA ' + (innerWidth + 'x' + innerHeight) + (selfie ? ' selfie' : '') + (continuar ? ' (continuando)' : ''));
+  if(!continuar){
+    iniciarObra();
+    /* no iPhone nao ha RA na pagina (o Safari nao tem WebXR): o cenario gira com o aparelho,
+       mas nao anda com a pessoa -- entao a dica pede para ficar no lugar */
+    dicaNoCelular('fique no lugar e gire o celular: o cenário gira com você', 7);
   }
-  relato('JANELA-MAGICA ' + (innerWidth + 'x' + innerHeight));
-  iniciarObra();
 }
-function fecharCelular(){
+/* 9.0: sai da janela sem sair da obra (a troca de camera, a ida para a RA) */
+function pararJanela(){
   janelaMagica = false;
-  document.body.classList.remove('celular');
-  bCentrar.style.display = 'none';
   if(camDoCelular){ for(const tr of camDoCelular.getTracks()) tr.stop(); camDoCelular = null; eCam.srcObject = null; }
   removeEventListener('deviceorientation', lerGiro, true);
   giroCel.ok = false; giroCel.yaw0 = null; giroCel.extra = 0;
   for(const d of DEDOS){ d.id = -1; d.prof = 0; }
+  bCentrar.style.display = 'none';
+}
+function fecharCelular(){
+  pararJanela();
+  selfie = false;
+  document.body.classList.remove('celular', 'selfie', 'ra');
+  const fp = document.getElementById('fotoPrevia'); if(fp) fp.classList.add('oculto');
+  dicaNoCelular('');
   try{ if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(e){}
 }
 // centrar: para onde o celular aponta agora vira a frente da obra
 bCentrar.onclick = () => { giroCel.yaw0 = null; giroCel.extra = 0; tYaw = 0; tPitch = 0; sinoDoToque(1, 0.4); };
+
+/* ═══ 9.0 -- O CELULAR: PRESO AO CHAO, A CAMERA DA FRENTE E A FOTO ═══
+   27/09, tres pedidos.
+   "O cenario nao tava fixando no chao, ficava andando junto com o celular." A janela
+   magica so le o GIRO do aparelho: o olho fica parado no meio da obra, e quem anda leva o
+   cenario junto. Posicao de verdade so vem da realidade aumentada do proprio celular: no
+   Android com ARCore o navegador abre uma sessao WebXR immersive-ar, a mesma do Quest,
+   com a camera de tras -- e o chao e achado pelo hit-test (um raio para a frente e para
+   baixo que para no primeiro plano horizontal; fica o mais baixo que aparecer em 1,5 s,
+   porque mesa e cama tambem sao planos). No iPhone o Safari nao tem WebXR: fica a janela
+   magica, e a dica pede para ficar no lugar e girar.
+   "Conseguiriamos fazer virar para a camera da frente, e a pessoa poder tirar foto dentro
+   do nosso cenario?" Na janela magica a camera vira (facingMode user) e a vista vira junto
+   -- olha para tras do aparelho, para quem o segura --, tudo espelhado como num espelho, e
+   o meio da tela fica aberto para o rosto. A foto junta a camera e a obra do MESMO quadro
+   (o canvas so e lido logo depois de desenhado), assina com @visoesfilmes e abre para
+   salvar ou compartilhar. Na RA do Android a camera e do navegador e a pagina nao a le:
+   ali a foto e o print do proprio celular, e o botao diz isso; virar a camera sai da RA
+   para a janela magica pela frente, e virar de novo volta a RA.
+   "Quando vira na horizontal fica parecendo botao de reiniciar, so aparece no final." No
+   celular, reiniciar e encerrar so aparecem quando a obra acabou (seguirBotoesDoCelular). */
+let selfie = false, arNoCelular = false, emRAdoCelular = false, trocaDeModo = null;
+const chaoRA = { fonte:null, base:null, achado:false, y:0, primeiroEm:0 };
+const eDicaCelular = document.getElementById('dicaCelular');
+function dicaNoCelular(txt, seg){
+  if(!eDicaCelular) return;
+  clearTimeout(dicaNoCelular.t);
+  eDicaCelular.textContent = txt || '';
+  eDicaCelular.classList.toggle('oculto', !txt);
+  if(txt && seg) dicaNoCelular.t = setTimeout(() => eDicaCelular.classList.add('oculto'), seg * 1000);
+}
+function ligarCamera(frente){
+  if(camDoCelular){ for(const tr of camDoCelular.getTracks()) tr.stop(); camDoCelular = null; eCam.srcObject = null; }
+  if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: frente ? 'user' : 'environment', width: { ideal: 1280 } }, audio: false })
+    .then(fluxo => {
+      if(!janelaMagica || selfie !== !!frente){ for(const tr of fluxo.getTracks()) tr.stop(); return; }   // ja mudou de novo
+      camDoCelular = fluxo; eCam.srcObject = fluxo; eCam.play().catch(()=>{});
+      relato('CAMERA-DO-CELULAR ' + (frente ? 'da frente' : 'de tras'));
+    })
+    .catch(err => { camDoCelular = null; relato('CAMERA-DO-CELULAR recusada ' + (err && err.name)); });
+}
+function virarCamera(){
+  sinoDoToque(1, 0.35);
+  if(emRAdoCelular){
+    // da RA para a camera da frente: a sessao fecha e a janela magica abre virada, sem parar a obra
+    trocaDeModo = 'selfie';
+    try{ sessao.end(); }catch(e){ trocaDeModo = null; }
+    return;
+  }
+  if(!janelaMagica) return;
+  if(selfie && arNoCelular){
+    // de volta para tras, com RA no aparelho: volta a ficar preso ao chao
+    pararJanela(); selfie = false; document.body.classList.remove('selfie');
+    entrarRAnoCelular(true).then(ok => { if(!ok) iniciarJanela(false, true); });
+    return;
+  }
+  selfie = !selfie;
+  document.body.classList.toggle('selfie', selfie);
+  fov = fovDoCelular();
+  ligarCamera(selfie);
+  relato('VIROU-A-CAMERA ' + (selfie ? 'frente' : 'tras'));
+}
+/* O RAIO DE UM DEDO QUALQUER: como alvoNoRaio, mas de onde o aparelho estiver (na RA ele anda) */
+function alvoNoRaioDe(o, dir){
+  let melhor = 0;
+  for(const a of alvosAgora()){
+    if(a.dentro){
+      for(let tt = 0.15; tt < 6; tt += 0.08){
+        _pt.x = o[0] + dir[0]*tt; _pt.y = o[1] + dir[1]*tt; _pt.z = o[2] + dir[2]*tt;
+        if(a.dentro(_pt)){ if(!melhor || tt < melhor) melhor = tt; break; }
+      }
+    } else {
+      const ox = a.x - o[0], oy = a.y - o[1], oz = a.z - o[2], r = (a.raio || 0.2) + 0.05;
+      const tc = ox*dir[0] + oy*dir[1] + oz*dir[2];
+      if(tc < 0.1) continue;
+      const px = ox - dir[0]*tc, py = oy - dir[1]*tc, pz = oz - dir[2]*tc;
+      if(px*px + py*py + pz*pz < r*r && (!melhor || tc < melhor)) melhor = tc;
+    }
+  }
+  return melhor;
+}
+/* A RA DO ANDROID. Um caminho proprio, e nao o entrarXR: aquele e do Quest (maos, planos,
+   foveacao, 72 Hz, e SEM dom-overlay, que pendura la). Aqui: hit-test para o chao,
+   dom-overlay para os botoes (no celular funciona), e o mesmo quadroXR para desenhar.
+   Como no Quest, nada e exigido e nada de que a obra nao precise e esperado. */
+async function entrarRAnoCelular(continuar){
+  if(sessao) return false;
+  const raiz = document.getElementById('sobreCelular');
+  const pedido = { requiredFeatures: [], optionalFeatures: ['hit-test', 'dom-overlay', 'local-floor', 'anchors'] };
+  if(raiz) pedido.domOverlay = { root: raiz };
+  let s = null;
+  try{ s = await navigator.xr.requestSession('immersive-ar', pedido); }
+  catch(e){ relato('CELULAR-RA-RECUSOU ' + (e && e.name)); return false; }
+  sessao = s;
+  try{
+    await gl.makeXRCompatible();
+    camadaXR = new XRWebGLLayer(sessao, gl, { antialias: true, framebufferScaleFactor: 0.6 });
+    sessao.updateRenderState({ baseLayer: camadaXR, depthNear: 0.05, depthFar: LONGE });
+    stencilXR = null; escalaViva = 1.0; folgaDesde = 0; lentasSeguidas = 0; escalaDesde = performance.now();
+    TAXA_ALVO = 30;   // a camera do celular anda a 30 quadros: e o que se pode esperar
+    chaoRA.base = await sessao.requestReferenceSpace('local');
+    chaoRA.achado = false; chaoRA.primeiroEm = 0; chaoRA.fonte = null;
+    // o chao provisorio: um celular na mao fica a uns 1,35 m dele
+    espaco = chaoRA.base.getOffsetReferenceSpace(new XRRigidTransform({ x: 0, y: -1.35, z: 0 }));
+    // o raio do chao, sem esperar (se nao vier, fica o provisorio)
+    sessao.requestReferenceSpace('viewer')
+      .then(vs => sessao.requestHitTestSource({ space: vs, offsetRay: new XRRay({ x: 0, y: 0, z: 0 }, { x: 0, y: -0.6, z: -1 }) }))
+      .then(f => { chaoRA.fonte = f; })
+      .catch(e => relato('CELULAR-RA sem hit-test ' + (e && e.name)));
+    mundoOrientado = false;
+    emXR = true; emRAdoCelular = true;
+    document.body.classList.add('ra');
+    bCentrar.style.display = 'none';
+    sessao.addEventListener('end', aoFimDaRAdoCelular);
+    sessao.addEventListener('selectstart', e => { const i = Array.prototype.indexOf.call(sessao.inputSources, e.inputSource); if(MAOS[i]) MAOS[i].apertando = true; });
+    sessao.addEventListener('selectend', e => { const i = Array.prototype.indexOf.call(sessao.inputSources, e.inputSource); if(MAOS[i]) MAOS[i].apertando = false; });
+    sessao.requestAnimationFrame(quadroXR);
+    relato('CELULAR-RA abriu' + (continuar ? ' (continuando)' : ''));
+    dicaNoCelular('aponte o celular para o chão e mova devagar', 0);
+    if(!continuar) iniciarObra();
+    return true;
+  }catch(erro){
+    relato('CELULAR-RA-CAIU ' + (erro && (erro.name + ': ' + String(erro.message).slice(0, 80))));
+    try{ if(sessao) sessao.end(); }catch(e){}
+    sessao = null; emXR = false; emRAdoCelular = false;
+    document.body.classList.remove('ra');
+    return false;
+  }
+}
+/* o chao de verdade: a cada quadro ate achar. A normal do plano e o eixo y da pose do acerto. */
+function acharOChaoRA(frame){
+  if(!chaoRA.fonte || chaoRA.achado || !chaoRA.base) return;
+  const rs = frame.getHitTestResults(chaoRA.fonte);
+  for(const r of rs){
+    const p = r.getPose(chaoRA.base);
+    if(!p) continue;
+    const o = p.transform.orientation;
+    if(1 - 2 * (o.x * o.x + o.z * o.z) < 0.9) continue;      // so o que e virado para cima
+    const y = p.transform.position.y;
+    if(!chaoRA.primeiroEm){ chaoRA.primeiroEm = relogio || 0.001; chaoRA.y = y; }
+    else chaoRA.y = Math.min(chaoRA.y, y);
+  }
+  if(chaoRA.primeiroEm && relogio - chaoRA.primeiroEm > 1.5){
+    chaoRA.achado = true;
+    espaco = chaoRA.base.getOffsetReferenceSpace(new XRRigidTransform({ x: 0, y: chaoRA.y, z: 0 }));
+    mundoOrientado = false;   // a obra se orienta de novo, ja no chao certo
+    relato('CELULAR-RA chao a ' + chaoRA.y.toFixed(2) + ' m do celular');
+    dicaNoCelular('chão encontrado: ande pela sala e toque nas coisas', 4);
+    try{ chaoRA.fonte.cancel(); }catch(e){}
+    chaoRA.fonte = null;
+  }
+}
+function aoFimDaRAdoCelular(){
+  emXR = false; sessao = null; emRAdoCelular = false; mundoOrientado = false;
+  chaoRA.fonte = null; chaoRA.achado = false;
+  TAXA_ALVO = 72;
+  document.body.classList.remove('ra');
+  if(trocaDeModo === 'selfie'){
+    trocaDeModo = null;
+    iniciarJanela(true, true);   // a obra segue, agora pela camera da frente
+    requestAnimationFrame(quadro);
+    return;
+  }
+  // saiu da RA (encerrar, ou o voltar do Android): a obra para e o portao volta, como no Quest
+  andando = false;
+  bTocar.textContent = 'tocar';
+  ePortao.classList.remove('foi');
+  mostrarEmergencia(false);
+  fecharCelular();
+  ligarVitrine();
+  requestAnimationFrame(quadro);
+}
+/* A FOTO. Pedida pelo botao, tirada pelo laco de desenho logo depois de desenhar -- o canvas
+   do WebGL so guarda o quadro ate a volta do laco. */
+let fotoPedida = false, fotoUrl = null, fotoBlob = null;
+function pedirFoto(){
+  sinoDoToque(3, 0.35);
+  if(emRAdoCelular){ dicaNoCelular('presa ao chão, a foto é o print do celular (liga + volume). Para a foto com você dentro, vire para a câmera da frente.', 8); return; }
+  if(janelaMagica) fotoPedida = true;
+}
+function tirarFotoDaJanela(){
+  fotoPedida = false;
+  try{
+    const W = cv.width, H = cv.height;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.fillStyle = '#08060e'; x.fillRect(0, 0, W, H);
+    // a camera, como a tela a mostra (cover), espelhada na selfie
+    if(camDoCelular && eCam.videoWidth){
+      const vw = eCam.videoWidth, vh = eCam.videoHeight, s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;
+      x.save(); if(selfie){ x.translate(W, 0); x.scale(-1, 1); }
+      x.drawImage(eCam, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      x.restore();
+    }
+    // a obra por cima; na selfie, com o mesmo buraco da tela para o rosto
+    let camada = cv;
+    if(selfie){
+      const m = document.createElement('canvas'); m.width = W; m.height = H;
+      const mx = m.getContext('2d');
+      mx.drawImage(cv, 0, 0);
+      mx.globalCompositeOperation = 'destination-out';
+      mx.save(); mx.translate(W * 0.5, H * 0.42); mx.scale(W * 0.30, H * 0.36);
+      const g = mx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      mx.fillStyle = g; mx.beginPath(); mx.arc(0, 0, 1, 0, Math.PI * 2); mx.fill(); mx.restore();
+      camada = m;
+    }
+    x.save(); if(selfie){ x.translate(W, 0); x.scale(-1, 1); }
+    x.drawImage(camada, 0, 0, W, H);
+    x.restore();
+    // a assinatura: o nome da obra e o da produtora
+    const fs = Math.max(14, Math.round(Math.min(W, H) * 0.034));
+    x.save();
+    x.shadowColor = 'rgba(0,0,0,0.75)'; x.shadowBlur = fs * 0.5;
+    x.fillStyle = 'rgba(255,255,255,0.94)';
+    x.font = 'italic ' + Math.round(fs * 1.25) + 'px Georgia, "Times New Roman", serif';
+    x.fillText('Raízes Cósmicas', fs, H - fs * 2.1);
+    x.font = Math.round(fs * 0.8) + 'px -apple-system, "Segoe UI", Roboto, sans-serif';
+    x.fillStyle = 'rgba(206,220,245,0.94)';
+    x.fillText('Visões Filmes · @visoesfilmes · visoesfilmes.com', fs, H - fs * 0.9);
+    x.restore();
+    c.toBlob(b => mostrarFoto(b), 'image/jpeg', 0.92);
+    relato('FOTO ' + W + 'x' + H + (selfie ? ' selfie' : ''));
+  }catch(e){ relato('FOTO-FALHOU ' + (e && e.name)); }
+}
+const eFotoPrevia = document.getElementById('fotoPrevia'), eFotoImg = document.getElementById('fotoImg');
+function mostrarFoto(b){
+  if(!b || !eFotoPrevia) return;
+  if(fotoUrl) URL.revokeObjectURL(fotoUrl);
+  fotoBlob = b; fotoUrl = URL.createObjectURL(b);
+  eFotoImg.src = fotoUrl;
+  eFotoPrevia.classList.remove('oculto');
+}
+document.getElementById('bFotoSalvar').onclick = () => {
+  if(!fotoBlob) return;
+  const nome = 'raizes-cosmicas-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.jpg';
+  try{
+    const arq = new File([fotoBlob], nome, { type: 'image/jpeg' });
+    if(navigator.canShare && navigator.canShare({ files: [arq] })){
+      navigator.share({ files: [arq], title: 'Raízes Cósmicas', text: 'Dentro da Raízes Cósmicas · @visoesfilmes' }).catch(() => {});
+      return;
+    }
+  }catch(e){}
+  const a = document.createElement('a'); a.href = fotoUrl; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+document.getElementById('bFotoVoltar').onclick = () => { if(eFotoPrevia) eFotoPrevia.classList.add('oculto'); };
+document.getElementById('bVirar').onclick = virarCamera;
+document.getElementById('bFoto').onclick = pedirFoto;
+// na RA do Android, tocar num botao nao pode virar toque na obra
+for(const id of ['celularBotoes', 'emergencia', 'fotoPrevia']){
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('beforexrselect', e => e.preventDefault());
+}
+/* reiniciar e encerrar so no fim, no celular (27/09) -- confere a cada quadro, mexe so quando muda */
+let botoesFim = null;
+function seguirBotoesDoCelular(){
+  const fim = !!esperando;
+  if(fim === botoesFim) return;
+  botoesFim = fim;
+  for(const id of ['bReiniciar', 'bParar']){ const b = document.getElementById(id); if(b) b.style.display = fim ? '' : 'none'; }
+}
 
 /* ═══════════ a barra da partitura ═══════════ */
 const CORCENA = {1:'#6fa0a8', 2:'#9a8cd0', 3:'#d98aa8', 4:'#d0b088'};
@@ -13659,6 +14182,7 @@ function passo(){
   return Math.max(0, Math.min(dt, 0.1));
 }
 let relogio=0, salaVisivel=true, raizesOn=true, tinta=0.85, longeCeu=0, semente=11;
+let giroFuracao = 0;   // 9.0: o giro dos furacoes do mar, acumulado (ver FS_AGUA)
 let altoCeu = 0, giraGalaxias = 0, giraAngulo = 0;   // 8.4: o ceu mais alto (cena 3) e os redemoinhos (cena 4)
 let degradeIni=0.10, degradeFim=0.80;   // fração do QUARTO DE VOLTA:
 // 0 no horizonte, 1 no zênite. Já foi fração do pé-direito, quando o
@@ -14028,7 +14552,21 @@ function lerMaos(frame){
   for(let i = 0; i < 2; i++){
     const m = MAOS[i], fonte = fontes[i];
     m.tem = false;
-    if(!fonte) continue;
+    if(!fonte){ m.profTela = 0; continue; }
+    /* 9.0: O DEDO NA TELA DO CELULAR, EM RA (Android). A fonte e um raio que sai da tela: a
+       mao vai para o que ele acerta (ou a 1,2 m), e fica nessa profundidade enquanto o dedo
+       segura -- o mesmo contrato da janela magica. */
+    if(fonte.targetRayMode === 'screen'){
+      const r = fonte.targetRaySpace && frame.getPose(fonte.targetRaySpace, espaco);
+      if(!r) continue;
+      const M = r.transform.matrix;
+      m.ro[0] = M[12]; m.ro[1] = M[13]; m.ro[2] = M[14];
+      m.rd[0] = -M[8]; m.rd[1] = -M[9]; m.rd[2] = -M[10];
+      if(!m.profTela) m.profTela = alvoNoRaioDe(m.ro, m.rd) || 1.2;
+      m.tem = true; m.doCelular = true; m.temJuntas = false; m.temRaio = true;
+      m.x = m.ro[0] + m.rd[0] * m.profTela; m.y = m.ro[1] + m.rd[1] * m.profTela; m.z = m.ro[2] + m.rd[2] * m.profTela;
+      continue;
+    }
     let alvo = null;
     if(fonte.hand && fonte.hand.get && frame.getJointPose){
       const ponta = fonte.hand.get('index-finger-tip');
@@ -14398,7 +14936,7 @@ function escolherNoMenu(id){
 function seguirMenuDaMao(dt){
   // 27/09: o botao do fim -- abre um segundo e meio depois de a obra parar na espera
   if(esperando){ if(!FIM.desde) FIM.desde = agoraReal() || 0.001; } else FIM.desde = 0;
-  if(esperando && !MENU.fim && agoraReal() - FIM.desde > 1.5){ if(MENU.aberto) fecharOMenu('fim'); abrirOFim(); }
+  if(esperando && !CELULAR && !MENU.fim && agoraReal() - FIM.desde > 1.5){ if(MENU.aberto) fecharOMenu('fim'); abrirOFim(); }   // 9.0: no celular, os botoes da tela
   else if(!esperando && MENU.fim) fecharOFim();
   if(MENU.fim) posicionarOFim(1 - Math.exp(-1.2 * dt));
   const alvoPres = MENU.aberto ? 1 : 0;
@@ -14754,6 +15292,7 @@ function seguirPartitura(dt){
   altoCeu = aproximar(altoCeu, a.alto || 0, p);              // 8.4
   giraGalaxias = aproximar(giraGalaxias, a.giraGal || 0, p);
   giraAngulo = giraGalaxias > 0.0005 ? giraAngulo + giraGalaxias * Math.max(0, dt) : 0;   // acumula so no cenario 4, e zera fora dele
+  giroFuracao = furacaoPresenca > 0.0005 ? giroFuracao + 0.55 * furacaoPresenca * Math.max(0, dt) : 0;   // 9.0: o mesmo, para o mar
   const alvoPoeira = (!POEIRA_NA_FLORESTA && c === 1) ? 0 : a.poeira;
   quantosPo  = Math.round(dt > 0 ? aproximar(quantosPo, alvoPoeira, p) : alvoPoeira);
   raizesOn   = a.raizes > 0.5;
@@ -14938,52 +15477,127 @@ function abaixarTrilha(seg){ trilhaBaixaAte = Math.max(trilhaBaixaAte, relogio +
    do mar; no cenario dos planetas coloque a musica Raizes Mar B". Duas faixas do Suno
    (assets/audio/trilha-2-planetas.mp3 = Mar B, trilha-3-mar.mp3 = Cosmos A), servidas
    ao lado do arquivo como o video e guardadas pelo guardiao para o estande sem rede.
-   A dos planetas entra dos 3:14 aos 6:32 e a do mar dos 6:28 aos 8:48, cada uma num
-   cross-fade de dez segundos, sempre do comeco; o laco de sempre cede a um quinto
-   enquanto elas tocam, e as duas abaixam com os gestos como ele (abaixarTrilha). */
+   27/09: "no cenario final da deusa voce precisa colocar a musica da nossa animacao, que
+   esta no QLab, o trecho, e depois vai encerrando junto com o ambiente em fade out" -- o
+   audio do video da Odara que o QLab toca (Odada O new.mp4, de 0 a 188 s), em
+   trilha-4-odara.mp3, entrando com a deusa inteira e saindo junto com o mundo. */
+/* ═══ 9.0 -- UMA MUSICA DE CADA VEZ, E NO MESMO NIVEL ═══
+   27/09: "o som esta sobreposto, a trilha nao esta uniforme. Verifique se a ultima versao
+   do site tambem esta assim." Estava: a 8.9 no ar tem os mesmos defeitos, desde a 8.5.
+   1. O laco nunca saia. Cedia a um quinto e seguia por baixo das faixas: duas musicas
+      diferentes, juntas, o cenario inteiro.
+   2. Dos 6:28 aos 6:32 a dos planetas ainda saia, a do mar ja entrava e o laco estava por
+      baixo: tres musicas.
+   3. As faixas tocavam a 1,8 vez o volume do laco (+5 dB), mas as quatro medem quase a
+      mesma loudness (laco -14,7, Mar B -15,3, Cosmos A -15,9, Odara -15,9 LUFS). A cada
+      troca de cenario o nivel saltava e voltava.
+   4. O abaixar dos gestos (7.4) caia nas faixas num degrau seco de -6 dB, sem rampa.
+   5. No iPhone o volume de um <audio> e so leitura: tudo tocava a 100 %, junto.
+   Agora ha UMA agenda: em cada instante do roteiro, uma musica so. Nas trocas, dez
+   segundos de cross-fade de POTENCIA CONSTANTE (seno numa, cosseno na outra: a soma das
+   energias fica em um, sem buraco nem barriga no meio). Cada faixa com o ganho que iguala
+   a loudness dela a do laco, um so abaixar suave para todas, a que nao toca PARA em vez de
+   ficar tocando muda, e no iPhone o volume passa por ganhos do Web Audio. */
+const X_MUSICA = 10;           // o cross-fade entre duas musicas, em segundos de roteiro
+const LUFS_LACO = -14.7;       // medido (ffmpeg ebur128): a referencia
+const NIVEL_MUSICA = 1.26;     // +2 dB para todas: o laco sobe um pouco, as faixas descem 3 (estavam +5)
+/* NO CELULAR o alto-falante e fraco e o volume do aparelho ja e o controle de quem segura:
+   a mistura inteira (musica e gestos, na mesma proporcao) sobe 8 dB. */
+const GANHO_DO_APARELHO = CELULAR ? 2.5 : 1.0;
+const LACO = { nome:'laco', el: trilha, lufs: LUFS_LACO, vol: 0, tentou: -9 };
 const TRILHAS_DA_CENA = [
-  { nome:'planetas', el: document.getElementById('trilhaPlanetas'), de: 194, ate: 392, vol: 0 },
-  { nome:'mar',      el: document.getElementById('trilhaMar'),      de: 388, ate: 528, vol: 0 },
-  /* 27/09: "no cenario final da deusa voce precisa colocar a musica da nossa animacao, que
-     esta no QLab, o trecho, e depois vai encerrando junto com o ambiente em fade out". O
-     trecho e o audio do video da Odara que o QLab toca (Odada O new.mp4, de 0 a 188 s), sem
-     mexer no volume: ja soa como as outras (-15,9 LUFS nos primeiros 70 s). Entra com a
-     deusa inteira (556), toma o lugar do laco (cede tudo, e nao a um quinto) e sai JUNTO
-     com o mundo: do comeco do fecho ate sumirem as estrelas e o nome (fimDaObra). */
-  { nome:'odara',    el: document.getElementById('trilhaOdara'),     de: 556, ate: null, vol: 0, fimJunto: true, cedeTudo: true },
+  { nome:'planetas', el: document.getElementById('trilhaPlanetas'), lufs: -15.3, vol: 0, tentou: -9 },
+  { nome:'mar',      el: document.getElementById('trilhaMar'),      lufs: -15.9, vol: 0, tentou: -9 },
+  { nome:'odara',    el: document.getElementById('trilhaOdara'),    lufs: -15.9, vol: 0, tentou: -9 },
 ];
-/* 27/09: o fim do som acompanha o fim da imagem: do fecho (o mundo se apaga, 14 s reais
-   depois dos dez minutos) ate as estrelas e o nome sumirem (26 s). */
-function fimDaObra(t){ return rampa(DURACAO + 14 * RITMO, DURACAO + 26 * RITMO, t); }
-function seguirTrilhasDaCena(dt){
-  let cede = 1;
-  for(const T of TRILHAS_DA_CENA){
-    if(!T.el) continue;
-    const sai = T.fimJunto ? 1 - fimDaObra(t) : 1 - rampa(T.ate - 10, T.ate, t);   // 27/09
-    const alvo = (TEM_SOM && andando && somLigado) ? rampa(T.de, T.de + 10, t) * sai : 0;
-    if(alvo > 0.001 && T.vol <= 0.001){ try{ T.el.currentTime = 0; T.el.play().catch(function(){}); }catch(e){} }
-    T.vol += (alvo - T.vol) * (dt > 0 ? 1 - Math.exp(-dt * 1.5) : 1);
-    if(alvo <= 0.001 && T.vol < 0.004 && !T.el.paused) T.el.pause();
-    const v = Math.max(0, Math.min(1, T.vol * volume * 1.8 * (relogio < trilhaBaixaAte ? 0.5 : 1.0)));
-    if(Math.abs(T.el.volume - v) > 0.002) T.el.volume = v;
-    // 27/09: a da Odara segura o laco em zero do momento em que entrou ate o fim -- sem
-    // isso ele reaparecia baixinho enquanto ela se apagava
-    const tomou = T.cedeTudo && TEM_SOM && andando && somLigado ? rampa(T.de, T.de + 10, t) : 0;
-    cede = Math.min(cede, 1 - Math.max(T.vol * (T.cedeTudo ? 1 : 0.8), tomou));
+const MUSICAS = [LACO].concat(TRILHAS_DA_CENA);
+/* A AGENDA: quem toca de "de" a "ate". O cross-fade de cada troca comeca no "ate" de uma,
+   que e o "de" da seguinte, e dura X_MUSICA. */
+const AGENDA_MUSICA = [
+  { nome:'laco',     de: -1e9, ate: 194 },   // a floresta (e a vitrine, antes de partir)
+  { nome:'planetas', de: 194,  ate: 384 },   // 3:14 os planetas (Mar B)
+  { nome:'mar',      de: 384,  ate: 518 },   // 6:24 a 6:34 a troca, com o mar chegando (Cosmos A)
+  { nome:'laco',     de: 518,  ate: 556 },   // 8:38 o mar se vai e o laco volta
+  { nome:'odara',    de: 556,  ate: 1e9 },   // 9:16 a deusa inteira: a musica da animacao
+];
+function musicaNaAgenda(nome, t){
+  let g = 0;
+  for(const A of AGENDA_MUSICA){
+    if(A.nome !== nome) continue;
+    const entra = A.de < -1e8 ? 1 : Math.sin(rampa(A.de, A.de + X_MUSICA, t) * Math.PI / 2);
+    const sai   = A.ate > 1e8 ? 1 : Math.cos(rampa(A.ate, A.ate + X_MUSICA, t) * Math.PI / 2);
+    g += entra * sai;
   }
-  return cede;
+  return Math.min(1, g);
+}
+function ganhoLufs(lufs){ return Math.pow(10, (LUFS_LACO - lufs) / 20); }
+/* 27/09: o fim do som acompanha o fim da imagem: do fecho (o mundo se apaga, 14 s reais
+   depois dos dez minutos) ate as estrelas e o nome sumirem (26 s). A espera fica muda. */
+function fimDaObra(t){ return rampa(DURACAO + 14 * RITMO, DURACAO + 26 * RITMO, t); }
+let abaixado = 1;              // 9.0: o abaixar dos gestos, com rampa, igual para todas
+/* NO IPHONE o volume de um <audio> e so leitura: fica em 1 o que se escrever. Ali cada
+   musica passa por um ganho do Web Audio, direto para a saida (sem o passa-baixas dos
+   gestos). O laco vem embutido como data:, e data: pode contar como outra origem para o
+   Web Audio, que ai devolve silencio: ele vira blob: (mesma origem) antes do primeiro toque.
+   Se a rota falhar, fica o de sempre -- e a agenda ainda garante uma musica por vez. */
+const VOLUME_TRAVADO = (function(){ try{ const a = document.createElement('audio'); a.volume = 0.5; return Math.abs(a.volume - 0.5) > 0.01; }catch(e){ return false; } })();
+let lacoEmBlob = !VOLUME_TRAVADO;
+if(TEM_SOM && VOLUME_TRAVADO && /^data:/.test(trilha.getAttribute('src') || '')){
+  fetch(trilha.getAttribute('src')).then(r => r.blob()).then(b => {
+    if(tocando || pedindoSom) return;          // ja comecou a tocar: fica como esta
+    trilha.src = URL.createObjectURL(b); lacoEmBlob = true;
+    if(audio) rotearMusicas();
+  }).catch(function(){});
+} else lacoEmBlob = true;
+function rotearMusicas(){
+  if(!VOLUME_TRAVADO || !audio) return;
+  for(const M of MUSICAS){
+    if(!M.el || M.el._ganho) continue;
+    if(M === LACO && !lacoEmBlob) continue;
+    try{
+      const fonte = audio.createMediaElementSource(M.el), g = audio.createGain();
+      g.gain.value = 0; fonte.connect(g); g.connect(audio.destination);
+      M.el._ganho = g; M.el._alvo = 0;
+      relato('SOM-ROTA ' + M.nome + ' pelo Web Audio');
+    }catch(e){ relato('SOM-ROTA-FALHOU ' + M.nome + ' ' + (e && e.name)); }
+  }
+}
+function ganhoDaMusica(el, v){
+  if(el._ganho){
+    if(Math.abs(el._alvo - v) > 0.002){
+      el._alvo = v;
+      try{ el._ganho.gain.setTargetAtTime(v, audio.currentTime, 0.05); }catch(e){ el._ganho.gain.value = v; }
+    }
+  } else if(Math.abs(el.volume - v) > 0.002) el.volume = v;
 }
 function pararTrilhasDaCena(){
   for(const T of TRILHAS_DA_CENA){ if(!T.el) continue; T.vol = 0; try{ T.el.pause(); T.el.currentTime = 0; }catch(e){} }
 }
 function seguirTrilha(dt){
-  const cede = seguirTrilhasDaCena(dt);   // 8.5
   if(!TEM_SOM) return;
-  // 27/09: o laco tambem se vai com o mundo -- a espera depois do fim fica em silencio
-  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0) * cede * (1 - fimDaObra(t));
-  trilhaVolAgora += (alvo - trilhaVolAgora) * (1 - Math.exp(-dt * (alvo < trilhaVolAgora ? 10 : 1.2)));
-  const v = Math.max(0, Math.min(1, trilhaVolAgora));
-  if(Math.abs(trilha.volume - v) > 0.002) trilha.volume = v;
+  const liga = somLigado && tocando;
+  const alvoAbaixa = relogio < trilhaBaixaAte ? 0.5 : 1.0;
+  abaixado += (alvoAbaixa - abaixado) * (1 - Math.exp(-Math.max(0, dt) * (alvoAbaixa < abaixado ? 8 : 1.2)));
+  const mestre = volume * NIVEL_MUSICA * GANHO_DO_APARELHO * abaixado;
+  const fim = 1 - fimDaObra(t);
+  const k = dt > 0 ? 1 - Math.exp(-dt * 3) : 1;
+  for(const M of MUSICAS){
+    if(!M.el) continue;
+    // o laco toca tambem antes de a obra partir (a vitrine); as faixas, so com ela andando
+    const alvo = liga && (M === LACO || andando) ? musicaNaAgenda(M.nome, t) * fim : 0;
+    const comeca = M !== LACO && M.vol <= 0.001 && alvo > 0.001;
+    M.vol += (alvo - M.vol) * k;
+    if(alvo <= 0.001 && M.vol < 0.003) M.vol = 0;
+    if(M.vol > 0.001 || alvo > 0.001){
+      if(M.el.paused && Math.abs(relogio - M.tentou) > 1.0){
+        M.tentou = relogio;
+        if(comeca){ try{ M.el.currentTime = 0; }catch(e){} }   // cada faixa de cenario entra do comeco
+        M.el.play().catch(function(){});
+      }
+    } else if(!M.el.paused) M.el.pause();
+    ganhoDaMusica(M.el, Math.max(0, Math.min(1, M.vol * mestre * ganhoLufs(M.lufs))));
+  }
+  trilhaVolAgora = LACO.vol * mestre;
 }
 /* A TRILHA ENTRA SOZINHA — a obra esta montada, nao em construcao.
 
@@ -15040,7 +15654,11 @@ function acordarGestos(){
   if(!AC) return;
   try{ audio = new AC(); }catch(e){ audio = null; return; }
   somMestre = audio.createGain();
-  somMestre.gain.value = 0.50;   // 7.4: era 0,35 -- "o som esta ficando muito baixo"
+  /* 7.4: era 0,35 -- "o som esta ficando muito baixo". 9.0: acompanha a musica (+2 dB, o
+     mesmo NIVEL_MUSICA) para a floresta soar como antes, e no celular a mistura inteira sobe */
+  somMestre.gain.value = 0.50 * NIVEL_MUSICA * GANHO_DO_APARELHO;
+  // 9.0: no iPhone, a chave lateral de silencio calava o Web Audio (os sinos e, agora, a musica)
+  try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
   const teto = audio.createBiquadFilter();
   teto.type = 'lowpass'; teto.frequency.value = 1400; teto.Q.value = 0.5;
   somMestre.connect(teto); teto.connect(audio.destination);
@@ -15228,7 +15846,15 @@ function acordarSom(){
     tocando = true; pedindoSom = false;
     for(const ev of GESTOS) removeEventListener(ev, acordarSom);
     // 8.5: as musicas de cenario acordam no mesmo gesto, mudas, e param em seguida -- so para o navegador deixa-las tocar depois
-    for(const T of TRILHAS_DA_CENA){ if(!T.el) continue; T.el.volume = 0; T.el.play().then(function(){ T.el.pause(); T.el.currentTime = 0; }).catch(function(){}); }
+    rotearMusicas();   // 9.0: no iPhone, os ganhos do Web Audio (o contexto nasceu neste mesmo gesto)
+    /* 9.0: MUDAS DE VERDADE -- no iPhone volume 0 nao cala, e o despertar soava um
+       instante da musica dos planetas no primeiro toque. muted cala em todo lugar. */
+    for(const T of TRILHAS_DA_CENA){
+      if(!T.el) continue;
+      T.el.muted = true;
+      T.el.play().then(function(){ if(T.vol <= 0.001){ T.el.pause(); try{ T.el.currentTime = 0; }catch(e){} } T.el.muted = false; })
+                 .catch(function(){ T.el.muted = false; });
+    }
   }).catch(function(){ pedindoSom = false; });
 }
 
@@ -15297,6 +15923,9 @@ function ligarVitrine(){
 }
 function iniciarObra(){
   vitrine = false;
+  /* 9.0: o reiniciar da pagina chama isto depois do fim, e a espera ficava ligada: a obra
+     recomecava "acabada" (e o botao do fim, dentro do oculos, reabria na hora) */
+  esperando = false;
   t = 0; relogio = 0;
   /* 8.4 -- O CRESCIMENTO DE VOLTA (26/09: "desde que voce mexeu naquela tela
      introdutoria, perdeu o crescimento das arvores; tem que comecar com ceu
@@ -15305,6 +15934,7 @@ function iniciarObra(){
      ao Iniciar, t voltava a zero e a arvore nao -- nascia pronta. Zerar aqui e o
      mesmo gesto do recomecar. */
   crescimento = 0; folhagem = 0; retornoInverso = 0;
+  TARTA.matiz = TARTA.matizAlvo = 0; TAM.matiz = TAM.matizAlvo = 0;   // 9.0: cada pessoa comeca com as cores de sempre
   cenaAtual = 1; misturaCeu = 0;
   ceuA = CENAS[1].ceu; ceuB = CENAS[1].ceu;
   andando = true;
@@ -15453,8 +16083,10 @@ if(emTesteLocal){
     // 7.7: uma parede de mentira, para ver as plantas de parede na bancada
     paredeDeTeste(x, z, ax, az){ SALA.paredes.push({ y:1.5, cx:x, cz:z, poly:[], rotulo:'wall', pts3:[x - ax*1.5, 0, z - az*1.5, x + ax*1.5, 0, z + az*1.5, x + ax*1.5, 2.5, z + az*1.5] });
       const n = plantarNasParedes(); ALVOS_ABELHA.length = 0; montarTrilhasDaVida(); montarFolhasPadronadas(prng(7476)); return { tufos:n, folhas:nFolhasPIdx / 3 }; },
-    tamandua(){ return { x:+TAM.x.toFixed(2), z:+TAM.z.toFixed(2), yaw:+TAM.yaw.toFixed(2), estado:TAM.estado, alvo:TAM.alvo, lingua:+TAM.lingua.toFixed(2), lambidas:TAM.lambidas, recolhe:+TAM.recolhe.toFixed(2) }; },
-    tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1) }; },
+    tamandua(){ return { x:+TAM.x.toFixed(2), z:+TAM.z.toFixed(2), yaw:+TAM.yaw.toFixed(2), estado:TAM.estado, alvo:TAM.alvo, lingua:+TAM.lingua.toFixed(2), lambidas:TAM.lambidas, recolhe:+TAM.recolhe.toFixed(2),
+                           matiz:+TAM.matiz.toFixed(2), treme:+TAM.treme.toFixed(2), dPessoa:+Math.hypot(TAM.x - ondeOOlhoEsta[0], TAM.z - ondeOOlhoEsta[2]).toFixed(2) }; },
+    tartaruga(){ return { x:+TARTA.x.toFixed(2), z:+TARTA.z.toFixed(2), yaw:+TARTA.yaw.toFixed(2), alvo:TARTA.alvo.map(v => +v.toFixed(2)), parada:+TARTA.parada.toFixed(1), recolhe:+TARTA.recolhe.toFixed(1),
+                            matiz:+TARTA.matiz.toFixed(2), treme:+TARTA.treme.toFixed(2), dPessoa:+Math.hypot(TARTA.x - ondeOOlhoEsta[0], TARTA.z - ondeOOlhoEsta[2]).toFixed(2) }; },
     // 8.3: o espaco de cada corpo, para a bancada conferir que nada entra em nada
     espaco(){ const r2 = (v) => +v.toFixed(2);
       return { troncos: TRONCOS.map(tr => ({ mae: !!tr.mae, x: r2(tr.pontos[0][0]), z: r2(tr.pontos[0][2]), r: r2(tr.raios[0]), topo: r2(tr.pontos[tr.pontos.length - 1][1]) })),
@@ -15463,7 +16095,9 @@ if(emTesteLocal){
                pedras: PEDRAS_CHAO.map(pd => ({ x: r2(pd.x), z: r2(pd.z), esc: r2(pd.escala) })),
                paredes: TUFOS_DE_PAREDE.map(tf => ({ c: tf.c.map(r2), n: tf.n })), danca: [r2(DANCA_AZ * 180 / Math.PI), DANCA_DIST] }; },
     // 8.5: as musicas de cada cenario, para a bancada
-    trilhas(){ return TRILHAS_DA_CENA.map(T => ({ nome:T.nome, vol:+T.vol.toFixed(3), tocando: !!(T.el && !T.el.paused), pronta: !!(T.el && T.el.readyState >= 2) })); },
+    trilhas(){ return MUSICAS.map(T => ({ nome:T.nome, agenda:+musicaNaAgenda(T.nome, t).toFixed(3), vol:+T.vol.toFixed(3),
+                                          volume: T.el ? +(T.el._ganho ? T.el._alvo : T.el.volume).toFixed(3) : 0,
+                                          tocando: !!(T.el && !T.el.paused), pronta: !!(T.el && T.el.readyState >= 2) })); },
     // 8.4: os corais vivos do fundo do mar, para a bancada
     corais(){ return CORAIS_VIVOS.map(cv => ({ x:+cv.x.toFixed(2), z:+cv.z.toFixed(2), esc:+cv.esc.toFixed(2), alt:+cv.alt.toFixed(2), tipo:cv.tipo, d:+Math.hypot(cv.x, cv.z).toFixed(2) })); },
     // 8.3: quanto um ponto (x, z, na altura y, com raio r) esta dentro de algum corpo -- 0 = livre
@@ -15805,6 +16439,10 @@ if(navigator.xr){
     vXR.className = ok ? 'ok' : 'no';
     bXR.disabled = !ok;
     relato('SUPORTE immersive-ar=' + ok);
+    if(CELULAR){   // 9.0: no celular com RA, o cenario fica preso ao chao
+      arNoCelular = !!ok;
+      if(ok && ePortaoDica) ePortaoDica.textContent = 'o cenário fica preso ao chão: ande pela sala com o celular e toque nas coisas';
+    }
     if(!ok){
       bXR.textContent = 'RM indisponível aqui';
       const bi = document.getElementById('bIniciar');
@@ -16157,7 +16795,8 @@ const locSo = {mvp:uSo('mvp'), tempo:uSo('tempo'), crescimento:uSo('crescimento'
                corrente:uSo('corrente'),
                maoA:uSo('maoA'), maoB:uSo('maoB'), faseExtra:uSo('faseExtra'),
                cogToque:uSo('cogToque[0]'), ondulaMao:uSo('ondulaMao'), maeXZ:uSo('maeXZ'),
-               arcoOnda:uSo('arcoOnda')};   // 7.4, 8.1
+               arcoOnda:uSo('arcoOnda'), soFundo:uSo('soFundo'),   // 9.0
+               matizBicho:uSo('matizBicho'), brilhoBicho:uSo('brilhoBicho')};   // 7.4, 8.1
 gl.useProgram(progSolida); gl.uniform1f(locSo.lamina, 99.0);   // uniforme nasce em zero, e zero e "tudo embaixo"
 const aSo = {pos:gl.getAttribLocation(progSolida,'aPos'),
              nor:gl.getAttribLocation(progSolida,'aNor'),
@@ -16191,6 +16830,30 @@ function porMalha(b, n, materia){
 
    E uma funcao, e nao um fecho dentro do laco: fecho criado por quadro e
    lixo criado por quadro, e o coletor cobra isso em engasgo. */
+/* 9.0 -- A MATA TRANSLUCIDA SE ORDENA SOZINHA (27/09: "na versao do Quest, a arvore-mae
+   esta com problema de 3D"). A mata so grava profundidade quando a presenca passa de
+   0,985. Abaixo disso -- o nascimento (0:14 a 0:29) e a saida com a borboleta (3:06 a
+   3:18) -- ela e desenhada translucida SEM profundidade, na ordem do buffer: a mae
+   primeiro, depois as outras, e dentro de cada uma o tronco antes dos galhos. Um galho de
+   tras desenhado depois do tronco da frente passava POR CIMA dele, a 90-98 % de opacidade.
+   No monitor isso quase nao se ve; no oculos, com um olho de cada lado, o galho diz "estou
+   atras" pela distancia e "estou na frente" pelo desenho -- e o 3D quebra. As fotos de
+   perto da bancada eram da arvore feita (presenca 1), por isso pareciam certas.
+   O conserto e o de sempre para objeto que esmaece: uma passada so de profundidade (sem
+   cor) e depois a cor com depthFunc LEQUAL. Cada ponto da tela fica com a superficie mais
+   perto da mata, e so ela -- um fantasma de uma camada so, com a forma certa. Abaixo de
+   0,35 de presenca nao se ordena: quase nao se ve, e o fundo gravado esconderia o que vem
+   depois (cogumelos, bichos) atras de uma arvore que mal existe. */
+const ORDENAR_MATA_DE = 0.35;
+function ordenarAMata(){ return presencaMata > ORDENAR_MATA_DE && presencaMata <= 0.985; }
+function passadaDeFundo(desenhar){
+  gl.colorMask(false, false, false, false); gl.disable(gl.BLEND); gl.depthMask(true);
+  gl.uniform1f(locSo.soFundo, 1.0);
+  desenhar();
+  gl.uniform1f(locSo.soFundo, 0.0);
+  gl.colorMask(true, true, true, true); gl.enable(gl.BLEND); gl.depthMask(false);
+  gl.depthFunc(gl.LEQUAL);
+}
 function desenharAMata(){
   if(!MATA_ESTRELAR || nIdxMae <= 0 || nIdxMae >= nIdxR){
     gl.drawElements(gl.TRIANGLES, nIdxR, gl.UNSIGNED_SHORT, 0);
@@ -16478,7 +17141,7 @@ const locAg = {mvp:uAg('mvp'), centro:uAg('centro'), nivel:uAg('nivel'),
                ceu2:uAg('ceu2'), misturaCeu:uAg('misturaCeu'),
                altura:uAg('altura'), inicio:uAg('inicio'), fim:uAg('fim'),
                olhoPos:uAg('olhoPos'), tempo:uAg('tempo'), presenca:uAg('presenca'),
-               agitacao:uAg('agitacao'), furacao:uAg('furacao'),
+               agitacao:uAg('agitacao'), furacao:uAg('furacao'), giroFuracao:uAg('giroFuracao'),
                giroCeu:uAg('giroCeu'), toque:uAg('toque[0]')};
 const aAg = {xy: gl.getAttribLocation(progAgua,'aXY')};
 
@@ -17363,7 +18026,10 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       ligar(aSo.pos, bR.pos, 3); ligar(aSo.nor, bR.nor, 3);
       ligar(aSo.alt, bR.alt, 1); ligar(aSo.fase, bR.fase, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bR.idx);
+      const ordenar = ordenarAMata();   // 9.0
+      if(ordenar) passadaDeFundo(desenharAMata);
       desenharAMata();
+      if(ordenar) gl.depthFunc(gl.LESS);
     }
 
     /* AS PEDRAS. Mesmo programa, mesma tinta -- e sem recolhimento:
@@ -17390,14 +18056,17 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.uniform1f(locSo.materia, 1.0);
       gl.uniform1f(locSo.inverte, 0.0);
       gl.uniform1f(locSo.crescimento, crescimento);
-      gl.uniform1f(locSo.presenca, presencaMata);
+      gl.uniform1f(locSo.presenca, presencaMata * (1 - aguaPresenca));   // 9.0: a 8.9 era sobrescrita aqui
       gl.uniform3f(locSo.desloca, 0, 0, 0);
       gl.depthMask(presencaMata > 0.985);
       ligar(aSo.pos, bPedras.pos, 3); ligar(aSo.nor, bPedras.nor, 3);
       ligar(aSo.alt, bPedras.alt, 1); ligar(aSo.fase, bPedras.fase, 1);
       ligar(aSo.borda, bPedras.borda, 1);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bPedras.idx);
+      const ordenarP = ordenarAMata();   // 9.0: as pedras nascem e saem com a mata
+      if(ordenarP) passadaDeFundo(() => gl.drawElements(gl.TRIANGLES, nPedrasIdx, gl.UNSIGNED_SHORT, 0));
       gl.drawElements(gl.TRIANGLES, nPedrasIdx, gl.UNSIGNED_SHORT, 0);
+      if(ordenarP) gl.depthFunc(gl.LESS);
       gl.uniform1f(locSo.escalaTinta, 1.25);
       gl.uniform1f(locSo.materia, 0.0);
     }
@@ -17473,6 +18142,20 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
        profundidade -- corpo transparente que escreve profundidade recorta
        o que esta atras dele. */
     if(nCrisalidaIdx > 0 && casuloPresenca > 0.004){
+      /* 9.0 -- O CASULO TINHA SUMIDO (27/09: "parece que o casulo sumiu, ele nao esta mais
+         evidente. O que houve?"). Este bloco nunca escolhia o programa: herdava o dos
+         solidos de quem desenhava antes dele. Desde a 7.4 (25/09) quem desenha logo antes
+         sao os pontos vivos da floresta (progVida) e, desde 26/09, as flores da dancarina
+         (progFlor) -- e com o programa DELES ativo, cada uniforme daqui caia no vazio
+         (INVALID_OPERATION, que nao aparece em lugar nenhum) e o casulo saia desenhado pelo
+         programa errado: nada. Medido na bancada, quadro a quadro: todas as chamadas
+         invalidas da obra estavam neste bloco. Agora ele escolhe o seu e zera o que os
+         outros solidos deixam ligado (ondular, bolha, a mao que ondula). */
+      gl.useProgram(progSolida); soltarAtributos();
+      mandarMvp(locSo.mvp, mvp);
+      gl.uniform1f(locSo.inverte, 0.0); gl.uniform1f(locSo.brota, 1.0);
+      gl.uniform1f(locSo.ondula, 0.0); gl.uniform1f(locSo.bolha, 0.0); gl.uniform1f(locSo.ondulaMao, 0.0);
+      gl.enable(gl.BLEND); sobrepor();   // 9.0: a mistura tambem era herdada -- sem ela os halos saem pretos
       gl.disable(gl.CULL_FACE);
       gl.depthMask(false);
       // presa em cima e solta embaixo: o balanco do shader e o pendulo
@@ -17560,6 +18243,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
       gl.enable(gl.CULL_FACE);
       gl.uniform3f(locSo.desloca, 0, 0, 0);
     }
+    gl.useProgram(progSolida); soltarAtributos();   // 9.0: as devolucoes abaixo sao do programa dos solidos
     gl.uniform1f(locSo.balanca, 1.0);
     gl.uniform1f(locSo.materia, 0.0);
     gl.uniform1f(locSo.escalaTinta, 1.25);
@@ -18610,7 +19294,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     // AS PEDRAS, quando ha agua. Opacas: sao corpos, e ficam abaixo da
     // lamina, entao precisam escrever profundidade para a agua nao as
     // atravessar.
-    if(aguaPresenca > 0.004){
+    if(PEDRAS_NO_MAR && aguaPresenca > 0.004){   // 9.0: desligadas
       gl.depthMask(true);
       gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[0]);
       gl.uniform1i(locAst.pele, 5);
@@ -18652,6 +19336,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
     gl.uniform1f(locAg.presenca, aguaPresenca);
     gl.uniform1f(locAg.agitacao, agitacao);
     gl.uniform1f(locAg.furacao, furacaoPresenca);
+    gl.uniform1f(locAg.giroFuracao, giroFuracao);   // 9.0
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, PELES[1]);
     gl.uniform1i(locAg.pele, 5);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, CEUS[ceuA]);
@@ -19360,6 +20045,8 @@ function quadro(){
   desenharCena(mvpTela, vis, janelaMagica, 0.5*cv.height*proj[5]);
   // na tela so ha contorno se a bancada puser juntas ou um mapa falso
   desenharContorno(null, {x:0, y:0, width:cv.width, height:cv.height}, mvpTela, 0.5*cv.height*proj[5], profundidadeFalsa);
+  if(fotoPedida) tirarFotoDaJanela();       // 9.0: no mesmo quadro que acabou de ser desenhado
+  if(CELULAR) seguirBotoesDoCelular();      // 9.0
   eY.textContent = (((Math.round(yaw*180/Math.PI)%360)+360)%360)+'°';
   requestAnimationFrame(quadro);
 }
@@ -19408,6 +20095,7 @@ function quadroXR(t, frame){
 
   const pose = frame.getViewerPose(espaco);
   if(!pose) return;
+  if(emRAdoCelular) acharOChaoRA(frame);   // 9.0: o chao do celular
   lerMaos(frame);
   const dt = passo();
   medirForaDaArea(dt, pose.transform.position.x, pose.transform.position.z);
@@ -19441,6 +20129,7 @@ function quadroXR(t, frame){
   seguirPartitura(dt);
   seguirTrilha(dt);   // 7.4
   contarQuadro();
+  if(CELULAR) seguirBotoesDoCelular();   // 9.0
 
   /* so quando muda: escrever no DOM a cada quadro faz o navegador recalcular
      a pagina (invisivel, mas paga) setenta e duas vezes por segundo */
