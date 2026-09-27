@@ -167,6 +167,13 @@
       <button class="durBt" id="dur10" onclick="acao('duracao',{min:10})" title="o roteiro inteiro em dez minutos reais">10 min</button>
       <span class="nota" id="durInfo">só muda com o portão à vista</span>
     </div>
+    <!-- 27/09: o som do oculos tambem no amplificador -->
+    <div class="linha">
+      <span class="nota">som no amplificador</span>
+      <button class="durBt" id="somOculos1" onclick="acao('som_oculos',{ligar:true})" title="o Mac toca uma cópia do som do óculos, na mesma hora; o óculos continua tocando">cópia do óculos</button>
+      <button class="durBt" id="somOculos0" onclick="acao('som_oculos',{ligar:false})" title="sem cópia: a animação do projetor toca a trilha seguindo a obra">só a animação</button>
+      <span class="nota" id="somOculosInfo"></span>
+    </div>
     <div class="linha">
       <button class="primario" style="font-size:16px;padding:12px 18px" onclick="acao('iniciar')"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>Iniciar em RM</button>
       <button onclick="acao('escanear')" title="abre a Configuração de Espaço do Quest por cima da sessão; a obra já pede sozinha se em 6 s não vier plano nenhum">Escanear o espaço</button>
@@ -375,6 +382,13 @@ function desenhar(){
       b.classList.toggle('primario', esc === m); b.disabled = acontecendo; }
     $('durInfo').textContent = acontecendo ? 'no meio da obra não muda'
       : (onde.min ? 'a obra está em ' + onde.min + ' min' : 'escolhido: ' + esc + ' min');
+  }
+  { // 27/09: o som do óculos também no amplificador
+    const so = estado.som_oculos || {}, lig = so.ligado !== false;
+    $('somOculos1').classList.toggle('primario', lig);
+    $('somOculos0').classList.toggle('primario', !lig);
+    $('somOculosInfo').textContent = !lig ? 'a animação toca a trilha'
+      : so.ativo ? 'tocando no Mac' + (so.via === 'wifi' ? ' (pela Wi-Fi, ~0,2 s depois)' : '') : 'esperando o óculos na rede';
   }
   { // 26/09: a próxima versão — botões travados enquanto a experiência acontece
     const o = estado.obra || {}, onde = o.onde || {};

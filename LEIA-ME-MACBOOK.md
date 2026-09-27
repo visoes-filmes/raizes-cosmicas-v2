@@ -224,6 +224,21 @@ o público a lê certa do outro lado do tule). Ela não muda na troca espelho
 animação então abre sem o QR dela (`?qr=0`). Sem swiftc (Command Line Tools),
 fica o QR da animação, como antes.
 
+### O som do óculos também no amplificador (27/09)
+
+"Tem que sair nos dois ao mesmo tempo: no óculos e no amplificador." O
+amplificador vai no **cabo da saída de fone do Mac** (não no óculos: o
+Quest cala os próprios alto-falantes quando algo entra na saída dele). A
+Cabine mantém um scrcpy **só de som** que copia o que o Quest toca
+(`--audio-source=playback --audio-dup`, Android 14): o óculos continua
+tocando, e o Mac toca a cópia na saída padrão, uns 0,2 s depois pela Wi-Fi —
+a mesma trilha, as cenas e os sons dos gestos. Provado com um bipe de 440 Hz
+tocado pela página da obra. Cai quando a Wi-Fi derruba o adb (o óculos
+dormindo) e volta sozinho. Durante a obra a animação do projetor cala a
+música dela; fora da obra ela toca o laço de sempre. Na Cabine, card da
+obra → *som no amplificador*: **cópia do óculos** (padrão) ou **só a
+animação** (guardado em `fontes/som_oculos.txt`).
+
 ## 7. Se o Mac não servir como Cabine
 
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O

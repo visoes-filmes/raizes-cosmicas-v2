@@ -629,6 +629,87 @@ def espelhar(serial, geometria=None):
 abrir_espelho_no_mac = espelhar   # o mesmo, por um nome que o parametro de projetar() nao encobre
 
 
+# ── o som do oculos tambem no amplificador (27/09) ───────────────────────
+# "O som no cabo de som nao esta saindo a musica do ambiente. Tem que sair nos dois ao
+# mesmo tempo: no oculos e no amplificador." O Quest (Android 14) deixa o scrcpy COPIAR o
+# que ele toca (--audio-source=playback --audio-dup): o oculos continua tocando nos
+# alto-falantes dele e o Mac toca a copia na saida padrao -- a do cabo do amplificador. E o
+# mesmo som, na mesma hora (uns 0,2 s depois, pela Wi-Fi): a trilha, as cenas, os gestos.
+# Provado em 27/09: um bipe de 440 Hz tocado pela pagina da obra chegou inteiro na copia.
+# Um scrcpy so de som (sem video, sem janela, e sem "Quest" na linha de comando, para o
+# fechar_espelhos nao leva-lo junto), separado do espelho. A Cabine o mantem de pe enquanto
+# o Quest esta ao alcance e o refaz quando a Wi-Fi cai, esperando mais a cada queda
+# seguida. Durante a obra a animacao do projetor cala a musica dela (seriam duas trilhas
+# desencontradas); fora da obra ela segue com o laco de sempre.
+SOM_OCULOS_ARQ = os.path.join(AQUI, "som_oculos.txt")
+SOM_OCULOS = {"proc": None, "serial": None, "desde": None, "falhas": 0, "espera_ate": 0.0}
+
+
+def som_oculos_ligado():
+    try:
+        return open(SOM_OCULOS_ARQ, encoding="utf-8").read().strip() != "0"
+    except OSError:
+        return True                      # ligado, a menos que a Cabine tenha desligado
+
+
+def som_oculos_vivo():
+    p = SOM_OCULOS["proc"]
+    return bool(p and p.poll() is None)
+
+
+def parar_som_oculos():
+    p = SOM_OCULOS["proc"]
+    if p and p.poll() is None:
+        try:
+            p.terminate()
+        except Exception:
+            pass
+    SOM_OCULOS.update(proc=None, serial=None, desde=None)
+
+
+def abrir_som_oculos(serial):
+    exe = achar_scrcpy()
+    if not exe:
+        return False
+    # pela Wi-Fi a copia chega aos trancos: 150 ms de folga (folga maior nao reduziu os
+    # pequenos ajustes de relogio do scrcpy -- medido em 27/09); no cabo, 60. O tunel e o
+    # forward do adb: o reverse falhava na Wi-Fi do estande.
+    args = [exe, "-s", serial, "--no-video", "--no-window", "--force-adb-forward",
+            "--audio-source=playback", "--audio-dup", f"--audio-buffer={150 if ':' in serial else 60}"]
+    SOM_OCULOS["proc"] = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, creationflags=SEM_JANELA)
+    SOM_OCULOS.update(serial=serial, desde=time.time())
+    return True
+
+
+def vigiar_som_oculos():
+    aceso = False
+    while True:
+        try:
+            s = ESTADO["quest"]["escolhido"]
+            quer = som_oculos_ligado() and bool(s) and bool(ADB)
+            if som_oculos_vivo() and (not quer or SOM_OCULOS["serial"] != s):
+                parar_som_oculos()               # desligado, ou o Quest trocou de caminho (cabo <-> Wi-Fi)
+            if SOM_OCULOS["proc"] is not None and not som_oculos_vivo():
+                durou = time.time() - (SOM_OCULOS["desde"] or time.time())
+                SOM_OCULOS["falhas"] = SOM_OCULOS["falhas"] + 1 if durou < 30 else 1
+                SOM_OCULOS["espera_ate"] = time.time() + min(30, 3 * SOM_OCULOS["falhas"])
+                SOM_OCULOS.update(proc=None, serial=None, desde=None)
+            if (quer and SOM_OCULOS["proc"] is None and time.time() >= SOM_OCULOS["espera_ate"]
+                    and adb("get-state", serial=s, timeout=6).strip() == "device"):
+                abrir_som_oculos(s)
+            ativo = som_oculos_vivo() and time.time() - (SOM_OCULOS["desde"] or time.time()) > 3
+            if ativo != aceso:
+                aceso = ativo
+                relatar("som do óculos no amplificador: " + ("tocando no Mac" if ativo else "caiu — refazendo"))
+            with TRAVA:
+                ESTADO["som_oculos"] = {"ligado": som_oculos_ligado(), "ativo": ativo,
+                                        "via": ("wifi" if ":" in s else "cabo") if s else None}
+        except Exception as e:
+            log(f"som do oculos: {e!r}")
+        time.sleep(2)
+
+
 # ── a projeção (6.0): o que vai para o projetor ──────────────────────────
 
 def monitores_mac():
@@ -1426,6 +1507,14 @@ def agir(nome, dados):
         return espelhar(s)
     elif nome == "projetar":
         return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
+    elif nome == "som_oculos":
+        ligar = bool(dados.get("ligar"))
+        with open(SOM_OCULOS_ARQ, "w", encoding="utf-8") as f:
+            f.write("1" if ligar else "0")
+        if not ligar:
+            parar_som_oculos()
+        relatar("som do óculos no amplificador: " + ("ligado" if ligar else "desligado (a animação toca a trilha)"))
+        return {"ok": True, "resposta": "ligado" if ligar else "desligado"}
     elif nome == "parar_projecao":
         PROJ_AUTO["ativo"] = False
         fechar_quiosques()
@@ -1558,6 +1647,7 @@ def encerrar_tudo():
     try:
         parar_projecao()
         esconder_qr()
+        parar_som_oculos()
         luz_parar()
         if SERVIDOR_OBRA and SERVIDOR_OBRA.poll() is None:
             SERVIDOR_OBRA.terminate()
@@ -1811,6 +1901,9 @@ def main():
     subir_servidor_da_obra()
     if ADB:
         threading.Thread(target=vigiar, daemon=True).start()
+        # 27/09: o som do oculos tambem no amplificador (nenhuma copia sobrando de antes)
+        rodar(["pkill", "-f", "scrcpy.*audio-dup"], timeout=5)
+        threading.Thread(target=vigiar_som_oculos, daemon=True).start()
     servidor = ThreadingHTTPServer(("127.0.0.1", PORTA_CABINE), Cabine)
     servidor.daemon_threads = True
     if abrir:
