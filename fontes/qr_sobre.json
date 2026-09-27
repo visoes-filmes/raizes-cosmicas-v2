@@ -1,0 +1,8 @@
+{
+  "lado_vh": 8.5,
+  "itens": [
+    { "img": "qr-obra-celular.png", "rotulo": "a obra no celular", "cor": "#6fe0cf" },
+    { "img": "qr-visoesfilmes.png", "rotulo": "visoesfilmes.com", "cor": "#f4efff" },
+    { "img": "qr-instagram.png",   "rotulo": "@visoesfilmes",    "cor": "#ff7ab6" }
+  ]
+}

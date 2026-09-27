@@ -3,13 +3,15 @@
 // Com o oculos na cabeca o projetor mostra o espelho do Quest (scrcpy, em tela
 // cheia, num Space proprio do macOS) -- e o QR so existia na pagina da animacao,
 // que fica por baixo. Este programinha poe o QR numa janela sem borda, que nao
-// recebe clique nem foco, acima de tudo e em todos os Spaces do projetor, no
-// mesmo lugar e tamanho do QR da animacao (projecao.html): a troca espelho <->
-// animacao nao mexe o QR. Em retroprojecao (--espelhar 1) vai para o outro canto
-// e sai invertido, para quem olha do outro lado do tule le-lo certo.
+// recebe clique nem foco, acima de tudo e em todos os Spaces do projetor: a troca
+// espelho <-> animacao nao mexe o QR. Em retroprojecao (--espelhar 1) vai para o
+// outro canto e sai invertido, para quem olha do outro lado do tule le-lo certo.
 //
-// A Cabine compila isto uma vez (swiftc, fica em $TMPDIR/raizes-qr) e abre/fecha
-// junto com o espelho do projetor:
+// TRES QR (27/09): "faz um QR code da versao mobile pra pessoa acessar o nosso site,
+// do lado do QR code do site e do Instagram, sao 3. Mas faz uma diferenciacao e nao
+// precisa ficar tao grande." Se ao lado da imagem (--img) houver um qr_sobre.json,
+// ele manda: uma fileira de cartoes menores, cada um com a borda e o rotulo na sua
+// cor. Sem o arquivo, fica o QR unico de antes.
 //
 //   raizes-qr --tela "ViewSonic PJ" --espelhar 1 --img fontes/qr-visoesfilmes.png \
 //             --texto visoesfilmes.com --pai <pid da Cabine>
@@ -31,11 +33,47 @@ while i < argv.count {
 }
 let nomeTela = (opcoes["tela"] ?? "").lowercased()
 let espelhar = opcoes["espelhar"] == "1"
-let texto = opcoes["texto"] ?? "visoesfilmes.com"
 let pai = Int32(opcoes["pai"] ?? "") ?? 0
-guard let caminho = opcoes["img"], let imagemLida = NSImage(contentsOfFile: caminho) else {
+
+struct Cartao {
+    let imagem: NSImage
+    let rotulo: String
+    let cor: NSColor
+}
+
+func corDe(_ hex: String) -> NSColor {
+    var h = hex.trimmingCharacters(in: .whitespaces)
+    if h.hasPrefix("#") { h.removeFirst() }
+    guard h.count == 6, let v = UInt32(h, radix: 16) else { return .white }
+    return NSColor(srgbRed: CGFloat((v >> 16) & 255) / 255, green: CGFloat((v >> 8) & 255) / 255,
+                   blue: CGFloat(v & 255) / 255, alpha: 1)
+}
+
+// os cartoes: do qr_sobre.json ao lado da imagem, ou o QR unico do --img
+guard let caminho = opcoes["img"] else {
     FileHandle.standardError.write("raizes-qr: sem imagem (--img)\n".data(using: .utf8)!)
     exit(2)
+}
+let pasta = URL(fileURLWithPath: caminho).deletingLastPathComponent()
+var cartoes: [Cartao] = []
+var ladoVh: CGFloat = 13
+if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json")),
+   let json = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
+   let itens = json["itens"] as? [[String: Any]] {
+    for it in itens {
+        guard let img = it["img"] as? String,
+              let im = NSImage(contentsOf: pasta.appendingPathComponent(img)) else { continue }
+        cartoes.append(Cartao(imagem: im, rotulo: it["rotulo"] as? String ?? "", cor: corDe(it["cor"] as? String ?? "#ffffff")))
+    }
+    if let l = json["lado_vh"] as? Double { ladoVh = CGFloat(l) }
+}
+if cartoes.isEmpty {
+    guard let im = NSImage(contentsOfFile: caminho) else {
+        FileHandle.standardError.write("raizes-qr: imagem ilegivel (--img)\n".data(using: .utf8)!)
+        exit(2)
+    }
+    cartoes = [Cartao(imagem: im, rotulo: opcoes["texto"] ?? "visoesfilmes.com", cor: .white)]
+    ladoVh = 13
 }
 
 // o projetor: pelo nome que a Cabine usa; sem nome (ou sem achar), o primeiro que nao e o principal
@@ -47,22 +85,36 @@ func acharTela() -> NSScreen? {
     return telas.count > 1 ? telas.first(where: { $0 != NSScreen.main && $0 != telas.first }) ?? telas.last : nil
 }
 
-// as medidas do #qr da projecao.html, em vh/vw da tela do projetor
+// as medidas em vh da tela do projetor
 final class Vista: NSView {
     var vh: CGFloat = 10.8
-    var imagem = NSImage()
+    var cartoes: [Cartao] = []
     var espelhar = false
-    var texto = ""
+    var ladoVh: CGFloat = 13
     override var isFlipped: Bool { false }
 
-    var lado: CGFloat { 13 * vh }          // o QR: 13vh
-    var folga: CGFloat { 1 * vh }          // em volta, para a sombra do texto
-    var linha: CGFloat { ceil(1.6 * vh * 1.3) }
-    var vao: CGFloat { 0.8 * vh }
-    var margem: CGFloat { 5 * vh }         // dos lados do QR, para o texto caber centrado
+    var lado: CGFloat { ladoVh * vh }                          // cada QR
+    var folga: CGFloat { 1 * vh }                              // em volta, para a sombra do texto
+    var corpo: CGFloat { (cartoes.count > 1 ? 1.45 : 1.6) * vh }   // a letra do rotulo
+    var linha: CGFloat { ceil(corpo * 1.3) }
+    var vao: CGFloat { 0.7 * vh }                              // entre o QR e o rotulo
+    var entre: CGFloat { 1.8 * vh }                            // entre um cartao e outro
 
+    func textoDe(_ c: Cartao) -> NSAttributedString {
+        let sombra = NSShadow()
+        sombra.shadowColor = .black
+        sombra.shadowBlurRadius = 6
+        sombra.shadowOffset = NSSize(width: 0, height: -1)
+        return NSAttributedString(string: c.rotulo, attributes: [
+            .font: NSFont.systemFont(ofSize: corpo, weight: .semibold), .foregroundColor: c.cor,
+            .kern: 0.04 * corpo, .shadow: sombra,
+        ])
+    }
+    // cada cartao ocupa a largura do maior entre o QR e o rotulo: ficam espacados por igual
+    var vaga: CGFloat { max(lado, cartoes.map { textoDe($0).size().width }.max() ?? 0) }
+    var larguraDaFileira: CGFloat { CGFloat(cartoes.count) * vaga + CGFloat(max(0, cartoes.count - 1)) * entre }
     var tamanho: NSSize {
-        NSSize(width: lado + 2 * margem, height: folga + linha + vao + lado + folga)
+        NSSize(width: larguraDaFileira + 2 * folga, height: folga + linha + vao + lado + folga)
     }
 
     override func draw(_ sujo: NSRect) {
@@ -70,28 +122,29 @@ final class Vista: NSView {
         bounds.fill(using: .copy)
         guard let ctx = NSGraphicsContext.current else { return }
         ctx.saveGraphicsState()
-        if espelhar {                      // o scaleX(-1) da pagina: em torno do centro do QR
+        if espelhar {                      // o scaleX(-1) da pagina: a fileira inteira, invertida
             let t = NSAffineTransform()
             t.translateX(by: bounds.width, yBy: 0)
             t.scaleX(by: -1, yBy: 1)
             t.concat()
         }
-        let r = NSRect(x: (bounds.width - lado) / 2, y: folga + linha + vao, width: lado, height: lado)
-        NSColor.white.setFill()
-        NSBezierPath(roundedRect: r, xRadius: vh, yRadius: vh).fill()
         ctx.imageInterpolation = .high
-        imagem.draw(in: r.insetBy(dx: 0.02 * lado, dy: 0.02 * lado), from: .zero, operation: .sourceOver, fraction: 1)
-
-        let sombra = NSShadow()
-        sombra.shadowColor = .black
-        sombra.shadowBlurRadius = 6
-        sombra.shadowOffset = NSSize(width: 0, height: -1)
-        let fonte = NSFont.systemFont(ofSize: 1.6 * vh)
-        let s = NSAttributedString(string: texto, attributes: [
-            .font: fonte, .foregroundColor: NSColor.white, .kern: 0.06 * 1.6 * vh, .shadow: sombra,
-        ])
-        let t = s.size()
-        s.draw(at: NSPoint(x: (bounds.width - t.width) / 2, y: folga + (linha - t.height) / 2))
+        for (k, c) in cartoes.enumerated() {
+            let x0 = folga + CGFloat(k) * (vaga + entre)
+            let r = NSRect(x: x0 + (vaga - lado) / 2, y: folga + linha + vao, width: lado, height: lado)
+            let caixa = NSBezierPath(roundedRect: r, xRadius: 0.8 * vh, yRadius: 0.8 * vh)
+            NSColor.white.setFill()
+            caixa.fill()
+            c.imagem.draw(in: r.insetBy(dx: 0.05 * lado, dy: 0.05 * lado), from: .zero, operation: .sourceOver, fraction: 1)
+            if cartoes.count > 1 {         // a diferenca de cada um: a borda na cor dele
+                c.cor.setStroke()
+                caixa.lineWidth = 0.32 * vh
+                caixa.stroke()
+            }
+            let s = textoDe(c)
+            let t = s.size()
+            s.draw(at: NSPoint(x: x0 + (vaga - t.width) / 2, y: folga + (linha - t.height) / 2))
+        }
         ctx.restoreGraphicsState()
     }
 }
@@ -100,9 +153,9 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory)        // sem icone no Dock, nunca toma o foco
 
 let vista = Vista(frame: .zero)
-vista.imagem = imagemLida
+vista.cartoes = cartoes
 vista.espelhar = espelhar
-vista.texto = texto
+vista.ladoVh = ladoVh
 let janela = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10),
                      styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
 janela.isOpaque = false
@@ -130,9 +183,9 @@ func posicionar() {
     let vh = f.height / 100, vw = f.width / 100
     vista.vh = vh
     let tam = vista.tamanho
-    // o QR a 3vw da borda e 4vh do chao; espelhado, no canto oposto
-    let esquerdaDoQR = espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.lado
-    let quadro = NSRect(x: (esquerdaDoQR - vista.margem).rounded(),
+    // a fileira a 3vw da borda e 4vh do chao; espelhada, no canto oposto
+    let esquerda = espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.larguraDaFileira
+    let quadro = NSRect(x: (esquerda - vista.folga).rounded(),
                         y: (f.minY + 4 * vh - vista.folga).rounded(),
                         width: tam.width.rounded(), height: tam.height.rounded())
     if quadro != ultimoQuadro {
