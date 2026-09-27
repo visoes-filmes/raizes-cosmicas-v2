@@ -51,6 +51,7 @@ const ESSENCIAL = [
   './icone-512.png',
   './assets/audio/trilha-2-planetas.mp3',   // 8.5: as musicas de cenario (Suno), 10 MB
   './assets/audio/trilha-3-mar.mp3',
+  './assets/audio/trilha-4-odara.mp3',   // 27/09: a cena final da deusa
 ];
 
 self.addEventListener('install', (e) => {
