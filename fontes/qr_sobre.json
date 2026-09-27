@@ -1,8 +1,22 @@
 {
-  "lado_vh": 8.5,
+  "lado_vh": 13.8,
   "itens": [
-    { "img": "qr-obra-celular.png", "rotulo": "a obra no celular", "cor": "#6fe0cf" },
-    { "img": "qr-visoesfilmes.png", "rotulo": "visoesfilmes.com", "cor": "#f4efff" },
-    { "img": "qr-instagram.png",   "rotulo": "@visoesfilmes",    "cor": "#ff7ab6" }
-  ]
+    {
+      "img": "qr1-obra.png",
+      "rotulo": "a obra no celular",
+      "cor": "#6fe0cf"
+    },
+    {
+      "img": "qr1-site.png",
+      "rotulo": "visoesfilmes.com",
+      "cor": "#f4efff"
+    },
+    {
+      "img": "qr1-instagram.png",
+      "rotulo": "@visoesfilmes",
+      "cor": "#ff7ab6"
+    }
+  ],
+  "posicao": "centro",
+  "baixo_vh": 7
 }

@@ -13,6 +13,11 @@
 // ele manda: uma fileira de cartoes menores, cada um com a borda e o rotulo na sua
 // cor. Sem o arquivo, fica o QR unico de antes.
 //
+// 27/09, depois: "o texto embaixo nao da pra ver, coloca centralizado embaixo". No canto e
+// colada na borda de baixo, a fileira caia onde o tule ja nao pega. Agora ela vai ao centro
+// ("posicao": "centro"), mais alta ("baixo_vh"), e cada rotulo e maior e vem sobre uma
+// faixa escura, centralizado sob o seu QR.
+//
 //   raizes-qr --tela "ViewSonic PJ" --espelhar 1 --img fontes/qr-visoesfilmes.png \
 //             --texto visoesfilmes.com --pai <pid da Cabine>
 //
@@ -57,6 +62,8 @@ guard let caminho = opcoes["img"] else {
 let pasta = URL(fileURLWithPath: caminho).deletingLastPathComponent()
 var cartoes: [Cartao] = []
 var ladoVh: CGFloat = 13
+var noCentro = false
+var baixoVh: CGFloat = 4
 if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json")),
    let json = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
    let itens = json["itens"] as? [[String: Any]] {
@@ -66,6 +73,8 @@ if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json
         cartoes.append(Cartao(imagem: im, rotulo: it["rotulo"] as? String ?? "", cor: corDe(it["cor"] as? String ?? "#ffffff")))
     }
     if let l = json["lado_vh"] as? Double { ladoVh = CGFloat(l) }
+    noCentro = (json["posicao"] as? String) == "centro"
+    if let b = json["baixo_vh"] as? Double { baixoVh = CGFloat(b) }
 }
 if cartoes.isEmpty {
     guard let im = NSImage(contentsOfFile: caminho) else {
@@ -95,10 +104,10 @@ final class Vista: NSView {
 
     var lado: CGFloat { ladoVh * vh }                          // cada QR
     var folga: CGFloat { 1 * vh }                              // em volta, para a sombra do texto
-    var corpo: CGFloat { (cartoes.count > 1 ? 1.45 : 1.6) * vh }   // a letra do rotulo
-    var linha: CGFloat { ceil(corpo * 1.3) }
-    var vao: CGFloat { 0.7 * vh }                              // entre o QR e o rotulo
-    var entre: CGFloat { 1.8 * vh }                            // entre um cartao e outro
+    var corpo: CGFloat { (cartoes.count > 1 ? 2.0 : 1.6) * vh }    // a letra do rotulo
+    var linha: CGFloat { ceil(corpo * 1.3) + (cartoes.count > 1 ? 0.9 * vh : 0) }   // e a faixa escura dele
+    var vao: CGFloat { 0.6 * vh }                              // entre o QR e o rotulo
+    var entre: CGFloat { 2.4 * vh }                            // entre um cartao e outro
 
     func textoDe(_ c: Cartao) -> NSAttributedString {
         let sombra = NSShadow()
@@ -110,8 +119,8 @@ final class Vista: NSView {
             .kern: 0.04 * corpo, .shadow: sombra,
         ])
     }
-    // cada cartao ocupa a largura do maior entre o QR e o rotulo: ficam espacados por igual
-    var vaga: CGFloat { max(lado, cartoes.map { textoDe($0).size().width }.max() ?? 0) }
+    // cada cartao ocupa a largura do maior entre o QR e o rotulo (com a faixa): espacados por igual
+    var vaga: CGFloat { max(lado, (cartoes.map { textoDe($0).size().width }.max() ?? 0) + (cartoes.count > 1 ? 1.8 * vh : 0)) }
     var larguraDaFileira: CGFloat { CGFloat(cartoes.count) * vaga + CGFloat(max(0, cartoes.count - 1)) * entre }
     var tamanho: NSSize {
         NSSize(width: larguraDaFileira + 2 * folga, height: folga + linha + vao + lado + folga)
@@ -131,11 +140,25 @@ final class Vista: NSView {
         ctx.imageInterpolation = .high
         for (k, c) in cartoes.enumerated() {
             let x0 = folga + CGFloat(k) * (vaga + entre)
-            let r = NSRect(x: x0 + (vaga - lado) / 2, y: folga + linha + vao, width: lado, height: lado)
+            let r = NSRect(x: (x0 + (vaga - lado) / 2).rounded(), y: (folga + linha + vao).rounded(),
+                           width: lado.rounded(), height: lado.rounded())
             let caixa = NSBezierPath(roundedRect: r, xRadius: 0.8 * vh, yRadius: 0.8 * vh)
             NSColor.white.setFill()
             caixa.fill()
-            c.imagem.draw(in: r.insetBy(dx: 0.05 * lado, dy: 0.05 * lado), from: .zero, operation: .sourceOver, fraction: 1)
+            /* NITIDO (27/09, "o QR da obra esta sendo dificil de ler"): cada modulo com um numero
+               inteiro de pixels do projetor e sem suavizar -- borda borrada a camera do celular nao
+               le no tule. A imagem ja vem com 1 pixel por modulo e os 4 de margem branca. */
+            let px = CGFloat(c.imagem.representations.first?.pixelsWide ?? 0)
+            let k = px > 0 ? floor(r.width / px) : 0
+            if k >= 1 {
+                let lq = k * px
+                let q = NSRect(x: r.minX + ((r.width - lq) / 2).rounded(), y: r.minY + ((r.height - lq) / 2).rounded(), width: lq, height: lq)
+                ctx.imageInterpolation = .none
+                c.imagem.draw(in: q, from: .zero, operation: .sourceOver, fraction: 1)
+            } else {
+                ctx.imageInterpolation = .high
+                c.imagem.draw(in: r.insetBy(dx: 0.05 * lado, dy: 0.05 * lado), from: .zero, operation: .sourceOver, fraction: 1)
+            }
             if cartoes.count > 1 {         // a diferenca de cada um: a borda na cor dele
                 c.cor.setStroke()
                 caixa.lineWidth = 0.32 * vh
@@ -143,6 +166,11 @@ final class Vista: NSView {
             }
             let s = textoDe(c)
             let t = s.size()
+            if cartoes.count > 1 {         // a faixa escura por tras da letra: se le sobre o video claro
+                let fx = NSRect(x: x0 + (vaga - t.width) / 2 - 0.9 * vh, y: folga, width: t.width + 1.8 * vh, height: linha)
+                NSColor(calibratedWhite: 0, alpha: 0.62).setFill()
+                NSBezierPath(roundedRect: fx, xRadius: linha / 2, yRadius: linha / 2).fill()
+            }
             s.draw(at: NSPoint(x: x0 + (vaga - t.width) / 2, y: folga + (linha - t.height) / 2))
         }
         ctx.restoreGraphicsState()
@@ -183,10 +211,11 @@ func posicionar() {
     let vh = f.height / 100, vw = f.width / 100
     vista.vh = vh
     let tam = vista.tamanho
-    // a fileira a 3vw da borda e 4vh do chao; espelhada, no canto oposto
-    let esquerda = espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.larguraDaFileira
+    // no centro (27/09), ou a 3vw da borda (espelhada, no canto oposto); baixoVh acima do chao
+    let esquerda = noCentro ? f.midX - vista.larguraDaFileira / 2
+                 : (espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.larguraDaFileira)
     let quadro = NSRect(x: (esquerda - vista.folga).rounded(),
-                        y: (f.minY + 4 * vh - vista.folga).rounded(),
+                        y: (f.minY + baixoVh * vh - vista.folga).rounded(),
                         width: tam.width.rounded(), height: tam.height.rounded())
     if quadro != ultimoQuadro {
         janela.setFrame(quadro, display: true)
