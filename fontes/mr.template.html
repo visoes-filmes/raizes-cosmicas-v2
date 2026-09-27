@@ -15498,7 +15498,9 @@ function abaixarTrilha(seg){ trilhaBaixaAte = Math.max(trilhaBaixaAte, relogio +
    energias fica em um, sem buraco nem barriga no meio). Cada faixa com o ganho que iguala
    a loudness dela a do laco, um so abaixar suave para todas, a que nao toca PARA em vez de
    ficar tocando muda, e no iPhone o volume passa por ganhos do Web Audio. */
-const X_MUSICA = 10;           // o cross-fade entre duas musicas, em segundos de roteiro
+/* o cross-fade entre duas musicas: DEZ SEGUNDOS REAIS em qualquer duracao (27/09: "as transicoes
+   entre as fases tem que ser suaves") -- contado em roteiro, no celular de cinco minutos caia a cinco */
+function xMusica(){ return 10 * RITMO; }
 const LUFS_LACO = -14.7;       // medido (ffmpeg ebur128): a referencia
 const NIVEL_MUSICA = 1.26;     // +2 dB para todas: o laco sobe um pouco, as faixas descem 3 (estavam +5)
 /* NO CELULAR o alto-falante e fraco e o volume do aparelho ja e o controle de quem segura:
@@ -15512,7 +15514,7 @@ const TRILHAS_DA_CENA = [
 ];
 const MUSICAS = [LACO].concat(TRILHAS_DA_CENA);
 /* A AGENDA: quem toca de "de" a "ate". O cross-fade de cada troca comeca no "ate" de uma,
-   que e o "de" da seguinte, e dura X_MUSICA. */
+   que e o "de" da seguinte, e dura xMusica(). */
 const AGENDA_MUSICA = [
   { nome:'laco',     de: -1e9, ate: 194 },   // a floresta (e a vitrine, antes de partir)
   { nome:'planetas', de: 194,  ate: 384 },   // 3:14 os planetas (Mar B)
@@ -15524,8 +15526,9 @@ function musicaNaAgenda(nome, t){
   let g = 0;
   for(const A of AGENDA_MUSICA){
     if(A.nome !== nome) continue;
-    const entra = A.de < -1e8 ? 1 : Math.sin(rampa(A.de, A.de + X_MUSICA, t) * Math.PI / 2);
-    const sai   = A.ate > 1e8 ? 1 : Math.cos(rampa(A.ate, A.ate + X_MUSICA, t) * Math.PI / 2);
+    const X = xMusica();
+    const entra = A.de < -1e8 ? 1 : Math.sin(rampa(A.de, A.de + X, t) * Math.PI / 2);
+    const sai   = A.ate > 1e8 ? 1 : Math.cos(rampa(A.ate, A.ate + X, t) * Math.PI / 2);
     g += entra * sai;
   }
   return Math.min(1, g);
