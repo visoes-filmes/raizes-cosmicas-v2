@@ -14230,6 +14230,53 @@ const MENU = { aberto:false, abertoEm:0, presenca:0, sobre:-1, sobreDesde:0, ult
                        { id:'remapear',  rotulo:'Remapear o espaço',      c:[0,0,0], tex:null },
                        { id:'voltar',    rotulo:'Voltar',                 c:[0,0,0], tex:null } ] };   // 7.7: fecha o menu e volta ao ambiente
 const pontoSeta = [0, 0, 0];   // reusado por quadro no desenho da seta
+/* O BOTAO DO FIM -- 27/09: "quando chegar ao final totalmente pode aparecer um botao escrito
+   Reiniciar". Na espera (a obra acabou e parou na sala real), o menu da mao abre sozinho
+   com um botao so, Reiniciar, na frente de quem esta de oculos: aponta-se e pinca-se, como
+   nos outros botoes (o clique do Quest). Ele recomeca a viagem inteira DENTRO da mesma
+   sessao -- sem sair da realidade mista, e portanto sem a transicao branca que o Quest
+   mostra ao entrar em RM. Nao fecha sozinho nem com a pinca demorada: fica ate alguem
+   reiniciar. Se a pessoa vira para outro lado (ou e outra pessoa), ele volta devagar para
+   a frente dela. */
+const MENU_ITENS = MENU.itens;
+const FIM_ITENS = [ { id:'reiniciar', rotulo:'Reiniciar', c:[0,0,0], tex:null } ];
+const FIM = { desde:0, longe:0.70, abaixo:0.18 };
+function abrirOFim(){
+  MENU.itens = FIM_ITENS; MENU.fim = true;
+  posicionarOFim(1);
+  MENU.aberto = true; MENU.abertoEm = agoraReal(); MENU.ultimoSobre = agoraReal(); MENU.sobre = -1;
+  MENU.apertado = -1; MENU.fechouEm[0] = MENU.fechouEm[1] = -1;
+  sinoDoToque(1, 0.35);
+  relato('FIM-BOTAO-REINICIAR');
+}
+function fecharOFim(){
+  if(!MENU.fim) return;
+  MENU.fim = false; MENU.aberto = false; MENU.sobre = -1;
+  MENU.itens = MENU_ITENS;
+}
+/* na frente dos olhos, a 70 cm e um palmo abaixo da linha do olhar; so volta para a frente
+   quando sai do campo de visao (mais de 35 graus), e devagar */
+function posicionarOFim(k){
+  const o = ondeOOlhoEsta, fx0 = frenteDoOlho[0], fz0 = frenteDoOlho[2];
+  const L = Math.hypot(fx0, fz0) || 1, fx = fx0 / L, fz = fz0 / L;
+  const c = FIM_ITENS[0].c;
+  const alvo = [o[0] + fx * FIM.longe, Math.max(0.85, o[1] - FIM.abaixo), o[2] + fz * FIM.longe];
+  if(k < 1){
+    const vx = c[0] - o[0], vz = c[2] - o[2], Lv = Math.hypot(vx, vz) || 1;
+    const fora = (vx * fx + vz * fz) / Lv < Math.cos(35 * Math.PI / 180) || Lv > 1.6 || Lv < 0.35;
+    if(!fora && Math.abs(c[1] - alvo[1]) < 0.25) return;
+  }
+  c[0] += (alvo[0] - c[0]) * k; c[1] += (alvo[1] - c[1]) * k; c[2] += (alvo[2] - c[2]) * k;
+}
+/* o mesmo recomeco de quem entrega o oculos a outra pessoa, mais o que o iniciarObra zera */
+function reiniciarPeloFim(){
+  fecharOFim();
+  recomecarAViagem();
+  folhagem = 0; vitrine = false;
+  pararTrilhasDaCena();
+  ultimoInstante = performance.now();
+  relato('REINICIADA-PELO-BOTAO-DO-FIM');
+}
 const MENU_MEIA_LARG = 0.17, MENU_MEIA_ALT = 0.0425, MENU_PASSO = 0.115, MENU_LONGE = 0.65;
 
 /* O RELOGIO DO MENU E O DE PAREDE, e nao o da obra: o menu tem de
@@ -14336,6 +14383,8 @@ function escolherNoMenu(id){
     /* o mesmo que o botao de emergencia "encerrar": fecha a RM e devolve o
        portao, pronto para o proximo */
     setTimeout(() => { try{ bParar.onclick(); }catch(e){ if(sessao) sessao.end(); } }, 250);
+  } else if(id === 'reiniciar'){
+    reiniciarPeloFim();      // 27/09: o botao do fim
   } else if(id === 'voltar'){
     fecharOMenu('voltar');   // 7.7: so fecha, e a obra segue
   } else if(id === 'remapear'){
@@ -14347,6 +14396,11 @@ function escolherNoMenu(id){
 }
 
 function seguirMenuDaMao(dt){
+  // 27/09: o botao do fim -- abre um segundo e meio depois de a obra parar na espera
+  if(esperando){ if(!FIM.desde) FIM.desde = agoraReal() || 0.001; } else FIM.desde = 0;
+  if(esperando && !MENU.fim && agoraReal() - FIM.desde > 1.5){ if(MENU.aberto) fecharOMenu('fim'); abrirOFim(); }
+  else if(!esperando && MENU.fim) fecharOFim();
+  if(MENU.fim) posicionarOFim(1 - Math.exp(-1.2 * dt));
   const alvoPres = MENU.aberto ? 1 : 0;
   MENU.presenca += (alvoPres - MENU.presenca) * (1 - Math.exp(-(MENU.aberto ? 10 : 6) * dt));
   // o botao na ponta da seta de cada mao (so com o menu aberto)
@@ -14357,7 +14411,7 @@ function seguirMenuDaMao(dt){
     const m = MAOS[i];
     /* a pinca demorada abre e fecha -- mas nao em cima de um botao: ali ela
        e o clique, e segurar um pouco antes de soltar nao pode fechar o menu */
-    const livre = m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo && naSeta[i] < 0
+    const livre = !MENU.fim && m.tem && pincando(m) && rosaNaMao.por !== i && !m.ultimoAlvo && naSeta[i] < 0
                   && MENU.fechouEm[i] < 0 && (MENU.aberto || apontandoParaFrente(m));
     if(!livre){ MENU.pincaDesde[i] = 0; MENU.pincaUsada[i] = false; continue; }
     if(!MENU.pincaDesde[i]) MENU.pincaDesde[i] = agoraReal() || 0.001;
@@ -14390,7 +14444,7 @@ function seguirMenuDaMao(dt){
     if(!agoraFechada) MENU.fechouEm[i] = -1;
     MENU.fechada[i] = agoraFechada;
   }
-  if(sobre < 0 && agoraReal() - MENU.ultimoSobre > 8.0) fecharOMenu('tempo');
+  if(sobre < 0 && agoraReal() - MENU.ultimoSobre > 8.0 && !MENU.fim) fecharOMenu('tempo');
 }
 
 /* ═══════════ FORA DA AREA MAPEADA ═══════════
@@ -16248,7 +16302,7 @@ function atualizarTempo(t){
 
   /* OS BOTOES DO MENU DA MAO: pilula escura translucida com um fio
      turquesa -- o mesmo turquesa da seiva e dos cogumelos -- e o rotulo. */
-  for(const it of MENU.itens){
+  for(const it of MENU.itens.concat(FIM_ITENS)){   // 27/09: e o Reiniciar do fim
     /* 1024 x 256 e MIPMAP (25/09, "os botoes com qualidade baixa"): a meio
        metro e pouco o botao ocupa menos pixels que a textura, e sem mipmap
        a letra reduzida chuvisca. Mipmap pede potencia de dois no WebGL 1. */
@@ -16693,6 +16747,7 @@ function desenharCogumelos(){
 
 /* ONDE O OLHO ESTAVA no ultimo quadro desenhado (o desenho escreve aqui). */
 const ondeOOlhoEsta = [0, 1.6, 0];
+const frenteDoOlho = [0, 0, -1];   // 27/09: e para onde ele olha (o botao do fim nasce na frente)
 function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
   gl.enable(gl.DEPTH_TEST);
   /* O RELOGIO DO PULSO DO TOQUE, uma vez por quadro e para todos os
@@ -16721,6 +16776,7 @@ function desenharCena(mvp, visao, dentroDeXR, escalaPonto){
      quadro de atraso nao muda nada numa conta de meio segundo, e em RM sao
      duas vistas por quadro: vale a ultima, que e a diferenca de um olho. */
   ondeOOlhoEsta[0] = olhoPos[0]; ondeOOlhoEsta[1] = olhoPos[1]; ondeOOlhoEsta[2] = olhoPos[2];
+  frenteDoOlho[0] = -visao[2]; frenteDoOlho[1] = -visao[6]; frenteDoOlho[2] = -visao[10];
 
   // 1) RAÍZES PRIMEIRO, opacas. Se a sala translúcida viesse antes, ela
   //    gravaria profundidade e apagaria as raízes atrás dela.
