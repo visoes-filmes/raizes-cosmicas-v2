@@ -71,6 +71,7 @@ var ladoVh: CGFloat = 13
 var noCentro = false
 var baixoVh: CGFloat = 4
 var cantoNoEspelho = false
+var cantoVw: CGFloat = 3        // 27/09: "que ficasse mais para dentro" -- a distancia da borda, no canto
 var enderecoCabine = "http://127.0.0.1:8790"
 if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json")),
    let json = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
@@ -83,6 +84,7 @@ if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json
     if let l = json["lado_vh"] as? Double { ladoVh = CGFloat(l) }
     noCentro = (json["posicao"] as? String) == "centro"
     cantoNoEspelho = (json["no_espelho"] as? String) == "canto"
+    if let c = json["canto_vw"] as? Double { cantoVw = CGFloat(c) }
     if let c = json["cabine"] as? String { enderecoCabine = c }
     if let b = json["baixo_vh"] as? Double { baixoVh = CGFloat(b) }
 }
@@ -245,7 +247,7 @@ func posicionar() {
     // que, na retroprojecao (a imagem invertida), e o lado DIREITO da tela do Mac.
     let esquerda: CGFloat
     if cantoNoEspelho && espelhoNoProjetor {
-        esquerda = espelhar ? f.maxX - 3 * vw - vista.larguraDaFileira : f.minX + 3 * vw
+        esquerda = espelhar ? f.maxX - cantoVw * vw - vista.larguraDaFileira : f.minX + cantoVw * vw
     } else if noCentro {
         esquerda = f.midX - vista.larguraDaFileira / 2
     } else {

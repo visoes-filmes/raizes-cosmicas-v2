@@ -1,5 +1,5 @@
 {
-  "lado_vh": 12.25,
+  "lado_vh": 13.72,
   "itens": [
     {
       "img": "qr1-obra.png",
@@ -19,5 +19,6 @@
   ],
   "posicao": "centro",
   "baixo_vh": 7,
-  "no_espelho": "canto"
+  "no_espelho": "canto",
+  "canto_vw": 12
 }
