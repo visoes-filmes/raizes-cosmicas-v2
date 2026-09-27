@@ -18,6 +18,12 @@
 // ("posicao": "centro"), mais alta ("baixo_vh"), e cada rotulo e maior e vem sobre uma
 // faixa escura, centralizado sob o seu QR.
 //
+// 27/09, a tarde: "quando tiver espelhado e melhor colocar no canto, outro canto". Com o
+// espelho do oculos no projetor, a fileira no centro tampa o que a pessoa ve: entao ela
+// pergunta a Cabine (/estado, a cada 2 s) o que o projetor mostra e, no espelho, vai para
+// o canto de baixo a ESQUERDA de quem olha o tule ("no_espelho": "canto"). Na animacao
+// volta ao centro. Sem a Cabine, fica onde o arquivo manda.
+//
 //   raizes-qr --tela "ViewSonic PJ" --espelhar 1 --img fontes/qr-visoesfilmes.png \
 //             --texto visoesfilmes.com --pai <pid da Cabine>
 //
@@ -64,6 +70,8 @@ var cartoes: [Cartao] = []
 var ladoVh: CGFloat = 13
 var noCentro = false
 var baixoVh: CGFloat = 4
+var cantoNoEspelho = false
+var enderecoCabine = "http://127.0.0.1:8790"
 if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json")),
    let json = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
    let itens = json["itens"] as? [[String: Any]] {
@@ -74,6 +82,8 @@ if let dados = try? Data(contentsOf: pasta.appendingPathComponent("qr_sobre.json
     }
     if let l = json["lado_vh"] as? Double { ladoVh = CGFloat(l) }
     noCentro = (json["posicao"] as? String) == "centro"
+    cantoNoEspelho = (json["no_espelho"] as? String) == "canto"
+    if let c = json["cabine"] as? String { enderecoCabine = c }
     if let b = json["baixo_vh"] as? Double { baixoVh = CGFloat(b) }
 }
 if cartoes.isEmpty {
@@ -203,6 +213,22 @@ janela.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliar
 janela.contentView = vista
 
 var ultimoQuadro = NSRect.zero
+nonisolated(unsafe) var espelhoNoProjetor = false     // o que a Cabine diz que o projetor mostra
+
+/* pergunta a Cabine, sem travar a janela: o espelho do oculos esta no projetor? */
+func perguntarACabine() {
+    guard cantoNoEspelho, let url = URL(string: enderecoCabine + "/estado") else { return }
+    var pedido = URLRequest(url: url)
+    pedido.timeoutInterval = 1.5
+    URLSession.shared.dataTask(with: pedido) { dados, _, _ in
+        guard let dados = dados, let e = try? JSONSerialization.jsonObject(with: dados) as? [String: Any],
+              let pr = e["projecao"] as? [String: Any] else { return }
+        let espelho = (pr["ativa"] as? Bool ?? false) && (pr["saida"] as? String) == "espelho"
+        DispatchQueue.main.async {
+            if espelho != espelhoNoProjetor { espelhoNoProjetor = espelho; MainActor.assumeIsolated { posicionar() } }
+        }
+    }.resume()
+}
 
 func posicionar() {
     guard let tela = acharTela() else {
@@ -214,9 +240,17 @@ func posicionar() {
     let vh = f.height / 100, vw = f.width / 100
     vista.vh = vh
     let tam = vista.tamanho
-    // no centro (27/09), ou a 3vw da borda (espelhada, no canto oposto); baixoVh acima do chao
-    let esquerda = noCentro ? f.midX - vista.larguraDaFileira / 2
-                 : (espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.larguraDaFileira)
+    // no centro (27/09), ou a 3vw da borda (espelhada, no canto oposto); baixoVh acima do chao.
+    // Com o espelho do oculos no projetor: o canto de baixo a ESQUERDA de quem olha o tule --
+    // que, na retroprojecao (a imagem invertida), e o lado DIREITO da tela do Mac.
+    let esquerda: CGFloat
+    if cantoNoEspelho && espelhoNoProjetor {
+        esquerda = espelhar ? f.maxX - 3 * vw - vista.larguraDaFileira : f.minX + 3 * vw
+    } else if noCentro {
+        esquerda = f.midX - vista.larguraDaFileira / 2
+    } else {
+        esquerda = espelhar ? f.minX + 3 * vw : f.maxX - 3 * vw - vista.larguraDaFileira
+    }
     let quadro = NSRect(x: (esquerda - vista.folga).rounded(),
                         y: (f.minY + baixoVh * vh - vista.folga).rounded(),
                         width: tam.width.rounded(), height: tam.height.rounded())
@@ -233,7 +267,9 @@ posicionar()
 Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
     if pai > 0 && kill(pai, 0) != 0 && errno == ESRCH { exit(0) }   // a Cabine saiu: sai junto
     MainActor.assumeIsolated { posicionar() }
+    perguntarACabine()
 }
+perguntarACabine()
 NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                        object: nil, queue: .main) { _ in MainActor.assumeIsolated { posicionar() } }
 signal(SIGTERM) { _ in exit(0) }

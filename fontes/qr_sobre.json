@@ -18,5 +18,6 @@
     }
   ],
   "posicao": "centro",
-  "baixo_vh": 7
+  "baixo_vh": 7,
+  "no_espelho": "canto"
 }
