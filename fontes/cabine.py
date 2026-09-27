@@ -84,6 +84,8 @@ ESTADO = {
 }
 OUVINTES = []            # filas dos clientes do /eventos (a pagina de projecao)
 PROJECAO = None          # o processo da projecao (navegador em quiosque ou scrcpy)
+PROJECAO_PEDIDA = None   # (o ultimo pedido, quando) -- para o clique repetido nao reiniciar
+SOM_DESTRAVE = [0.0]     # 26/09: quando a Cabine destravou o som da obra pela ultima vez
 TRAVA = threading.Lock()
 ADB = None
 SERVIDOR_OBRA = None
@@ -375,12 +377,50 @@ LEITURA = ("(function(){var q=function(i){var e=document.getElementById(i);retur
            "return {portao: !!p && getComputedStyle(p).display!=='none', versao:q('portaoVersao'),"
            "programas:q('portaoProgramas'), erro:q('portaoErro'), aviso:q('portaoAviso'),"
            "onde:(window.raizes&&raizes.onde)?raizes.onde():null, url:location.pathname,"
+           "som:(function(){var a=document.getElementById('trilha');return a&&a.src?!a.paused:null})(),"
            "tela:(window.raizes&&raizes.tela)?raizes.tela.onde():null}})()")
+
+
+# ── seis ou dez minutos (26/09) ─────────────────────────────────────────
+# "Coloca um controle de tempo pra gente poder alterar o tempo da experiencia, um de
+# 6 minutos e 10 minutos." A escolha fica guardada aqui (por maquina), vai no endereco
+# ao abrir a obra (?min=6|10) e, com a obra aberta e o portao a vista, e aplicada na
+# hora pelo gancho raizes.duracao(). A obra so tem o controle a partir da versao que
+# o trouxe (ramo proxima-deusas-rosa); nas anteriores o endereco e ignorado.
+DURACAO_ARQ = os.path.join(AQUI, "duracao_min.txt")
+
+
+def minutos_escolhidos():
+    try:
+        m = int(open(DURACAO_ARQ).read().strip())
+        return m if m in (6, 10) else 10
+    except Exception:
+        return 10
+
+
+def escolher_duracao(minutos):
+    if minutos not in (6, 10):
+        return {"ok": False, "erro": "so 6 ou 10 minutos"}
+    if experiencia_acontecendo():
+        return {"ok": False, "erro": "no meio da obra não muda — escolha quando o portão voltar"}
+    with open(DURACAO_ARQ, "w") as f:
+        f.write(str(minutos))
+    with TRAVA:
+        ESTADO["duracao_min"] = minutos
+    resposta = f"{minutos} minutos: valem na próxima vez que a obra abrir"
+    if ESTADO["obra"].get("aba"):
+        r, e = avaliar(f"(window.raizes&&raizes.duracao)?raizes.duracao({minutos}):'sem controle'")
+        if r == minutos:
+            resposta = f"{minutos} minutos: já valem para a próxima pessoa"
+        elif r == "sem controle":
+            resposta = f"{minutos} minutos guardados — esta versão da obra ainda não tem o controle (chega com a próxima)"
+    relatar("duração: " + resposta)
+    return {"ok": True, "resposta": resposta}
 
 
 def abrir_no_quest(serial, versao):
     arquivo = VERSOES.get(versao, "")
-    url = f"http://localhost:{PORTA_OBRA}/{arquivo}"
+    url = f"http://localhost:{PORTA_OBRA}/{arquivo}?min={minutos_escolhidos()}"
     aba = aba_da_obra()
     if aba:
         avaliar(f"location.href={json.dumps(url)}; 'indo'")
@@ -401,7 +441,8 @@ def clicar(id_botao):
         return {"ok": False, "erro": "a obra não está aberta no navegador do Quest"}
     trazer_aba(aba)                     # aba atrás = SecurityError no WebXR
     time.sleep(0.6)
-    r, erro = avaliar(f"(function(){{var b=document.getElementById('{id_botao}');"
+    # 26/09: o toque junto do clique -- e o gesto que liga a trilha da obra (so o click nao liga)
+    r, erro = avaliar(f"(function(){{window.dispatchEvent(new Event('pointerdown'));var b=document.getElementById('{id_botao}');"
                       f"if(!b) return 'sem botao';b.click();return 'clicado'}})()", gesto=True)
     relatar(f"{id_botao}: {r or erro}")
     return {"ok": r == "clicado", "resposta": r or erro}
@@ -547,8 +588,17 @@ def args_da_rede(serial, projetor=False):
         # 26/09: "conseguimos reduzir um pouco a resolucao para melhorar o
         # lag?" -- pelo ar, 1280 de largura (o projetor amplia para Full HD):
         # 55 % menos pixels para codificar no oculos e passar pela Wi-Fi.
-        return ["--max-size=1280", "--video-bit-rate=6M", "--max-fps=30", f"--video-buffer={250 if projetor else 200}",
-                "--video-codec-options=i-frame-interval=1"]
+        # 26/09, a tarde: "esta piscando o espelhamento". Era o quadro-chave a cada
+        # segundo (i-frame-interval=1): na Wi-Fi do modem (ping de 9 a 214 ms) o
+        # quadro grande chegava atrasado todo segundo e a imagem piscava no mesmo
+        # ritmo. Volta o intervalo padrao do scrcpy; o buffer sobe para 400 ms no
+        # projetor (cobre os picos da rede; a plateia nao sente atraso) e a taxa
+        # desce para 5 Mbps, sem rajadas.
+        # 26/09, mais tarde: "estabilizou, mas o delay ta bem forte; pode reduzir um pouco a
+        # qualidade". O buffer de 400 ms somava quase meio segundo. Agora 1024 de largura e
+        # 4 Mbps (menos para codificar no oculos e para passar pela rede) e 120 ms de buffer
+        # no projetor (60 na janela do Mac, que alimenta o espelho estabilizado).
+        return ["--max-size=1024", "--video-bit-rate=4M", "--max-fps=30", f"--video-buffer={120 if projetor else 60}"]
     return ["--video-bit-rate=12M"] if projetor else []
 
 
@@ -557,7 +607,7 @@ def fechar_espelhos():
     rodar(["pkill", "-f", "scrcpy.*Quest"], timeout=5) if MAC else None
 
 
-def espelhar(serial):
+def espelhar(serial, geometria=None):
     exe = achar_scrcpy()
     if not exe:
         return {"ok": False, "erro": "scrcpy não está instalado nesta máquina (winget install Genymobile.scrcpy)"}
@@ -565,11 +615,99 @@ def espelhar(serial):
     # o servidor um do outro -- e com ele os túneis.
     amb = dict(os.environ, ADB=ADB)
     corte = recorte_de_um_olho(serial)
-    subprocess.Popen([exe, "-s", serial] + ([] if ":" in serial else ["--max-size", "1280"]) + ["--no-audio",
+    # geometria (x, y, w, h): a janela-fonte do espelho estabilizado, num canto do Mac
+    geo = ([f"--window-x={geometria[0]}", f"--window-y={geometria[1]}", f"--window-width={geometria[2]}",
+            f"--window-height={geometria[3]}"] if geometria else [])
+    subprocess.Popen([exe, "-s", serial] + geo + ([] if ":" in serial else ["--max-size", "1280"]) + ["--no-audio",
                       "--window-title", "Quest — espelho"] + (["--crop", corte] if corte else []) + args_do_giro() + args_da_rede(serial),
                      env=amb, creationflags=SEM_JANELA)
     relatar("espelho do Quest aberto (scrcpy)" + (f", um olho só ({corte})" if corte else ""))
+    devolver_foco()
     return {"ok": True}
+
+
+abrir_espelho_no_mac = espelhar   # o mesmo, por um nome que o parametro de projetar() nao encobre
+
+
+# ── o som do oculos tambem no amplificador (27/09) ───────────────────────
+# "O som no cabo de som nao esta saindo a musica do ambiente. Tem que sair nos dois ao
+# mesmo tempo: no oculos e no amplificador." O Quest (Android 14) deixa o scrcpy COPIAR o
+# que ele toca (--audio-source=playback --audio-dup): o oculos continua tocando nos
+# alto-falantes dele e o Mac toca a copia na saida padrao -- a do cabo do amplificador. E o
+# mesmo som, na mesma hora (uns 0,2 s depois, pela Wi-Fi): a trilha, as cenas, os gestos.
+# Provado em 27/09: um bipe de 440 Hz tocado pela pagina da obra chegou inteiro na copia.
+# Um scrcpy so de som (sem video, sem janela, e sem "Quest" na linha de comando, para o
+# fechar_espelhos nao leva-lo junto), separado do espelho. A Cabine o mantem de pe enquanto
+# o Quest esta ao alcance e o refaz quando a Wi-Fi cai, esperando mais a cada queda
+# seguida. Durante a obra a animacao do projetor cala a musica dela (seriam duas trilhas
+# desencontradas); fora da obra ela segue com o laco de sempre.
+SOM_OCULOS_ARQ = os.path.join(AQUI, "som_oculos.txt")
+SOM_OCULOS = {"proc": None, "serial": None, "desde": None, "falhas": 0, "espera_ate": 0.0}
+
+
+def som_oculos_ligado():
+    try:
+        return open(SOM_OCULOS_ARQ, encoding="utf-8").read().strip() != "0"
+    except OSError:
+        return True                      # ligado, a menos que a Cabine tenha desligado
+
+
+def som_oculos_vivo():
+    p = SOM_OCULOS["proc"]
+    return bool(p and p.poll() is None)
+
+
+def parar_som_oculos():
+    p = SOM_OCULOS["proc"]
+    if p and p.poll() is None:
+        try:
+            p.terminate()
+        except Exception:
+            pass
+    SOM_OCULOS.update(proc=None, serial=None, desde=None)
+
+
+def abrir_som_oculos(serial):
+    exe = achar_scrcpy()
+    if not exe:
+        return False
+    # pela Wi-Fi a copia chega aos trancos: 150 ms de folga (folga maior nao reduziu os
+    # pequenos ajustes de relogio do scrcpy -- medido em 27/09); no cabo, 60. O tunel e o
+    # forward do adb: o reverse falhava na Wi-Fi do estande.
+    args = [exe, "-s", serial, "--no-video", "--no-window", "--force-adb-forward",
+            "--audio-source=playback", "--audio-dup", f"--audio-buffer={150 if ':' in serial else 60}"]
+    SOM_OCULOS["proc"] = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), stdout=subprocess.DEVNULL,
+                                          stderr=subprocess.DEVNULL, creationflags=SEM_JANELA)
+    SOM_OCULOS.update(serial=serial, desde=time.time())
+    return True
+
+
+def vigiar_som_oculos():
+    aceso = False
+    while True:
+        try:
+            s = ESTADO["quest"]["escolhido"]
+            quer = som_oculos_ligado() and bool(s) and bool(ADB)
+            if som_oculos_vivo() and (not quer or SOM_OCULOS["serial"] != s):
+                parar_som_oculos()               # desligado, ou o Quest trocou de caminho (cabo <-> Wi-Fi)
+            if SOM_OCULOS["proc"] is not None and not som_oculos_vivo():
+                durou = time.time() - (SOM_OCULOS["desde"] or time.time())
+                SOM_OCULOS["falhas"] = SOM_OCULOS["falhas"] + 1 if durou < 30 else 1
+                SOM_OCULOS["espera_ate"] = time.time() + min(30, 3 * SOM_OCULOS["falhas"])
+                SOM_OCULOS.update(proc=None, serial=None, desde=None)
+            if (quer and SOM_OCULOS["proc"] is None and time.time() >= SOM_OCULOS["espera_ate"]
+                    and adb("get-state", serial=s, timeout=6).strip() == "device"):
+                abrir_som_oculos(s)
+            ativo = som_oculos_vivo() and time.time() - (SOM_OCULOS["desde"] or time.time()) > 3
+            if ativo != aceso:
+                aceso = ativo
+                relatar("som do óculos no amplificador: " + ("tocando no Mac" if ativo else "caiu — refazendo"))
+            with TRAVA:
+                ESTADO["som_oculos"] = {"ligado": som_oculos_ligado(), "ativo": ativo,
+                                        "via": ("wifi" if ":" in s else "cabo") if s else None}
+        except Exception as e:
+            log(f"som do oculos: {e!r}")
+        time.sleep(2)
 
 
 # ── a projeção (6.0): o que vai para o projetor ──────────────────────────
@@ -637,9 +775,218 @@ def achar_navegador():
     return None
 
 
-def projetar(saida, monitor, espelhar=False, recorte=""):
+# ── a projecao automatica: espelho com o oculos na cabeca, animacao fora (26/09) ──
+# "Precisa mostrar animacao quando a gente retirar o oculos. E parece que esta
+# inverso: ele so ativa quando colocamos o oculos na cabeca, parece que esta
+# dependente do sensor." E o sensor de presenca: fora da cabeca a tela do Quest
+# apaga e o espelho fica preto. O Quest diz se esta na cabeca pela propriedade
+# sys.hmt.mounted (1 na cabeca, 0 fora) -- uma leitura levissima pelo adb. Aqui a
+# Cabine le a cada segundo e troca o projetor: na cabeca (2 s seguidos), o espelho;
+# fora (3 s seguidos), a animacao da Odara (projecao.html, sempre acesa). Qualquer
+# escolha manual no Projetar, ou Parar projecao, desliga o automatico.
+PROJ_AUTO = {"ativo": False, "monitor": None, "espelhar": False, "modo": None, "thread": None}
+
+# O CHROME DO PROJETOR (26/09): "apareceu uma imagem estatica com o QR code e uma mensagem
+# no meio". Era um Chrome de quiosque antigo (da tentativa do espelho estabilizado) que
+# nunca foi fechado: ficou por baixo do espelho, e o Chrome novo nem abria por cima,
+# porque o perfil estava em uso. E o perfil marcado como "fechado a forca" faz o Chrome
+# restaurar paginas antigas. Agora: toda escolha manual fecha os quiosques antigos, e o
+# quiosque abre sempre com o perfil limpo.
+PERFIL_PROJ = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+
+
+def fechar_quiosques():
+    rodar(["pkill", "-f", "raizes-projecao-perfil"], timeout=5)   # o Chrome do projetor, e so ele
+    for _ in range(12):                  # o novo so abre quando o antigo saiu de fato (o perfil e dele)
+        if not quiosque_vivo():
+            return
+        time.sleep(0.25)
+    rodar(["pkill", "-9", "-f", "raizes-projecao-perfil"], timeout=5)
+
+
+def quiosque_vivo():
+    return bool(rodar(["pgrep", "-f", "raizes-projecao-perfil"], timeout=5)[0].strip())
+
+
+def perfil_limpo():
+    """sem abas antigas nem 'restaurar paginas': sessoes apagadas, saida marcada normal"""
+    shutil.rmtree(os.path.join(PERFIL_PROJ, "Default", "Sessions"), ignore_errors=True)
+    for nome in ("Current Session", "Current Tabs", "Last Session", "Last Tabs"):
+        try:
+            os.remove(os.path.join(PERFIL_PROJ, "Default", nome))
+        except OSError:
+            pass
+    pref = os.path.join(PERFIL_PROJ, "Default", "Preferences")
+    try:
+        txt = open(pref, encoding="utf-8").read()
+        txt = txt.replace('"exit_type":"Crashed"', '"exit_type":"Normal"').replace('"exited_cleanly":false', '"exited_cleanly":true')
+        with open(pref, "w", encoding="utf-8") as f:
+            f.write(txt)
+    except Exception:
+        pass
+
+
+# ── o QR por cima de tudo no projetor (26/09) ─────────────────────────────
+# "O QR code nao esta aparecendo." Ele morava so na pagina da animacao, e no projetor
+# ha coisas POR CIMA dela: o espelho do oculos (scrcpy em tela cheia, num Space proprio
+# do macOS) e o video da Odara no QLab (no nivel do protetor de tela). O
+# fontes/qr_sobre.swift poe o QR numa janelinha acima de tudo, em todos os Spaces do
+# projetor, no mesmo canto e tamanho do QR da animacao, sem foco nem clique. A Cabine
+# compila uma vez (swiftc, das Command Line Tools / Xcode) e o mantem aberto enquanto
+# houver projecao no projetor -- a troca espelho <-> animacao nao mexe nele; a animacao
+# entao abre sem o QR dela (?qr=0), para nao sair dois. Sem swiftc (ou no Windows), fica
+# o QR da animacao, como antes.
+QR_FONTE = os.path.join(AQUI, "qr_sobre.swift")
+QR_BIN = os.path.join(AQUI, ".bin", "raizes-qr")
+QR_IMG = os.path.join(AQUI, "qr-visoesfilmes.png")
+QR = {"proc": None, "args": None, "ok": None}
+QR_TRAVA = threading.Lock()
+
+
+def preparar_qr():
+    """True quando o programa do QR esta compilado e em dia com a fonte."""
+    if not MAC:
+        return False
+    with QR_TRAVA:
+        try:
+            if os.path.getmtime(QR_BIN) >= os.path.getmtime(QR_FONTE):
+                QR["ok"] = True
+                return True
+        except OSError:
+            pass
+        if QR["ok"] is False:            # ja falhou nesta Cabine: nao tenta de novo a cada troca
+            return False
+        if rodar(["xcode-select", "-p"], timeout=10)[1] != 0:   # sem as ferramentas (e sem abrir o instalador)
+            QR["ok"] = False
+            relatar("QR por cima do projetor: faltam as Command Line Tools (xcode-select --install); o QR fica só na animação")
+            return False
+        os.makedirs(os.path.dirname(QR_BIN), exist_ok=True)
+        saida, cod = rodar(["swiftc", "-O", "-o", QR_BIN, QR_FONTE], timeout=600)
+        QR["ok"] = cod == 0 and os.path.exists(QR_BIN)
+        if not QR["ok"]:
+            relatar("QR por cima do projetor: a compilação falhou; o QR fica só na animação — " + saida[-160:])
+        return QR["ok"]
+
+
+def mostrar_qr(monitor, espelhar_h):
+    """Abre (ou mantem) o QR por cima do projetor. False quando nao da."""
+    if monitor == "janela" or not preparar_qr():
+        return False
+    args = [QR_BIN, "--tela", "" if monitor in (None, "auto") else str(monitor),
+            "--espelhar", "1" if espelhar_h else "0", "--img", QR_IMG,
+            "--texto", "visoesfilmes.com", "--pai", str(os.getpid())]
+    with QR_TRAVA:
+        p = QR["proc"]
+        if p and p.poll() is None and QR["args"] == args:
+            return True
+        if p and p.poll() is None:
+            p.terminate()
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)     # nenhum sobrando de antes
+        QR["proc"] = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QR["args"] = args
+    return True
+
+
+def esconder_qr():
+    with QR_TRAVA:
+        p = QR["proc"]
+        if p and p.poll() is None:
+            p.terminate()
+        QR["proc"] = QR["args"] = None
+    if MAC:
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)
+
+
+def oculos_na_cabeca(serial):
+    if not serial:
+        return None
+    v = adb("shell", "getprop", "sys.hmt.mounted", serial=serial, timeout=6).strip()
+    return True if v == "1" else (False if v == "0" else None)
+
+
+def vigiar_projecao_auto():
+    seguidos, ultimo = 0, None
+    while PROJ_AUTO["ativo"]:
+        s = ESTADO["quest"]["escolhido"]
+        na = oculos_na_cabeca(s)
+        if na is None:
+            time.sleep(1.5)
+            continue
+        seguidos = seguidos + 1 if na == ultimo else 1
+        ultimo = na
+        quer = "espelho" if na else "pagina"
+        precisa = 2 if na else 3
+        if quer != PROJ_AUTO["modo"] and seguidos >= precisa and PROJ_AUTO["ativo"]:
+            PROJ_AUTO["modo"] = quer
+            relatar("projeção automática: " + ("óculos na cabeça — espelho" if na else "óculos fora da cabeça — animação"))
+            trocar_auto(quer)
+        time.sleep(1.0)
+
+
+def trocar_auto(quer):
+    """A ANIMACAO FICA POR BAIXO, O ESPELHO POR CIMA (26/09). O quiosque com a animacao
+    fica aberto o tempo todo no projetor; com o oculos na cabeca, o espelho (scrcpy) abre
+    por cima dele; fora da cabeca, o espelho fecha e a animacao ja esta la -- na hora, sem
+    esperar o Chrome abrir."""
+    m, e = PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"]
+    if quer == "pagina":
+        parar_projecao()                               # fecha o espelho (o quiosque nao e o PROJECAO)
+        garantir_quiosque(m, e)
+        with TRAVA:
+            ESTADO["projecao"] = {"ativa": True, "saida": "pagina", "espelhar": bool(e), "monitor": m, "auto": True}
+        mostrar_qr(m, e)                               # o mesmo QR, no mesmo lugar, nos dois estados
+        devolver_foco()
+    else:
+        if not quiosque_vivo():                        # a animacao por baixo, antes do espelho
+            garantir_quiosque(m, e)
+            time.sleep(1.0)
+        projetar("espelho", m, e, por_auto=True)
+
+
+def garantir_quiosque(m, e):
+    """Abre a animacao e CONFERE que ficou aberta (26/09: aberto logo depois de fechar o
+    antigo, o Chrome novo entregava o pedido ao que ainda estava saindo e fechava -- e o
+    projetor ficava com o fundo de tela do Mac). Ate tres tentativas."""
+    global PROJECAO, AUTO_QUIOSQUE
+    if (quiosque_vivo() and preparar_qr()
+            and rodar(["pgrep", "-f", "raizes-projecao-perfil.*qr=1"], timeout=5)[0].strip()):
+        fechar_quiosques()           # um quiosque de antes, com o QR dele: reabre sem (o QR vem por cima)
+    for tentativa in range(3):
+        if quiosque_vivo():
+            time.sleep(2.5)                            # ficou mesmo?
+            if quiosque_vivo():
+                return True
+        projetar("pagina", m, e, por_auto=True)
+        AUTO_QUIOSQUE, PROJECAO = PROJECAO, None
+        time.sleep(2.0)
+    relatar("projeção automática: o Chrome do projetor não ficou aberto depois de três tentativas")
+    return False
+
+
+AUTO_QUIOSQUE = None
+
+
+def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
+    if saida == "auto":
+        PROJ_AUTO.update(ativo=True, monitor=monitor, espelhar=bool(espelhar), modo=None)
+        if not (PROJ_AUTO["thread"] and PROJ_AUTO["thread"].is_alive()):
+            PROJ_AUTO["thread"] = threading.Thread(target=vigiar_projecao_auto, daemon=True)
+            PROJ_AUTO["thread"].start()
+        relatar("projeção automática ligada: espelho com o óculos na cabeça, animação fora")
+        return {"ok": True, "resposta": "automático: troca sozinho pelo sensor do óculos"}
+    if not por_auto:
+        PROJ_AUTO["ativo"] = False       # uma escolha manual desliga o automatico
+        fechar_quiosques()               # e fecha qualquer quiosque que tenha sobrado
     """saida: 'pagina' (a agua da tela, projecao.html) ou 'espelho' (scrcpy, o que o oculos ve)."""
-    global PROJECAO
+    global PROJECAO, PROJECAO_PEDIDA
+    # 26/09: tres cliques em Projetar em tres segundos reiniciavam o espelho tres vezes
+    # (pela Wi-Fi ele leva uns segundos para aparecer, e parecia que o botao nao fazia
+    # nada). O mesmo pedido repetido em menos de 10 s, com o anterior vivo, e ignorado.
+    pedido = (saida, monitor, bool(espelhar), recorte)
+    if (PROJECAO_PEDIDA and PROJECAO_PEDIDA[0] == pedido and time.time() - PROJECAO_PEDIDA[1] < 10
+            and PROJECAO and PROJECAO.poll() is None):
+        return {"ok": True, "resposta": "já está abrindo — pela Wi-Fi leva alguns segundos"}
+    PROJECAO_PEDIDA = (pedido, time.time())
     parar_projecao()
     lista = ESTADO["monitores"] or monitores()
     # JANELA DE TESTE (25/09): "e so pra saber se vai funcionar, depois vamos
@@ -669,17 +1016,51 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         nav = achar_navegador()
         if not nav:
             return {"ok": False, "erro": "não achei Chrome nem Edge para abrir a projeção"}
-        perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+        perfil = PERFIL_PROJ
+        perfil_limpo()
+        # 26/09: o QR no canto, nenhum texto de operador, a animacao enchendo o projetor.
+        # Com o QR por cima de tudo (mostrar_qr), a pagina abre sem o dela.
+        qr_proprio = "0" if (not janela and preparar_qr()) else "1"
         url = (f"http://localhost:{PORTA_OBRA}/projecao.html?espelho={'1' if espelhar else '0'}"
-               f"&cabine=http://localhost:{PORTA_CABINE}")
+               f"&qr={qr_proprio}&quiosque=1&musica=1&cabine=http://localhost:{PORTA_CABINE}")   # 26/09: e a trilha da obra nos fones
         # quiosque ocupa o monitor inteiro; a janela de teste e uma janela de
         # aplicativo (sem barra de endereco), do tamanho que se quiser
         modo = [f"--app={url}"] if janela else ["--kiosk", url]
         PROJECAO = subprocess.Popen([nav, f"--window-position={x},{y}", f"--window-size={w},{h}",
                                      f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
-                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars",
+                                     "--hide-crash-restore-bubble", "--noerrdialogs"] + modo,
                                     creationflags=SEM_JANELA)
         relatar(f"projeção (página) aberta {onde} {w}x{h}" + (" espelhada" if espelhar else ""))
+    elif saida == "estavel":
+        # O ESPELHO ESTABILIZADO (26/09): "ainda esta oscilando a imagem do espelhamento".
+        # A imagem balanca com a cabeca de quem esta de oculos (medido: 6 a 12 % da largura
+        # entre fotos de 0,15 s). A pagina fontes/espelho.html (?auto=1) captura a janela
+        # "Quest — espelho" do Mac, mede o pulo quadro a quadro e o desfaz, ficando so o
+        # movimento lento. O Chrome escolhe a janela sozinho e a Cabine dispara a captura
+        # pelo DevTools dele (porta 9333), com gesto. Pede, uma vez, a permissao de Gravacao
+        # de Tela do Chrome nos Ajustes do Mac.
+        s = ESTADO["quest"]["escolhido"]
+        nav = achar_navegador()
+        if not s:
+            return {"ok": False, "erro": "nenhum Quest ao alcance para espelhar"}
+        if not nav:
+            return {"ok": False, "erro": "não achei Chrome nem Edge para a projeção estabilizada"}
+        if not rodar(["pgrep", "-f", "window-title Quest — espelho"], timeout=5)[0].strip():
+            principal = next((m for m in lista if m.get("principal")), {"x": 0, "y": 0, "w": 1440, "h": 900})
+            # (dentro de projetar, 'espelhar' e o parametro sim/nao: a funcao vem pelo outro nome)
+            abrir_espelho_no_mac(s, (principal.get("x", 0) + principal.get("w", 1440) - 980, principal.get("y", 0) + 60, 960, 540))
+            time.sleep(3)
+        perfil = os.path.join(os.environ.get("TEMP") or os.environ.get("TMPDIR") or AQUI, "raizes-projecao-perfil")
+        url = (f"http://localhost:{PORTA_OBRA}/fontes/espelho.html?auto=1&estab=1&espelhar={'1' if espelhar else '0'}")
+        modo = [f"--app={url}"] if janela else ["--kiosk", url]
+        PROJECAO = subprocess.Popen([nav, f"--window-position={x},{y}", f"--window-size={w},{h}",
+                                     f"--user-data-dir={perfil}", "--no-first-run", "--no-default-browser-check",
+                                     "--remote-debugging-port=9333", "--auto-select-desktop-capture-source=Quest — espelho",
+                                     "--autoplay-policy=no-user-gesture-required", "--disable-infobars"] + modo,
+                                    creationflags=SEM_JANELA)
+        threading.Thread(target=disparar_captura_estavel, args=(monitor, espelhar), daemon=True).start()
+        relatar(f"projeção (espelho estabilizado) aberta {onde}" + (", espelhada" if espelhar else ""))
     elif saida == "espelho":
         s = ESTADO["quest"]["escolhido"]
         exe = achar_scrcpy()
@@ -713,8 +1094,84 @@ def projetar(saida, monitor, espelhar=False, recorte=""):
         return {"ok": False, "erro": f"saída desconhecida: {saida}"}
     with TRAVA:
         ESTADO["projecao"] = {"ativa": True, "saida": saida, "espelhar": bool(espelhar),
-                              "monitor": "janela de teste" if janela else alvo.get("nome")}
+                              "monitor": "janela de teste" if janela else alvo.get("nome"),
+                              "auto": bool(por_auto and PROJ_AUTO["ativo"])}
+    # 26/09: o QR por cima de tudo no projetor (o espelho estabilizado desenha o dele)
+    if not janela and saida in ("pagina", "espelho"):
+        mostrar_qr(alvo.get("nome") or monitor, espelhar)
+    else:
+        esconder_qr()
+    if not janela:
+        devolver_foco()          # 26/09: avisos e notificacoes na tela do Mac, nao no projetor
     return {"ok": True}
+
+
+# ── o foco fica na tela do Mac (26/09) ───────────────────────────────────
+# "Tem avisos e notificacoes aparecendo na tela que esta aparecendo a animacao; esses
+# avisos tem que aparecer so nessa primeira tela, e nao na tela de projecao." Com uma
+# area de trabalho por tela (o padrao do macOS), notificacoes e alertas vao para a tela
+# do aplicativo ATIVO -- e abrir o espelho (scrcpy) ou o quiosque no projetor o torna
+# ativo. Depois de projetar, a Cabine devolve o foco ao Chrome dela, na tela do Mac,
+# algumas vezes (pela Wi-Fi o espelho leva segundos para aparecer e rouba o foco de
+# novo). Pelo PID: o Chrome do quiosque e outro processo do mesmo aplicativo.
+def chrome_da_cabine_pid():
+    saida, _ = rodar(["ps", "-axo", "pid=,command="], timeout=5)
+    for linha in saida.splitlines():
+        pid, _, cmd = linha.strip().partition(" ")
+        if (cmd.startswith("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome") and "--type=" not in cmd
+                and "raizes-projecao-perfil" not in cmd and "raizes-teste" not in cmd):
+            try:
+                return int(pid)
+            except ValueError:
+                pass
+    return None
+
+
+def devolver_foco(esperas=(1.5, 3.0, 5.0)):
+    if not MAC:
+        return
+
+    def trazer():
+        for espera in esperas:
+            time.sleep(espera)
+            pid = chrome_da_cabine_pid()
+            if not pid:
+                return
+            rodar(["osascript", "-l", "JavaScript", "-e",
+                   'ObjC.import("AppKit"); $.NSRunningApplication.runningApplicationWithProcessIdentifier(%d)'
+                   '.activateWithOptions($.NSApplicationActivateAllWindows | $.NSApplicationActivateIgnoringOtherApps); "ok"' % pid],
+                  timeout=8)
+    threading.Thread(target=trazer, daemon=True).start()
+
+
+def disparar_captura_estavel(monitor=None, espelhar_h=False):
+    """Espera a pagina do projetor subir e dispara a captura da janela do espelho, com gesto.
+    Se a captura nao ficar ao vivo, VOLTA SOZINHA para o espelho comum (26/09: sem a
+    permissao de Gravacao de Tela do Terminal, o projetor mostrava a janela de escolha do
+    Chrome e o aviso do macOS na frente do publico)."""
+    amb = dict(os.environ, CDP_PORTA="9333")
+    for _ in range(20):
+        time.sleep(1)
+        try:
+            abas_p = json.loads(urlopen("http://localhost:9333/json", timeout=2).read())
+        except Exception:
+            continue
+        if not any("espelho.html" in a.get("url", "") for a in abas_p):
+            continue
+        saida, cod = rodar(["node", os.path.join(AQUI, "quest_eval.mjs"), "espelho.html",
+                            "capturar().then(()=>aoVivo?'ao vivo':document.getElementById('vazio').textContent)", "gesto"],
+                           timeout=20, cwd=RAIZ, env=amb)
+        resposta = saida.strip().strip('"')
+        relatar("espelho estabilizado: " + (resposta[:160] or "sem resposta"))
+        if resposta != "ao vivo":
+            relatar("espelho estabilizado não começou (falta a permissão de Gravação de Tela para o Terminal, "
+                    "nos Ajustes do Mac?) — voltando ao espelho comum")
+            rodar(["pkill", "-f", "window-title Quest — espelho"], timeout=5)
+            projetar("espelho", monitor, espelhar_h)
+        return
+    relatar("espelho estabilizado: a página do projetor não respondeu no DevTools (9333) — voltando ao espelho comum")
+    rodar(["pkill", "-f", "window-title Quest — espelho"], timeout=5)
+    projetar("espelho", monitor, espelhar_h)
 
 
 def parar_projecao():
@@ -859,6 +1316,16 @@ def vigiar():
                                  erro=leitura.get("erro", ""), aviso=leitura.get("aviso", ""))
                         with TRAVA:
                             ESTADO["tela"] = leitura.get("tela")
+                        o["som"] = leitura.get("som")
+                        # 26/09: "esta sem musica nosso ambiente". A obra so liga a trilha num
+                        # gesto (toque ou tecla) -- e dentro do oculos, e com a obra iniciada
+                        # pela Cabine, gesto nenhum chega a pagina. Se a obra anda e a trilha
+                        # esta parada, a Cabine manda o toque pelo DevTools, com gesto.
+                        andando_ = bool((leitura.get("onde") or {}).get("andando"))
+                        if andando_ and leitura.get("som") is False and time.time() - SOM_DESTRAVE[0] > 10:
+                            SOM_DESTRAVE[0] = time.time()
+                            avaliar("(function(){window.dispatchEvent(new Event('pointerdown'));return 'ok'})()", gesto=True)
+                            relatar("a obra estava sem música: som destravado pela Cabine")
                     if ciclo % 2 == 0:
                         o["fps"], o["app_ms"] = quadros(s)
                 else:
@@ -879,7 +1346,8 @@ def vigiar():
                 rede["wifi_pc"] = wifi_do_pc()
                 with TRAVA:
                     ESTADO["monitores"] = monitores()
-                    ESTADO["projecao"]["ativa"] = PROJECAO is not None and PROJECAO.poll() is None
+                    # 26/09: no automatico a animacao e o quiosque (fora do PROJECAO): conta tambem
+                    ESTADO["projecao"]["ativa"] = (PROJECAO is not None and PROJECAO.poll() is None) or (PROJ_AUTO["ativo"] and quiosque_vivo())
             with TRAVA:
                 ESTADO["quest"] = q
                 ESTADO["obra"] = o
@@ -962,6 +1430,8 @@ def agir(nome, dados):
         with TRAVA:
             ESTADO["proxima"] = dict(PROXIMA)
         return r
+    elif nome == "duracao":
+        return escolher_duracao(int(dados.get("min", 10)))
     elif nome == "atualizar":
         r = sincronizar("botão")
         with TRAVA:
@@ -1037,7 +1507,18 @@ def agir(nome, dados):
         return espelhar(s)
     elif nome == "projetar":
         return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
+    elif nome == "som_oculos":
+        ligar = bool(dados.get("ligar"))
+        with open(SOM_OCULOS_ARQ, "w", encoding="utf-8") as f:
+            f.write("1" if ligar else "0")
+        if not ligar:
+            parar_som_oculos()
+        relatar("som do óculos no amplificador: " + ("ligado" if ligar else "desligado (a animação toca a trilha)"))
+        return {"ok": True, "resposta": "ligado" if ligar else "desligado"}
     elif nome == "parar_projecao":
+        PROJ_AUTO["ativo"] = False
+        fechar_quiosques()
+        esconder_qr()
         return parar_projecao()
     elif nome == "tela_cravar":
         return tela_js("raizes.tela.cravar()")
@@ -1110,6 +1591,9 @@ def luz_parar():
 
 def luz_ligar(modo="segue", via="auto"):
     luz_parar()
+    # 26/09: quatro pontes orfas (de Cabines fechadas pelo X do Terminal) consultavam o
+    # oculos pelo DevTools a cada 3 s, pela mesma Wi-Fi do espelho. Uma ponte so.
+    rodar(["pkill", "-f", "fontes/luz-segue-cena.mjs"], timeout=5)
     time.sleep(0.5)
     via = via_da_luz() if via == "auto" else via
     log_f = open(LUZ_LOG, "a", encoding="utf-8")
@@ -1162,6 +1646,8 @@ def encerrar_tudo():
     log("cabine encerrando")
     try:
         parar_projecao()
+        esconder_qr()
+        parar_som_oculos()
         luz_parar()
         if SERVIDOR_OBRA and SERVIDOR_OBRA.poll() is None:
             SERVIDOR_OBRA.terminate()
@@ -1177,6 +1663,9 @@ class Cabine(BaseHTTPRequestHandler):
         self.send_response(cod)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        # 26/09: a pagina da projecao (outra porta) le o tempo da obra para tocar a trilha;
+        # a Cabine so atende o proprio Mac (127.0.0.1)
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", str(len(corpo)))
         self.end_headers()
         self.wfile.write(corpo)
@@ -1352,7 +1841,8 @@ def _proxima_em_fundo(acao):
 def proxima(acao):
     if PROXIMA["estado"] in ("preparando", "publicando"):
         return {"ok": False, "erro": "já estou " + PROXIMA["estado"]}
-    if experiencia_acontecendo():
+    # preparar so monta um arquivo a parte (nada muda no oculos): vale a qualquer hora
+    if acao != "preparar" and experiencia_acontecendo():
         return {"ok": False, "erro": "tem gente dentro da obra agora — espere o portão voltar"}
     if acao == "ver":
         if not os.path.exists(os.path.join(RAIZ, "proxima.html")):
@@ -1391,13 +1881,29 @@ def main():
     if not os.path.exists(os.path.join(RAIZ, "index.html")):
         ESTADO["avisos"].append("não há index.html: rode python fontes/montar_mr.py")
     log(f"cabine de pé (adb: {ADB})")
+    # 26/09: nada da luz sobra de uma Cabine anterior; e fechar o Terminal (SIGHUP) ou um
+    # kill (SIGTERM) encerram a luz e o espelho junto, em vez de deixa-los orfaos
+    rodar(["pkill", "-f", "fontes/luz-segue-cena.mjs"], timeout=5)
+    if MAC:
+        rodar(["pkill", "-x", "raizes-qr"], timeout=5)                # o QR de uma Cabine anterior
+        threading.Thread(target=preparar_qr, daemon=True).start()      # compila ja, antes do Projetar
+    import signal
+    for sig in (signal.SIGHUP, signal.SIGTERM):
+        try:
+            signal.signal(sig, lambda *_: encerrar_tudo())
+        except Exception:
+            pass
     threading.Thread(target=sincronizar_sempre, daemon=True).start()
+    ESTADO["duracao_min"] = minutos_escolhidos()
     if os.path.exists(os.path.join(RAIZ, "proxima.html")):   # uma proxima ja preparada antes
         PROXIMA.update(estado="pronta", msg="preparada antes — abra no Quest para conferir")
         ESTADO["proxima"] = dict(PROXIMA)
     subir_servidor_da_obra()
     if ADB:
         threading.Thread(target=vigiar, daemon=True).start()
+        # 27/09: o som do oculos tambem no amplificador (nenhuma copia sobrando de antes)
+        rodar(["pkill", "-f", "scrcpy.*audio-dup"], timeout=5)
+        threading.Thread(target=vigiar_som_oculos, daemon=True).start()
     servidor = ThreadingHTTPServer(("127.0.0.1", PORTA_CABINE), Cabine)
     servidor.daemon_threads = True
     if abrir:

@@ -13,7 +13,9 @@
 // na frente -- senao o WebXR responde SecurityError; para trazer:
 //   curl -s http://localhost:9222/json/activate/<id da aba>
 const [,, filtro, expr, gesto] = process.argv;
-const tabs = await (await fetch('http://localhost:9222/json')).json();
+// CDP_PORTA: outra porta de DevTools (26/09: o Chrome do projetor, 9333); sem ela, o Quest
+const porta = process.env.CDP_PORTA || '9222';
+const tabs = await (await fetch(`http://localhost:${porta}/json`)).json();
 const tab = tabs.find(t => t.type === 'page' && t.url.includes(filtro));
 if (!tab) { console.error('aba nao achada:', filtro, tabs.map(t => t.url)); process.exit(1); }
 const ws = new WebSocket(tab.webSocketDebuggerUrl);

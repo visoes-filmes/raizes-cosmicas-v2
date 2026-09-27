@@ -210,6 +210,35 @@ deixam a sala reta. Na Cabine: card do Quest → *giro do espelho* → Girar
 `fontes/espelho_angulo.txt`, por máquina). O resto de inclinação que sobra
 é a cabeça de quem está com o óculos -- um giro fixo não a segue.
 
+### O QR no projetor, por cima de tudo (26/09)
+
+O QR do site (visoesfilmes.com) morava só na página da animação, e no
+projetor há coisas **por cima** dela: o espelho do óculos (scrcpy em tela
+cheia, num Space próprio do macOS) e o **vídeo da Odara no QLab**, que fica
+no nível do protetor de tela e cobre qualquer janela comum. Agora a Cabine
+abre `fontes/qr_sobre.swift` (compilado uma vez, em `fontes/.bin/`) junto
+com a projeção: uma janelinha sem foco e sem clique, acima de tudo e em
+todos os Spaces do projetor, no canto de baixo e **invertida** (retroprojeção;
+o público a lê certa do outro lado do tule). Ela não muda na troca espelho
+↔ animação, fecha no *Parar projeção* e sai sozinha se a Cabine morrer. A
+animação então abre sem o QR dela (`?qr=0`). Sem swiftc (Command Line Tools),
+fica o QR da animação, como antes.
+
+### O som do óculos também no amplificador (27/09)
+
+"Tem que sair nos dois ao mesmo tempo: no óculos e no amplificador." O
+amplificador vai no **cabo da saída de fone do Mac** (não no óculos: o
+Quest cala os próprios alto-falantes quando algo entra na saída dele). A
+Cabine mantém um scrcpy **só de som** que copia o que o Quest toca
+(`--audio-source=playback --audio-dup`, Android 14): o óculos continua
+tocando, e o Mac toca a cópia na saída padrão, uns 0,2 s depois pela Wi-Fi —
+a mesma trilha, as cenas e os sons dos gestos. Provado com um bipe de 440 Hz
+tocado pela página da obra. Cai quando a Wi-Fi derruba o adb (o óculos
+dormindo) e volta sozinho. Durante a obra a animação do projetor cala a
+música dela; fora da obra ela toca o laço de sempre. Na Cabine, card da
+obra → *som no amplificador*: **cópia do óculos** (padrão) ou **só a
+animação** (guardado em `fontes/som_oculos.txt`).
+
 ## 7. Se o Mac não servir como Cabine
 
 Qualquer máquina com Python 3, node e adb serve — a Cabine é um script. O
