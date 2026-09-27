@@ -408,6 +408,8 @@
 <!-- 8.5: as musicas de cada cenario (Suno, 26/09), servidas ao lado do arquivo como o video -->
 <audio id="trilhaPlanetas" loop preload="auto" src="./assets/audio/trilha-2-planetas.mp3"></audio>
 <audio id="trilhaMar" loop preload="auto" src="./assets/audio/trilha-3-mar.mp3"></audio>
+<!-- 27/09: a musica da animacao (o trecho que o QLab toca com a Odara), na cena final da deusa -->
+<audio id="trilhaOdara" preload="auto" src="./assets/audio/trilha-4-odara.mp3"></audio>
 
 <div id="fps">—</div>
 <div class="card oculto" id="partitura">
@@ -14888,18 +14890,32 @@ function abaixarTrilha(seg){ trilhaBaixaAte = Math.max(trilhaBaixaAte, relogio +
 const TRILHAS_DA_CENA = [
   { nome:'planetas', el: document.getElementById('trilhaPlanetas'), de: 194, ate: 392, vol: 0 },
   { nome:'mar',      el: document.getElementById('trilhaMar'),      de: 388, ate: 528, vol: 0 },
+  /* 27/09: "no cenario final da deusa voce precisa colocar a musica da nossa animacao, que
+     esta no QLab, o trecho, e depois vai encerrando junto com o ambiente em fade out". O
+     trecho e o audio do video da Odara que o QLab toca (Odada O new.mp4, de 0 a 188 s), sem
+     mexer no volume: ja soa como as outras (-15,9 LUFS nos primeiros 70 s). Entra com a
+     deusa inteira (556), toma o lugar do laco (cede tudo, e nao a um quinto) e sai JUNTO
+     com o mundo: do comeco do fecho ate sumirem as estrelas e o nome (fimDaObra). */
+  { nome:'odara',    el: document.getElementById('trilhaOdara'),     de: 556, ate: null, vol: 0, fimJunto: true, cedeTudo: true },
 ];
+/* 27/09: o fim do som acompanha o fim da imagem: do fecho (o mundo se apaga, 14 s reais
+   depois dos dez minutos) ate as estrelas e o nome sumirem (26 s). */
+function fimDaObra(t){ return rampa(DURACAO + 14 * RITMO, DURACAO + 26 * RITMO, t); }
 function seguirTrilhasDaCena(dt){
   let cede = 1;
   for(const T of TRILHAS_DA_CENA){
     if(!T.el) continue;
-    const alvo = (TEM_SOM && andando && somLigado) ? rampa(T.de, T.de + 10, t) * (1 - rampa(T.ate - 10, T.ate, t)) : 0;
+    const sai = T.fimJunto ? 1 - fimDaObra(t) : 1 - rampa(T.ate - 10, T.ate, t);   // 27/09
+    const alvo = (TEM_SOM && andando && somLigado) ? rampa(T.de, T.de + 10, t) * sai : 0;
     if(alvo > 0.001 && T.vol <= 0.001){ try{ T.el.currentTime = 0; T.el.play().catch(function(){}); }catch(e){} }
     T.vol += (alvo - T.vol) * (dt > 0 ? 1 - Math.exp(-dt * 1.5) : 1);
     if(alvo <= 0.001 && T.vol < 0.004 && !T.el.paused) T.el.pause();
     const v = Math.max(0, Math.min(1, T.vol * volume * 1.8 * (relogio < trilhaBaixaAte ? 0.5 : 1.0)));
     if(Math.abs(T.el.volume - v) > 0.002) T.el.volume = v;
-    cede = Math.min(cede, 1 - T.vol * 0.8);
+    // 27/09: a da Odara segura o laco em zero do momento em que entrou ate o fim -- sem
+    // isso ele reaparecia baixinho enquanto ela se apagava
+    const tomou = T.cedeTudo && TEM_SOM && andando && somLigado ? rampa(T.de, T.de + 10, t) : 0;
+    cede = Math.min(cede, 1 - Math.max(T.vol * (T.cedeTudo ? 1 : 0.8), tomou));
   }
   return cede;
 }
@@ -14909,7 +14925,8 @@ function pararTrilhasDaCena(){
 function seguirTrilha(dt){
   const cede = seguirTrilhasDaCena(dt);   // 8.5
   if(!TEM_SOM) return;
-  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0) * cede;
+  // 27/09: o laco tambem se vai com o mundo -- a espera depois do fim fica em silencio
+  const alvo = volume * (relogio < trilhaBaixaAte ? 0.5 : 1.0) * cede * (1 - fimDaObra(t));
   trilhaVolAgora += (alvo - trilhaVolAgora) * (1 - Math.exp(-dt * (alvo < trilhaVolAgora ? 10 : 1.2)));
   const v = Math.max(0, Math.min(1, trilhaVolAgora));
   if(Math.abs(trilha.volume - v) > 0.002) trilha.volume = v;
