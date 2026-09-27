@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cabine · Raízes Cósmicas</title>
+<title>Cabine de Comando - Raízes Cósmicas</title>
 <link rel="icon" href="/icone.png">
 <style>
   :root{
@@ -78,7 +78,7 @@
 <body>
 <header>
   <img src="/icone.png" alt="">
-  <h1>Raízes Cósmicas <small>cabine de controle</small></h1>
+  <h1>Cabine de Comando <small id="versaoObra"></small> <small>- Raízes Cósmicas</small></h1>
   <div class="pills">
     <span class="pill" id="pServidor"><i></i>servidor</span>
     <span class="pill" id="pRede"><i></i>rede</span>
@@ -124,6 +124,9 @@
     <div class="kv">
       <b>ligação</b><span id="qVia">—</span>
       <b>bateria</b><span id="qBateria" class="num">—</span>
+      <b>duração</b><span id="qDura">—</span>
+      <b>consumo da obra</b><span id="qConsumo">—</span>
+      <b>powerbank</b><span id="qPowerbank">—</span>
       <b>ip do Quest</b><span id="qIp" class="mono">—</span>
       <b>túneis</b><span id="qTuneis">—</span>
     </div>
@@ -132,6 +135,13 @@
       <button id="bLiberar" onclick="acao('liberar_wifi')"><svg viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 19.5h.01M12 3v5"/></svg>Liberar Wi-Fi</button>
       <input type="text" id="ipWifi" placeholder="ip do Quest" class="mono" style="width:140px">
       <button onclick="acao('conectar_wifi',{ip:v('ipWifi')})">Conectar pela Wi-Fi</button>
+    </div>
+    <!-- 27/09: a capacidade do powerbank, como vem escrita nele -->
+    <div class="linha">
+      <span class="nota">powerbank de</span>
+      <input type="number" id="pbMah" min="1000" max="100000" step="1000" placeholder="10000" class="mono" style="width:110px">
+      <span class="nota">mAh</span>
+      <button onclick="acao('powerbank',{mah:v('pbMah')})">Guardar</button>
     </div>
     <div class="linha">
       <button onclick="acao('tuneis')">Refazer túneis</button>
@@ -238,6 +248,14 @@
       <button onclick="acao('projetar',{saida:saida(),monitor:'janela',espelhar:$('espelhar').checked,recorte:v('recorte')})" title="o mesmo que iria para o projetor, numa janela comum que se arrasta e redimensiona">Testar numa janela</button>
       <button class="perigo" onclick="acao('parar_projecao')">Parar projeção</button>
       <a class="nota" href="http://localhost:8765/projecao.html" target="_blank">abrir a projeção numa aba (F = tela cheia) ↗</a>
+    </div>
+    <!-- 27/09: gravar o espelho -->
+    <div class="linha">
+      <span class="nota">gravar o espelho</span>
+      <button class="durBt" id="grav1" onclick="acao('gravar',{ligar:true})" title="cada vez que o espelho abre vira um arquivo MP4 (a imagem do óculos e o som dele), em Filmes/Raízes Cósmicas">● Gravar</button>
+      <button class="durBt" id="grav0" onclick="acao('gravar',{ligar:false})">■ Parar</button>
+      <button onclick="acao('abrir_gravacoes')">Abrir gravações</button>
+      <span class="nota" id="gravInfo"></span>
     </div>
     <div class="kv">
       <b>projeção</b><span id="prEstado">—</span>
@@ -383,6 +401,40 @@ function desenhar(){
     $('durInfo').textContent = acontecendo ? 'no meio da obra não muda'
       : (onde.min ? 'a obra está em ' + onde.min + ' min' : 'escolhido: ' + esc + ' min');
   }
+  { // 27/09: "Cabine de Comando", com a versao no ar
+    if(estado.versao_obra){
+      const t = 'Cabine de Comando v' + estado.versao_obra + ' - Raízes Cósmicas';
+      if(document.title !== t) document.title = t;
+      $('versaoObra').textContent = 'v' + estado.versao_obra;
+    }
+  }
+  { // 27/09: a bateria do Quest e o powerbank
+    const en = estado.energia || {};
+    const hm = m => m == null ? '—' : (m >= 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min' : m + ' min');
+    let dura = '—';
+    if(en.nivel != null){
+      if(!en.fonte) dura = 'dura ~' + hm(en.dura_min) + ' neste ritmo · ~' + hm(en.dura_obra_min) + ' com a obra rodando';
+      else if(en.cheia_em_min != null) dura = 'carregando: cheia em ~' + hm(en.cheia_em_min);
+      else if(en.dura_min != null) dura = 'na fonte, mas descarregando: dura ~' + hm(en.dura_min);
+      else dura = 'na fonte (medindo…)';
+    }
+    $('qDura').textContent = dura;
+    $('qConsumo').textContent = en.nivel == null ? '—'
+      : '~' + en.consumo_obra_w + ' W com a obra (' + en.por_hora_obra + ' % da bateria por hora)'
+        + (en.consumo_obra_medido ? '' : ', estimado até medir fora da tomada') + ' · ~' + en.consumo_parada_w + ' W parada';
+    $('qPowerbank').textContent = en.nivel == null ? '—' : !en.fonte ? 'desligado (' + en.powerbank_mah + ' mAh)'
+      : 'entrega ~' + en.entrada_w + ' W: um de ' + en.powerbank_mah + ' mAh dura ~' + hm(en.powerbank_dura_min);
+    if(en.powerbank_mah && document.activeElement !== $('pbMah') && !$('pbMah').value) $('pbMah').value = en.powerbank_mah;
+  }
+  { // 27/09: gravar o espelho
+    const g = estado.gravacao || {};
+    $('grav1').classList.toggle('primario', !!g.ligada);
+    $('grav0').classList.toggle('primario', !g.ligada);
+    const desde = g.desde ? new Date(g.desde * 1000).toLocaleTimeString('pt-BR').slice(0, 5) : '';
+    $('gravInfo').textContent = !g.ligada ? ((g.ultimos && g.ultimos.length) ? 'última: ' + g.ultimos[0] : '')
+      : g.gravando ? '● gravando ' + (g.arquivo || '') + (desde ? ' desde ' + desde : '')
+      : 'ligada: grava quando o espelho abrir' + (g.livre_gb != null ? ' · ' + g.livre_gb + ' GB livres' : '');
+  }
   { // 27/09: o som do óculos também no amplificador
     const so = estado.som_oculos || {}, lig = so.ligado !== false;
     $('somOculos1').classList.toggle('primario', lig);
@@ -425,7 +477,8 @@ function desenhar(){
   $('qEstado').textContent = q.escolhido ? (q.via==='cabo'?'no cabo':'pela Wi-Fi') : (naoAut ? 'aguardando autorização' : 'nenhum ao alcance');
   $('qEstado').style.color = q.escolhido ? 'var(--ok)' : (naoAut ? 'var(--aviso)' : 'var(--texto2)');
   $('qVia').textContent = (q.lista||[]).map(a=>`${a.via} ${a.serial} (${a.estado})`).join(' · ') || '—';
-  $('qBateria').textContent = q.bateria!=null ? q.bateria+' %' : '—';
+  { const tq = (estado.energia || {}).temp;   // 27/09: e a temperatura, que sobe carregando em uso
+    $('qBateria').textContent = q.bateria!=null ? q.bateria+' %' + (tq ? ' · ' + tq + ' °C' + (tq >= 45 ? ' (quente)' : '') : '') : '—'; }
   $('qBateria').style.color = q.bateria!=null && q.bateria<25 ? 'var(--erro)' : '';
   $('qIp').textContent = q.ip || (q.escolhido ? 'fora de rede Wi-Fi' : '—');
   $('qTuneis').textContent = q.tuneis ? 'abertos (8765 obra · 9222 DevTools)' : (q.escolhido?'fechados':'—');

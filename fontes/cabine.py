@@ -30,6 +30,7 @@ primeira vez (e depois de cada reinício do Quest).
 
 Andaime de operação: a Cabine escuta só nesta máquina (127.0.0.1).
 """
+import glob
 import json
 import os
 import re
@@ -529,6 +530,120 @@ def achar_scrcpy():
     return None
 
 
+def ler_versao_obra():
+    """27/09: a versao no ar, para o titulo da Cabine -- o <title> do index.html ('Raizes Cosmicas 8.9')."""
+    try:
+        with open(os.path.join(RAIZ, "index.html"), encoding="utf-8") as f:
+            m = re.search(r"<title>Raízes Cósmicas ([^<]+)</title>", f.read(4000))
+        return m.group(1).strip() if m else ""
+    except OSError:
+        return ""
+
+
+# ── a bateria do Quest e o powerbank (27/09) ─────────────────────────────
+# "Coloca uma estimativa de tempo de duracao da bateria. E o quanto nossa aplicacao consome
+# da bateria do Meta Quest e do powerbank." O Quest nao deixa ler a corrente (o /sys da
+# bateria e fechado), mas o dumpsys battery da o contador de carga (uAh), a tensao e se ha
+# fonte ligada: a inclinacao do contador no tempo e a corrente que entra ou sai. Fora da
+# fonte ela e o consumo -- guardado a parte com a obra andando e parada. Na fonte (o
+# powerbank), e o que sobra para carregar: o powerbank entrega o consumo mais essa carga, e
+# perde uns 15 % na conversao. A capacidade dele (mAh, como vem escrita) se escolhe na Cabine.
+POWERBANK_ARQ = os.path.join(AQUI, "powerbank_mah.txt")
+ENERGIA = {"hist": [], "consumo": {"obra": None, "parada": None}}
+CONSUMO_PADRAO = {"obra": 10.0, "parada": 4.0}    # W, ate medir: Quest 3 em realidade mista
+EFICIENCIA_PB = 0.85
+
+
+def powerbank_mah():
+    try:
+        return max(1000, int(open(POWERBANK_ARQ, encoding="utf-8").read().strip()))
+    except (OSError, ValueError):
+        return 10000
+
+
+def ler_bateria(serial):
+    out = adb("shell", "dumpsys", "battery", serial=serial, timeout=8)
+
+    def num(chave):
+        m = re.search(r"^\s*" + chave + r":\s*(-?\d+)", out, re.M)
+        return int(m.group(1)) if m else None
+
+    def sim(chave):
+        m = re.search(r"^\s*" + chave + r":\s*(true|false)", out, re.M)
+        return bool(m and m.group(1) == "true")
+    return {"nivel": num("level"), "uah": num("Charge counter"), "mv": num("voltage"),
+            "temp": (num("temperature") or 0) / 10,
+            "fonte": sim("AC powered") or sim("USB powered") or sim("Wireless powered")}
+
+
+def inclinacao(pontos):
+    """minimos quadrados: [(t, y)] -> dy/dt"""
+    n = len(pontos)
+    mt = sum(p[0] for p in pontos) / n
+    my = sum(p[1] for p in pontos) / n
+    den = sum((p[0] - mt) ** 2 for p in pontos)
+    return sum((p[0] - mt) * (p[1] - my) for p in pontos) / den if den else 0.0
+
+
+def calcular_energia(b):
+    H = ENERGIA["hist"]
+    trecho = []                                    # o trecho recente: mesma fonte, mesmo estado da obra
+    for h in reversed(H):
+        if h["fonte"] != H[-1]["fonte"] or h["obra"] != H[-1]["obra"]:
+            break
+        trecho.append(h)
+    trecho.reverse()
+    v = (b["mv"] or 3850) / 1000
+    cheia_wh = ((b["uah"] / 1000) / (b["nivel"] / 100) if b["nivel"] else 5060) * 3.87 / 1000
+    agora_wh = b["uah"] / 1e6 * v
+    liquido = None                                 # W: + entrando na bateria, - saindo
+    if len(trecho) >= 4 and trecho[-1]["t"] - trecho[0]["t"] >= 100:
+        liquido = inclinacao([(h["t"], h["uah"]) for h in trecho]) * 3.6 / 1000 * v
+    estado = "obra" if H[-1]["obra"] else "parada"
+    if liquido is not None and not b["fonte"] and liquido < -0.3:
+        ant = ENERGIA["consumo"][estado]
+        ENERGIA["consumo"][estado] = -liquido if ant is None else ant * 0.6 - liquido * 0.4
+    c_obra = ENERGIA["consumo"]["obra"] or CONSUMO_PADRAO["obra"]
+    c_parada = ENERGIA["consumo"]["parada"] or CONSUMO_PADRAO["parada"]
+    consumo = c_obra if estado == "obra" else c_parada
+    r = {"nivel": b["nivel"], "temp": b["temp"], "fonte": b["fonte"], "estado": estado,
+         "consumo_obra_w": round(c_obra, 1), "consumo_obra_medido": ENERGIA["consumo"]["obra"] is not None,
+         "consumo_parada_w": round(c_parada, 1), "por_hora_obra": round(100 * c_obra / cheia_wh),
+         "liquido_w": round(liquido, 1) if liquido is not None else None, "powerbank_mah": powerbank_mah()}
+    if not b["fonte"]:
+        gasto = -liquido if liquido is not None and liquido < -0.3 else consumo
+        r["dura_min"] = round(agora_wh / gasto * 60)
+        r["dura_obra_min"] = round(agora_wh / c_obra * 60)
+    else:
+        entrada = max(0.5, consumo + (liquido or 0))   # o que o powerbank entrega
+        r["entrada_w"] = round(entrada, 1)
+        r["powerbank_dura_min"] = round(powerbank_mah() * 3.7 / 1000 * EFICIENCIA_PB / entrada * 60)
+        if liquido is not None and liquido > 0.3:
+            r["cheia_em_min"] = round((cheia_wh - agora_wh) / liquido * 60)
+        elif liquido is not None and liquido < -0.3:
+            r["dura_min"] = round(agora_wh / -liquido * 60)   # ligado, mas a fonte nao da conta
+    return r
+
+
+def vigiar_energia():
+    while True:
+        try:
+            s = ESTADO["quest"]["escolhido"]
+            if s:
+                b = ler_bateria(s)
+                if b["nivel"] and b["uah"]:
+                    o = ESTADO["obra"]
+                    andando = bool(o.get("aba") and not o.get("portao") and (o.get("onde") or {}).get("andando"))
+                    ENERGIA["hist"].append({"t": time.time(), "uah": b["uah"], "fonte": b["fonte"], "obra": andando})
+                    del ENERGIA["hist"][:-240]             # duas horas, de 30 em 30 s
+                    r = calcular_energia(b)
+                    with TRAVA:
+                        ESTADO["energia"] = r
+        except Exception as e:
+            log(f"energia: {e!r}")
+        time.sleep(30)
+
+
 def recorte_de_um_olho(serial):
     """O Quest manda a tela INTEIRA do painel: os dois olhos lado a lado
     (no Quest 3, 4128 x 2208 -- dois quadros de 2064 x 2208). Projetado
@@ -966,6 +1081,102 @@ def garantir_quiosque(m, e):
 AUTO_QUIOSQUE = None
 
 
+# ── gravar o espelho (27/09) ─────────────────────────────────────────────
+# "Coloca uma opcao de conseguir gravar o espelhamento na Cabine." Sem um segundo video
+# pela Wi-Fi (ela ja e estreita): e o proprio espelho do projetor que grava, com o som do
+# oculos junto (uma copia do que ele toca, que nao toca de novo no Mac). Ligada a gravacao,
+# cada vez que o espelho abre vira um arquivo -- no automatico, uma pessoa, um arquivo.
+# Grava em MKV (que sobrevive se a Wi-Fi derrubar o scrcpy) e, ao fechar, vira MP4 (H.264 +
+# AAC, abre em qualquer lugar) em Filmes/Raizes Cosmicas. A imagem sai como o oculos ve: um
+# olho, endireitado, sem a inversao da retroprojecao (essa e so da tela do projetor).
+PASTA_GRAVACOES = os.path.expanduser("~/Movies/Raízes Cósmicas")
+GRAVACAO = {"ligada": False, "proc": None, "arquivo": None, "desde": None, "ultimos": []}
+
+
+def args_de_gravacao():
+    """(o arquivo, os argumentos do scrcpy) quando a gravacao esta ligada; senao (None, None)."""
+    if not GRAVACAO["ligada"]:
+        return None, None
+    os.makedirs(PASTA_GRAVACOES, exist_ok=True)
+    mkv = os.path.join(PASTA_GRAVACOES, datetime.now().strftime("espelho %Y-%m-%d %H-%M-%S") + ".mkv")
+    return mkv, [f"--record={mkv}", "--audio-source=playback", "--audio-dup", "--no-audio-playback",
+                 "--audio-codec=aac", "--audio-bit-rate=128K"]
+
+
+def finalizar_gravacao(proc, mkv):
+    """Espera o espelho fechar (ou cair) e passa o MKV para MP4, sem recodificar."""
+    try:
+        proc.wait()
+    except Exception:
+        pass
+    if GRAVACAO["proc"] is proc:
+        GRAVACAO.update(proc=None, arquivo=None, desde=None)
+    time.sleep(0.5)
+    virar_mp4(mkv)
+
+
+def virar_mp4(mkv):
+    try:
+        if os.path.getsize(mkv) < 50_000:            # o espelho nem chegou a abrir
+            os.remove(mkv)
+            return
+    except OSError:
+        return
+    mp4 = mkv[:-4] + ".mp4"
+    ff = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+    _, cod = rodar([ff, "-hide_banner", "-loglevel", "error", "-y", "-i", mkv, "-c", "copy",
+                    "-movflags", "+faststart", mp4], timeout=900)
+    final = mkv
+    if cod == 0 and os.path.exists(mp4) and os.path.getsize(mp4) > 0:
+        os.remove(mkv)
+        final = mp4
+    GRAVACAO["ultimos"] = ([os.path.basename(final)] + GRAVACAO["ultimos"])[:8]
+    relatar(f"gravação salva: {os.path.basename(final)} ({os.path.getsize(final) / 1e6:.0f} MB, em Filmes/Raízes Cósmicas)")
+
+
+def gravar(ligar):
+    GRAVACAO["ligada"] = bool(ligar)
+    pr = ESTADO.get("projecao") or {}
+    if pr.get("ativa") and pr.get("saida") == "espelho":
+        # o espelho aberto reabre com (ou sem) a gravacao: uns segundos de piscada
+        global PROJECAO_PEDIDA
+        PROJECAO_PEDIDA = None
+        if pr.get("auto"):
+            projetar("espelho", PROJ_AUTO["monitor"], PROJ_AUTO["espelhar"], por_auto=True)
+        else:
+            m = "janela" if pr.get("monitor") == "janela de teste" else pr.get("monitor")
+            projetar("espelho", m, pr.get("espelhar"))
+        quando = "já"
+    else:
+        quando = "quando o espelho abrir"
+    relatar("gravação do espelho " + (f"ligada: grava {quando}; cada abertura do espelho vira um arquivo" if ligar else "desligada"))
+    return {"ok": True, "resposta": (f"gravando {quando}" if ligar else "gravação desligada")}
+
+
+def vigiar_gravacao():
+    avisou = False
+    for mkv in glob.glob(os.path.join(PASTA_GRAVACOES, "*.mkv")):   # sobras de uma Cabine que fechou gravando
+        virar_mp4(mkv)
+    while True:
+        try:
+            p = GRAVACAO["proc"]
+            gravando = bool(p and p.poll() is None)
+            livre = shutil.disk_usage(os.path.expanduser("~")).free / 1e9
+            if GRAVACAO["ligada"] and livre < 2:
+                GRAVACAO["ligada"] = False
+                relatar(f"gravação desligada sozinha: só {livre:.1f} GB livres no Mac")
+            elif GRAVACAO["ligada"] and livre < 5 and not avisou:
+                avisou = True
+                relatar(f"atenção: {livre:.1f} GB livres no Mac (a gravação gasta uns 30 MB por minuto)")
+            with TRAVA:
+                ESTADO["gravacao"] = {"ligada": GRAVACAO["ligada"], "gravando": gravando,
+                                      "arquivo": os.path.basename(GRAVACAO["arquivo"])[:-4] if gravando and GRAVACAO["arquivo"] else None,
+                                      "desde": GRAVACAO["desde"], "livre_gb": round(livre, 1), "ultimos": GRAVACAO["ultimos"][:5]}
+        except Exception as e:
+            log(f"gravacao: {e!r}")
+        time.sleep(2)
+
+
 def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
     if saida == "auto":
         PROJ_AUTO.update(ativo=True, monitor=monitor, espelhar=bool(espelhar), modo=None)
@@ -1087,9 +1298,16 @@ def projetar(saida, monitor, espelhar=False, recorte="", por_auto=False):
         # so um monitor ligado: o espelho cobriria a propria tela da Cabine
         if not janela and alvo.get("principal") and len(lista) == 1:
             relatar("projeção: só há um monitor ligado -- ligue o projetor e ponha o Windows em Estender (tecla Windows + P)")
+        mkv, grav = args_de_gravacao()            # 27/09: gravar o espelho (com o som do oculos)
+        if grav:
+            args = [a for a in args if a != "--no-audio"] + grav
         PROJECAO = subprocess.Popen(args, env=dict(os.environ, ADB=ADB), creationflags=SEM_JANELA)
         relatar(f"projeção (espelho do óculos) aberta {onde}" + (f", recorte {recorte}" if recorte else "")
                 + (", espelhada" if espelhar else ""))
+        if mkv:
+            GRAVACAO.update(proc=PROJECAO, arquivo=mkv, desde=time.time())
+            threading.Thread(target=finalizar_gravacao, args=(PROJECAO, mkv), daemon=True).start()
+            relatar("gravando o espelho: " + os.path.basename(mkv)[:-4])
     else:
         return {"ok": False, "erro": f"saída desconhecida: {saida}"}
     with TRAVA:
@@ -1507,6 +1725,22 @@ def agir(nome, dados):
         return espelhar(s)
     elif nome == "projetar":
         return projetar(dados.get("saida", "pagina"), dados.get("monitor"), bool(dados.get("espelhar")), dados.get("recorte", ""))
+    elif nome == "powerbank":
+        try:
+            mah = int(float(dados.get("mah") or 0))
+        except ValueError:
+            mah = 0
+        if not 1000 <= mah <= 100000:
+            return {"ok": False, "erro": "a capacidade do powerbank em mAh, entre 1.000 e 100.000"}
+        with open(POWERBANK_ARQ, "w", encoding="utf-8") as f:
+            f.write(str(mah))
+        return {"ok": True, "resposta": f"powerbank de {mah} mAh"}
+    elif nome == "gravar":
+        return gravar(bool(dados.get("ligar")))
+    elif nome == "abrir_gravacoes":
+        os.makedirs(PASTA_GRAVACOES, exist_ok=True)
+        rodar(["open", PASTA_GRAVACOES], timeout=10)
+        return {"ok": True}
     elif nome == "som_oculos":
         ligar = bool(dados.get("ligar"))
         with open(SOM_OCULOS_ARQ, "w", encoding="utf-8") as f:
@@ -1786,6 +2020,7 @@ def sincronizar(motivo="ciclo"):
     if antes.strip() != depois.strip():
         titulo, _ = rodar(["git", "-C", RAIZ, "log", "-1", "--format=%s"], timeout=10)
         relatar(f"atualizado do GitHub ({motivo}): {antes.strip()} → {depois.strip()} · {titulo.strip()[:90]}")
+        ESTADO["versao_obra"] = ler_versao_obra()   # 27/09: o titulo da Cabine acompanha
     return {"ok": not falhou, "commit": SYNC["commit"], "mudou": antes.strip() != depois.strip(), "aviso": SYNC["aviso"]}
 
 
@@ -1894,6 +2129,8 @@ def main():
         except Exception:
             pass
     threading.Thread(target=sincronizar_sempre, daemon=True).start()
+    threading.Thread(target=vigiar_gravacao, daemon=True).start()   # 27/09
+    ESTADO["versao_obra"] = ler_versao_obra()                        # 27/09: "Cabine de Comando" com a versao
     ESTADO["duracao_min"] = minutos_escolhidos()
     if os.path.exists(os.path.join(RAIZ, "proxima.html")):   # uma proxima ja preparada antes
         PROXIMA.update(estado="pronta", msg="preparada antes — abra no Quest para conferir")
@@ -1904,6 +2141,7 @@ def main():
         # 27/09: o som do oculos tambem no amplificador (nenhuma copia sobrando de antes)
         rodar(["pkill", "-f", "scrcpy.*audio-dup"], timeout=5)
         threading.Thread(target=vigiar_som_oculos, daemon=True).start()
+        threading.Thread(target=vigiar_energia, daemon=True).start()   # 27/09: bateria e powerbank
     servidor = ThreadingHTTPServer(("127.0.0.1", PORTA_CABINE), Cabine)
     servidor.daemon_threads = True
     if abrir:
