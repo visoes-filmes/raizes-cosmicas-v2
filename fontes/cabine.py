@@ -1153,6 +1153,9 @@ def gravar(ligar):
     return {"ok": True, "resposta": (f"gravando {quando}" if ligar else "gravação desligada")}
 
 
+VERSAO_LIDA = [0.0]   # quando o index.html foi lido pela ultima vez (27/09)
+
+
 def vigiar_gravacao():
     avisou = False
     for mkv in glob.glob(os.path.join(PASTA_GRAVACOES, "*.mkv")):   # sobras de uma Cabine que fechou gravando
@@ -1168,6 +1171,14 @@ def vigiar_gravacao():
             elif GRAVACAO["ligada"] and livre < 5 and not avisou:
                 avisou = True
                 relatar(f"atenção: {livre:.1f} GB livres no Mac (a gravação gasta uns 30 MB por minuto)")
+            # 27/09: a versao no titulo acompanha a obra montada aqui (sem esperar reinicio nem GitHub)
+            try:
+                mt = os.path.getmtime(os.path.join(RAIZ, "index.html"))
+                if mt != VERSAO_LIDA[0]:
+                    VERSAO_LIDA[0] = mt
+                    ESTADO["versao_obra"] = ler_versao_obra()
+            except OSError:
+                pass
             with TRAVA:
                 ESTADO["gravacao"] = {"ligada": GRAVACAO["ligada"], "gravando": gravando,
                                       "arquivo": os.path.basename(GRAVACAO["arquivo"])[:-4] if gravando and GRAVACAO["arquivo"] else None,
