@@ -13866,7 +13866,7 @@ bCentrar.onclick = () => { giroCel.yaw0 = null; giroCel.extra = 0; tYaw = 0; tPi
    "Quando vira na horizontal fica parecendo botao de reiniciar, so aparece no final." No
    celular, reiniciar e encerrar so aparecem quando a obra acabou (seguirBotoesDoCelular). */
 let selfie = false, arNoCelular = false, emRAdoCelular = false, trocaDeModo = null;
-const chaoRA = { fonte:null, base:null, achado:false, y:0, primeiroEm:0 };
+const chaoRA = { fonte:null, base:null, achado:false, y:0, primeiroEm:0, esperandoObra:false, desde:0 };
 const eDicaCelular = document.getElementById('dicaCelular');
 function dicaNoCelular(txt, seg){
   if(!eDicaCelular) return;
@@ -13963,8 +13963,13 @@ async function entrarRAnoCelular(continuar){
     sessao.addEventListener('selectend', e => { const i = Array.prototype.indexOf.call(sessao.inputSources, e.inputSource); if(MAOS[i]) MAOS[i].apertando = false; });
     sessao.requestAnimationFrame(quadroXR);
     relato('CELULAR-RA abriu' + (continuar ? ' (continuando)' : ''));
-    dicaNoCelular('aponte o celular para o chão e mova devagar', 0);
-    if(!continuar) iniciarObra();
+    /* 9.0 -- O ESCANEAMENTO ANTES DE COMECAR (28/09: "voce tem que fazer um escaneamento do lugar,
+       pra trackear melhor"). A obra so parte depois de o celular achar o chao: enquanto isso o
+       ARCore le o lugar (quanto mais o aparelho se mexe, melhor ele se prende), e a tela diz o
+       que fazer. Quinze segundos sem chao e ela parte assim mesmo, pela altura do celular. */
+    if(!continuar){ chaoRA.esperandoObra = true; chaoRA.desde = performance.now(); }
+    dicaNoCelular(continuar ? 'aponte o celular para o chão e mova devagar'
+                            : 'escaneando o lugar: aponte o celular para o chão e mova devagar, de um lado para o outro', 0);
     return true;
   }catch(erro){
     relato('CELULAR-RA-CAIU ' + (erro && (erro.name + ': ' + String(erro.message).slice(0, 80))));
@@ -13976,6 +13981,10 @@ async function entrarRAnoCelular(continuar){
 }
 /* o chao de verdade: a cada quadro ate achar. A normal do plano e o eixo y da pose do acerto. */
 function acharOChaoRA(frame){
+  if(chaoRA.esperandoObra && performance.now() - chaoRA.desde > 15000){   // 9.0: sem chao em 15 s, parte assim mesmo
+    chaoRA.esperandoObra = false; iniciarObra();
+    dicaNoCelular('não achei o chão: a obra começou pela altura do celular', 5);
+  }
   if(!chaoRA.fonte || chaoRA.achado || !chaoRA.base) return;
   const rs = frame.getHitTestResults(chaoRA.fonte);
   for(const r of rs){
@@ -13992,14 +14001,15 @@ function acharOChaoRA(frame){
     espaco = chaoRA.base.getOffsetReferenceSpace(new XRRigidTransform({ x: 0, y: chaoRA.y, z: 0 }));
     mundoOrientado = false;   // a obra se orienta de novo, ja no chao certo
     relato('CELULAR-RA chao a ' + chaoRA.y.toFixed(2) + ' m do celular');
-    dicaNoCelular('chão encontrado: ande pela sala e toque nas coisas', 4);
+    if(chaoRA.esperandoObra){ chaoRA.esperandoObra = false; iniciarObra(); }   // 9.0: o lugar foi lido -- agora a obra parte
+    dicaNoCelular('lugar escaneado: ande pela sala e toque nas coisas', 4);
     try{ chaoRA.fonte.cancel(); }catch(e){}
     chaoRA.fonte = null;
   }
 }
 function aoFimDaRAdoCelular(){
   emXR = false; sessao = null; emRAdoCelular = false; mundoOrientado = false;
-  chaoRA.fonte = null; chaoRA.achado = false;
+  chaoRA.fonte = null; chaoRA.achado = false; chaoRA.esperandoObra = false;
   TAXA_ALVO = 72;
   document.body.classList.remove('ra');
   if(trocaDeModo === 'selfie'){
